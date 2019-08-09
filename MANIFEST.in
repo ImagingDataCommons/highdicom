@@ -1,0 +1,6 @@
+include src/highdicom/*
+include src/highdicom/legacy/*
+include src/highdicom/seg/*
+include src/highdicom/sr/*
+include src/highdicom/tests/*
+include src/highdicom/data/*
