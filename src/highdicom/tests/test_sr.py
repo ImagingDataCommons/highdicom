@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
 
+import numpy as np
 import pytest
 
 from pydicom.dataset import Dataset
@@ -481,7 +482,7 @@ class TestContentItem(unittest.TestCase):
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypes.POINT
-        graphic_data = [[1.0, 1.0]]
+        graphic_data = np.array([[1.0, 1.0]])
         pixel_origin_interpretation = 'FRAME'
         i = ScoordContentItem(
             name=name,
@@ -492,7 +493,7 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.GraphicType == graphic_type.value
-        assert i.GraphicData == graphic_data[0]  # flattend
+        assert i.GraphicData == graphic_data.flatten().tolist()
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
             i.FiducialUID
@@ -500,7 +501,7 @@ class TestContentItem(unittest.TestCase):
     def test_scoord_item_construction_circle(self):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypes.CIRCLE
-        graphic_data = [[1.0, 1.0], [2.0, 2.0]]
+        graphic_data = np.array([[1.0, 1.0], [2.0, 2.0]])
         pixel_origin_interpretation = 'VOLUME'
         i = ScoordContentItem(
             name=name,
@@ -511,7 +512,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.GraphicType == graphic_type.value
-        assert i.GraphicData == graphic_data[0] + graphic_data[1]  # flattend
+        assert np.all(i.GraphicData[:2] == graphic_data[0, :])
+        assert np.all(i.GraphicData[2:4] == graphic_data[1, :])
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
             i.FiducialUID
@@ -519,7 +521,7 @@ class TestContentItem(unittest.TestCase):
     def test_scoord3d_item_construction_point(self):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypes3D.POINT
-        graphic_data = [[1.0, 1.0, 1.0]]
+        graphic_data = np.array([[1.0, 1.0, 1.0]])
         frame_of_reference_uid = '1.2.3'
         i = Scoord3DContentItem(
             name=name,
@@ -530,7 +532,7 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.GraphicType == graphic_type.value
-        assert i.GraphicData == graphic_data[0]  # flattend
+        assert np.all(i.GraphicData == graphic_data[0, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
             i.FiducialUID
@@ -538,7 +540,9 @@ class TestContentItem(unittest.TestCase):
     def test_scoord3d_item_construction_polygon(self):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypes3D.POLYGON
-        graphic_data = [[1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 1.0, 1.0]]
+        graphic_data = np.array([
+            [1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 1.0, 1.0]
+        ])
         frame_of_reference_uid = '1.2.3'
         i = Scoord3DContentItem(
             name=name,
@@ -549,7 +553,9 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.GraphicType == graphic_type.value
-        assert i.GraphicData == graphic_data[0] + graphic_data[1] + graphic_data[2]
+        assert np.all(i.GraphicData[:3] == graphic_data[0, :])
+        assert np.all(i.GraphicData[3:6] == graphic_data[1, :])
+        assert np.all(i.GraphicData[6:9] == graphic_data[2, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
             i.FiducialUID
@@ -559,6 +565,7 @@ class TestContentSequence(unittest.TestCase):
 
     def setUp(self):
         super(TestContentSequence, self).setUp()
+
 
 class TestObservationContext(unittest.TestCase):
 
@@ -772,7 +779,7 @@ class TestMeasurementOptional(unittest.TestCase):
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypes.POINT,
-            graphic_data=[[1.0, 1.0]],
+            graphic_data=np.array([[1.0, 1.0]]),
             source_image=self._image
         )
         self._name = codes.cid7469.Area
@@ -964,7 +971,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypes.CIRCLE,
-            graphic_data=[[1.0, 1.0], [2.0, 2.0]],
+            graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image
         )
         self._measurements = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -1016,7 +1023,9 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._regions = [
             ImageRegion(
                 graphic_type=GraphicTypes.POLYLINE,
-                graphic_data=[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [1.0, 1.0]],
+                graphic_data=np.array([
+                    [1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [1.0, 1.0]
+                ]),
                 source_image=self._images[i]
             )
             for i in range(3)
@@ -1033,11 +1042,11 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         volume = VolumeSurface(
             graphic_type=GraphicTypes3D.ELLIPSOID,
-            graphic_data=[
+            graphic_data=np.array([
                 [1.0, 2.0, 2.0], [3.0, 2.0, 2.0],
                 [2.0, 1.0, 2.0], [2.0, 3.0, 2.0],
                 [2.0, 2.0, 1.0], [2.0, 2.0, 3.0],
-            ],
+            ]),
             source_images=[image],
             frame_of_reference_uid=generate_uid()
         )
@@ -1094,7 +1103,7 @@ class TestMeasurementReport(unittest.TestCase):
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypes.CIRCLE,
-            graphic_data=[[1.0, 1.0], [2.0, 2.0]],
+            graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image
         )
         self._measurements = PlanarROIMeasurementsAndQualitativeEvaluations(

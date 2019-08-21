@@ -50,6 +50,7 @@ setuptools.setup(
         'tox>=2.9'
     ],
     install_requires=[
-        'pydicom>=1.0'
-    ]
+        'pydicom>=1.0',
+        'numpy>=1.0',
+    ],
 )

@@ -3,6 +3,7 @@ import datetime
 from collections import namedtuple
 from typing import Any, Optional, Sequence, Union
 
+import numpy as np
 from pydicom.coding import Code
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
@@ -657,7 +658,7 @@ class ScoordContentItem(ContentItem):
             self,
             name: Union[Code, CodedConcept],
             graphic_type: Union[str, GraphicTypes],
-            graphic_data: Sequence[Sequence[Union[int, float]]],
+            graphic_data: np.ndarray,
             pixel_origin_interpretation: Union[str, PixelOriginInterpretations],
             fiducial_uid: Optional[Union[str, UID]] = None,
             relationship_type: Optional[Union[str, RelationshipTypes]] = None
@@ -669,8 +670,9 @@ class ScoordContentItem(ContentItem):
             concept name
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
-        graphic_data: Union[Sequence[Sequence[Union[int, float]]], Sequence[Union[int, float]]]
-            ordered (column, row) coordinate pairs
+        graphic_data: numpy.ndarray[numpy.int]
+            array of coordinate pairs, where rows of the array represent points
+            and columns of the array represent (column, row) coordinates
         pixel_origin_interpretation: Union[highdicom.sr.value_types.PixelOriginInterpretations, str]
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
@@ -692,60 +694,43 @@ class ScoordContentItem(ContentItem):
         )
         self.GraphicType = graphic_type.value
 
-        def is_point(coordinate):
-            try:
-                return all([
-                    isinstance(coordinate, (list, tuple, )),
-                    len(coordinate) == 2,
-                    all(isinstance(c, (int, float, )) for c in coordinate),
-                ])
-            except IndexError:
-                return False
-
-        are_all_points = all(
-            is_point(coordinates)
-            for coordinates in graphic_data
-        )
         if graphic_type == GraphicTypes.POINT:
-            if len(graphic_data) != 1 or not(are_all_points):
+            if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "POINT" '
                     'must be a single (column row) pair in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypes.CIRCLE:
-            if len(graphic_data) != 2 or not(are_all_points):
+            if graphic_data.shape[0] != 2 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "CIRCLE" '
                     'must be two (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypes.ELLIPSE:
-            if len(graphic_data) != 4 or not(are_all_points):
+            if graphic_data.shape[0] != 4 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "ELLIPSE" '
                     'must be four (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypes.ELLIPSOID:
-            if len(graphic_data) != 6 or not(are_all_points):
+            if graphic_data.shape[0] != 6 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "ELLIPSOID" '
                     'must be six (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
         else:
-            if not len(graphic_data) > 1 or not(are_all_points):
+            if not graphic_data.shape[0] > 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord must be multiple '
                     '(column, row) pairs in two-dimensional image '
                     'coordinate space.'
                 )
         # Flatten list of coordinate pairs
-        self.GraphicData = [
-            float(coordinate) for pair in graphic_data
-            for coordinate in pair
-        ]
+        self.GraphicData = graphic_data.flatten().tolist()
         self.PixelOriginInterpretation = pixel_origin_interpretation.value
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
@@ -766,7 +751,7 @@ class Scoord3DContentItem(ContentItem):
             self,
             name: Union[Code, CodedConcept],
             graphic_type: Union[str, GraphicTypes],
-            graphic_data: Sequence[Sequence[float]],
+            graphic_data: np.ndarray,
             frame_of_reference_uid: Union[str, UID],
             fiducial_uid: Optional[Union[str, UID]] = None,
             relationship_type: Optional[Union[str, RelationshipTypes]] = None
@@ -778,8 +763,9 @@ class Scoord3DContentItem(ContentItem):
             concept name
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
-        graphic_data: Sequence[Sequence[float]]
-            ordered set of (x, y, z) coordinate triplets
+        graphic_data: numpy.ndarray[numpy.float]
+            array of coordinate triplets, where rows of the array represent
+            points and columns of the array represent (x, y, z) coordinates
         frame_of_reference_uid: Union[pydicom.uid.UID, str]
             unique identifier of the frame of reference within which the
             coordinates are defined
@@ -810,38 +796,35 @@ class Scoord3DContentItem(ContentItem):
             for coordinates in graphic_data
         )
         if graphic_type == GraphicTypes3D.POINT:
-            if len(graphic_data) != 1 or not(are_all_points):
+            if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 3:
                 raise ValueError(
                     'Graphic data of a scoord 3D of graphic type "POINT" '
                     'must be a single point in three-dimensional patient or '
                     'slide coordinate space in form of a (x, y, z) triplet.'
                 )
         elif graphic_type == GraphicTypes3D.ELLIPSE:
-            if len(graphic_data) != 4 or not(are_all_points):
+            if graphic_data.shape[0] != 4 or not graphic_data.shape[1] == 3:
                 raise ValueError(
                     'Graphic data of a 3D scoord of graphic type "ELLIPSE" '
                     'must be four (x, y, z) triplets in three-dimensional '
                     'patient or slide coordinate space.'
                 )
         elif graphic_type == GraphicTypes3D.ELLIPSOID:
-            if len(graphic_data) != 6 or not(are_all_points):
+            if graphic_data.shape[0] != 6 or not graphic_data.shape[1] == 3:
                 raise ValueError(
                     'Graphic data of a 3D scoord of graphic type '
                     '"ELLIPSOID" must be six (x, y, z) triplets in '
                     'three-dimensional patient or slide coordinate space.'
                 )
         else:
-            if not len(graphic_data) > 1 or not(are_all_points):
+            if not graphic_data.shape[0] > 1 or not graphic_data.shape[1] == 3:
                 raise ValueError(
                     'Graphic data of a 3D scoord must be multiple '
                     '(x, y, z) triplets in three-dimensional patient or '
                     'slide coordinate space.'
                 )
         # Flatten list of coordinate triplets
-        self.GraphicData = [
-            float(coordinate) for triplet in graphic_data
-            for coordinate in triplet
-        ]
+        self.GraphicData = graphic_data.flatten().tolist()
         self.ReferencedFrameOfReferenceUID = frame_of_reference_uid
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
