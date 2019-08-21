@@ -1,4 +1,4 @@
-"""Module for Segmentation image SOP classes"""
+"""Module for the SOP class of the Segmentation IOD."""
 
 import datetime
 import logging
@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 
 class Segmentation(SOPClass):
 
-    """SOP class for a Segmentation (SEG)."""
+    """SOP class for a Segmentation, which respresents one or more
+    regions of interst (ROIs) as mask images (raster graphics).
+    """
 
     def __init__(
         self,
