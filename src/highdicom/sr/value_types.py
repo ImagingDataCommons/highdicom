@@ -671,8 +671,8 @@ class ScoordContentItem(ContentItem):
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.int]
-            array of coordinate pairs, where rows of the array represent points
-            and columns of the array represent (column, row) coordinates
+            array of spatial coordinates, where each row of the array
+            represents a (column, row) coordinate pair
         pixel_origin_interpretation: Union[highdicom.sr.value_types.PixelOriginInterpretations, str]
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
@@ -764,8 +764,8 @@ class Scoord3DContentItem(ContentItem):
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.float]
-            array of coordinate triplets, where rows of the array represent
-            points and columns of the array represent (x, y, z) coordinates
+            array of spatial coordinates, where each row of the array
+            represents a (x, y, z) coordinate triplet
         frame_of_reference_uid: Union[pydicom.uid.UID, str]
             unique identifier of the frame of reference within which the
             coordinates are defined
