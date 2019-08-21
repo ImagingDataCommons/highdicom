@@ -1,17 +1,18 @@
-"""Module for SR document SOP classes"""
+"""Module for SOP Classes of Structured Report (SR) IODs."""
 
 import collections
 import datetime
 import logging
 from typing import Optional, Sequence, Union
 
+from pydicom.coding import Code
 from pydicom.dataset import Dataset
 from pydicom.uid import PYDICOM_IMPLEMENTATION_UID, ExplicitVRLittleEndian
 from pydicom.valuerep import DA, DT, TM
 from pydicom._storage_sopclass_uids import Comprehensive3DSRStorage
-from pydicom.sr.coding import Code, CodedConcept
 
 from highdicom.base import SOPClass
+from highdicom.sr.coding import CodedConcept
 
 
 logger = logging.getLogger(__name__)
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 class Comprehensive3DSR(SOPClass):
 
-    """SOP class for a Comprehensive 3D Structured Report (SR), whose content
-    may include textual and a variety of coded information, numeric
+    """SOP class for a Comprehensive 3D Structured Report (SR) document, whose
+    content may include textual and a variety of coded information, numeric
     measurement values, references to SOP Instances, as well as 2D or 3D
     spatial or temporal regions of interest within such SOP Instances.
     """
@@ -29,7 +30,6 @@ class Comprehensive3DSR(SOPClass):
                  content: Dataset,
                  series_instance_uid: str,
                  series_number: int,
-                 series_description: str,
                  sop_instance_uid: str,
                  instance_number: int,
                  manufacturer: str,
@@ -58,19 +58,10 @@ class Comprehensive3DSR(SOPClass):
             Series Instance UID of the SR document series
         series_number: Union[int, None]
             Series Number of the SR document series
-        series_description: str
-            Series Description of the SR document series
-            (may be freetext or a code sequence)
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SR document instance
         instance_number: int
             number that should be assigned to this SR document instance
-        institution_name: str, optional
-            name of the institution of the person or device that creates the
-            SR document instance
-        institutional_department_name: str, optional
-            name of the department of the person or device that creates the
-            SR document instance
         manufacturer: str
             name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
@@ -83,6 +74,12 @@ class Comprehensive3DSR(SOPClass):
         is_verified: bool, optional
             whether the report has been verified by an observer accountable
             for its content (default: ``False``)
+        institution_name: str, optional
+            name of the institution of the person or device that creates the
+            SR document instance
+        institutional_department_name: str, optional
+            name of the department of the person or device that creates the
+            SR document instance
         verifying_observer_name: Union[str, None], optional
             name of the person that verfied the SR document
             (required if `is_verified`)
@@ -100,26 +97,32 @@ class Comprehensive3DSR(SOPClass):
             whether provided `evidence` should be recorded, i.e. included
             in Pertinent Other Evidence Sequence (default: ``True``)
 
+        Note
+        ----
+        Each dataset in `evidence` must be part of the same study.
+
         """
-        super(Comprehensive3DSR, self).__init__()
-        self.SOPClassUID = Comprehensive3DSRStorage
-        self.SOPInstanceUID = str(sop_instance_uid)
+        super(Comprehensive3DSR, self).__init__(
+            study_instance_uid=evidence[0].StudyInstanceUID,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            sop_class_uid=Comprehensive3DSRStorage,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            modality='SR',
+            transfer_syntax_uid=None,
+            patient_id=evidence[0].PatientID,
+            patient_name=evidence[0].PatientName,
+            patient_birth_date=evidence[0].PatientBirthDate,
+            patient_sex=evidence[0].PatientSex,
+            accession_number=evidence[0].AccessionNumber,
+            study_id=evidence[0].StudyID,
+            study_date=evidence[0].StudyDate,
+            study_time=evidence[0].StudyTime,
+            referring_physician_name=evidence[0].ReferringPhysicianName
+        )
 
-        self.is_implicit_VR = False
-        self.is_little_endian = True
-        self.preamble = b'\x00' * 128
-        self.file_meta = Dataset()
-        self.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
-        self.file_meta.FileMetaInformationVersion = b'\x00\x01'
-        self.fix_meta_info(enforce_standard=True)
-
-        self.Modality = 'SR'
-        self.SeriesDescription = str(series_description)
-        self.SeriesInstanceUID = str(series_instance_uid)
-        self.SeriesNumber = series_number
-        self.InstanceNumber = instance_number
-
-        self.Manufacturer = manufacturer
         if institution_name is not None:
             self.InstitutionName = institution_name
             if institutional_department_name is not None:
@@ -154,8 +157,6 @@ class Comprehensive3DSR(SOPClass):
         else:
             self.PreliminaryFlag = 'PRELIMINARY'
 
-        self.ContentDate = DA(now.date())
-        self.ContentTime = TM(now.time())
         # Add content
         for tag, value in content.items():
             self[tag] = value
@@ -218,4 +219,4 @@ class Comprehensive3DSR(SOPClass):
         # TODO
         self.ReferencedPerformedProcedureStepSequence = []
 
-        self.copy_attributes_from(evidence[0])
+        self.copy_patient_and_study_information(evidence[0])

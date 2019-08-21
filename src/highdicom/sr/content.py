@@ -1,8 +1,9 @@
-"""Custom content items derived from DICOM value types."""
+"""Content items for Structured Report instances."""
 from typing import Optional, Sequence, Union
 
-from pydicom.sr.coding import Code, CodedConcept
-from pydicom.sr.value_types import (
+from pydicom.coding import Code
+from highdicom.sr.coding import CodedConcept
+from highdicom.sr.value_types import (
     CodeContentItem,
     CompositeContentItem,
     ContentSequence,

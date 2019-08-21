@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime
+from typing import Optional, Union
 
-from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag
+from pydicom.dataset import Dataset
+from pydicom.uid import ImplicitVRLittleEndian
 from pydicom.valuerep import DA, DT, TM
 
 
@@ -136,6 +138,7 @@ class SOPClass(Dataset):
         Additional optional attributes can subsequently be added to the dataset.
 
         """
+        super(SOPClass, self).__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian
         self.is_implicit_VR = False
@@ -143,8 +146,8 @@ class SOPClass(Dataset):
         self.preamble = b'\x00' * 128
         self.file_meta = Dataset()
         self.file_meta.TransferSyntaxUID = transfer_syntax_uid
-        self.file_meta.SOPClassUID = str(sop_class_uid)
-        self.file_meta.SOPInstanceUID = str(sop_instance_uid)
+        self.file_meta.MediaStorageSOPClassUID = str(sop_class_uid)
+        self.file_meta.MediaStorageSOPInstanceUID = str(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
         self.fix_meta_info(enforce_standard=True)
 
@@ -174,8 +177,8 @@ class SOPClass(Dataset):
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         self.InstanceNumber = instance_number
-        self.ContentDate = DA(now.date())
-        self.ContentTime = TM(now.time())
+        self.ContentDate = DA(datetime.now().date())
+        self.ContentTime = TM(datetime.now().time())
 
     def _copy_attribute(self, dataset: Dataset, tag: str):
         """Copies an attribute from `dataset` to `self`.
@@ -193,7 +196,7 @@ class SOPClass(Dataset):
             data_element = dataset[tag]
             logger.debug('copied attribute "{}"'.format(keyword))
         except KeyError:
-            continue
+            return
         self.add(data_element)
 
     def copy_patient_and_study_information(self, dataset: Dataset):
@@ -212,13 +215,13 @@ class SOPClass(Dataset):
                 dataset.SOPInstanceUID
             )
         )
-        [self._copy_attribute(tag) for tag in _PATIENT_ATTRIBUTES_TO_COPY]
+        [self._copy_attribute(dataset, tag) for tag in _PATIENT_ATTRIBUTES_TO_COPY]
         logger.info(
             'copy study-related attributes from dataset "{}"'.format(
                 dataset.SOPInstanceUID
             )
         )
-        [self._copy_attribute(tag) for tag in _STUDY_ATTRIBUTES_TO_COPY]
+        [self._copy_attribute(dataset, tag) for tag in _STUDY_ATTRIBUTES_TO_COPY]
 
     def copy_specimen_information(self, dataset: Dataset):
         """Copies specimen-related metadata from `dataset` that

@@ -1,8 +1,11 @@
 """DICOM structured reporting templates."""
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence
-from pydicom.sr.coding import Code, CodedConcept
-from pydicom.sr.value_types import (
+from pydicom.coding import Code
+from pydicom.codedict import codes
+
+from highdicom.sr.coding import CodedConcept
+from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
     ContentSequence,
@@ -12,9 +15,8 @@ from pydicom.sr.value_types import (
     TextContentItem,
     UIDRefContentItem,
 )
-from pydicom.sr import codes
 
-from highdicom.sr.content_items import (
+from highdicom.sr.content import (
     FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
