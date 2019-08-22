@@ -180,7 +180,7 @@ class SOPClass(Dataset):
         self.ContentDate = DA(datetime.now().date())
         self.ContentTime = TM(datetime.now().time())
 
-    def _copy_attribute(self, dataset: Dataset, tag: str):
+    def _copy_attr(self, dataset: Dataset, tag: str):
         """Copies an attribute from `dataset` to `self`.
 
         Parameters
@@ -197,6 +197,7 @@ class SOPClass(Dataset):
             logger.debug('copied attribute "{}"'.format(keyword))
         except KeyError:
             return
+        print(keyword, type(data_element.value))
         self.add(data_element)
 
     def copy_patient_and_study_information(self, dataset: Dataset):
@@ -215,13 +216,13 @@ class SOPClass(Dataset):
                 dataset.SOPInstanceUID
             )
         )
-        [self._copy_attribute(dataset, tag) for tag in _PATIENT_ATTRIBUTES_TO_COPY]
+        [self._copy_attr(dataset, tag) for tag in _PATIENT_ATTRIBUTES_TO_COPY]
         logger.info(
             'copy study-related attributes from dataset "{}"'.format(
                 dataset.SOPInstanceUID
             )
         )
-        [self._copy_attribute(dataset, tag) for tag in _STUDY_ATTRIBUTES_TO_COPY]
+        [self._copy_attr(dataset, tag) for tag in _STUDY_ATTRIBUTES_TO_COPY]
 
     def copy_specimen_information(self, dataset: Dataset):
         """Copies specimen-related metadata from `dataset` that
@@ -238,4 +239,4 @@ class SOPClass(Dataset):
                 dataset.SOPInstanceUID
             )
         )
-        [self._copy_attribute(tag) for tag in _SPECIMEN_ATTRIBUTES_TO_COPY]
+        [self._copy_attr(dataset, tag) for tag in _SPECIMEN_ATTRIBUTES_TO_COPY]

@@ -2,10 +2,9 @@
 from enum import Enum
 
 
-class ImagingTargets(Enum):
+class CoordinateSystemNames(Enum):
 
-    """Enumerated values for imaging targets."""
+    """Enumerated values for coordinate system names."""
 
-    PATIENT = 'patient'
-    SLIDE = 'slide'
-
+    PATIENT = 'PATIENT'
+    SLIDE = 'SLIDE'

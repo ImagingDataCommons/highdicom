@@ -1,20 +1,21 @@
 """Sequence items for the Segmentation IOD."""
 from typing import Dict, Optional, Sequence, Union, Tuple
 
-from pydicom.dataset import Dataset
-from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.coding import Code
 from pydicom.codedict import codes
+from pydicom.datadict import tag_for_keyword
+from pydicom.dataset import Dataset
+from pydicom.sequence import Sequence as DataElementSequence
 
-from highdicom.enum import ImagingTargets
+from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypes
 from highdicom.sr.coding import CodedConcept
 
 
-class SegmentationAlgorithmIdentification(Dataset):
+class SegmentationAlgorithmIdentificationSequence(DataElementSequence):
 
-    """Dataset describing an item of the Segmentation Algorithm Identification
-    Sequence.
+    """Sequence of data elements describing information useful for
+    identification of an algorithm.
     """
 
     def __init__(self, name: str,
@@ -39,33 +40,42 @@ class SegmentationAlgorithmIdentification(Dataset):
 
         """  # noqa
         super().__init__()
-        self.AlgorithmName = name
-        self.AlgorithmVersion = version
-        self.AlgorithmFamilyCodeSequence = [
-            family,
+        item = Dataset()
+        item.AlgorithmName = name
+        item.AlgorithmVersion = version
+        item.AlgorithmFamilyCodeSequence = [
+            CodedConcept(
+                family.value,
+                family.scheme_designator,
+                family.meaning,
+                family.scheme_version,
+            ),
         ]
-        self.AlgorithmParameters = ','.join([
-            '='.join([key, value])
-            for key, value in parameters.items()
-        ])
+        if parameters is not None:
+            item.AlgorithmParameters = ','.join([
+                '='.join([key, value])
+                for key, value in parameters.items()
+            ])
+        self.append(item)
 
 
 class Segment(Dataset):
 
     """Dataset describing a segment based on the Specimen Description macro."""
 
-    def __init__(self,
-                 segment_number: int,
-                 segment_label: str,
-                 segmented_property_category: Union[Code, CodedConcept],
-                 segmented_property_type: Union[Code, CodedConcept],
-                 algorithm_type: Union[SegmentAlgorithmTypes, str],
-                 algorithm_identification: SegmentationAlgorithmIdentification,
-                 tracking_uid: Optional[str] = None,
-                 tracking_id: Optional[str] = None,
-                 anatomic_regions: Optional[Sequence[Union[Code, CodedConcept]]] = None,
-                 primary_anatomic_structures: Optional[Sequence[Union[Code, CodedConcept]]] = None
-            ) -> None:
+    def __init__(
+            self,
+            segment_number: int,
+            segment_label: str,
+            segmented_property_category: Union[Code, CodedConcept],
+            segmented_property_type: Union[Code, CodedConcept],
+            algorithm_type: Union[SegmentAlgorithmTypes, str],
+            algorithm_identification: SegmentationAlgorithmIdentificationSequence,
+            tracking_uid: Optional[str] = None,
+            tracking_id: Optional[str] = None,
+            anatomic_regions: Optional[Sequence[Union[Code, CodedConcept]]] = None,
+            primary_anatomic_structures: Optional[Sequence[Union[Code, CodedConcept]]] = None
+        ) -> None:
         """
         Parameters
         ----------
@@ -104,20 +114,29 @@ class Segment(Dataset):
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
-            segmented_property_category,
+            CodedConcept(
+                segmented_property_category.value,
+                segmented_property_category.scheme_designator,
+                segmented_property_category.meaning,
+                segmented_property_category.scheme_version
+            ),
         ]
         self.SegmentedPropertyTypeCodeSequence = [
-            segmented_property_type,
+            CodedConcept(
+                segmented_property_type.value,
+                segmented_property_type.scheme_designator,
+                segmented_property_type.meaning,
+                segmented_property_type.scheme_version
+            ),
         ]
         self.SegmentAlgorithmType = SegmentAlgorithmTypes(algorithm_type).value
-        self.SegmentAlgorithmName = algorithm_identification.AlgorithmName
-        self.SegmentationAlgorithmIdentificationSequence = [
-            algorithm_identification,
-        ]
-        num_given_tracking_identifiers = sum(
+        self.SegmentAlgorithmName = algorithm_identification[0].AlgorithmName
+        self.SegmentationAlgorithmIdentificationSequence = \
+            algorithm_identification
+        num_given_tracking_identifiers = sum([
             tracking_id is not None,
             tracking_uid is not None
-        )
+        ])
         if num_given_tracking_identifiers == 2:
             self.TrackingID = tracking_id
             self.TrackingUID = tracking_uid
@@ -126,9 +145,25 @@ class Segment(Dataset):
                 'Tracking ID and Tracking UID must both be provided.'
             )
         if anatomic_regions is not None:
-            self.AnatomicRegionSequence = anatomic_regions
+            self.AnatomicRegionSequence = [
+                CodedConcept(
+                    region.value,
+                    region.scheme_designator,
+                    region.meaning,
+                    region.scheme_version
+                )
+                for region in anatomic_regions
+            ]
         if primary_anatomic_structures is not None:
-            self.PrimaryAnatomicStructureSequence = primary_anatomic_structures
+            self.PrimaryAnatomicStructureSequence = [
+                CodedConcept(
+                    structure.value,
+                    structure.scheme_designator,
+                    structure.meaning,
+                    structure.scheme_version
+                )
+                for structure in primary_anatomic_structures
+            ]
 
 
 class DerivationImageSequence(DataElementSequence):
@@ -141,7 +176,7 @@ class DerivationImageSequence(DataElementSequence):
             self,
             referenced_sop_class_uid: str,
             referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Sequence[int]
+            referenced_frame_numbers: Optional[Sequence[int]] = None
         ) -> None:
         """
         Parameters
@@ -150,25 +185,39 @@ class DerivationImageSequence(DataElementSequence):
             SOP Class UID of the referenced source image
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced source image
-        referenced_frame_numbers: Sequence[int]
+        referenced_frame_numbers: Sequence[int], optional
             Frame number within the reference source image
 
         """
         super().__init__()
         derivation_item = Dataset()
-        source_image = Dataset()
-        source_image.ReferencedSOPClassUID = referenced_sop_class_uid
-        source_image.ReferencedSOPInstanceUID = referenced_sop_instance_uid
-        source_image.PurposeOfReferenceCodeSequence = [
-            codes.DCM.SourceImageForImageProcessingOperation,
+        source_image_item = Dataset()
+        source_image_item.ReferencedSOPClassUID = referenced_sop_class_uid
+        source_image_item.ReferencedSOPInstanceUID = referenced_sop_instance_uid
+        if referenced_frame_numbers is not None:
+            source_image_item.ReferencedFrameNumber = referenced_frame_numbers
+        purpose_code = codes.cid7202.SourceImageForImageProcessingOperation
+        source_image_item.PurposeOfReferenceCodeSequence = [
+            CodedConcept(
+                purpose_code.value,
+                purpose_code.scheme_designator,
+                purpose_code.meaning,
+                purpose_code.scheme_version
+            ),
         ]
-        item.DerivationCodeSequence = [
-            codes.DCM.Segmentation,
+        derivation_code = codes.cid7203.Segmentation
+        derivation_item.DerivationCodeSequence = [
+            CodedConcept(
+                derivation_code.value,
+                derivation_code.scheme_designator,
+                derivation_code.meaning,
+                derivation_code.scheme_version
+            ),
         ]
-        item.SourceImageSequence = [
-            source_image,
+        derivation_item.SourceImageSequence = [
+            source_image_item,
         ]
-        self.append(item)
+        self.append(derivation_item)
 
 
 class PixelMeasuresSequence(DataElementSequence):
@@ -225,8 +274,9 @@ class PlanePositionSequence(DataElementSequence):
             system
 
         """
+        super().__init__()
         item = Dataset()
-        item.ImagePositionPatient = image_position
+        item.ImagePositionPatient = list(image_position)
         self.append(item)
 
 
@@ -252,9 +302,10 @@ class PlanePositionSlideSequence(DataElementSequence):
         pixel_matrix_position: Tuple[int, int]
             Offset of the first row and first column of the image in
             pixels along the row and column axis of the two-dimensional total
-            pixel matrix. Required if `imaging_target` is ``"slide"``.
+            pixel matrix. Required if `coordinate_system` is ``"slide"``.
 
         """
+        super().__init__()
         item = Dataset()
         item.XOffsetInSlideCoordinateSystem = image_position[0]
         item.YOffsetInSlideCoordinateSystem = image_position[1]
@@ -273,13 +324,13 @@ class PlaneOrientationSequence(DataElementSequence):
 
     def __init__(
             self,
-            imaging_target: Union[str, ImagingTargets],
+            coordinate_system: Union[str, CoordinateSystemNames],
             image_orientation: Tuple[float, float, float, float, float, float]
         ) -> None:
         """
         Parameters
         ----------
-        imaging_target: Union[str, highdicom.enum.ImagingTargets]
+        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
             Subject (``"patient"`` or ``"slide"``) that was the target of
             imaging
         image_orientation: Tuple[float, float, float, float, float, float]
@@ -289,12 +340,12 @@ class PlaneOrientationSequence(DataElementSequence):
 
         """
         super().__init__()
-        imaging_target = ImagingTargets(imaging_target)
+        coordinate_system = CoordinateSystemNames(coordinate_system)
         item = Dataset()
-        if imaging_target == ImagingTargets.SLIDE:
-            item.ImageOrientationSlide = image_orientation
-        elif imaging_target == ImagingTargets.PATIENT:
-            item.ImageOrientationPatient = image_orientation
+        if coordinate_system == CoordinateSystemNames.SLIDE:
+            item.ImageOrientationSlide = list(image_orientation)
+        elif coordinate_system == CoordinateSystemNames.PATIENT:
+            item.ImageOrientationPatient = list(image_orientation)
         self.append(item)
 
 
@@ -307,18 +358,19 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
             self,
-            imaging_target: Union[str, ImagingTargets]
+            coordinate_system: Union[str, CoordinateSystemNames]
         ) -> None:
         """
         Parameters
         ----------
-        imaging_target: Union[str, highdicom.enum.ImagingTargets]
+        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
             Subject (``"patient"`` or ``"slide"``) that was the target of
             imaging
 
         """
-        imaging_target = ImagingTargets(imaging_target)
-        if imaging_target == ImagingTargets.SLIDE:
+        super().__init__()
+        coordinate_system = CoordinateSystemNames(coordinate_system)
+        if coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
 
             segment_number_index = Dataset()
@@ -350,7 +402,7 @@ class DimensionIndexSequence(DataElementSequence):
             y_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            y_image_dimension_index.DimensionOrganizationUID = dim
+            y_image_dimension_index.DimensionOrganizationUID = dim_uid
             y_image_dimension_index.DimensionDescriptionLabel = \
                 'Y Offset in Slide Coordinate System'
 
@@ -361,7 +413,7 @@ class DimensionIndexSequence(DataElementSequence):
             z_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            z_image_dimension_index.DimensionOrganizationUID = dim
+            z_image_dimension_index.DimensionOrganizationUID = dim_uid
             z_image_dimension_index.DimensionDescriptionLabel = \
                 'Z Offset in Slide Coordinate System'
 
@@ -371,12 +423,8 @@ class DimensionIndexSequence(DataElementSequence):
                 y_image_dimension_index,
                 z_image_dimension_index,
             ])
-        elif imaging_target == ImagingTargets.PATIENT:
+        elif coordinate_system == CoordinateSystemNames.PATIENT:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
-
-            dimension_organization = Dataset()
-            dimension_organization.DimensionOrganizationUID = dim_uid
-            self.DimensionOrganizationSequence = [dimension_organization]
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
