@@ -1,11 +1,14 @@
 """Sequence items for the Segmentation IOD."""
+from typing import Dict, Optional, Sequence, Union, Tuple
+
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
-from pydicom.sr.coding import Code, CodedConcept
-from pydicom.sr import codes
+from pydicom.coding import Code
+from pydicom.codedict import codes
 
 from highdicom.enum import ImagingTargets
 from highdicom.seg.enum import SegmentAlgorithmTypes
+from highdicom.sr.coding import CodedConcept
 
 
 class SegmentationAlgorithmIdentification(Dataset):
@@ -18,7 +21,7 @@ class SegmentationAlgorithmIdentification(Dataset):
                  family: Union[Code, CodedConcept],
                  version: str,
                  source: Optional[str] = None,
-                 parameters: Optional[Dict[str: str]] = None):
+                 parameters: Optional[Dict[str, str]] = None):
         """
         Parameters
         ----------
@@ -56,9 +59,8 @@ class Segment(Dataset):
                  segment_label: str,
                  segmented_property_category: Union[Code, CodedConcept],
                  segmented_property_type: Union[Code, CodedConcept],
-                 algorithm_type: Union[SegmentAlgorithmType, str],
-                 algorithm_name: Optional[str] = None,
-                 algorithm_identification: Optional[SegmentationAlgorithmIdentification] = None,
+                 algorithm_type: Union[SegmentAlgorithmTypes, str],
+                 algorithm_identification: SegmentationAlgorithmIdentification,
                  tracking_uid: Optional[str] = None,
                  tracking_id: Optional[str] = None,
                  anatomic_regions: Optional[Sequence[Union[Code, CodedConcept]]] = None,
@@ -81,11 +83,9 @@ class Segment(Dataset):
             (see CID 7151 Segmentation Property Types)
         algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypes]
             Type of algorithm
-        algorithm_name: str, optional
-            Name of the algorithm
-        algorithm_identification: SegmentationAlgorithmIdentification, optional
-            Additional information for identification of the algorithm, such
-            as its version
+        algorithm_identification: SegmentationAlgorithmIdentificationSequence, optional
+            Information useful for identification of the algorithm, such
+            as its name or version
         tracking_uid: str, optional
             Unique tracking identifier (universally unique)
         tracking_id: str, optional
@@ -110,11 +110,10 @@ class Segment(Dataset):
             segmented_property_type,
         ]
         self.SegmentAlgorithmType = SegmentAlgorithmTypes(algorithm_type).value
-        self.SegmentAlgorithmName = algorithm_name
-        if algorithm_identification is not None:
-            self.SegmentationAlgorithmIdentificationSequence = [
-                algorithm_identification,
-            ]
+        self.SegmentAlgorithmName = algorithm_identification.AlgorithmName
+        self.SegmentationAlgorithmIdentificationSequence = [
+            algorithm_identification,
+        ]
         num_given_tracking_identifiers = sum(
             tracking_id is not None,
             tracking_uid is not None
@@ -134,8 +133,8 @@ class Segment(Dataset):
 
 class DerivationImageSequence(DataElementSequence):
 
-    """Dataset providing references to the source image of a segmentation
-    image based on the Derivation Image functional group macros.
+    """Sequence of data elements providing references to the source image of a
+    segmentation image based on the Derivation Image functional group macros.
     """
 
     def __init__(
@@ -174,9 +173,8 @@ class DerivationImageSequence(DataElementSequence):
 
 class PixelMeasuresSequence(DataElementSequence):
 
-    """Dataset describing physical spacing of an image based on the
-    Pixel Measures functional group macro.
-
+    """Sequence of data elements describing physical spacing of an image based
+    on the Pixel Measures functional group macro.
     """
 
     def __init__(
@@ -207,16 +205,16 @@ class PixelMeasuresSequence(DataElementSequence):
         self.append(item)
 
 
-class PlanePositionSequence(DataelementSequence):
+class PlanePositionSequence(DataElementSequence):
 
-    """Dataset describing the position of an individual plane (frame) in the
-    patient coordinate system based on the Plane Position (Patient) functional
-    group macro.
+    """Sequence of data elements describing the position of an individual plane
+    (frame) in the patient coordinate system based on the Plane Position
+    (Patient) functional group macro.
     """
 
     def __init__(
             self,
-            image_position: Union[Tuple[float, float, float], ImagePosition],
+            image_position: Tuple[float, float, float],
         ) -> None:
         """
         Parameters
@@ -232,16 +230,16 @@ class PlanePositionSequence(DataelementSequence):
         self.append(item)
 
 
-class PlanePositionSlideSequence(DataelementSequence):
+class PlanePositionSlideSequence(DataElementSequence):
 
-    """Dataset describing the position of an individual plane (frame) in the
-    slide coordinate system based on the Plane Position (Slide) functional
-    group macro.
+    """Sequence of data elements describing the position of an individual plane
+    (frame) in the slide coordinate system based on the Plane Position (Slide)
+    functional group macro.
     """
 
     def __init__(
             self,
-            image_position: Union[Tuple[float, float, float], ImagePosition],
+            image_position: Tuple[float, float, float],
             pixel_matrix_position: Tuple[int, int],
         ) -> None:
         """
@@ -275,8 +273,8 @@ class PlaneOrientationSequence(DataElementSequence):
 
     def __init__(
             self,
-            imaging_target: Union[str, ImagingTargets]
-            image_orientation: Tuple[float, float, float, float, float, float],
+            imaging_target: Union[str, ImagingTargets],
+            image_orientation: Tuple[float, float, float, float, float, float]
         ) -> None:
         """
         Parameters
