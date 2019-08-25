@@ -1,11 +1,20 @@
 import logging
 from datetime import datetime
+from io import BytesIO
 from typing import Optional, Union
 
 from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
-from pydicom.uid import ImplicitVRLittleEndian
+from pydicom.filewriter import write_file_meta_info
+from pydicom.uid import (
+    DeflatedExplicitVRLittleEndian,
+    ExplicitVRBigEndian,
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+)
 from pydicom.valuerep import DA, DT, TM
+
+from highdicom.version import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -138,18 +147,39 @@ class SOPClass(Dataset):
         Additional optional attributes can subsequently be added to the dataset.
 
         """
-        super(SOPClass, self).__init__()
+        super().__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian
-        self.is_implicit_VR = False
-        self.is_little_endian = True
+        if transfer_syntax_uid == ExplicitVRBigEndian:
+            self.is_little_endian = False
+        else:
+            self.is_little_endian = True
+        if transfer_syntax_uid in (
+                ExplicitVRLittleEndian,
+                DeflatedExplicitVRLittleEndian
+            ):
+            self.is_implicit_VR = False
+        else:
+            self.is_implicit_VR = True
+
+        # Include all File Meta Information required for writing SOP instance
+        # to a file in PS3.10 format.
         self.preamble = b'\x00' * 128
         self.file_meta = Dataset()
+        self.file_meta.DICOMPrefix = 'DICM'
+        self.file_meta.FilePreamble = self.preamble
         self.file_meta.TransferSyntaxUID = transfer_syntax_uid
         self.file_meta.MediaStorageSOPClassUID = str(sop_class_uid)
         self.file_meta.MediaStorageSOPInstanceUID = str(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
+        self.file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.9.7433.1.1'
+        self.file_meta.ImplementationVersionName = '{} v{}'.format(
+            __name__.split('.')[0], __version__
+        )
         self.fix_meta_info(enforce_standard=True)
+        with BytesIO() as fp:
+            write_file_meta_info(fp, self.file_meta, enforce_standard=True)
+            self.file_meta.FileMetaInformationGroupLength = len(fp.getvalue())
 
         # Patient
         self.PatientID = patient_id
@@ -197,7 +227,6 @@ class SOPClass(Dataset):
             logger.debug('copied attribute "{}"'.format(keyword))
         except KeyError:
             return
-        print(keyword, type(data_element.value))
         self.add(data_element)
 
     def copy_patient_and_study_information(self, dataset: Dataset):

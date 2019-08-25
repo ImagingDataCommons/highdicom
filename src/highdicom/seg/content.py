@@ -1,6 +1,7 @@
 """Sequence items for the Segmentation IOD."""
 from typing import Dict, Optional, Sequence, Union, Tuple
 
+import numpy as np
 from pydicom.coding import Code
 from pydicom.codedict import codes
 from pydicom.datadict import tag_for_keyword
@@ -10,6 +11,11 @@ from pydicom.sequence import Sequence as DataElementSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypes
 from highdicom.sr.coding import CodedConcept
+
+
+SLIDE_DIMENSION_ORGANIZATION_UID = '1.2.826.0.1.3680043.9.7433.2.4'
+
+PATIENT_DIMENSION_ORGANIZATION_UID = '1.2.826.0.1.3680043.9.7433.2.3'
 
 
 class SegmentationAlgorithmIdentificationSequence(DataElementSequence):
@@ -59,7 +65,7 @@ class SegmentationAlgorithmIdentificationSequence(DataElementSequence):
         self.append(item)
 
 
-class Segment(Dataset):
+class SegmentDescription(Dataset):
 
     """Dataset describing a segment based on the Specimen Description macro."""
 
@@ -269,8 +275,8 @@ class PlanePositionSequence(DataElementSequence):
         Parameters
         ----------
         image_position: Tuple[float, float, float]
-            Offset of the first row and first column of the image in millimeter
-            along the x, y, and z axis of the three-dimensional slide coordinate
+            Offset of the first row and first column of the plane (frame) in
+            millimeter along the x, y, and z axis of the patient coordinate
             system
 
         """
@@ -296,13 +302,12 @@ class PlanePositionSlideSequence(DataElementSequence):
         Parameters
         ----------
         image_position: Tuple[float, float, float]
-            Offset of the first row and first column of the image in millimeter
-            along the x, y, and z axis of the three-dimensional slide coordinate
+            Offset of the first row and first column of the plane (frame) in
+            millimeter along the x, y, and z axis of the slide coordinate
             system
         pixel_matrix_position: Tuple[int, int]
-            Offset of the first row and first column of the image in
-            pixels along the row and column axis of the two-dimensional total
-            pixel matrix. Required if `coordinate_system` is ``"slide"``.
+            Offset of the first row and first column of the plane (frame) in
+            pixels along the row and column direction of the total pixel matrix
 
         """
         super().__init__()
@@ -313,6 +318,92 @@ class PlanePositionSlideSequence(DataElementSequence):
         item.RowPositionInTotalImagePixelMatrix = pixel_matrix_position[0]
         item.ColumnPositionInTotalImagePixelMatrix = pixel_matrix_position[1]
         self.append(item)
+
+    @classmethod
+    def compute_for_tiled_full(
+            cls,
+            row_index: int,
+            column_index: int,
+            depth_index: int,
+            x_offset: float,
+            y_offset: float,
+            z_offset: float,
+            rows: int,
+            columns: int,
+            image_orientation: Tuple[float, float, float, float, float, float],
+            pixel_spacing: Tuple[float, float],
+            slice_thickness: float,
+            spacing_between_slices: float
+        ) -> 'PlanePositionSlideSequence':
+        """Computes the position of a plane (frame) for Dimension Orientation
+        Type TILED_FULL.
+
+        Parameters
+        ----------
+        row_index: int
+            Relative one-based index value for a given frame along the row
+            direction of the the tiled total pixel matrix, which is defined by
+            the first triplet in `image_orientation`
+        column_index: int
+            Relative one-based index value for a given frame along the column
+            direction of the the tiled total pixel matrix, which is defined by
+            the second triplet in `image_orientation`
+        depth_index: int
+            Relative one-based index value for a given frame along the depth
+            direction from the glass slide to the coverslip (focal plane)
+        x_offset_image: float
+            X offset of the total pixel matrix in the slide coordinate system
+        y_offset_image: float
+            Y offset of the total pixel matrix in the slide coordinate system
+        z_offset_image: float
+            Z offset of the total pixel matrix (focal plane) in the slide
+            coordinate system
+        rows: int
+            Number of rows per tile
+        columns: int
+            Number of columns per tile
+        image_orientation: Tuple[float, float, float, float, float, float]
+            Cosines of row (first triplet) and column (second triplet) direction
+            for x, y and z axis of the slide coordinate system
+        pixel_spacing: Tuple[float, float]
+            Physical distance between the centers of neighboring pixels along
+            the row and column direction
+        slice_thickness: float
+            Physical thickness of a focal plane
+        spacing_between_slices: float
+            Physical distance between neighboring focal planes
+
+        """
+        row_offset_frame = ((row_index - 1) * rows) + 1
+        column_offset_frame = ((column_index - 1) * columns) + 1
+        # We need to take rotation of pixel matrix relative to slide into account.
+        # According to the standard, we only have to deal with planar rotations by
+        # 180 degrees along the row and/or column direction.
+        if tuple([float(v) for v in image_orientation[:3]]) == (0.0, -1.0, 0.0):
+            x_func = np.subtract
+        else:
+            x_func = np.add
+        x_offset_frame = x_func(
+            x_offset,
+            (row_offset_frame * pixel_spacing[1])
+        )
+        if tuple([float(v) for v in image_orientation[3:]]) == (-1.0, 0.0, 0.0):
+            y_func = np.subtract
+        else:
+            y_func = np.add
+        y_offset_frame = y_func(
+            y_offset,
+            (column_offset_frame * pixel_spacing[0])
+        )
+        z_offset_frame = np.sum([
+            z_offset,
+            (float(depth_index - 1) * slice_thickness),
+            (float(depth_index - 1) * spacing_between_slices)
+        ])
+        return cls(
+            image_position=(x_offset_frame, y_offset_frame, z_offset_frame),
+            pixel_matrix_position=(row_offset_frame, column_offset_frame)
+        )
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -371,7 +462,7 @@ class DimensionIndexSequence(DataElementSequence):
         super().__init__()
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
+            dim_uid = SLIDE_DIMENSION_ORGANIZATION_UID
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
@@ -417,14 +508,38 @@ class DimensionIndexSequence(DataElementSequence):
             z_image_dimension_index.DimensionDescriptionLabel = \
                 'Z Offset in Slide Coordinate System'
 
+            col_image_dimension_index = Dataset()
+            col_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+            col_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            col_image_dimension_index.DimensionOrganizationUID = dim_uid
+            col_image_dimension_index.DimensionDescriptionLabel = \
+                'Column Position In Total Image Pixel Matrix'
+
+            row_image_dimension_index = Dataset()
+            row_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+            row_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            row_image_dimension_index.DimensionOrganizationUID = dim_uid
+            row_image_dimension_index.DimensionDescriptionLabel = \
+                'Column Position In Total Image Pixel Matrix'
+
             self.extend([
                 segment_number_index,
                 x_image_dimension_index,
                 y_image_dimension_index,
                 z_image_dimension_index,
+                col_image_dimension_index,
+                row_image_dimension_index,
             ])
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
+            dim_uid = PATIENT_DIMENSION_ORGANIZATION_UID
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(

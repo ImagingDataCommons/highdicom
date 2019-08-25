@@ -4,7 +4,7 @@ import itertools
 import logging
 import numpy as np
 import pydicom
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from typing import NamedTuple, Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
@@ -22,7 +22,7 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
     DerivationImageSequence,
-    Segment,
+    SegmentDescription,
     PlaneOrientationSequence,
     PlanePositionSequence,
     PlanePositionSlideSequence,
@@ -33,7 +33,6 @@ from highdicom.seg.enum import (
     SegmentationTypes,
 )
 from highdicom.sr.coding import CodedConcept
-from highdicom.utils import ImagePosition
 
 
 logger = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ class Segmentation(SOPClass):
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
             segmentation_type: Union[str, SegmentationTypes],
-            segment_descriptions: Sequence[Segment],
+            segment_descriptions: Sequence[SegmentDescription],
             segment_derivations: Sequence[DerivationImageSequence],
             series_instance_uid: str,
             series_number: int,
@@ -60,8 +59,8 @@ class Segmentation(SOPClass):
             manufacturer_model_name: str,
             software_versions: Union[str, Tuple[str]],
             device_serial_number: str,
-            content_label: str,
             content_description: str = '',
+            content_creator_name: Optional[str] = None,
             segmentation_fractional_type: Union[str, SegmentationFractionalTypes] = SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
             transfer_syntax_uid: Optional[Union[str, UID]] = None,
@@ -69,7 +68,7 @@ class Segmentation(SOPClass):
             position_reference_indicator: Optional[str] = None,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
-            plane_positions: Optional[Union[PlanePositionSequence, PlanePositionSlideSequence]] = None,
+            plane_positions: Optional[Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]] = None,
         ) -> None:
         """
         Parameters
@@ -99,7 +98,7 @@ class Segmentation(SOPClass):
             second along the Y, and third along the Z axes).
         segmentation_type: Union[str, SegmentationTypes]
             Type of segmentation
-        segment_descriptions: Sequence[highdicom.seg.content.Segment]
+        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
         segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
             References to the source images (and frames within the source
@@ -124,10 +123,10 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
-        content_label: str
-            Label for the content of the instance
         content_description: str, optional
-            Description of the content of the instance
+            Description of the segmentation
+        content_creator_name: str, optional
+            Name of the creator of the segmentation
         segmentation_fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted (required if `segmentation_type` is
@@ -162,7 +161,7 @@ class Segmentation(SOPClass):
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image as the
             same plane orientation as the source image(s).
-        plane_positions: Union[PlanePositionSequence, PlanePositionSlideSequence], optional
+        plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]], optional
             Position of each plane in `pixel_array` in the three-dimensional
             patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image has the
@@ -172,6 +171,23 @@ class Segmentation(SOPClass):
             or the number of `source_images` (in case of single-frame source
             images).
 
+        Raises
+        ------
+        ValueError
+            When
+                * Length of `source_images` is zero.
+                * Items of `source_images` are not all part of the same study
+                  and series.
+                * Items of `source_images` have different number of rows and
+                  columns.
+                * Length of `plane_positions` does not match number of segments
+                  encoded in `pixel_array`.
+                * Length of `plane_positions` does not match number of 2D planes
+                  in `pixel_array` (size of first array dimension).
+                * Length of `segment_descriptions` or `segment_derivations`
+                  does not match number of segments encoded in `pixel_array`
+                  (number of unique positive values in `pixel_array`).
+
         """  # noqa
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
@@ -180,7 +196,6 @@ class Segmentation(SOPClass):
             (
                 image.StudyInstanceUID,
                 image.SeriesInstanceUID,
-                image.FrameOfReferenceUID,
                 image.Rows,
                 image.Columns,
             )
@@ -248,35 +263,41 @@ class Segmentation(SOPClass):
             self.PositionReferenceIndicator = positiion_reference_indicator
 
         # (Enhanced) General Equipment
-        self.PixelPaddingValue = [0]  # FIXME
         self.DeviceSerialNumber = device_serial_number
         self.ManufacturerModelName = manufacturer_model_name
         self.SoftwareVersions = software_versions
 
         # General Reference
         self.SourceImageSequence = []
+        referenced_series = defaultdict(list)
         for src_image in source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = src_image.SOPClassUID
             ref.ReferencedSOPInstanceUID = src_image.SOPInstanceUID
-            if frame_of_reference_uid is not None:
-                if frame_of_reference_uid == src_image.FrameOfReferenceUID:
-                    ref.SpatialLocationsPreserved = 'YES'
-                else:
-                    ref.SpatialLocationsPreserved = 'NO'
             self.SourceImageSequence.append(ref)
+            referenced_series[src_image.SeriesInstanceUID].append(ref)
+
+        # Common Instance Reference
+        self.ReferencedSeriesSequence = []
+        for series_instance_uid, referenced_images in referenced_series.items():
+            ref = Dataset()
+            ref.SeriesInstanceUID = series_instance_uid
+            ref.ReferencedInstanceSequence = referenced_images
+            self.ReferencedSeriesSequence.append(ref)
+
 
         # Image Pixel
-        self.Rows = pixel_array.shape[0]
-        self.Columns = pixel_array.shape[1]
+        self.Rows = pixel_array.shape[-2]
+        self.Columns = pixel_array.shape[-1]
 
         # Segmentation Image
         self.ImageType = ['DERIVED', 'PRIMARY']
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.PixelRepresentation = 0
-        self.ContentLabel = content_label
+        self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
+        self.ContentCreatorName = content_creator_name
         segmentation_type = SegmentationTypes(segmentation_type)
         self.SegmentationType = segmentation_type.value
         if self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
@@ -298,7 +319,7 @@ class Segmentation(SOPClass):
         self.LossyImageCompression = src_image.LossyImageCompression
         # TODO: lossy
 
-        # Sequence get's updated by "add_segments()" method
+        # NOTE: Sequence will be updated by the "add_segments()" method.
         self.SegmentSequence = []
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
@@ -338,8 +359,8 @@ class Segmentation(SOPClass):
         shared_func_groups.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [shared_func_groups]
 
-        # Information about individual frames will be updated by the
-        # "add_segments()" methods upon addition of segmentation bitplanes.
+        # NOTE: Information about individual frames will be updated by the
+        # "add_segments()" method upon addition of segmentation bitplanes.
         self.NumberOfFrames = 0
         self.PerFrameFunctionalGroupsSequence = []
 
@@ -351,84 +372,80 @@ class Segmentation(SOPClass):
                         for item in src_image.PerFrameFunctionalGroupsSequence
                     ]
                 else:
-                    # If Dimension Organization Type is TILED_FULL, we need
-                    # to compute plane positions.
-                    def compute_plane_position(
-                            row_tile_index: int,
-                            col_tile_index: int,
-                            x_offset: float,
-                            y_offset: float,
-                            orientation: Sequence[float]
-                        ):
-                        row = ((row_tile_index - 1) * self.Rows) + 1
-                        col = ((col_tile_index - 1) * self.Columns) + 1
-                        # Take rotation of pixel matrix relative to slide into
-                        # account. We should only be dealing with planar
-                        # rotations by 180 degree.
-                        # TODO
-                        if orientation[3:] == [0, 1, 0]:
-                            row_func = np.add
-                        else:
-                            row_func = np.subtract
-                        if orientation[:3] == [1, 0, 0]:
-                            col_func = np.add
-                        else:
-                            col_func = np.subtract
-                        shared_fg = self.SharedFunctionalGroupsSequence[0]
-                        pixel_measures = shared_fg.PixelMeasuresSequence[0]
-                        pixel_spacing = pixel_measures.PixelSpacing
-                        x = row_func(
-                            x_offset,
-                            (row * pixel_measures.PixelSpacing[0])
-                        )
-                        y = col_func(
-                            y_offset,
-                            (col * pixel_measures.PixelSpacing[1])
-                        )
-                        z = 1.0  # TODO: focal planes
-                        return PlanePositionSlideSequence(
-                            image_position=(x, y, z),
-                            pixel_matrix_position=(row, col)
-                        )
-
+                    # If Dimension Organization Type is TILED_FULL, plane
+                    # positions are implicit and need to be computed.
                     image_origin = src_image.TotalPixelMatrixOriginSequence[0]
-                    orientation = src_image.ImageOrientationSlide
-                    tiles_per_row = int(
+                    orientation = tuple(
+                        float(v) for v in src_image.ImageOrientationSlide
+                    )
+                    tiles_per_column = int(
                         np.ceil(
                             src_image.TotalPixelMatrixRows /
                             src_image.Rows
                         )
                     )
-                    tiles_per_column = int(
+                    tiles_per_row = int(
                         np.ceil(
                             src_image.TotalPixelMatrixColumns /
                             src_image.Columns
                         )
                     )
+                    num_focal_planes = getattr(
+                        src_image,
+                        'NumberOfFocalPlanes',
+                        1
+                    )
+                    row_range = range(1, tiles_per_column + 1)
+                    column_range = range(1, tiles_per_row + 1)
+                    depth_range = range(1, num_focal_planes + 1)
+
+                    shared_fg = self.SharedFunctionalGroupsSequence[0]
+                    pixel_measures = shared_fg.PixelMeasuresSequence[0]
+                    pixel_spacing = tuple(
+                        float(v) for v in pixel_measures.PixelSpacing
+                    )
+                    slice_thickness = getattr(
+                        pixel_measures,
+                        'SliceThickness',
+                        1.0
+                    )
+                    spacing_between_slices = getattr(
+                        pixel_measures,
+                        'SpacingBetweenSlices',
+                        1.0
+                    )
                     plane_positions = [
-                        compute_plane_position(
-                            row,
-                            col,
-                            image_origin.XOffsetInSlideCoordinateSystem,
-                            image_origin.YOffsetInSlideCoordinateSystem,
-                            orientation
-                        )[0]
-                        for row, col in itertools.product(
-                            range(1, tiles_per_row + 1),
-                            range(1, tiles_per_column + 1),
+                        PlanePositionSlideSequence.compute_for_tiled_full(
+                            row_index=r,
+                            column_index=c,
+                            depth_index=d,
+                            x_offset=image_origin.XOffsetInSlideCoordinateSystem,
+                            y_offset=image_origin.YOffsetInSlideCoordinateSystem,
+                            z_offset=1.0,  # TODO
+                            rows=self.Rows,
+                            columns=self.Columns,
+                            image_orientation=orientation,
+                            pixel_spacing=pixel_spacing,
+                            slice_thickness=slice_thickness,
+                            spacing_between_slices=spacing_between_slices
+                        )
+                        for r, c, d in itertools.product(
+                            row_range,
+                            column_range,
+                            depth_range
                         )
                     ]
             else:
                 if is_multiframe:
                     plane_positions = [
-                        item.PlanePositionSequence[0]
+                        item.PlanePositionSequence
                         for item in src_image.PerFrameFunctionalGroupsSequence
                     ]
                 else:
                     plane_positions = [
                         PlanePositionSequence(
                             image_position=src_image.ImagePositionPatient
-                        )[0]
+                        )
                         for src_image in source_images
                     ]
 
@@ -453,7 +470,7 @@ class Segmentation(SOPClass):
     def add_segments(
             self,
             pixel_array: np.ndarray,
-            segment_descriptions: Sequence[Segment],
+            segment_descriptions: Sequence[SegmentDescription],
             segment_derivations: Sequence[DerivationImageSequence],
             plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]
         ) -> Dataset:
@@ -479,9 +496,9 @@ class Segmentation(SOPClass):
             based on their position in the three-dimensional coordinate system
             identified by `frame_of_reference_uid` (first along the X axis,
             second along the Y, and third along the Z axes).
-        segment_descriptions: Sequence[highdicom.seg.content.Segment]
+        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[highdicom.seg.content.SegmentDerivation]
+        segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
             References for each segment encoded in `pixel_array`.
             Sequence may be empty if it is not possible to reference segments
             relative to source images, because spatial locations were not
@@ -495,16 +512,17 @@ class Segmentation(SOPClass):
         ----
         Items of `segment_descriptions` and `segment_derivations` must be sorted
         by segment number in ascending order.
-        In case `segmentation_type` is ``"BINARY"``, the number of items in
-        per sequence must match the number of unique positive pixel values in
+        In case `segmentation_type` is ``"BINARY"``, the number of items per
+        sequence must match the number of unique positive pixel values in
         `pixel_array`. In case `segmentation_type` is ``"FRACTIONAL"``, only
-        one item is permitted per sequence.
+        one segment can be encoded by `pixel_array` and hence only one item is
+        permitted per sequence.
 
         """
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
 
-        if pixel_array.shape[:-2] != (self.Rows, self.Columns):
+        if pixel_array.shape[-2:] != (self.Rows, self.Columns):
             raise ValueError(
                 'Pixel array representing segments has the wrong number of '
                 'rows and columns.'
@@ -570,18 +588,23 @@ class Segmentation(SOPClass):
                     'segmentation type.'
                 )
 
-        dimension_index_position_values = np.array([
+        plane_position_values = np.array([
             [
-                p[indexer.DimensionIndexPointer].value
+                p[0][indexer.DimensionIndexPointer].value
                 for indexer in self.DimensionIndexSequence[1:]
             ]
             for p in plane_positions
         ])
         _, plane_sort_index = np.unique(
-            dimension_index_position_values,
+            plane_position_values,
             axis=0,
             return_index=True
         )
+
+        dimension_position_values = [
+            np.unique(plane_position_values[:, index])
+            for index in range(plane_position_values.shape[1])
+        ]
 
         for i, segment_number in enumerate(encoded_segment_numbers):
             if self.SegmentationType == SegmentationTypes.BINARY.value:
@@ -598,14 +621,15 @@ class Segmentation(SOPClass):
                 planes = planes.dtype(np.uint8)
 
             for j in plane_sort_index:
-                self.PixelData += self._encode_frame(planes[j])
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
                 frame_content_item.DimensionIndexValues = [segment_number]
-                frame_content_item.DimensionIndexValues.extend(
-                    dimension_index_position_values[j].tolist()
-                )
+                frame_content_item.DimensionIndexValues.extend([
+                    np.where(dimension_position_values[index] == pos)[0][0] + 1
+                    for index, pos in enumerate(plane_position_values[j])
+                ])
                 pffp_item.FrameContentSequence = [frame_content_item]
+                pffp_item.PlanePositionSlideSequence = plane_positions[j]
                 pffp_item.DerivationImageSequence = segment_derivations[i]
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
@@ -614,6 +638,7 @@ class Segmentation(SOPClass):
                 ]
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
+            self.PixelData += self._encode_pixels(planes[plane_sort_index])
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.
@@ -621,43 +646,37 @@ class Segmentation(SOPClass):
                 self.SegmentSequence.append(segment_descriptions[i])
             self._segment_inventory.add(segment_number)
 
-    def _encode_frame(self, plane: np.ndarray) -> bytes:
-        """Encodes a segmentation plane.
-
-        Packs a two-dimensional boolean array into a bytearray such that each
-        byte represents the values of 8 values in the boolean array.
+    def _encode_pixels(self, planes: np.ndarray) -> bytes:
+        """Encodes pixel planes.
 
         Parameters
         ----------
-        plane: numpy.ndarray
-            2D array representing a segmentation plane
+        planes: numpy.ndarray
+            Array representing one or more segmentation planes
 
         Returns
         -------
         bytes
-            encoded frame
+            Encoded pixels
 
         """
-        if plane.dtype == np.bool:
-            # The output array must have a whole even number of bytes
-            # Work out what zero padding is needed to achieve this
-            remainder = plane.size % 16
+        pixels = planes.flatten()
+        if self.BitsStored == 1:
+            # The number of pixels must be a multiple of 8.
+            # Zero pad array if necessary.
+            bit_depth = 8
+            factor = bit_depth * 2
+            total_size = planes.size
+            remainder = total_size % factor
+            pixels = np.pad(pixels, (0, factor - remainder), mode='constant')
 
-            # If the total number of elements is not a multiple of 8,
-            # need to first pad at the end
-            pixels = plane.copy()
-            if remainder != 0:
-                pixels = pixels.flatten()
-                pixels = np.pad(pixels, (0, 16 - remainder), mode='constant')
+            # Reshape array such that there is one row per byte in the output
+            pixels = pixels.reshape((-1, bit_depth))
 
-            # Reshape input to give one row of elements per byte in the output array
-            pixels = pixels.reshape((-1, 8))
-
-            # Array that represents the significance of a bit in each column
-            multiplier = np.array([2 ** i for i in range(8)], dtype=plane.dtype)
+            # Scale pixel values to 8-bit and sum along the rows to pack values
+            multiplier = 2**np.arange(bit_depth).astype(np.uint8)
             multiplier = multiplier[np.newaxis, ...]
 
-            # Scale and sum along the rows to give the output
-            pixels = (multiplier * pixels).sum(axis=1).astype(np.uint8)
+            pixels = np.sum(multiplier * pixels, axis=1).astype(np.uint8)
 
         return pixels.tobytes()
