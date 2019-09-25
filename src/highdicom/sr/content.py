@@ -93,8 +93,8 @@ class SourceImageForMeasurement(ImageContentItem):
         """
         super().__init__(
             name=CodedConcept(
-                value='121322',
-                meaning='Source image for image processing operation',
+                value='121112',
+                meaning='Source of Measurement',
                 scheme_designator='DCM'
             ),
             referenced_sop_class_uid=referenced_sop_class_uid,
