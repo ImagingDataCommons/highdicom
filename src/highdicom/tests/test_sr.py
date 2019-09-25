@@ -17,7 +17,7 @@ from highdicom.sr.content import (
     VolumeSurface,
     SourceImageForRegion,
     SourceImageForSegmentation,
-    ReferencedSegmentation,
+    ReferencedSegment,
     ReferencedSegmentationFrame,
     SourceSeriesForSegmentation
 )
@@ -912,10 +912,10 @@ class TestVolumeSurface(unittest.TestCase):
         pass
 
 
-class TestReferencedSegmentation(unittest.TestCase):
+class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
-        super(TestReferencedSegmentation, self).setUp()
+        super(TestReferencedSegment, self).setUp()
         self._sop_class_uid = generate_uid()
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
@@ -925,7 +925,7 @@ class TestReferencedSegmentation(unittest.TestCase):
         )
 
     def test_construction(self):
-        ReferencedSegmentation(
+        ReferencedSegment(
             sop_class_uid=self._sop_class_uid,
            sop_instance_uid=self._sop_instance_uid,
            segment_number=self._segment_number,
@@ -1000,7 +1000,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             PlanarROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
-                referenced_segmentation=self._region
+                referenced_segment=self._region
             )
 
 
@@ -1113,7 +1113,7 @@ class TestMeasurementReport(unittest.TestCase):
         self._measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
-            imaging_measurements=self._measurements
+            imaging_measurements=[self._measurements]
         )
 
     def test_container(self):

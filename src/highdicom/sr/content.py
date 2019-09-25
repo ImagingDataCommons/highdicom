@@ -1,18 +1,21 @@
-"""Content items for Structured Report instances."""
+"""Content items for Structured Report document instances."""
 from typing import Optional, Sequence, Union
 
+import numpy as np
 from pydicom.coding import Code
 from highdicom.sr.coding import CodedConcept
+from highdicom.sr.enum import (
+    GraphicTypes,
+    GraphicTypes3D,
+    PixelOriginInterpretations,
+    RelationshipTypes,
+)
 from highdicom.sr.value_types import (
     CodeContentItem,
     CompositeContentItem,
     ContentSequence,
-    GraphicTypes,
-    GraphicTypes3D,
     ImageContentItem,
     NumContentItem,
-    PixelOriginInterpretations,
-    RelationshipTypes,
     ScoordContentItem,
     Scoord3DContentItem,
     UIDRefContentItem,
@@ -24,22 +27,25 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
     """Content item representing a longitudinal temporal offset from an event.
     """
 
-    def __init__(self, value: Optional[Union[int, float]],
-                 unit: Optional[Union[CodedConcept, Code]],
-                 event_type: Optional[Union[CodedConcept, Code]]) -> None:
+    def __init__(
+            self,
+            value: Optional[Union[int, float]],
+            unit: Optional[Union[CodedConcept, Code]] = None,
+            event_type: Optional[Union[CodedConcept, Code]] = None
+        ) -> None:
         """
         Parameters
         ----------
-        value: Union[int, float, None], optional
+        value: Union[int, float], optional
             offset in time from a particular event of significance
-        unit: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code, None], optional
+        unit: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             unit of time, e.g., "Days" or "Seconds"
-        event_type: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code, None], optional
+        event_type: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
         """  # noqa
-        super(LongitudinalTemporalOffsetFromEvent, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='128740',
                 meaning='Longitudinal Temporal Offset from Event',
@@ -67,21 +73,25 @@ class SourceImageForRegion(ImageContentItem):
     source for a region.
     """
 
-    def __init__(self, referenced_sop_class_uid, referenced_sop_instance_uid,
-                 referenced_frame_numbers=None):
+    def __init__(
+            self,
+            referenced_sop_class_uid: str,
+            referenced_sop_instance_uid: str,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ):
         """
         Parameters
         ----------
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: str
             SOP Class UID of the referenced image object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Union[List[int], None], optional
+        referenced_frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
         """
-        super(SourceImageForRegion, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='121322',
                 meaning='Source image for image processing operation',
@@ -100,21 +110,25 @@ class SourceImageForSegmentation(ImageContentItem):
     source for a segmentation.
     """
 
-    def __init__(self, referenced_sop_class_uid, referenced_sop_instance_uid,
-                 referenced_frame_numbers=None):
+    def __init__(
+            self,
+            referenced_sop_class_uid: str,
+            referenced_sop_instance_uid: str,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ) -> None:
         """
         Parameters
         ----------
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: str
             SOP Class UID of the referenced image object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Union[List[int], None], optional
+        referenced_frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
         """
-        super(SourceImageForSegmentation, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='121233',
                 meaning='Source Image for Segmentation',
@@ -133,15 +147,15 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
     used as the source for a segmentation.
     """
 
-    def __init__(self, referenced_series_instance_uid):
+    def __init__(self, referenced_series_instance_uid: str):
         """
         Parameters
         ----------
-        referenced_series_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_series_instance_uid: str
             Series Instance UID
 
         """
-        super(SourceSeriesForSegmentation, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='121232',
                 meaning='Source Series for Segmentation',
@@ -155,27 +169,35 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 class ImageRegion(ScoordContentItem):
 
     """Content item representing an image region of interest in the
-    two-dimensional image coordinate space in pixel unit"""
+    two-dimensional image coordinate space in pixel unit.
+    """
 
-    def __init__(self, graphic_type, graphic_data, source_image,
-                 pixel_origin_interpretation=PixelOriginInterpretations.VOLUME):
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypes, str],
+            graphic_data: np.ndarray,
+            source_image: SourceImageForRegion,
+            pixel_origin_interpretation:
+                Optional[Union[PixelOriginInterpretations, str]] = None
+        ) -> None:
         """
         Parameters
         ----------
-        graphic_type: Union[pydicom.sr.value_types.GraphicTypes, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
-        graphic_data: List[List[int]]
-            ordered set of (row, column) coordinate pairs
+        graphic_data: numpy.ndarray
+            array of ordered spatial coordinates, where each row of the array
+            represents a (column, row) coordinate pair
         source_image: pydicom.sr.template.SourceImageForRegion
             source image to which `graphic_data` relates
-        pixel_origin_interpretation: Union[pydicom.sr.value_types.PixelOriginInterpretations, str, None], optional
+        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretations, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
-            (``pydicom.sr.value_types.PixelOriginInterpretations.VOLUME``) or
+            (``highdicom.sr.enum.PixelOriginInterpretations.VOLUME``) or
             relative to an individual frame
-            (``pydicom.sr.value_types.PixelOriginInterpretations.FRAME``)
+            (``highdicom.sr.enum.PixelOriginInterpretations.FRAME``)
             of the source image
-            (default: ``pydicom.sr.value_types.PixelOriginInterpretations.VOLUME``)
+            (default: ``highdicom.sr.enum.PixelOriginInterpretations.VOLUME``)
 
         """  # noqa
         graphic_type = GraphicTypes(graphic_type)
@@ -187,6 +209,8 @@ class ImageRegion(ScoordContentItem):
             raise TypeError(
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
+        if pixel_origin_interpretation is None:
+            pixel_origin_interpretation = PixelOriginInterpretations.VOLUME
         if pixel_origin_interpretation == PixelOriginInterpretations.FRAME:
             if (not hasattr(source_image, 'ReferencedFrameNumber') or
                 source_image.ReferencedFrameNumber is None):
@@ -194,7 +218,7 @@ class ImageRegion(ScoordContentItem):
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
                 )
-        super(ImageRegion, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='111030',
                 meaning='Image Region',
@@ -214,15 +238,21 @@ class ImageRegion3D(Scoord3DContentItem):
     three-dimensional patient/slide coordinate space in millimeter unit.
     """
 
-    def __init__(self, graphic_type, graphic_data, frame_of_reference_uid):
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypes3D, str],
+            graphic_data: np.ndarray,
+            frame_of_reference_uid: str
+        ) -> None:
         """
         Parameters
         ----------
-        graphic_type: Union[pydicom.sr.value_types.GraphicTypes3D, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypes3D, str]
             name of the graphic type
-        graphic_data: List[List[int]]
-            ordered set of (x, y, z) coordinate triplets
-        frame_of_reference_uid: Union[pydicom.uid.UID, str, None]
+        graphic_data: numpy.ndarray
+            array of ordered spatial coordinates, where each row of the array
+            represents a (x, y, z) coordinate triplet
+        frame_of_reference_uid: str
             UID of the frame of reference
 
         """  # noqa
@@ -235,7 +265,7 @@ class ImageRegion3D(Scoord3DContentItem):
             raise ValueError(
                 'Graphic type "ELLIPSOID" is not valid for region.'
             )
-        super(ImageRegion3D, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='111030',
                 meaning='Image Region',
@@ -254,21 +284,27 @@ class VolumeSurface(Scoord3DContentItem):
     patient/slide coordinate system in millimeter unit.
     """
 
-    def __init__(self, graphic_type, graphic_data, frame_of_reference_uid,
-                 source_images=None, source_series=None):
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypes3D, str],
+            graphic_data: np.ndarray,
+            frame_of_reference_uid: str,
+            source_images: Optional[Sequence[SourceImageForSegmentation]] = None,
+            source_series: Optional[SourceSeriesForSegmentation] = None
+        ) -> None:
         """
         Parameters
         ----------
-        graphic_type: Union[pydicom.sr.value_types.GraphicTypes, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
-        graphic_data: List[List[int]]
+        graphic_data: Sequence[Sequence[int]]
             ordered set of (row, column, frame) coordinate pairs
-        frame_of_reference_uid: Union[pydicom.uid.UID, str]
+        frame_of_reference_uid: str
             unique identifier of the frame of reference within which the
             coordinates are defined
-        source_images: Union[List[pydicom.sr.content_items.SourceImageForSegmentation], None], optional
+        source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
             source images for segmentation
-        source_series: Union[pydicom.sr.content_items.SourceSeriesForSegmentation, None], optional
+        source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional
             source series for segmentation
 
         Note
@@ -281,7 +317,7 @@ class VolumeSurface(Scoord3DContentItem):
             raise ValueError(
                 'Graphic type for volume surface must be "ELLIPSOID".'
             )
-        super(VolumeSurface, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='121231',
                 meaning='Volume Surface',
@@ -319,15 +355,15 @@ class RealWorldValueMap(CompositeContentItem):
 
     """Content item representing a reference to a real world value map."""
 
-    def __init__(self, referenced_sop_instance_uid):
+    def __init__(self, referenced_sop_instance_uid: str):
         """
         Parameters
         ----------
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: str
             SOP Instance UID of the referenced object
 
         """
-        super(RealWorldValueMap, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='126100',
                 meaning='Real World Value Map used for measurement',
@@ -343,21 +379,25 @@ class FindingSite(CodeContentItem):
 
     """Content item representing a coded finding site."""
 
-    def __init__(self, anatomic_location, laterality=None,
-                 topographical_modifier=None):
+    def __init__(
+            self,
+            anatomic_location: Union[CodedConcept, Code],
+            laterality: Optional[Union[CodedConcept, Code]] = None,
+            topographical_modifier: Optional[Union[CodedConcept, Code]] = None
+        ) -> None:
         """
         Parameters
         ----------
-        anatomic_location: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code, None], optional
+        anatomic_location: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded anatomic location (region or structure)
-        laterality: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code, None], optional
+        laterality: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
             (see CID 244 "Laterality" for options)
-        topographical_modifier: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code, None], optional
-            coded modifier value for anatomic location
+        topographical_modifier: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            coded modifier of anatomic location
 
         """  # noqa
-        super(FindingSite, self).__init__(
+        super().__init__(
             name=CodedConcept(
                 value='363698007',
                 meaning='Finding Site',
@@ -393,28 +433,35 @@ class FindingSite(CodeContentItem):
 
 class ReferencedSegmentationFrame(ContentSequence):
 
-    """Content items representing a reference to a segmentation image frame
-    as well as the image that was used as a source for the segmentation.
+    """Content items representing a reference to an individual frame of a
+    segmentation instance as well as the image that was used as a source for
+    the segmentation.
     """
 
-    def __init__(self, sop_class_uid, sop_instance_uid, frame_number,
-                 segment_number, source_image):
+    def __init__(
+            self,
+            sop_class_uid: str,
+            sop_instance_uid: str,
+            frame_number: int,
+            segment_number: int,
+            source_image: SourceImageForSegmentation
+        ) -> None:
         """
         Parameters
         ----------
-        sop_class_uid: Union[pydicom.uid.UID, str]
+        sop_class_uid: str
             SOP Class UID of the referenced image object
-        sop_instance_uid: Union[pydicom.uid.UID, str]
+        sop_instance_uid: str
             SOP Instance UID of the referenced image object
         segment_number: int
             number of the segment to which the refernce applies
         frame_number: int
             number of the frame to which the reference applies
-        source_image: pydicom.sr.content_items.SourceImageForSegmentation
+        source_image: highdicom.sr.content.SourceImageForSegmentation
             source image for segmentation
 
         """
-        super(ReferencedSegmentationFrame, self).__init__()
+        super().__init__()
         segmentation_item = ImageContentItem(
             name=CodedConcept(
                 value='121214',
@@ -435,28 +482,37 @@ class ReferencedSegmentationFrame(ContentSequence):
         self.append(source_image)
 
 
-class ReferencedSegmentation(ContentSequence):
+class ReferencedSegment(ContentSequence):
 
-    """Content items representing a reference to a segmentation image
-    as well as the images that were used as a source for the segmentation.
+    """Content items representing a reference to an individual segment of a
+    segmentation or surface segmentation instance as well as the images that
+    were used as a source for the segmentation.
     """
 
-    def __init__(self, sop_class_uid, sop_instance_uid, segment_number,
-                 frame_numbers, source_images=None, source_series=None):
+    def __init__(
+            self,
+            sop_class_uid: str,
+            sop_instance_uid: str,
+            segment_number: int,
+            frame_numbers: Optional[Sequence[int]] = None,
+            source_images: Optional[Sequence[SourceImageForSegmentation]] = None,
+            source_series: Optional[SourceSeriesForSegmentation] = None
+        ) -> None:
         """
         Parameters
         ----------
-        sop_class_uid: Union[pydicom.uid.UID, str]
-            SOP Class UID of the referenced image object
-        sop_instance_uid: Union[pydicom.uid.UID, str]
-            SOP Instance UID of the referenced image object
-        frame_numbers: List[int]
+        sop_class_uid: str
+            SOP Class UID of the referenced segmentation object
+        sop_instance_uid: str
+            SOP Instance UID of the referenced segmentation object
+        frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies
+            (in case a segmentation instance is referenced)
         segment_number: int
             number of the segment to which the refernce applies
-        source_images: Union[List[pydicom.sr.content_items.SourceImageForSegmentation], None], optional
+        source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
             source images for segmentation
-        source_series: Union[pydicom.sr.content_items.SourceSeriesForSegmentation, None], optional
+        source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional
             source series for segmentation
 
         Note
@@ -464,8 +520,8 @@ class ReferencedSegmentation(ContentSequence):
         Either `source_images` or `source_series` must be provided.
 
         """  # noqa
-        super(ReferencedSegmentation, self).__init__()
-        segmentation_item = ImageContentItem(
+        super().__init__()
+        segment_item = ImageContentItem(
             name=CodedConcept(
                 value='121191',
                 meaning='Referenced Segment',
@@ -476,7 +532,7 @@ class ReferencedSegmentation(ContentSequence):
             referenced_frame_numbers=frame_numbers,
             referenced_segment_numbers=segment_number
         )
-        self.append(segmentation_item)
+        self.append(segment_item)
         if source_images is not None:
             for image in source_images:
                 if not isinstance(image, SourceImageForSegmentation):

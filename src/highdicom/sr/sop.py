@@ -26,33 +26,36 @@ class Comprehensive3DSR(SOPClass):
     spatial or temporal regions of interest within such SOP Instances.
     """
 
-    def __init__(self, evidence: Sequence[Dataset],
-                 content: Dataset,
-                 series_instance_uid: str,
-                 series_number: int,
-                 sop_instance_uid: str,
-                 instance_number: int,
-                 manufacturer: str,
-                 is_complete: bool = False,
-                 is_final: bool = False,
-                 is_verified: bool = False,
-                 institution_name: Optional[str] = None,
-                 institutional_department_name: Optional[str] = None,
-                 verifying_observer_name: Optional[str] = None,
-                 verifying_organization: Optional[str] = None,
-                 performed_procedure_codes: Optional[Sequence[Union[Code, CodedConcept]]] = None,
-                 requested_procedures: Optional[Sequence[Dataset]] = None,
-                 previous_versions: Optional[Sequence[Dataset]] = None,
-                 record_evidence: bool = True):
+    def __init__(
+            self,
+            evidence: Sequence[Dataset],
+            content: Dataset,
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            is_complete: bool = False,
+            is_final: bool = False,
+            is_verified: bool = False,
+            institution_name: Optional[str] = None,
+            institutional_department_name: Optional[str] = None,
+            verifying_observer_name: Optional[str] = None,
+            verifying_organization: Optional[str] = None,
+            performed_procedure_codes: Optional[Sequence[Union[Code, CodedConcept]]] = None,
+            requested_procedures: Optional[Sequence[Dataset]] = None,
+            previous_versions: Optional[Sequence[Dataset]] = None,
+            record_evidence: bool = True
+        ):
         """
         Parameters
         ----------
         evidence: Sequence[pydicom.dataset.Dataset]
-            instances, which are referenced in the content tree and from which
+            Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
         content: pydicom.dataset.Dataset
-            root container content items that should be included in the
+            Root container content items that should be included in the
             SR document
         series_instance_uid: str
             Series Instance UID of the SR document series
@@ -61,41 +64,42 @@ class Comprehensive3DSR(SOPClass):
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SR document instance
         instance_number: int
-            number that should be assigned to this SR document instance
+            Number that should be assigned to this SR document instance
         manufacturer: str
-            name of the manufacturer of the device that creates the SR document
+            Name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
             as `institution_name`)
         is_complete: bool, optional
-            whether the content is complete (default: ``False``)
+            Whether the content is complete (default: ``False``)
         is_final: bool, optional
-            whether the report is the definitive means of communicating the
+            Whether the report is the definitive means of communicating the
             findings (default: ``False``)
         is_verified: bool, optional
-            whether the report has been verified by an observer accountable
+            Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
         institution_name: str, optional
-            name of the institution of the person or device that creates the
+            Name of the institution of the person or device that creates the
             SR document instance
         institutional_department_name: str, optional
-            name of the department of the person or device that creates the
+            Name of the department of the person or device that creates the
             SR document instance
         verifying_observer_name: Union[str, None], optional
-            name of the person that verfied the SR document
+            Name of the person that verfied the SR document
             (required if `is_verified`)
         verifying_organization: str
-            name of the organization that verfied the SR document
+            Name of the organization that verfied the SR document
             (required if `is_verified`)
         performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
-            codes of the performed procedures that resulted in the SR document
+            Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
-            requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fullfilled by creation of the
             SR document
         previous_versions: List[pydicom.dataset.Dataset]
-            instances, which represent previous versions of the SR document
+            Instances representing previous versions of the SR document
         record_evidence: bool, optional
-            whether provided `evidence` should be recorded, i.e. included
-            in Pertinent Other Evidence Sequence (default: ``True``)
+            Whether provided `evidence` should be recorded, i.e. included
+            in Current Requested Procedure Evidence Sequence or Pertinent
+            Other Evidence Sequence (default: ``True``)
 
         Note
         ----

@@ -671,7 +671,7 @@ class ScoordContentItem(ContentItem):
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.int]
-            array of spatial coordinates, where each row of the array
+            array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
         pixel_origin_interpretation: Union[highdicom.sr.value_types.PixelOriginInterpretations, str]
             whether pixel coordinates specified by `graphic_data` are defined
