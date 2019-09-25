@@ -67,6 +67,43 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         self.ContentSequence = ContentSequence([event_type_item])
 
 
+class SourceImageForMeasurement(ImageContentItem):
+
+    """Content item representing a reference to an image that was used as a
+    source for a measurement.
+    """
+
+    def __init__(
+            self,
+            referenced_sop_class_uid: str,
+            referenced_sop_instance_uid: str,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ):
+        """
+        Parameters
+        ----------
+        referenced_sop_class_uid: str
+            SOP Class UID of the referenced image object
+        referenced_sop_instance_uid: str
+            SOP Instance UID of the referenced image object
+        referenced_frame_numbers: Sequence[int], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        """
+        super().__init__(
+            name=CodedConcept(
+                value='121322',
+                meaning='Source image for image processing operation',
+                scheme_designator='DCM'
+            ),
+            referenced_sop_class_uid=referenced_sop_class_uid,
+            referenced_sop_instance_uid=referenced_sop_instance_uid,
+            referenced_frame_numbers=referenced_frame_numbers,
+            relationship_type=RelationshipTypes.SELECTED_FROM
+        )
+
+
 class SourceImageForRegion(ImageContentItem):
 
     """Content item representing a reference to an image that was used as a
@@ -93,8 +130,8 @@ class SourceImageForRegion(ImageContentItem):
         """
         super().__init__(
             name=CodedConcept(
-                value='121322',
-                meaning='Source image for image processing operation',
+                value='111040',
+                meaning='Original Source',
                 scheme_designator='DCM'
             ),
             referenced_sop_class_uid=referenced_sop_class_uid,

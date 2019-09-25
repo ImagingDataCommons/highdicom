@@ -15,13 +15,13 @@ from highdicom.sr.content import (
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
+    SourceImageForMeasurement,
 )
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
     ContentItem,
     ContentSequence,
-    ImageContentItem,
     NumContentItem,
     RelationshipTypes,
     TextContentItem,
@@ -1059,7 +1059,7 @@ class Measurement(Template):
             finding_sites: Optional[Sequence[FindingSite]] = None,
             method: Optional[Union[CodedConcept, Code]] = None,
             properties: Optional[MeasurementProperties] = None,
-            referenced_image: Optional[ImageContentItem] = None,
+            referenced_image: Optional[SourceImageForMeasurement] = None,
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None
         ):
         """
@@ -1096,7 +1096,7 @@ class Measurement(Template):
             measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
-        referenced_image: highdicom.sr.value_types.ImageContentItem, optional
+        referenced_image: highdicom.sr.content.SourceImageForMeasurement, optional
             referenced image from which quantitative features were extracted
         referenced_real_world_value_map: highdicom.sr.content.RealWorldValueMap, optional
             referenced real world value map for region of interest
@@ -1161,10 +1161,10 @@ class Measurement(Template):
                 )
             value_item.ContentSequence.extend(properties)
         if referenced_image is not None:
-            if not isinstance(referenced_image, SourceImageForProcessing):
+            if not isinstance(referenced_image, SourceImageForMeasurement):
                 raise TypeError(
                     'Argument "referenced_image" must have type '
-                    'SourceImageForProcessing.'
+                    'SourceImageForMeasurement.'
                 )
             value_item.ContentSequence.append(referenced_image)
         if referenced_real_world_value_map is not None:
@@ -1192,7 +1192,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
     def __init__(
             self,
             tracking_identifier: TrackingIdentifier,
-            referenced_image: Optional[ImageContentItem] = None,
+            referenced_image: Optional[SourceImageForMeasurement] = None,
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
             time_point_context: Optional[TimePointContext] = None,
             finding_type: Optional[Union[CodedConcept, Code]] = None,
@@ -1205,7 +1205,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
             identifier for tracking measurements
-        referenced_image: highdicom.sr.value_types.ImageContentItem, optional
+        referenced_image: highdicom.sr.content.SourceImageForMeasurement, optional
             referenced image from which quantitative features were extracted
         referenced_real_world_value_map: highdicom.sr.content.RealWorldValueMap, optional
             referenced real world value map for region of interest
@@ -1273,10 +1273,10 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 )
             group_item.ContentSequence.append(time_point_context)
         if referenced_image is not None:
-            if not isinstance(referenced_image, SourceImageForProcessing):
+            if not isinstance(referenced_image, SourceImageForMeasurement):
                 raise TypeError(
                     'Argument "referenced_image" must have type '
-                    'SourceImageForProcessing.'
+                    'SourceImageForMeasurement.'
                 )
             group_item.ContentSequence.append(referenced_image)
         if referenced_real_world_value_map is not None:
@@ -1316,7 +1316,6 @@ class _ROIMeasurementsAndQualitativeEvaluations(
     def __init__(
             self,
             tracking_identifier: TrackingIdentifier,
-            referenced_image: Optional[ImageContentItem] = None,
             referenced_regions: Optional[
                 Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
             ] = None,
