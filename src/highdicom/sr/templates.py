@@ -1288,7 +1288,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'type Measurement.'
                     )
                 group_item.ContentSequence.extend(measurement)
-            group_item.ContentSequence.extend(measurements)
+            group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
                 if not isinstance(evaluation, CodeContentItem):
@@ -1582,7 +1582,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
             self,
             derivation: CodedConcept,
             measurement_groups: Union[
-                Sequence[PlanarROIMeasurementsAndQualitativeEvaluations], 
+                Sequence[PlanarROIMeasurementsAndQualitativeEvaluations],
                 Sequence[VolumetricROIMeasurementsAndQualitativeEvaluations]
             ],
             measurement_properties: Optional[MeasurementProperties] = None
