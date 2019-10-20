@@ -52,5 +52,6 @@ setuptools.setup(
     install_requires=[
         'pydicom>=1.0',
         'numpy>=1.0',
+        'pillow>=6.0'
     ],
 )
