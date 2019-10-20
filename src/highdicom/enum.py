@@ -8,3 +8,12 @@ class CoordinateSystemNames(Enum):
 
     PATIENT = 'PATIENT'
     SLIDE = 'SLIDE'
+
+
+class ContentQualifications(Enum):
+
+    """Enumerated values for Content Qualification attribute."""
+
+    PRODUCT = 'PRODUCT'
+    RESEARCH = 'RESEARCH'
+    SERVICE = 'SERVICE'

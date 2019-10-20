@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from io import BytesIO
-from typing import Optional, Union
+from typing import Optional, Sequence, Union
 
 from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
@@ -14,6 +14,8 @@ from pydicom.uid import (
 )
 from pydicom.valuerep import DA, DT, TM
 
+from highdicom.sr.coding import CodingSchemeIdentificationItem
+from highdicom.enum import ContentQualifications
 from highdicom.version import __version__
 
 
@@ -77,25 +79,31 @@ class SOPClass(Dataset):
 
     """Base class for a DICOM SOP Instance."""
 
-    def __init__(self,
-                 study_instance_uid: str,
-                 series_instance_uid: str,
-                 series_number: int,
-                 sop_instance_uid: str,
-                 sop_class_uid: str,
-                 instance_number: int,
-                 manufacturer: str,
-                 modality: str,
-                 transfer_syntax_uid: Optional[str] = None,
-                 patient_id: Optional[str] = None,
-                 patient_name: Optional[str] = None,
-                 patient_birth_date: Optional[str] = None,
-                 patient_sex: Optional[str] = None,
-                 accession_number: Optional[str] = None,
-                 study_id: str = None,
-                 study_date: Optional[Union[str, datetime.date]] = None,
-                 study_time: Optional[Union[str, datetime.time]] = None,
-                 referring_physician_name: Optional[str] = None):
+    def __init__(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            sop_class_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            modality: str,
+            transfer_syntax_uid: Optional[str] = None,
+            patient_id: Optional[str] = None,
+            patient_name: Optional[str] = None,
+            patient_birth_date: Optional[str] = None,
+            patient_sex: Optional[str] = None,
+            accession_number: Optional[str] = None,
+            study_id: str = None,
+            study_date: Optional[Union[str, datetime.date]] = None,
+            study_time: Optional[Union[str, datetime.time]] = None,
+            referring_physician_name: Optional[str] = None,
+            content_qualification: Optional[str] = None,
+            coding_schemes: Optional[
+                Sequence[CodingSchemeIdentificationItem]
+            ] = None
+        ):
         """
         Parameters
         ----------
@@ -136,6 +144,11 @@ class SOPClass(Dataset):
            Time of study creation
         referring_physician_name: str, optional
             Name of the referring physician
+        content_qualification: str, optional
+            Indicator of content qualification
+        coding_schemes: Sequence[highdicom.sr.coding.CodingSchemeIdentificationItem], optional
+            private or public coding schemes that are not part of the
+            DICOM standard
 
         Note
         ----
@@ -209,6 +222,18 @@ class SOPClass(Dataset):
         self.InstanceNumber = instance_number
         self.ContentDate = DA(datetime.now().date())
         self.ContentTime = TM(datetime.now().time())
+        if content_qualification is not None:
+            content_qualification = ContentQualifications(content_qualification)
+            self.ContentQualification = content_qualification.value
+        if coding_schemes is not None:
+            self.CodingSchemeIdentificationSequence = []
+            for item in coding_schemes:
+                if not isinstance(item, CodingSchemeIdentificationItem):
+                    raise TypeError(
+                        'Coding scheme identification item must have type '
+                        '"CodingSchemeIdentificationItem".'
+                    )
+                self.CodingSchemeIdentificationSequence.append(item)
 
     def _copy_attr(self, dataset: Dataset, tag: str):
         """Copies an attribute from `dataset` to `self`.
