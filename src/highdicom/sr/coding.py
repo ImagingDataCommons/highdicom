@@ -116,7 +116,10 @@ class CodingSchemeResourceItem(Dataset):
             type of resource `url` points to (options: `{"DOC", "OWL", "CSV"}`)
 
         """
+        super().__init__()
         self.CodingSchemeURL = str(url)
+        if url_type not in {"DOC", "OWL", "CSV"}:
+            raise ValueError('Unknonw URL type.')
         self.CodingSchemeURLType = str(url_type)
 
 
@@ -148,10 +151,11 @@ class CodingSchemeIdentificationItem(Dataset):
             registered and `uid` is not available
         responsible_organization: str, optional
             name of the organization that is responsible for the scheme
-        resources: Sequence[pydicom.sr.coding.CodingSchemeResource], optional
+        resources: Sequence[pydicom.sr.coding.CodingSchemeResourceItem], optional
             one or more resources related to the scheme
 
         """
+        super().__init__()
         self.CodingSchemeDesignator = str(designator)
         if name is not None:
             self.CodingSchemeName = str(name)
@@ -177,7 +181,10 @@ class CodingSchemeIdentificationItem(Dataset):
             elif external_id is not None:
                 self.CodingSchemeExternalID = str(external_id)
         if resources is not None:
-            if isinstance(resources, (List, Sequence, )):
-                self.CodingSchemeResourcesSequence = resources
-            elif isinstance(resrc, CodingSchemeRegistry):
-                self.CodingSchemeResourcesSequence = [resources, ]
+            self.CodingSchemeResourcesSequence = []
+            for r in resources:
+                if not isinstance(r, CodingSchemeResourceItem):
+                    raise TypeError(
+                        'Resources must have type CodingSchemeResourceItem.'
+                    )
+                self.CodingSchemeResourcesSequence.append(r)

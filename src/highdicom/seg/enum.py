@@ -26,4 +26,3 @@ class SegmentationFractionalTypes(Enum):
     PROBABILITY = 'PROBABILITY'
     OCCUPANCY = 'OCCUPANCY'
 
-

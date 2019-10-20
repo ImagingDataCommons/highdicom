@@ -27,6 +27,7 @@ from highdicom.seg.content import (
     PlanePositionSequence,
     PlanePositionSlideSequence,
     PixelMeasuresSequence,
+    Surface,
 )
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
@@ -41,14 +42,15 @@ logger = logging.getLogger(__name__)
 class Segmentation(SOPClass):
 
     """SOP class for a Segmentation, which respresents one or more
-    regions of interst (ROIs) as mask images (raster graphics).
+    regions of interest (ROIs) as mask images (raster graphics) in
+    two-dimensional image space.
+
     """
 
     def __init__(
             self,
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
-            segmentation_type: Union[str, SegmentationTypes],
             segment_descriptions: Sequence[SegmentDescription],
             segment_derivations: Sequence[DerivationImageSequence],
             series_instance_uid: str,
@@ -59,16 +61,21 @@ class Segmentation(SOPClass):
             manufacturer_model_name: str,
             software_versions: Union[str, Tuple[str]],
             device_serial_number: str,
-            content_description: str = '',
-            content_creator_name: Optional[str] = None,
-            segmentation_fractional_type: Union[str, SegmentationFractionalTypes] = SegmentationFractionalTypes.PROBABILITY,
+            fractional_type: Union[str, SegmentationFractionalTypes] = \
+                SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
-            transfer_syntax_uid: Optional[Union[str, UID]] = None,
-            frame_of_reference_uid: Optional[Union[str, UID]] = None,
-            position_reference_indicator: Optional[str] = None,
+            content_description: Optional[str] = None,
+            content_creator_name: Optional[str] = None,
+            transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
-            plane_positions: Optional[Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]] = None,
+            plane_positions: Optional[
+                Union[
+                    Sequence[PlanePositionSequence],
+                    Sequence[PlanePositionSlideSequence]
+                ]
+            ] = None,
+            **kwargs
         ) -> None:
         """
         Parameters
@@ -77,27 +84,29 @@ class Segmentation(SOPClass):
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived
         pixel_array: numpy.ndarray
-            Array of segmentation pixel data.
-            If `segmentation_type` is ``"BINARY"``, a boolean or unsigned 8-bit
-            or 16-bit integer array representing a labeled mask image, where
-            positive pixel values encode segment numbers.
-            If `segmentation_type` is ``"FRACTIONAL"``, a floating-point pixel
-            array representing a probabilistic mask image, where pixel values
-            either encode the probability of a given pixel belonging to a
-            segment (`segmentation_fractional_type` is ``"PROBABILITY"``)
+            Array of segmentation pixel data of boolean, unsigned integer or
+            floating piont data type representing a mask image, where pixel
+            values either encode the probability of a given pixel
+            belonging to a segment
+            (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
-            (`segmentation_fractional_type` is ``"OCCUPANCY"``).
+            (if `fractional_type` is ``"OCCUPANCY"``).
             In the latter case, only one segment can be encoded by
-            `segment_pixels_array`. Additional segments can be subsequently
-            added to a Segmentation instance using the ``add_segments()``
+            `pixel_array`. Additional segments can be subsequently
+            added to the `Segmentation` instance using the ``add_segments()``
             method.
-            If `segment_pixels_array` represents a 3D image the first dimension
+            If `pixel_array` represents a 3D image, the first dimension
             represents individual 2D planes and these planes must be ordered
-            based on their position in the three-dimensional coordinate system
-            identified by `frame_of_reference_uid` (first along the X axis,
-            second along the Y, and third along the Z axes).
-        segmentation_type: Union[str, SegmentationTypes]
-            Type of segmentation
+            based on their position in the three-dimensional patient
+            coordinate system (first along the X axis, second along the Y axis,
+            and third along the Z axis).
+            If `pixel_array` reprsents a tiled 2D image, the first dimension
+            represents invidual 2D tiles (for one channel and z-stack) and
+            these tiles must be ordered based on their position in the tiled
+            total pixel matrix (first along the row dimension and second along
+            the column dimension, which are defined in the three-dimensional
+            slide coordinate system by the direction cosines encoded by the
+            *Image Orientation (Slide)* attribute).
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
         segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
@@ -123,35 +132,22 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
+        fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
+            Type of fractional segmentation that indicates how pixel data
+            should be interpreted
+        max_fractional_value: int, optional
+            Maximum value that indicates probability or occupancy of 1 that
+            a pixel represents a given segment
         content_description: str, optional
             Description of the segmentation
         content_creator_name: str, optional
             Name of the creator of the segmentation
-        segmentation_fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
-            Type of fractional segmentation that indicates how pixel data
-            should be interpreted (required if `segmentation_type` is
-            ``SegmentationTypes.FRACTIONAL``)
-        max_fractional_value: int, optional
-            Maximum value that indicates probability or occupancy of 1 that
-            a pixel represents a given segment
-            (required if `segmentation_type` is ``SegmentationTypes.FRACTIONAL``)
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: JPEG2000 (UID: ``"1.2.840.10008.1.2.4.90"``) and
-            JPEG-LS (UID: ``"1.2.840.10008.1.2.4.80"``).
-            Defaults to Implicit VR Little Endian (UID ``"1.2.840.10008.1.2"``).
-        frame_of_reference_uid: str, optional
-            UID of the frame of reference for determining the absolute position
-            of an image within the coordinate system.
-            If ``None``, it will be assumed that the segmentation image has the
-            same frame of reference as the source image(s).
-        positiion_reference_indicator: str, optional
-            Part of the imaging target that is used a reference for
-            determining the position of an image,
-            e.g., ``"SLIDE_CORNER"``
-            If ``None``, it will be assumed that the segmentation image has the
-            same position reference indicator as the source image(s).
+            are supported: JPEG2000 (``"1.2.840.10008.1.2.4.90"``) and
+            JPEG-LS (``"1.2.840.10008.1.2.4.80"``). Lossy compression is not
+            supported.
         pixel_measures: PixelMeasures, optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
@@ -170,6 +166,9 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
 
         Raises
         ------
@@ -188,6 +187,12 @@ class Segmentation(SOPClass):
                   does not match number of segments encoded in `pixel_array`
                   (number of unique positive values in `pixel_array`).
 
+        Note
+        ----
+        The assumption is made that segments in `pixel_array` are defined in
+        the same frame of reference as `source_images`.
+
+
         """  # noqa
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
@@ -204,20 +209,35 @@ class Segmentation(SOPClass):
         if len(uniqueness_criteria) > 1:
             raise ValueError(
                 'Source images must all be part of the same series and must '
-                'have the same frame of reference as well as the same '
-                'image dimensions (number of rows/columns).'
+                'have the same image dimensions (number of rows/columns).'
             )
 
-        src_image = source_images[0]
-        is_multiframe = hasattr(src_image, 'SharedFunctionalGroupsSequence')
+        src_img = source_images[0]
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
         if is_multiframe and len(source_images) > 1:
             raise ValueError(
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
             )
 
+        supported_transfer_syntaxes = {
+            '1.2.840.10008.1.2',       # Implicit Little Endian
+            '1.2.840.10008.1.2.1',     # Explicit Little Endian
+            '1.2.840.10008.1.2.4.90',  # JPEG2000
+            '1.2.840.10008.1.2.4.80',  # JPEG-LS
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                'Transfer syntax "{}" is not supported'.format(
+                    transfer_syntax_uid
+                )
+            )
+
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ...]
+
         super().__init__(
-            study_instance_uid=src_image.StudyInstanceUID,
+            study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
@@ -226,41 +246,35 @@ class Segmentation(SOPClass):
             manufacturer=manufacturer,
             modality='SEG',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=src_image.PatientID,
-            patient_name=src_image.PatientName,
-            patient_birth_date=src_image.PatientBirthDate,
-            patient_sex=src_image.PatientSex,
-            accession_number=src_image.AccessionNumber,
-            study_id=src_image.StudyID,
-            study_date=src_image.StudyDate,
-            study_time=src_image.StudyTime,
-            referring_physician_name=src_image.ReferringPhysicianName
+            patient_id=src_img.PatientID,
+            patient_name=src_img.PatientName,
+            patient_birth_date=src_img.PatientBirthDate,
+            patient_sex=src_img.PatientSex,
+            accession_number=src_img.AccessionNumber,
+            study_id=src_img.StudyID,
+            study_date=src_img.StudyDate,
+            study_time=src_img.StudyTime,
+            referring_physician_name=src_img.ReferringPhysicianName,
+            **kwargs
         )
 
-        coordinate_system = CoordinateSystemNames.PATIENT
         # Using Container Type Code Sequence attribute would be more elegant,
         # but unfortunately it is a type 2 attribute.
-        if src_image.SOPClassUID in (
-                VLMicroscopicImageStorage,
+        if src_img.SOPClassUID in (
                 VLSlideCoordinatesMicroscopicImageStorage,
                 VLWholeSlideMicroscopyImageStorage,
             ):
-            coordinate_system = CoordinateSystemNames.SLIDE
+            self._coordinate_system = CoordinateSystemNames.SLIDE
+        else:
+            self._coordinate_system = CoordinateSystemNames.PATIENT
 
         # Frame of Reference
-        if frame_of_reference_uid is None:
-            logger.info(
-                'frame of reference UID has not been provided - '
-                'assuming segmentation series has same frame of reference '
-                'as series of source images'
-            )
-            self.FrameOfReferenceUID = src_image.FrameOfReferenceUID
-        else:
-            self.FrameOfReferenceUID = frame_of_reference_uid
-        if coordinate_system == CoordinateSystemNames.SLIDE:
-            self.PositionReferenceIndicator = 'SLIDE_CORNER'
-        else:
-            self.PositionReferenceIndicator = positiion_reference_indicator
+        self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
+        self.PositionReferenceIndicator = getattr(
+            src_img,
+            'PositionReferenceIndicator',
+            None
+        )
 
         # (Enhanced) General Equipment
         self.DeviceSerialNumber = device_serial_number
@@ -270,12 +284,12 @@ class Segmentation(SOPClass):
         # General Reference
         self.SourceImageSequence = []
         referenced_series = defaultdict(list)
-        for src_image in source_images:
+        for src_img in source_images:
             ref = Dataset()
-            ref.ReferencedSOPClassUID = src_image.SOPClassUID
-            ref.ReferencedSOPInstanceUID = src_image.SOPInstanceUID
+            ref.ReferencedSOPClassUID = src_img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
             self.SourceImageSequence.append(ref)
-            referenced_series[src_image.SeriesInstanceUID].append(ref)
+            referenced_series[src_img.SeriesInstanceUID].append(ref)
 
         # Common Instance Reference
         self.ReferencedSeriesSequence = []
@@ -285,10 +299,9 @@ class Segmentation(SOPClass):
             ref.ReferencedInstanceSequence = referenced_images
             self.ReferencedSeriesSequence.append(ref)
 
-
         # Image Pixel
-        self.Rows = pixel_array.shape[-2]
-        self.Columns = pixel_array.shape[-1]
+        self.Rows = pixel_array.shape[1]
+        self.Columns = pixel_array.shape[2]
 
         # Segmentation Image
         self.ImageType = ['DERIVED', 'PRIMARY']
@@ -298,58 +311,70 @@ class Segmentation(SOPClass):
         self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
         self.ContentCreatorName = content_creator_name
-        segmentation_type = SegmentationTypes(segmentation_type)
-        self.SegmentationType = segmentation_type.value
-        if self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
-            self.BitsAllocated = 8
-            self.HighBit = 7
-            segmentation_fractional_type = SegmentationFractionalTypes(
-                segmentation_fractional_type
-            )
-            self.SegmentationFractionalType = segmentation_fractional_type.value
-            self.MaximumFractionalValue = max_fractional_value
-        elif self.SegmentationType == SegmentationTypes.BINARY.value:
-            self.BitsAllocated = 1
-            self.HighBit = 0
-        else:
+        self.SegmentationType = SegmentationTypes.FRACTIONAL.value
+        self.BitsAllocated = 8
+        self.HighBit = 7
+        segmentation_fractional_type = SegmentationFractionalTypes(
+            fractional_type
+        )
+        self.SegmentationFractionalType = segmentation_fractional_type.value
+        if max_fractional_value > 2**8:
             raise ValueError(
-                'Unknown segmentation type "{}"'.format(segmentation_type)
+                'Maximum fractional value must not exceed image bit depth.'
             )
+        self.MaximumFractionalValue = max_fractional_value
         self.BitsStored = self.BitsAllocated
-        self.LossyImageCompression = src_image.LossyImageCompression
-        # TODO: lossy
+        self.LossyImageCompression = getattr(
+            src_img,
+            'LossyImageCompression',
+            '00'
+        )
+        if self.LossyImageCompression == '01':
+            self.LossyImageCompressionRatio = \
+                src_img.LossyImageCompressionRatio
+            self.LossyImageCompressionMethod = \
+                src_img.LossyImageCompressionMethod
 
-        # NOTE: Sequence will be updated by the "add_segments()" method.
-        self.SegmentSequence = []
+        self.SegmentSequence = []  # will be updated by "add_segments()"
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         shared_func_groups = Dataset()
         if pixel_measures is None:
             if is_multiframe:
-                src_shared_fg = src_image.SharedFunctionalGroupsSequence[0]
+                src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
                 pixel_measures = src_shared_fg.PixelMeasuresSequence
             else:
                 pixel_measures = PixelMeasuresSequence(
-                    pixel_spacing=src_image.PixelSpacing,
-                    slice_thickness=src_image.SliceThickness,
-                    spacing_between_slices=src_image.SpacingBetweenSlices
+                    pixel_spacing=src_img.PixelSpacing,
+                    slice_thickness=src_img.SliceThickness,
+                    spacing_between_slices=src_img.SpacingBetweenSlices
                 )
+            # TODO: ensure derived segmentation image and original image have
+            # same physical dimeensions
+            seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
+            seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
+            src_row_dim = src_img.Rows
+            # Do we need to take ImageOrientationPatient/ImageOrientationPatient
+            # into account?
+
         if plane_orientation is None:
             if is_multiframe:
-                if coordinate_system == CoordinateSystemNames.SLIDE:
+                if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     plane_orientation = PlaneOrientationSequence(
-                        coordinate_system=coordinate_system,
-                        image_orientation=src_image.ImageOrientationSlide
+                        coordinate_system=self._coordinate_system,
+                        image_orientation=src_img.ImageOrientationSlide
                     )
                 else:
-                    src_shared_fg = src_image.SharedFunctionalGroupsSequence[0]
+                    src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
                     plane_orientation = src_shared_fg.PlaneOrientationSequence
             else:
                 plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=coordinate_system,
-                    image_orientation=src_image.ImageOrientationPatient
+                    coordinate_system=self._coordinate_system,
+                    image_orientation=src_img.ImageOrientationPatient
                 )
-        self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
+        self.DimensionIndexSequence = DimensionIndexSequence(
+            coordinate_system=self._coordinate_system
+        )
         dimension_organization = Dataset()
         dimension_organization.DimensionOrganizationUID = \
             self.DimensionIndexSequence[0].DimensionOrganizationUID
@@ -365,33 +390,33 @@ class Segmentation(SOPClass):
         self.PerFrameFunctionalGroupsSequence = []
 
         if plane_positions is None:
-            if coordinate_system == CoordinateSystemNames.SLIDE:
-                if hasattr(src_image, 'PerFrameFunctionalGroupsSequence'):
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
                     plane_positions = [
                         item.PlanePositionSlideSequence
-                        for item in src_image.PerFrameFunctionalGroupsSequence
+                        for item in src_img.PerFrameFunctionalGroupsSequence
                     ]
                 else:
                     # If Dimension Organization Type is TILED_FULL, plane
                     # positions are implicit and need to be computed.
-                    image_origin = src_image.TotalPixelMatrixOriginSequence[0]
+                    image_origin = src_img.TotalPixelMatrixOriginSequence[0]
                     orientation = tuple(
-                        float(v) for v in src_image.ImageOrientationSlide
+                        float(v) for v in src_img.ImageOrientationSlide
                     )
                     tiles_per_column = int(
                         np.ceil(
-                            src_image.TotalPixelMatrixRows /
-                            src_image.Rows
+                            src_img.TotalPixelMatrixRows /
+                            src_img.Rows
                         )
                     )
                     tiles_per_row = int(
                         np.ceil(
-                            src_image.TotalPixelMatrixColumns /
-                            src_image.Columns
+                            src_img.TotalPixelMatrixColumns /
+                            src_img.Columns
                         )
                     )
                     num_focal_planes = getattr(
-                        src_image,
+                        src_img,
                         'NumberOfFocalPlanes',
                         1
                     )
@@ -439,14 +464,12 @@ class Segmentation(SOPClass):
                 if is_multiframe:
                     plane_positions = [
                         item.PlanePositionSequence
-                        for item in src_image.PerFrameFunctionalGroupsSequence
+                        for item in src_img.PerFrameFunctionalGroupsSequence
                     ]
                 else:
                     plane_positions = [
-                        PlanePositionSequence(
-                            image_position=src_image.ImagePositionPatient
-                        )
-                        for src_image in source_images
+                        PlanePositionSequence(src_img.ImagePositionPatient)
+                        for src_img in source_images
                     ]
 
         if pixel_array.shape[0] != len(plane_positions):
@@ -464,8 +487,8 @@ class Segmentation(SOPClass):
             plane_positions=plane_positions
         )
 
-        self.copy_specimen_information(src_image)
-        self.copy_patient_and_study_information(src_image)
+        self.copy_specimen_information(src_img)
+        self.copy_patient_and_study_information(src_img)
 
     def add_segments(
             self,
@@ -479,23 +502,29 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Array of segmentation pixel data.
-            If `segmentation_type` is ``"BINARY"``, a boolean or unsigned 8-bit
-            or 16-bit integer array representing a labeled mask image, where
-            positive pixel values encode segment numbers.
-            If `segmentation_type` is ``"FRACTIONAL"``, a floating-point pixel
-            array representing a probabilistic mask image, where pixel values
-            either encode the probability of a given pixel belonging to a
-            segment (`segmentation_fractional_type` is ``"PROBABILITY"``)
+            Array of segmentation pixel data of boolean, unsigned integer or
+            floating piont data type representing a mask image, where pixel
+            values either encode the probability of a given pixel
+            belonging to a segment
+            (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
-            (`segmentation_fractional_type` is ``"OCCUPANCY"``).
+            (if `fractional_type` is ``"OCCUPANCY"``).
             In the latter case, only one segment can be encoded by
-            `pixels_array`.
-            If `pixels_array` represents a 3D image the first dimension
+            `pixel_array`. Additional segments can be subsequently
+            added to the `Segmentation` instance using the ``add_segments()``
+            method.
+            If `pixel_array` represents a 3D image, the first dimension
             represents individual 2D planes and these planes must be ordered
-            based on their position in the three-dimensional coordinate system
-            identified by `frame_of_reference_uid` (first along the X axis,
-            second along the Y, and third along the Z axes).
+            based on their position in the three-dimensional patient
+            coordinate system (first along the X axis, second along the Y axis,
+            and third along the Z axis).
+            If `pixel_array` reprsents a tiled 2D image, the first dimension
+            represents invidual 2D tiles (for one channel and z-stack) and
+            these tiles must be ordered based on their position in the tiled
+            total pixel matrix (first along the row dimension and second along
+            the column dimension, which are defined in the three-dimensional
+            slide coordinate system by the direction cosines encoded by the
+            *Image Orientation (Slide)* attribute).
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
         segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
@@ -522,71 +551,48 @@ class Segmentation(SOPClass):
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
 
-        if pixel_array.shape[-2:] != (self.Rows, self.Columns):
+        if pixel_array.shape[1:3] != (self.Rows, self.Columns):
             raise ValueError(
                 'Pixel array representing segments has the wrong number of '
                 'rows and columns.'
             )
 
-        if self.SegmentationType == SegmentationTypes.BINARY.value:
-            if pixel_array.dtype not in (np.bool, np.uint8, np.uint16):
-                raise TypeError(
-                    'Pixel array values must be either boolean, unsigned '
-                    '8-bit integers, or unsigned 16-bit integers for '
-                    '"BINARY" segmentation type.'
-                )
+        if pixel_array.dtype in (np.bool, np.uint8, np.uint16):
             encoded_segment_numbers = np.unique(
                 pixel_array[pixel_array > 0].astype(np.uint16)
             )
-            if len(encoded_segment_numbers) != len(segment_descriptions):
-                raise ValueError(
-                    'Number of encoded segments does not match number of '
-                    'provided segment descriptions.'
-                )
-            if len(encoded_segment_numbers) != len(segment_derivations):
-                raise ValueError(
-                    'Number of encoded segments does not match number of '
-                    'provided segment derivations.'
-                )
-            described_segment_numbers = np.array([
-                int(item.SegmentNumber)
-                for item in segment_descriptions
-            ])
-            are_all_segments_described = np.array_equal(
-                encoded_segment_numbers,
-                described_segment_numbers
-            )
-            if not are_all_segments_described:
-                raise ValueError(
-                    'Described and encoded segment numbers must match.'
-                )
-
-        elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
-            if pixel_array.dtype != np.float:
-                raise TypeError(
-                    'Array values must be floating points for '
-                    '"FRACTIONAL" segmentation type.'
-                )
+        elif pixel_array.dtype == np.float:
             if np.min(pixel_array) < 0.0 or np.max(pixel_array) > 1.0:
                 raise ValueError(
-                    'Array values must be in the range [0, 1] for '
-                    '"FRACTIONAL" segmentation type.'
-                )
-            if max_fractional_value > 2**8:
-                raise ValueError(
-                    'Maximum fractional value must not exceed image bit depth.'
+                    'Floating point pixel array values must be in the '
+                    'range [0, 1].'
                 )
             encoded_segment_numbers = 1
-            if len(encoded_segment_numbers) != len(segment_descriptions):
-                raise ValueError(
-                    'One segment description required for "FRACTIONAL" '
-                    'segmentation type.'
-                )
-            if len(encoded_segment_numbers) != len(segment_derivations):
-                raise ValueError(
-                    'One segment derivation required for "FRACTIONAL" '
-                    'segmentation type.'
-                )
+        else:
+            raise TypeError('Pixel array has wrong data type.')
+
+        if len(encoded_segment_numbers) != len(segment_descriptions):
+            raise ValueError(
+                'Number of encoded segments does not match number of '
+                'provided segment descriptions.'
+            )
+        if len(encoded_segment_numbers) != len(segment_derivations):
+            raise ValueError(
+                'Number of encoded segments does not match number of '
+                'provided segment derivations.'
+            )
+        described_segment_numbers = np.array([
+            int(item.SegmentNumber)
+            for item in segment_descriptions
+        ])
+        are_all_segments_described = np.array_equal(
+            encoded_segment_numbers,
+            described_segment_numbers
+        )
+        if not are_all_segments_described:
+            raise ValueError(
+                'Described and encoded segment numbers must match.'
+            )
 
         plane_position_values = np.array([
             [
@@ -607,18 +613,17 @@ class Segmentation(SOPClass):
         ]
 
         for i, segment_number in enumerate(encoded_segment_numbers):
-            if self.SegmentationType == SegmentationTypes.BINARY.value:
-                if pixel_array.dtype != np.bool:
-                    # Labeled masks must be converted to binary masks.
-                    planes = np.zeros(pixel_array.shape, dtype=np.bool)
-                    planes[array == segment_number] = True
-                else:
-                    planes = pixel_array
-            elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
+            if pixel_array.dtype == np.float:
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 planes = np.around(pixel_array * float(max_fractional_value))
                 planes = planes.dtype(np.uint8)
+            elif pixel_array.dtype in (np.uint8, np.uint16):
+                # Labeled masks must be converted to binary masks.
+                planes = np.zeros(pixel_array.shape, dtype=np.bool)
+                planes[array == segment_number] = True
+            elif pixel_array.dtype == np.bool:
+                planes = pixel_array
 
             for j in plane_sort_index:
                 pffp_item = Dataset()
@@ -629,7 +634,10 @@ class Segmentation(SOPClass):
                     for index, pos in enumerate(plane_position_values[j])
                 ])
                 pffp_item.FrameContentSequence = [frame_content_item]
-                pffp_item.PlanePositionSlideSequence = plane_positions[j]
+                if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                    pffp_item.PlanePositionSlideSequence = plane_positions[j]
+                else:
+                    pffp_item.PlanePositionSequence = plane_positions[j]
                 pffp_item.DerivationImageSequence = segment_derivations[i]
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
@@ -652,7 +660,7 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         planes: numpy.ndarray
-            Array representing one or more segmentation planes
+            Array representing one or more segmentation image planes
 
         Returns
         -------
@@ -660,23 +668,160 @@ class Segmentation(SOPClass):
             Encoded pixels
 
         """
-        pixels = planes.flatten()
-        if self.BitsStored == 1:
-            # The number of pixels must be a multiple of 8.
-            # Zero pad array if necessary.
-            bit_depth = 8
-            factor = bit_depth * 2
-            total_size = planes.size
-            remainder = total_size % factor
-            pixels = np.pad(pixels, (0, factor - remainder), mode='constant')
+        # TODO: compress depending on transfer syntax UID
+        return planes.flatten().tobytes()
 
-            # Reshape array such that there is one row per byte in the output
-            pixels = pixels.reshape((-1, bit_depth))
 
-            # Scale pixel values to 8-bit and sum along the rows to pack values
-            multiplier = 2**np.arange(bit_depth).astype(np.uint8)
-            multiplier = multiplier[np.newaxis, ...]
+class SurfaceSegmentation(SOPClass):
 
-            pixels = np.sum(multiplier * pixels, axis=1).astype(np.uint8)
+    """SOP class for a Surface Segmentation, which respresents one or more
+    regions of interst (ROIs) as meshes or point clouds (vector graphics)
+    in three-dimensional physical space defined by the frame of reference that
+    identifies the slide- or patient-based coordinate system.
 
-        return pixels.tobytes()
+    """
+
+    def __init__(
+            self,
+            source_images: Sequence[Dataset],
+            surfaces: Sequence[Surface],
+            segment_descriptions: Sequence[SegmentDescription],
+            segment_derivations: Sequence[DerivationImageSequence],
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            manufacturer_model_name: str,
+            software_versions: Union[str, Tuple[str]],
+            device_serial_number: str,
+            content_description: str = '',
+            content_creator_name: Optional[str] = None,
+            transfer_syntax_uid: Optional[Union[str, UID]] = None,
+            **kwargs
+        ) -> None:
+        """
+        Parameters
+        ----------
+        source_images: Sequence[pydicom.dataset.Dataset]
+            One or more single- or multi-frame images (or metadata of images)
+            from which the segmentation was derived
+        surfaces: Sequence[highdicom.seg.content.Surface]
+            Surfaces
+        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
+            Description of each segment encoded in `pixel_array`
+        segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
+            References to the source images (and frames within the source
+            images) for each segment encoded in `pixel_array`.
+            Sequence may be empty if it is not possible to reference segments
+            relative to source images, because spatial locations were not
+            preserved upon processing of source images, for example due to
+            resampling
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: str
+            Name of the manufacturer of the device (developer of the software)
+            that creates the instance
+        manufacturer_model_name: str
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        content_description: str, optional
+            Description of the segmentation
+        content_creator_name: str, optional
+            Name of the creator of the segmentation
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements.
+            Defaults to Implicit VR Little Endian (UID ``"1.2.840.10008.1.2"``).
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        Raises
+        ------
+        ValueError
+            When
+                * Length of `source_images` is zero.
+                * Items of `source_images` are not all part of the same study
+                  and series.
+                * Items of `source_images` have different number of rows and
+                  columns.
+                * Length of `segment_descriptions` or `segment_derivations`
+                  does not match number of items in `surfaces`
+
+        Note
+        ----
+        The assumption is made that `surfaces` are defined in the same frame
+        of reference as `source_images`.
+
+        """  # noqa
+        if len(source_images) == 0:
+            raise ValueError('At least one source image is required.')
+
+        uniqueness_criteria = set(
+            (
+                image.StudyInstanceUID,
+                image.SeriesInstanceUID,
+                image.Rows,
+                image.Columns,
+            )
+            for image in source_images
+        )
+        if len(uniqueness_criteria) > 1:
+            raise ValueError(
+                'Source images must all be part of the same series and must '
+                'have the same image dimensions (number of rows/columns).'
+            )
+
+        src_img = source_images[0]
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
+        if is_multiframe and len(source_images) > 1:
+            raise ValueError(
+                'Only one source image should be provided in case images '
+                'are multi-frame images.'
+            )
+
+        supported_transfer_syntaxes = {
+            '1.2.840.10008.1.2',  # implicit little endian
+            '1.2.840.10008.1.2.1',  # explicit little endian
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                'Transfer syntax "{}" is not supported'.format(
+                    transfer_syntax_uid
+                )
+            )
+
+        super().__init__(
+            study_instance_uid=src_img.StudyInstanceUID,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            instance_number=instance_number,
+            sop_class_uid=SegmentationStorage,
+            manufacturer=manufacturer,
+            modality='SEG',
+            transfer_syntax_uid=transfer_syntax_uid,
+            patient_id=src_img.PatientID,
+            patient_name=src_img.PatientName,
+            patient_birth_date=src_img.PatientBirthDate,
+            patient_sex=src_img.PatientSex,
+            accession_number=src_img.AccessionNumber,
+            study_id=src_img.StudyID,
+            study_date=src_img.StudyDate,
+            study_time=src_img.StudyTime,
+            referring_physician_name=src_img.ReferringPhysicianName,
+            **kwargs
+        )
+
+        # Surface Mesh
+        self.NumberOfSurfaces = len(surfaces)
+        self.SurfaceSequence = surfaces

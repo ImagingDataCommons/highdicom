@@ -45,7 +45,8 @@ class Comprehensive3DSR(SOPClass):
             performed_procedure_codes: Optional[Sequence[Union[Code, CodedConcept]]] = None,
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
-            record_evidence: bool = True
+            record_evidence: bool = True,
+            **kwargs
         ):
         """
         Parameters
@@ -100,6 +101,9 @@ class Comprehensive3DSR(SOPClass):
             Whether provided `evidence` should be recorded, i.e. included
             in Current Requested Procedure Evidence Sequence or Pertinent
             Other Evidence Sequence (default: ``True``)
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
 
         Note
         ----
@@ -124,7 +128,8 @@ class Comprehensive3DSR(SOPClass):
             study_id=evidence[0].StudyID,
             study_date=evidence[0].StudyDate,
             study_time=evidence[0].StudyTime,
-            referring_physician_name=evidence[0].ReferringPhysicianName
+            referring_physician_name=evidence[0].ReferringPhysicianName,
+            **kwargs
         )
 
         if institution_name is not None:
@@ -161,7 +166,7 @@ class Comprehensive3DSR(SOPClass):
         else:
             self.PreliminaryFlag = 'PRELIMINARY'
 
-        # Add content
+        # Add content to dataset
         for tag, value in content.items():
             self[tag] = value
 

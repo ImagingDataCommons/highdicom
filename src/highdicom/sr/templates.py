@@ -180,7 +180,7 @@ class TimePointContext(Template):
            identifier of a specific time point in a time series, which is
            unique within an appropriate local context and specific to a
            particular protocol using the same value for different subjects
-        temporal_offset_from_event: pydicom.sr.template.LongitudinalTemporalOffsetFromEvent, optional
+        temporal_offset_from_event: highdicom.sr.content.LongitudinalTemporalOffsetFromEvent, optional
             offset in time from a particular event of significance, e.g., the
             baseline of an imaging study or enrollment into a clincal trial
         temporal_event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
@@ -816,7 +816,7 @@ class SubjectContextSpecimen(Template):
         if specimen_type is not None:
             specimen_type_item = CodeContentItem(
                 name=CodedConcept(
-                    value='R-00254',
+                    value='121042',
                     meaning='Specimen Type',
                     scheme_designator='DCM'
                 ),
@@ -1083,13 +1083,13 @@ class Measurement(Template):
             qualification of numeric measurement value or as an alternative
             qualitative description
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
-            identification of algorithm
+            identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             how the value was computed
             (see CID 7464 "General Region of Interest Measurement Modifiers"
             for options)
-        finding_sites: Sequence[pydicom.sr.template.FindingSite], optional
-            coded description of one or more anatomic locations corresonding
+        finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
+            Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             measurement method
@@ -1145,7 +1145,7 @@ class Measurement(Template):
         if finding_sites is not None:
             if not isinstance(finding_sites, (list, tuple, set)):
                 raise TypeError(
-                    'Argument "finding_sites" must have type list.'
+                    'Argument "finding_sites" must be a sequence.'
 
                 )
             for site in finding_sites:
@@ -1198,27 +1198,38 @@ class MeasurementsAndQualitativeEvaluations(Template):
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
             time_point_context: Optional[TimePointContext] = None,
             finding_type: Optional[Union[CodedConcept, Code]] = None,
+            method: Optional[Union[CodedConcept, Code]] = None,
+            algorithm_id: Optional[AlgorithmIdentification] = None,
+            finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
+            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
         ):
         """
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_real_world_value_map: highdicom.sr.content.RealWorldValueMap, optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: highdicom.sr.templates.TimePointContext, optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of object that was measured, e.g., organ or tumor
+        method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            coded measurement method
+            (see CID 6147 "Response Criteria" for options)
+        algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
+            identification of algorithm used for making measurements
+        finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
+            Coded description of one or more anatomic locations corresonding
+            to the image region from which measurement was taken
         session: str, optional
-            description of the session
+            Description of the session
         measurements: Sequence[highdicom.sr.templates.Measurement], optional
-            numeric measurements
+            Numeric measurements
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
-            coded name-value pairs that describe measurements in qualitative
+            Coded name-value pairs that describe measurements in qualitative
             terms
 
         """  # noqa
@@ -1265,6 +1276,37 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 relationship_type=RelationshipTypes.CONTAINS
             )
             group_item.ContentSequence.append(finding_type_item)
+        if method is not None:
+            method_item = CodeContentItem(
+                name=CodedConcept(
+                    value='370129005',
+                    meaning='Measurement Method',
+                    scheme_designator='SCT'
+                ),
+                value=method,
+                relationship_type=RelationshipTypes.CONTAINS
+            )
+            group_item.ContentSequence.append(method_item)
+        if finding_sites is not None:
+            if not isinstance(finding_sites, (list, tuple, set)):
+                raise TypeError(
+                    'Argument "finding_sites" must be a sequence.'
+
+                )
+            for site in finding_sites:
+                if not isinstance(site, FindingSite):
+                    raise TypeError(
+                        'Items of argument "finding_sites" must have '
+                        'type FindingSite.'
+                    )
+                group_item.ContentSequence.append(site)
+        if algorithm_id is not None:
+            if not isinstance(algorithm_id, AlgorithmIdentification):
+                raise TypeError(
+                    'Argument "algorithm_id" must have type '
+                    'AlgorithmIdentification.'
+                )
+            group_item.ContentSequence.extend(algorithm_id)
         if time_point_context is not None:
             if not isinstance(time_point_context, TimePointContext):
                 raise TypeError(
@@ -1319,9 +1361,12 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
             time_point_context: Optional[TimePointContext] = None,
             finding_type: Optional[Union[CodedConcept, Code]] = None,
+            method: Optional[Union[CodedConcept, Code]] = None,
+            algorithm_id: Optional[AlgorithmIdentification] = None,
+            finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
+            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
         ):
         """
         Parameters
@@ -1340,10 +1385,18 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             description of the time point context
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
+        method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            coded measurement method
+            (see CID 6147 "Response Criteria" for options)
+        algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
+            identification of algorithm used for making measurements
+        finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
+            Coded description of one or more anatomic locations corresonding
+            to the image region from which measurement was taken
         session: str, optional
             description of the session
-        measurements: highdicom.sr.templates.ROIMeasurements, optional
-            measurements
+        measurements: Sequence[highdicom.sr.templates.Measurement], optional
+            numeric measurements
         qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms
@@ -1360,6 +1413,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map=referenced_real_world_value_map,
             time_point_context=time_point_context,
             finding_type=finding_type,
+            method=method,
+            algorithm_id=algorithm_id,
+            finding_sites=finding_sites,
             session=session,
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations
@@ -1432,6 +1488,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
             time_point_context: Optional[TimePointContext] = None,
             finding_type: Optional[Union[CodedConcept, Code]] = None,
+            method: Optional[Union[CodedConcept, Code]] = None,
+            algorithm_id: Optional[AlgorithmIdentification] = None,
+            finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
             qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
@@ -1451,9 +1510,17 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             description of the time point context
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
+        method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            coded measurement method
+            (see CID 6147 "Response Criteria" for options)
+        algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
+            identification of algorithm used for making measurements
+        finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
+            Coded description of one or more anatomic locations corresonding
+            to the image region from which measurement was taken
         session: str, optional
             description of the session
-        measurements: highdicom.sr.templates.ROIMeasurements, optional
+        measurements: Sequence[highdicom.sr.templates.Measurement], optional
             measurements for a region of interest
         qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
@@ -1464,13 +1531,6 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         Either a segmentation or a region needs to referenced
         together with the corresponding source image from which the
         segmentation or region was obtained.
-
-        Note
-        ----
-        Provided `measurements` must not contain any references to images
-        or spatial coordinates. All `measurements` included in the measurement
-        group must reference the region of interest at the group level via
-        `referenced_region` or `referenced_segment`.
 
         """  # noqa
         were_references_provided = [
@@ -1494,6 +1554,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map=referenced_real_world_value_map,
             time_point_context=time_point_context,
             finding_type=finding_type,
+            method=method,
+            algorithm_id=algorithm_id,
+            finding_sites=finding_sites,
             session=session,
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations
@@ -1518,6 +1581,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
             time_point_context: Optional[TimePointContext] = None,
             finding_type: Optional[Union[CodedConcept, Code]] = None,
+            method: Optional[Union[CodedConcept, Code]] = None,
+            algorithm_id: Optional[AlgorithmIdentification] = None,
+            finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
             qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
@@ -1539,9 +1605,17 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             description of the time point context
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
+        method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            coded measurement method
+            (see CID 6147 "Response Criteria" for options)
+        algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
+            identification of algorithm used for making measurements
+        finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
+            Coded description of one or more anatomic locations corresonding
+            to the image region from which measurement was taken
         session: str, optional
             description of the session
-        measurements: highdicom.sr.templates.ROIMeasurements, optional
+        measurements: Sequence[highdicom.sr.templates.Measurement], optional
             measurements for a volume of interest
         qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
@@ -1551,13 +1625,6 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         ----
         Either a segmentation, a list of regions or volume needs to referenced
         together with the corresponding source image(s) or series.
-
-        Note
-        ----
-        Provided `measurements` must not contain any references to images
-        or spatial coordinates. All `measurements` included in the measurement
-        group must reference the region of interest at the group level via
-        `referenced_region` or `referenced_segment`.
 
         """  # noqa
         super().__init__(
@@ -1569,6 +1636,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             referenced_real_world_value_map=referenced_real_world_value_map,
             time_point_context=time_point_context,
             finding_type=finding_type,
+            method=method,
+            algorithm_id=algorithm_id,
+            finding_sites=finding_sites,
             session=session,
             qualitative_evaluations=qualitative_evaluations
         )
@@ -1632,60 +1702,6 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         self.append(value_item)
 
 
-class ROIMeasurements(Template):
-
-    """TID 1419 ROI Measurements"""
-
-    def __init__(
-            self,
-            measurements: Sequence[Measurement],
-            method: Optional[Union[CodedConcept, Code]] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None
-        ):
-        """
-        Parameters
-        ----------
-        measurements: Sequence[highdicom.sr.templates.Measurement]
-            individual measurements
-        method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method
-            (see CID 6147 "Response Criteria" for options)
-        finding_sites: Sequence[highdicom.sr.templates.FindingSite], optional
-            coded description of one or more anatomic locations corresonding
-            to the image region from which measurement was taken
-
-        """  # noqa
-        super().__init__()
-        if method is not None:
-            method_item = CodeContentItem(
-                name=CodedConcept(
-                    value='370129005',
-                    meaning='Measurement Method',
-                    scheme_designator='SCT'
-                ),
-                value=method,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
-            )
-            self.append(method_item)
-        if finding_sites is not None:
-            for site in finding_sites:
-                if not isinstance(site, FindingSite):
-                    raise TypeError(
-                        'Items of argument "finding_sites" must have '
-                        'type FindingSite.'
-                    )
-                self.append(site)
-        if len(measurements) == 0:
-            raise ValueError('Argument "measurements" must not be empty.')
-        for m in measurements:
-            if not isinstance(m, Measurement):
-                raise TypeError(
-                    'Items of argument "measurements" must have type '
-                    'Measurement.'
-                )
-            self.extend(m)
-
-
 class MeasurementReport(Template):
 
     """TID 1500 Measurement Report"""
@@ -1697,12 +1713,12 @@ class MeasurementReport(Template):
                 Union[
                     PlanarROIMeasurementsAndQualitativeEvaluations,
                     VolumetricROIMeasurementsAndQualitativeEvaluations,
-                    MeasurementsAndQualitativeEvaluations,
-                    MeasurementsDerivedFromMultipleROIMeasurements
+                    MeasurementsAndQualitativeEvaluations
                 ]
             ] = None,
-            qualitative_evaluations:
-                Optional[Union[CodeContentItem, TextContentItem]]=None,
+            derived_imaging_measurements: Optional[
+                MeasurementsDerivedFromMultipleROIMeasurements
+            ] = None,
             title: Optional[Union[CodedConcept, Code]] = None,
             language_of_content_item_and_descendants:
                 Optional[LanguageOfContentItemAndDescendants] = None
@@ -1714,14 +1730,14 @@ class MeasurementReport(Template):
             description of the observation context
         procedure_reported: Union[Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], Sequence[Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]]]
             one or more coded description(s) of the procedure
-            (see CID 100 Quantitative Diagnostic Imaging Procedures for options)
-        imaging_measurements: Union[Sequence[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations]]], optional
+            (see CID 100 "Quantitative Diagnostic Imaging Procedures" for
+            options)
+        imaging_measurements: Union[Sequence[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations]], optional
             measurements and qualitative evaluations of images or regions
             within images
         derived_imaging_measurements: Sequence[highdicom.sr.templates.MeasurementsDerivedFromMultipleROIMeasurements], optional
             measurements derived from other measurements of images or regions
             within images
-        qualitative_evaluations: Union[Sequence[Union[highdicom.sr.value_types.CodeContentItem, highdicom.sr.value_types.TextContentItem]]], optional
             qualitative evaluations of images
         title: highdicom.sr.coding.CodedConcept, optional
             title of the report
@@ -1732,8 +1748,8 @@ class MeasurementReport(Template):
 
         Note
         ----
-        Only one of `imaging_measurements` or `qualitative_evaluations` should
-        be specified.
+        Only one of `imaging_measurements` or `derived_imaging_measurements`
+        shall be specified.
 
         """ # noqa
         super().__init__()
@@ -1773,20 +1789,18 @@ class MeasurementReport(Template):
 
         num_arguments_provided = sum([
             imaging_measurements is not None,
-            qualitative_evaluations is not None
+            derived_imaging_measurements is not None
         ])
         if num_arguments_provided > 1:
             raise ValueError(
                 'Only one of the following arguments can be provided: '
-                '"imaging_measurements", "derived_imaging_measurement", '
-                '"qualitative_evaluations".'
+                '"imaging_measurements", "derived_imaging_measurement".'
             )
         if imaging_measurements is not None:
             measurement_types = (
                 PlanarROIMeasurementsAndQualitativeEvaluations,
                 VolumetricROIMeasurementsAndQualitativeEvaluations,
                 MeasurementsAndQualitativeEvaluations,
-                MeasurementsDerivedFromMultipleROIMeasurements,
             )
             container_item = ContainerContentItem(
                 name=CodedConcept(
@@ -1838,21 +1852,10 @@ class MeasurementReport(Template):
                         )
                     )
                 container_item.ContentSequence.extend(measurement)
-        elif qualitative_evaluations is not None:
-            container_item = ContainerContentItem(
-                name=CodedConcept(
-                    value='C0034375',
-                    meaning='Qualitative Evaluations',
-                    scheme_designator='UMLS'
-                ),
-                relationship_type=RelationshipTypes.CONTAINS
-            )
-            container_item.ContentSequence = qualitative_evaluations
         else:
             raise TypeError(
                 'One of the following arguments must be provided: '
-                '"imaging_measurements", "derived_imaging_measurements", '
-                '"qualitative_evaluations"'
+                '"imaging_measurements", "derived_imaging_measurements".'
             )
         item.ContentSequence.append(container_item)
         self.append(item)

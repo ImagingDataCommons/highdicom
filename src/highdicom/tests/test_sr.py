@@ -49,7 +49,6 @@ from highdicom.sr.templates import (
     ObserverContext,
     PersonObserverIdentifyingAttributes,
     PlanarROIMeasurementsAndQualitativeEvaluations,
-    ROIMeasurements,
     SubjectContext,
     SubjectContextSpecimen,
     TrackingIdentifier,
@@ -60,7 +59,7 @@ from highdicom.sr.templates import (
 class TestCodedConcept(unittest.TestCase):
 
     def setUp(self):
-        super(TestCodedConcept, self).setUp()
+        super().setUp()
         self._value = '373098007'
         self._meaning = 'Mean Value of population'
         self._scheme_designator = 'SCT'
@@ -148,7 +147,7 @@ class TestCodedConcept(unittest.TestCase):
 class TestContentItem(unittest.TestCase):
 
     def setUp(self):
-        super(TestContentItem, self).setUp()
+        super().setUp()
 
     def test_code_item_construction(self):
         name = codes.SCT.FindingSite
@@ -564,13 +563,13 @@ class TestContentItem(unittest.TestCase):
 class TestContentSequence(unittest.TestCase):
 
     def setUp(self):
-        super(TestContentSequence, self).setUp()
+        super().setUp()
 
 
 class TestObservationContext(unittest.TestCase):
 
     def setUp(self):
-        super(TestObservationContext, self).setUp()
+        super().setUp()
         self._person_name = 'Foo Bar'
         self._device_uid = generate_uid()
         self._specimen_uid = generate_uid()
@@ -632,7 +631,7 @@ class TestObservationContext(unittest.TestCase):
 class TestFindingSiteOptional(unittest.TestCase):
 
     def setUp(self):
-        super(TestFindingSiteOptional, self).setUp()
+        super().setUp()
         self._location = codes.cid7151.LobeOfLung
         self._laterality = codes.cid244.Right
         self._modifier = codes.cid2.Apical
@@ -662,7 +661,7 @@ class TestFindingSiteOptional(unittest.TestCase):
 class TestFindingSite(unittest.TestCase):
 
     def setUp(self):
-        super(TestFindingSite, self).setUp()
+        super().setUp()
         self._location = codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
         self._finding_site = FindingSite(
             anatomic_location=self._location
@@ -678,7 +677,7 @@ class TestFindingSite(unittest.TestCase):
 class TestTrackingIdentifierOptional(unittest.TestCase):
 
     def setUp(self):
-        super(TestTrackingIdentifierOptional, self).setUp()
+        super().setUp()
         self._uid = generate_uid()
         self._identifier = 'prostate zone size measurements'
         self._tracking_identifier = TrackingIdentifier(
@@ -700,7 +699,7 @@ class TestTrackingIdentifierOptional(unittest.TestCase):
 class TestTrackingIdentifier(unittest.TestCase):
 
     def setUp(self):
-        super(TestTrackingIdentifier, self).setUp()
+        super().setUp()
         self._uid = generate_uid()
         self._tracking_identifier = TrackingIdentifier(
             uid=self._uid
@@ -715,7 +714,7 @@ class TestTrackingIdentifier(unittest.TestCase):
 class TestMeasurement(unittest.TestCase):
 
     def setUp(self):
-        super(TestMeasurement, self).setUp()
+        super().setUp()
         self._value = 10.0
         self._unit = codes.cid7181.SquareMillimeter
         self._tracking_identifier = TrackingIdentifier(
@@ -760,7 +759,7 @@ class TestMeasurementOptional(unittest.TestCase):
     def setUp(self):
         '''Creates a Measurement for a numeric value in millimiter unit with
         derivation, method and reference to an image region.'''
-        super(TestMeasurementOptional, self).setUp()
+        super().setUp()
         self._value = 10
         self._unit = codes.cid7181.SquareMillimeter
         self._tracking_identifier = TrackingIdentifier(
@@ -811,95 +810,6 @@ class TestMeasurementOptional(unittest.TestCase):
         assert len(item.ContentSequence) == 0
 
 
-class TestROIMeasurements(unittest.TestCase):
-
-    def setUp(self):
-        super(TestROIMeasurements, self).setUp()
-        self._values = [10, 20.0, 30.5]
-        self._unit = codes.cid7181.SquareMillimeter
-        self._tracking_identifiers = [
-            TrackingIdentifier(
-                uid=generate_uid(),
-                identifier='{} prostate zone size measurement'.format(i)
-            )
-            for i in ('first', 'second', 'third')
-        ]
-        self._name = codes.cid7469.Area
-        self._measurements = [
-            Measurement(
-                name=self._name,
-                value=self._values[i],
-                unit=self._unit,
-                tracking_identifier=self._tracking_identifiers[i]
-            )
-            for i in range(len(self._values))
-        ]
-        self._method = codes.cid7473.AreaOfClosedIrregularPolygon
-        self._location = codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
-        self._finding_site = FindingSite(
-            anatomic_location=self._location
-        )
-        self._roi_measurements = ROIMeasurements(
-            measurements=self._measurements,
-            method=self._method,
-            finding_sites=[self._finding_site, ]
-        )
-
-    def test_constructed_with_empty_measurements(self):
-        with pytest.raises(ValueError):
-            ROIMeasurements(
-                measurements=[],
-                method=self._method,
-                finding_sites=[self._finding_site, ]
-            )
-
-    def test_constructed_without_measurements(self):
-        with pytest.raises(TypeError):
-            ROIMeasurements(
-                method=self._method,
-                finding_sites=[self._finding_site, ]
-            )
-
-    def test_method(self):
-        item = self._roi_measurements[0]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '370129005'
-        assert item.ConceptCodeSequence[0] == self._method
-
-    def test_finding_site(self):
-        item = self._roi_measurements[1]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
-        assert item.ConceptCodeSequence[0] == self._location
-
-    def test_measurement_1(self):
-        item = self._roi_measurements[2]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '42798000'
-        assert len(item.MeasuredValueSequence) == 1
-        assert len(item.MeasuredValueSequence[0]) == 2
-        subitem = item.MeasuredValueSequence[0]
-        assert subitem.NumericValue == DS(self._values[0])
-        assert subitem.MeasurementUnitsCodeSequence[0] == self._unit
-
-    def test_measurement_2(self):
-        item = self._roi_measurements[3]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '42798000'
-        assert len(item.MeasuredValueSequence) == 1
-        assert len(item.MeasuredValueSequence[0]) == 3
-        subitem = item.MeasuredValueSequence[0]
-        assert subitem.NumericValue == DS(self._values[1])
-        assert subitem.FloatingPointValue == self._values[1]
-        assert subitem.MeasurementUnitsCodeSequence[0] == self._unit
-
-    def test_measurement_3(self):
-        item = self._roi_measurements[4]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '42798000'
-        assert len(item.MeasuredValueSequence) == 1
-        assert len(item.MeasuredValueSequence[0]) == 3
-        subitem = item.MeasuredValueSequence[0]
-        assert subitem.NumericValue == DS(self._values[2])
-        assert subitem.FloatingPointValue == self._values[2]
-        assert subitem.MeasurementUnitsCodeSequence[0] == self._unit
-
-
 class TestImageRegion(unittest.TestCase):
 
     def setUp(self):
@@ -915,7 +825,7 @@ class TestVolumeSurface(unittest.TestCase):
 class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
-        super(TestReferencedSegment, self).setUp()
+        super().setUp()
         self._sop_class_uid = generate_uid()
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
@@ -937,7 +847,7 @@ class TestReferencedSegment(unittest.TestCase):
 class TestReferencedSegmentationFrame(unittest.TestCase):
 
     def setUp(self):
-        super(TestReferencedSegmentationFrame, self).setUp()
+        super().setUp()
         self._sop_class_uid = generate_uid()
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
@@ -960,7 +870,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
     def setUp(self):
-        super(TestPlanarROIMeasurementsAndQualitativeEvaluations, self).setUp()
+        super().setUp()
         self._tracking_identifier = TrackingIdentifier(
             uid=generate_uid(),
             identifier='planar roi measurements'
@@ -1007,8 +917,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
     def setUp(self):
-        super(TestVolumetricROIMeasurementsAndQualitativeEvaluations, self)\
-            .setUp()
+        super().setUp()
         self._tracking_identifier = TrackingIdentifier(
             uid=generate_uid(),
             identifier='volumetric roi measurements'
@@ -1075,7 +984,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 class TestMeasurementReport(unittest.TestCase):
 
     def setUp(self):
-        super(TestMeasurementReport, self).setUp()
+        super().setUp()
         self._observer_person_context = ObserverContext(
             observer_type=codes.cid270.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
@@ -1156,7 +1065,7 @@ class TestMeasurementReport(unittest.TestCase):
 class TestComprehensive3DSR(unittest.TestCase):
 
     def setUp(self):
-        super(TestComprehensive3DSR, self).setUp()
+        super().setUp()
         self._ref_dataset = Dataset()
         self._ref_dataset.PatientID = '1'
         self._ref_dataset.PatientName = 'patient'
