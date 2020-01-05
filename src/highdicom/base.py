@@ -3,7 +3,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Optional, Sequence, Union
 
-from pydicom.datadict import keyword_for_tag
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.filewriter import write_file_meta_info
 from pydicom.uid import (
@@ -11,73 +11,23 @@ from pydicom.uid import (
     ExplicitVRBigEndian,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
+    UID_dictionary,
 )
 from pydicom.valuerep import DA, DT, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualifications
 from highdicom.version import __version__
+from highdicom._iods import IOD_MODULE_MAP
+from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
 
 logger = logging.getLogger(__name__)
 
 
-_PATIENT_ATTRIBUTES_TO_COPY = {
-    # Patient
-    '00080054', '00080100', '00080102', '00080103', '00080104', '00080105',
-    '00080106', '00080107', '0008010B', '0008010D', '0008010F', '00080117',
-    '00080118', '00080119', '00080120', '00080121', '00080122', '00081120',
-    '00081150', '00081155', '00081160', '00081190', '00081199', '00100010',
-    '00100020', '00100021', '00100022', '00100024', '00100026', '00100027',
-    '00100028', '00100030', '00100032', '00100033', '00100034', '00100035',
-    '00100040', '00100200', '00100212', '00100213', '00100214', '00100215',
-    '00100216', '00100217', '00100218', '00100219', '00100221', '00100222',
-    '00100223', '00100229', '00101001', '00101002', '00101100', '00102160',
-    '00102201', '00102202', '00102292', '00102293', '00102294', '00102295',
-    '00102296', '00102297', '00102298', '00102299', '00104000', '00120062',
-    '00120063', '00120064', '0020000D', '00400031', '00400032', '00400033',
-    '00400035', '00400036', '00400039', '0040003A', '0040E001', '0040E010',
-    '0040E020', '0040E021', '0040E022', '0040E023', '0040E024', '0040E025',
-    '0040E030', '0040E031', '0062000B', '00880130', '00880140',
-    # Clinical Trial Subject
-    '00120010', '00120020', '00120021', '00120030', '00120031', '00120040',
-    '00120042', '00120081', '00120082',
-}
-
-
-_STUDY_ATTRIBUTES_TO_COPY = {
-    # Patient Study
-    '00080100', '00080102', '00080103', '00080104', '00080105', '00080106',
-    '00080107', '0008010B', '0008010D', '0008010F', '00080117', '00080118',
-    '00080119', '00080120', '00080121', '00080122', '00081080', '00081084',
-    '00101010', '00101020', '00101021', '00101022', '00101023', '00101024',
-    '00101030', '00102000', '00102110', '00102180', '001021A0', '001021B0',
-    '001021C0', '001021D0', '00102203', '00380010', '00380014', '00380060',
-    '00380062', '00380064', '00380500', '00400031', '00400032', '00400033',
-    # General Study
-    '00080020', '00080030', '00080050', '00080051', '00080080', '00080081',
-    '00080082', '00080090', '00080096', '0008009C', '0008009D', '00080100',
-    '00080102', '00080103', '00080104', '00080105', '00080106', '00080107',
-    '0008010B', '0008010D', '0008010F', '00080117', '00080118', '00080119',
-    '00080120', '00080121', '00080122', '00081030', '00081032', '00081048',
-    '00081049', '00081060', '00081062', '00081110', '00081150', '00081155',
-    '0020000D', '00200010', '00321034', '00400031', '00400032', '00400033',
-    '00401012', '00401101', '00401102', '00401103', '00401104',
-    # Clinical Trial Study
-    '00120020', '00120050', '00120051', '00120052', '00120053', '00120083',
-    '00120084', '00120085',
-}
-
-
-_SPECIMEN_ATTRIBUTES_TO_COPY = {
-    '00400512', '00400513', '00400515', '00400518', '0040051A', '00400520',
-    '00400560',
-}
-
-
 class SOPClass(Dataset):
 
-    """Base class for a DICOM SOP Instance."""
+    """Base class for DICOM SOP Instances."""
 
     def __init__(
             self,
@@ -235,24 +185,69 @@ class SOPClass(Dataset):
                     )
                 self.CodingSchemeIdentificationSequence.append(item)
 
-    def _copy_attr(self, dataset: Dataset, tag: str):
+    def _copy_attribute(self, dataset: Dataset, keyword: str):
         """Copies an attribute from `dataset` to `self`.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             DICOM Data Set from which attribute should be copied
-        tag: str
-            Tag of the attribute
+        keyword: str
+            Keyword of the attribute
 
         """
-        keyword = keyword_for_tag(tag)
+        tag = tag_for_keyword(keyword)
         try:
             data_element = dataset[tag]
             logger.debug('copied attribute "{}"'.format(keyword))
         except KeyError:
+            logger.debug('skipped attribute "{}"'.format(keyword))
             return
         self.add(data_element)
+
+    def _copy_root_attributes_of_module(self, dataset: Dataset, ie: str):
+        """Copies all attributes at the root level of a given module from
+        `dataset` to `self`.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            DICOM Data Set from which attribute should be copied
+        ie: str
+            DICOM Information Entity (IE)
+
+        """
+        logger.info(
+            'copy {}-related attributes from dataset "{}"'.format(
+                ie, dataset.SOPInstanceUID
+            )
+        )
+        try:
+            sop_class_name = UID_dictionary[dataset.SOPClassUID][0]
+        except KeyError:
+            raise ValueError(
+                'Could not determine IOD for SOP Class UID "{}".'.format(
+                    dataset.SOPClassUID
+                )
+            )
+        iod_key = sop_class_name.replace(' Storage', '').replace(' ', '-').lower()
+        for module_item in IOD_MODULE_MAP[iod_key]:
+            module_key = module_item['key']
+            if module_item['ie'] != ie:
+                continue
+            logger.info(
+                'copy attributes of module "{}"'.format(
+                    ' '.join([
+                        name.capitalize()
+                        for name in module_key.split('-')
+                    ])
+                )
+            )
+            [
+                self._copy_attribute(dataset, item['keyword'])
+                for item in MODULE_ATTRIBUTE_MAP[module_key]
+                if len(item['path']) == 0
+            ]
 
     def copy_patient_and_study_information(self, dataset: Dataset):
         """Copies patient- and study-related metadata from `dataset` that
@@ -265,18 +260,8 @@ class SOPClass(Dataset):
             DICOM Data Set from which attributes should be copied
 
         """
-        logger.info(
-            'copy patient-related attributes from dataset "{}"'.format(
-                dataset.SOPInstanceUID
-            )
-        )
-        [self._copy_attr(dataset, tag) for tag in _PATIENT_ATTRIBUTES_TO_COPY]
-        logger.info(
-            'copy study-related attributes from dataset "{}"'.format(
-                dataset.SOPInstanceUID
-            )
-        )
-        [self._copy_attr(dataset, tag) for tag in _STUDY_ATTRIBUTES_TO_COPY]
+        self._copy_root_attributes_of_module(dataset, 'Patient')
+        self._copy_root_attributes_of_module(dataset, 'Study')
 
     def copy_specimen_information(self, dataset: Dataset):
         """Copies specimen-related metadata from `dataset` that
@@ -288,9 +273,37 @@ class SOPClass(Dataset):
             DICOM Data Set from which attributes should be copied
 
         """
-        logger.info(
-            'copy specimen-related attributes from dataset "{}"'.format(
-                dataset.SOPInstanceUID
+        self._copy_root_attributes_of_module(dataset, 'Specimen')
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SOPClass':
+        try:
+            inst = cls(
+                study_instance_uid=dataset.StudyInstanceUID,
+                series_instance_uid=dataset.SeriesInstanceUID,
+                series_number=dataset.SeriesNumber,
+                sop_instance_uid=dataset.SOPInstanceUID,
+                sop_class_uid=dataset.SOPClassUID,
+                instance_number=dataset.InstanceNumber,
+                manufacturer=dataset.Manufacturer,
+                modality=dataset.Modality,
+                transfer_syntax_uid=dataset.file_meta.TransferSyntaxUID,
+                patient_id=dataset.PatientID,
+                patient_name=dataset.PatientName,
+                patient_birth_date=dataset.PatientBirthDate,
+                patient_sex=dataset.PatientSex,
+                accession_number=dataset.AccessionNumber,
+                study_id=dataset.StudyID,
+                study_date=dataset.StudyDate,
+                study_time=dataset.StudyTime,
+                referring_physician_name=dataset.ReferringPhysicianName
             )
-        )
-        [self._copy_attr(dataset, tag) for tag in _SPECIMEN_ATTRIBUTES_TO_COPY]
+        except AttributeError as error:
+            raise AttributeError(
+                'Required attribute missing: {}'.format(error)
+            )
+        if inst.SOPClassUID != dataset.SOPClassUID:
+            raise AttributeError(
+                'Incorrect SOP Class UID for type "{}".'.format(cls.__name__)
+            )
+        return inst

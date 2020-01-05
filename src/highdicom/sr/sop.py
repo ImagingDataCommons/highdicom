@@ -110,7 +110,7 @@ class Comprehensive3DSR(SOPClass):
         Each dataset in `evidence` must be part of the same study.
 
         """
-        super(Comprehensive3DSR, self).__init__(
+        super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,

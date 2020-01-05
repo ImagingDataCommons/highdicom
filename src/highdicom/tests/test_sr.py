@@ -392,7 +392,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_composite_item_construction(self):
         name = codes.DCM.RealWorldValueMapUsedForMeasurement
-        sop_class_uid = '1.2.3'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.2'
         sop_instance_uid = '1.2.3.4'
         i = CompositeContentItem(
             name=name,
@@ -407,7 +407,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_image_item_construction(self):
         name = codes.DCM.SourceImageForSegmentation
-        sop_class_uid = '1.2.3'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.2'
         sop_instance_uid = '1.2.3.4'
         i = ImageContentItem(
             name=name,
@@ -426,7 +426,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_image_item_construction_with_multiple_frame_numbers(self):
         name = codes.DCM.SourceImageForSegmentation
-        sop_class_uid = '1.2.3'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.2.2'
         sop_instance_uid = '1.2.3.4'
         frame_numbers = [1, 2, 3]
         i = ImageContentItem(
@@ -444,7 +444,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_image_item_construction_with_single_frame_number(self):
         name = codes.DCM.SourceImageForSegmentation
-        sop_class_uid = '1.2.3'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.2.2'
         sop_instance_uid = '1.2.3.4'
         frame_number = 1
         i = ImageContentItem(
@@ -462,7 +462,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_image_item_construction_single_segment_number(self):
         name = codes.DCM.SourceImageForSegmentation
-        sop_class_uid = '1.2.3'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         sop_instance_uid = '1.2.3.4'
         segment_number = 1
         i = ImageContentItem(
@@ -773,7 +773,7 @@ class TestMeasurementOptional(unittest.TestCase):
             anatomic_location=self._location
         )
         self._image = SourceImageForRegion(
-            referenced_sop_class_uid=generate_uid(),
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
@@ -826,7 +826,7 @@ class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._sop_class_uid = generate_uid()
+        self._sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
         self._frame_numbers = [1,2]
@@ -837,10 +837,10 @@ class TestReferencedSegment(unittest.TestCase):
     def test_construction(self):
         ReferencedSegment(
             sop_class_uid=self._sop_class_uid,
-           sop_instance_uid=self._sop_instance_uid,
-           segment_number=self._segment_number,
-           frame_numbers=self._frame_numbers,
-           source_series=self._source_series
+            sop_instance_uid=self._sop_instance_uid,
+            segment_number=self._segment_number,
+            frame_numbers=self._frame_numbers,
+            source_series=self._source_series
         )
 
 
@@ -848,12 +848,12 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._sop_class_uid = generate_uid()
+        self._sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
         self._frame_number = 1
         self._source_image = SourceImageForSegmentation(
-            referenced_sop_class_uid=generate_uid(),
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
 
@@ -876,7 +876,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             identifier='planar roi measurements'
         )
         self._image = SourceImageForRegion(
-            referenced_sop_class_uid=generate_uid(),
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
@@ -924,7 +924,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         self._images = [
             SourceImageForRegion(
-                referenced_sop_class_uid=generate_uid(),
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
                 referenced_sop_instance_uid=generate_uid()
             )
             for i in range(3)
@@ -946,7 +946,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
     def test_constructed_with_volume(self):
         image = SourceImageForSegmentation(
-            referenced_sop_class_uid=generate_uid(),
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
         volume = VolumeSurface(
@@ -1007,7 +1007,7 @@ class TestMeasurementReport(unittest.TestCase):
             identifier='planar roi measurements'
         )
         self._image = SourceImageForRegion(
-            referenced_sop_class_uid=generate_uid(),
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
@@ -1071,7 +1071,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._ref_dataset.PatientName = 'patient'
         self._ref_dataset.PatientBirthDate = '2000101'
         self._ref_dataset.PatientSex = 'o'
-        self._ref_dataset.SOPClassUID = generate_uid()
+        self._ref_dataset.SOPClassUID = '1.2.840.10008.5.1.4.1.1.2.2'
         self._ref_dataset.SOPInstanceUID = generate_uid()
         self._ref_dataset.SeriesInstanceUID = generate_uid()
         self._ref_dataset.StudyInstanceUID = generate_uid()
