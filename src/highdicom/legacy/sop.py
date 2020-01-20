@@ -161,7 +161,7 @@ def _convert_legacy_to_enhanced(
     else:
         mf_dataset.VolumeBasedCalculationTechnique = 'MIXED'
 
-    pixel_representation = 'MONOCHROME'
+    pixel_representation = 1
     volumetric_properties = 'VOLUME'
     unique_image_types = set()
     unassigned_dataelements = collections.defaultdict(list)
