@@ -8,7 +8,7 @@ from collections import namedtuple, defaultdict
 from typing import NamedTuple, Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom.coding import Code
+from pydicom.sr.coding import Code
 from pydicom.uid import UID
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,

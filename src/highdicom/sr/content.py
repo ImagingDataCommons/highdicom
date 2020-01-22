@@ -2,7 +2,7 @@
 from typing import Optional, Sequence, Union
 
 import numpy as np
-from pydicom.coding import Code
+from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypes,

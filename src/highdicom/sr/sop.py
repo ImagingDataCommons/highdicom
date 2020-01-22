@@ -5,7 +5,7 @@ import datetime
 import logging
 from typing import Optional, Sequence, Union
 
-from pydicom.coding import Code
+from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
 from pydicom.uid import PYDICOM_IMPLEMENTATION_UID, ExplicitVRLittleEndian
 from pydicom.valuerep import DA, DT, TM

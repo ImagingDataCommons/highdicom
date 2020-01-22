@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from pydicom.dataset import Dataset
-from pydicom.codedict import codes
-from pydicom.coding import Code
+from pydicom.sr.codedict import codes
+from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid, UID
 from pydicom.valuerep import DA, DS, DT, TM
 

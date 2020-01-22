@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from pydicom.dataset import Dataset
-from pydicom.codedict import codes
 from pydicom.filereader import dcmread
+from pydicom.sr.codedict import codes
 from pydicom.uid import generate_uid, UID
 
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation

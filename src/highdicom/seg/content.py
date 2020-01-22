@@ -2,11 +2,11 @@
 from typing import Dict, Optional, Sequence, Union, Tuple
 
 import numpy as np
-from pydicom.coding import Code
-from pydicom.codedict import codes
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
+from pydicom.sr.coding import Code
+from pydicom.sr.codedict import codes
 
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypes

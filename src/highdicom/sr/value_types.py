@@ -4,9 +4,9 @@ from collections import namedtuple
 from typing import Any, Optional, Sequence, Union
 
 import numpy as np
-from pydicom.coding import Code
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
+from pydicom.sr.coding import Code
 from pydicom.uid import UID
 from pydicom.valuerep import DA, TM, DT, PersonName
 
@@ -37,7 +37,7 @@ class ContentItem(Dataset):
         ----------
         value_type: Union[str, highdicom.sr.enum.ValueTypes]
             type of value encoded in a content item
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             coded name or an enumerated item representing a coded name
         relationship_type: Union[str, highdicom.sr.enum.RelationshipTypes], optional
             type of relationship with parent content item
@@ -95,7 +95,7 @@ class ContentItem(Dataset):
 
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code], optional
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded name that items should have
         value_type: Union[highdicom.sr.value_types.ValueTypes, str], optional
             type of value that items should have
@@ -175,7 +175,7 @@ class ContentSequence(DataElementSequence):
 
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code], optional
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded name that items should have
         value_type: Union[highdicom.sr.value_types.ValueTypes, str], optional
             type of value that items should have
@@ -274,9 +274,9 @@ class CodeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        value: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             coded value or an enumerated item representing a coded value
         relationship_type: Union[highdicom.sr.enum.RelationshipTypes, str], optional
             type of relationship with parent content item
@@ -307,7 +307,7 @@ class PnameContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, pydicom.valuerep.PersonName]
             name of the person
@@ -334,7 +334,7 @@ class TextContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: str
             description of the concept in free text
@@ -361,7 +361,7 @@ class TimeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.time, pydicom.valuerep.TM]
             time
@@ -388,7 +388,7 @@ class DateContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.date, pydicom.valuerep.DA]
             date
@@ -415,7 +415,7 @@ class DateTimeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.datetime, pydicom.valuerep.DT]
             datetime
@@ -442,7 +442,7 @@ class UIDRefContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[pydicom.uid.UID, str]
             unique identifier
@@ -471,14 +471,14 @@ class NumContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[int, float], optional
             numeric value
-        unit: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code], optional
+        unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded units of measurement (see CID 7181 "Abstract Multi-dimensional
             Image Model Component Units")
-        qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code], optional
+        qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
             (see CID 42 "Numeric Value Qualifier" for options)
@@ -541,7 +541,7 @@ class ContainerContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         is_content_continous: bool, optional
             whether contained content items are logically linked in a
@@ -580,7 +580,7 @@ class CompositeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         referenced_sop_class_uid: Union[pydicom.uid.UID, str]
             SOP Class UID of the referenced object
@@ -615,7 +615,7 @@ class ImageContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         referenced_sop_class_uid: Union[pydicom.uid.UID, str]
             SOP Class UID of the referenced image object
@@ -666,7 +666,7 @@ class ScoordContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
@@ -759,7 +759,7 @@ class Scoord3DContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
             name of the graphic type
@@ -845,7 +845,7 @@ class TcoordContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.coding.Code]
+        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
         temporal_range_type: Union[highdicom.sr.enum.TemporalRangeTypes, str]
             name of the temporal range type

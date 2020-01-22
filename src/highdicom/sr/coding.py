@@ -1,7 +1,7 @@
 import logging
 
-from pydicom.coding import Code
 from pydicom.dataset import Dataset
+from pydicom.sr.coding import Code
 
 logger = logging.getLogger(__name__)
 

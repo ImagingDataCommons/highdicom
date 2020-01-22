@@ -2,8 +2,8 @@
 from typing import Optional, Sequence, Union
 
 from pydicom.dataset import Dataset
-from pydicom.coding import Code
-from pydicom.codedict import codes
+from pydicom.sr.coding import Code
+from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
