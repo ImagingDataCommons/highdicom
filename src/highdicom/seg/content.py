@@ -174,10 +174,10 @@ class SegmentDescription(Dataset):
             ]
 
 
-class DerivationImageSequence(DataElementSequence):
+class DerivationImage(Dataset):
 
-    """Sequence of data elements providing references to the source image of a
-    segmentation image based on the Derivation Image functional group macros.
+    """Dataset providing references to the source image of a segmentation image
+    based on the Derivation Image functional group macro.
     """
 
     def __init__(
@@ -214,7 +214,7 @@ class DerivationImageSequence(DataElementSequence):
             ),
         ]
         derivation_code = codes.cid7203.Segmentation
-        derivation_item.DerivationCodeSequence = [
+        self.DerivationCodeSequence = [
             CodedConcept(
                 derivation_code.value,
                 derivation_code.scheme_designator,
@@ -222,10 +222,9 @@ class DerivationImageSequence(DataElementSequence):
                 derivation_code.scheme_version
             ),
         ]
-        derivation_item.SourceImageSequence = [
+        self.SourceImageSequence = [
             source_image_item,
         ]
-        self.append(derivation_item)
 
 
 class Surface(Dataset):
@@ -360,7 +359,7 @@ class PixelMeasuresSequence(DataElementSequence):
             Depth of physical space volume the image represents in millimeter
         spacing_between_slices: float, optional
             Distance in physical space between two consecutive images in
-            millimeters. Only required for certain modalities, such as MR or CT.
+            millimeters. Only required for certain modalities, such as MR.
 
         """
         super().__init__()
@@ -557,6 +556,11 @@ class DimensionIndexSequence(DataElementSequence):
     """Sequence of data elements describing dimension indices for the patient
     or slide coordinate system based on the Dimension Index functional
     group macro.
+
+    Note
+    ----
+    The order of indices is fixed.
+
     """
 
     def __init__(

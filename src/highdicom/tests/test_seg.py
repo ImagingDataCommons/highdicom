@@ -14,7 +14,7 @@ from pydicom.uid import generate_uid, UID
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation
 from highdicom.seg.content import (
     AlgorithmIdentificationSequence,
-    DerivationImageSequence,
+    DerivationImage,
     DimensionIndexSequence,
     PlanePositionSequence,
     PlanePositionSlideSequence,
@@ -246,7 +246,7 @@ class TestSegmentDescription(unittest.TestCase):
             item.TrackingUID
 
 
-class TestDerivationImageSequence(unittest.TestCase):
+class TestDerivationImage(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -255,12 +255,10 @@ class TestDerivationImageSequence(unittest.TestCase):
         self._frame_number = 1
 
     def test_construction(self):
-        seq = DerivationImageSequence(
+        item = DerivationImage(
             self._sop_class_uid,
             self._sop_instance_uid
         )
-        assert len(seq) == 1
-        item = seq[0]
         assert len(item.DerivationCodeSequence) == 1
         assert item.DerivationCodeSequence[0] == \
             codes.cid7203.Segmentation
@@ -277,18 +275,18 @@ class TestDerivationImageSequence(unittest.TestCase):
 
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
-            DerivationImageSequence(
+            DerivationImage(
                 referenced_sop_class_uid=self._sop_class_uid
             )
 
     def test_construction_missing_required_argument_2(self):
         with pytest.raises(TypeError):
-            DerivationImageSequence(
+            DerivationImage(
                 referenced_sop_instance_uid=self._sop_instance_uid
             )
 
     def test_construction_optional_argument(self):
-        seq = DerivationImageSequence(
+        seq = DerivationImage(
             referenced_sop_class_uid=self._sop_class_uid,
             referenced_sop_instance_uid=self._sop_instance_uid,
             referenced_frame_numbers=[self._frame_number]
@@ -618,7 +616,7 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_pixel_array[1:5, 10:15] = True
         self._ct_segment_derivations = [
-            DerivationImageSequence(
+            DerivationImage(
                 referenced_sop_class_uid=self._ct_image.SOPClassUID,
                 referenced_sop_instance_uid=self._ct_image.SOPInstanceUID
             ),
@@ -632,7 +630,7 @@ class TestSegmentation(unittest.TestCase):
         )
         self._sm_pixel_array[2:3, 1:5, 7:9, :] = True
         self._sm_segment_derivations = [
-            DerivationImageSequence(
+            DerivationImage(
                 referenced_sop_class_uid=self._sm_image.SOPClassUID,
                 referenced_sop_instance_uid=self._sm_image.SOPInstanceUID
             ),

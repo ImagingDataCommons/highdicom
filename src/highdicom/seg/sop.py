@@ -21,7 +21,7 @@ from highdicom.base import SOPClass
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
-    DerivationImageSequence,
+    DerivationImage,
     SegmentDescription,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -52,7 +52,7 @@ class Segmentation(SOPClass):
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[DerivationImageSequence],
+            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -109,7 +109,7 @@ class Segmentation(SOPClass):
             *Image Orientation (Slide)* attribute).
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
+        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
             References to the source images (and frames within the source
             images) for each segment encoded in `pixel_array`.
             Sequence may be empty if it is not possible to reference segments
@@ -347,7 +347,7 @@ class Segmentation(SOPClass):
                 pixel_measures = PixelMeasuresSequence(
                     pixel_spacing=src_img.PixelSpacing,
                     slice_thickness=src_img.SliceThickness,
-                    spacing_between_slices=src_img.SpacingBetweenSlices
+                    spacing_between_slices=src_img.get('SpacingBetweenSlices', None)
                 )
             # TODO: ensure derived segmentation image and original image have
             # same physical dimeensions
@@ -494,7 +494,7 @@ class Segmentation(SOPClass):
             self,
             pixel_array: np.ndarray,
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[DerivationImageSequence],
+            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]
         ) -> Dataset:
         """Adds one or more segments to the segmentation image.
@@ -527,7 +527,7 @@ class Segmentation(SOPClass):
             *Image Orientation (Slide)* attribute).
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
+        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
             References for each segment encoded in `pixel_array`.
             Sequence may be empty if it is not possible to reference segments
             relative to source images, because spatial locations were not
@@ -605,7 +605,7 @@ class Segmentation(SOPClass):
         # the slide coordinate system.
         plane_position_values = np.array([
             [
-                p[0][indexer.DimensionIndexPointer].value
+                np.array(p[0][indexer.DimensionIndexPointer].value)
                 for indexer in self.DimensionIndexSequence[1:]
             ]
             for p in plane_positions
@@ -626,7 +626,7 @@ class Segmentation(SOPClass):
         # system, respectively. These can subsequently be used to look up the
         # relative position of a plane relative to the indexed dimension.
         dimension_position_values = [
-            np.unique(plane_position_values[:, index])
+            np.unique(plane_position_values[:, index], axis=0)
             for index in range(plane_position_values.shape[1])
         ]
 
@@ -650,16 +650,28 @@ class Segmentation(SOPClass):
 
                 # Look up the position of the plane relative to the indexed
                 # dimension.
-                frame_content_item.DimensionIndexValues.extend([
-                    np.where(dimension_position_values[index] == pos)[0][0] + 1
-                    for index, pos in enumerate(plane_position_values[j])
-                ])
+                try:
+                    frame_content_item.DimensionIndexValues.extend([
+                        np.where(
+                            (dimension_position_values[index] == pos).all(axis=1)
+                        )[0][0] + 1
+                        for index, pos in enumerate(plane_position_values[j])
+                    ])
+                except IndexError as error:
+                    raise IndexError(
+                        'Could not determine position of plane #{} in '
+                        'three dimensional coordinate system based on '
+                        'dimension index values: {}'.format(j, error)
+                    )
                 pffp_item.FrameContentSequence = [frame_content_item]
                 if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
                 else:
                     pffp_item.PlanePositionSequence = plane_positions[j]
-                pffp_item.DerivationImageSequence = segment_derivations[i]
+                if isinstance(segment_derivations, Sequence):
+                    pffp_item.DerivationImageSequence = segment_derivations[i]
+                else:
+                    pffp_item.DerivationImageSequence = [segment_derivations[i]]
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
                 pffp_item.SegmentIdentificationSequence = [
@@ -707,7 +719,7 @@ class SurfaceSegmentation(SOPClass):
             source_images: Sequence[Dataset],
             surfaces: Sequence[Surface],
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[DerivationImageSequence],
+            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -731,7 +743,7 @@ class SurfaceSegmentation(SOPClass):
             Surfaces
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[highdicom.seg.content.DerivationImageSequence]
+        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
             References to the source images (and frames within the source
             images) for each segment encoded in `pixel_array`.
             Sequence may be empty if it is not possible to reference segments
