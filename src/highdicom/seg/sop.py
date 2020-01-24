@@ -594,6 +594,15 @@ class Segmentation(SOPClass):
                 'Described and encoded segment numbers must match.'
             )
 
+        # For each dimension other than the Referenced Segment Number,
+        # obtain the value of the attribute that the Dimension Index Pointer
+        # points to in the element of the Plane Position Sequence or
+        # Plane Position Slide Sequence.
+        # Per definition, this is the Image Position Patient attribute
+        # in case of the patient coordinate system, or the
+        # X/Y/Z Offset In Slide Coordinate System and the Column/Row
+        # Position in Total Image Pixel Matrix attributes in case of the
+        # the slide coordinate system.
         plane_position_values = np.array([
             [
                 p[0][indexer.DimensionIndexPointer].value
@@ -601,12 +610,21 @@ class Segmentation(SOPClass):
             ]
             for p in plane_positions
         ])
+        # Planes need to be sorted according to the Dimension Index Value
+        # based on the order of the items in the Dimension Index Sequence.
+        # Here we construct an index vector that we can subsequently use to
+        # sort planes before adding them to the Pixel Data element.
         _, plane_sort_index = np.unique(
             plane_position_values,
             axis=0,
             return_index=True
         )
 
+        # Get unique values of attributes in the Plane Position Sequence or
+        # Plane Position Slide Sequence, which define the position of the plane
+        # with respect to the three dimensional patient or slide coordinate
+        # system, respectively. These can subsequently be used to look up the
+        # relative position of a plane relative to the indexed dimension.
         dimension_position_values = [
             np.unique(plane_position_values[:, index])
             for index in range(plane_position_values.shape[1])
@@ -629,6 +647,9 @@ class Segmentation(SOPClass):
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
                 frame_content_item.DimensionIndexValues = [segment_number]
+
+                # Look up the position of the plane relative to the indexed
+                # dimension.
                 frame_content_item.DimensionIndexValues.extend([
                     np.where(dimension_position_values[index] == pos)[0][0] + 1
                     for index, pos in enumerate(plane_position_values[j])
