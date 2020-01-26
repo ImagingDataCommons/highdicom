@@ -519,7 +519,7 @@ class Segmentation(SOPClass):
             coordinate system (first along the X axis, second along the Y axis,
             and third along the Z axis).
             If `pixel_array` represents a tiled 2D image, the first dimension
-            represents invidual 2D tiles (for one channel and z-stack) and
+            represents individual 2D tiles (for one channel and z-stack) and
             these tiles must be ordered based on their position in the tiled
             total pixel matrix (first along the row dimension and second along
             the column dimension, which are defined in the three-dimensional
