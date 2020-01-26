@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 class Segmentation(SOPClass):
 
-    """SOP class for a Segmentation, which respresents one or more
+    """SOP class for a Segmentation, which represents one or more
     regions of interest (ROIs) as mask images (raster graphics) in
     two-dimensional image space.
 
@@ -85,7 +85,7 @@ class Segmentation(SOPClass):
             from which the segmentation was derived
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating piont data type representing a mask image, where pixel
+            floating point data type representing a mask image, where pixel
             values either encode the probability of a given pixel
             belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
@@ -100,8 +100,8 @@ class Segmentation(SOPClass):
             based on their position in the three-dimensional patient
             coordinate system (first along the X axis, second along the Y axis,
             and third along the Z axis).
-            If `pixel_array` reprsents a tiled 2D image, the first dimension
-            represents invidual 2D tiles (for one channel and z-stack) and
+            If `pixel_array` represents a tiled 2D image, the first dimension
+            represents individual 2D tiles (for one channel and z-stack) and
             these tiles must be ordered based on their position in the tiled
             total pixel matrix (first along the row dimension and second along
             the column dimension, which are defined in the three-dimensional
@@ -503,7 +503,7 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating piont data type representing a mask image, where pixel
+            floating point data type representing a mask image, where pixel
             values either encode the probability of a given pixel
             belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
@@ -518,8 +518,8 @@ class Segmentation(SOPClass):
             based on their position in the three-dimensional patient
             coordinate system (first along the X axis, second along the Y axis,
             and third along the Z axis).
-            If `pixel_array` reprsents a tiled 2D image, the first dimension
-            represents invidual 2D tiles (for one channel and z-stack) and
+            If `pixel_array` represents a tiled 2D image, the first dimension
+            represents individual 2D tiles (for one channel and z-stack) and
             these tiles must be ordered based on their position in the tiled
             total pixel matrix (first along the row dimension and second along
             the column dimension, which are defined in the three-dimensional
@@ -639,7 +639,7 @@ class Segmentation(SOPClass):
             elif pixel_array.dtype in (np.uint8, np.uint16):
                 # Labeled masks must be converted to binary masks.
                 planes = np.zeros(pixel_array.shape, dtype=np.bool)
-                planes[array == segment_number] = True
+                planes[pixel_array == segment_number] = True
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
 
@@ -707,8 +707,8 @@ class Segmentation(SOPClass):
 
 class SurfaceSegmentation(SOPClass):
 
-    """SOP class for a Surface Segmentation, which respresents one or more
-    regions of interst (ROIs) as meshes or point clouds (vector graphics)
+    """SOP class for a Surface Segmentation, which represents one or more
+    regions of interest (ROIs) as meshes or point clouds (vector graphics)
     in three-dimensional physical space defined by the frame of reference that
     identifies the slide- or patient-based coordinate system.
 
