@@ -56,6 +56,8 @@ class Segmentation(SOPClass):
             manufacturer_model_name: str,
             software_versions: Union[str, Tuple[str]],
             device_serial_number: str,
+            segmentation_type: Union[str, SegmentationTypes] = \
+                SegmentationTypes.FRACTIONAL,
             fractional_type: Union[str, SegmentationFractionalTypes] = \
                 SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
@@ -127,6 +129,8 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
+        segmentation_type: Union[str, highdicom.seg.content.SegmentationTypes], optional
+            Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
@@ -306,18 +310,25 @@ class Segmentation(SOPClass):
         self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
         self.ContentCreatorName = content_creator_name
-        self.SegmentationType = SegmentationTypes.FRACTIONAL.value
-        self.BitsAllocated = 8
-        self.HighBit = 7
-        segmentation_fractional_type = SegmentationFractionalTypes(
-            fractional_type
-        )
-        self.SegmentationFractionalType = segmentation_fractional_type.value
-        if max_fractional_value > 2**8:
-            raise ValueError(
-                'Maximum fractional value must not exceed image bit depth.'
+
+        segmentation_type = SegmentationTypes(segmentation_type)
+        self.SegmentationType = segmentation_type.value
+        if self.SegmentationType == SegmentationTypes.BINARY.value:
+            self.BitsAllocated = 1
+            self.HighBit = 1
+        elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
+            self.BitsAllocated = 8
+            self.HighBit = 7
+            segmentation_fractional_type = SegmentationFractionalTypes(
+                fractional_type
             )
-        self.MaximumFractionalValue = max_fractional_value
+            self.SegmentationFractionalType = segmentation_fractional_type.value
+            if max_fractional_value > 2**8:
+                raise ValueError(
+                    'Maximum fractional value must not exceed image bit depth.'
+                )
+            self.MaximumFractionalValue = max_fractional_value
+
         self.BitsStored = self.BitsAllocated
         self.LossyImageCompression = getattr(
             src_img,
@@ -556,7 +567,7 @@ class Segmentation(SOPClass):
             encoded_segment_numbers = np.unique(
                 pixel_array[pixel_array > 0].astype(np.uint16)
             )
-        elif pixel_array.dtype == np.float:
+        elif pixel_array.dtype == np.float and self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
             if np.min(pixel_array) < 0.0 or np.max(pixel_array) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
