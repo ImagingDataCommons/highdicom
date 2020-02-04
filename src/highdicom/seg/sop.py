@@ -60,7 +60,7 @@ class Segmentation(SOPClass):
                 SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
             content_description: Optional[str] = None,
-
+            content_creator_name: Optional[str] = None,
             transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
