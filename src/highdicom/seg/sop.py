@@ -573,7 +573,7 @@ class Segmentation(SOPClass):
                     'Floating point pixel array values must be in the '
                     'range [0, 1].'
                 )
-            encoded_segment_numbers = 1
+            encoded_segment_numbers = np.array([1])
         else:
             raise TypeError('Pixel array has wrong data type.')
 
