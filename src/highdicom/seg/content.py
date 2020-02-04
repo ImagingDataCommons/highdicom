@@ -198,7 +198,6 @@ class DerivationImage(Dataset):
 
         """
         super().__init__()
-        derivation_item = Dataset()
         source_image_item = Dataset()
         source_image_item.ReferencedSOPClassUID = referenced_sop_class_uid
         source_image_item.ReferencedSOPInstanceUID = referenced_sop_instance_uid
@@ -679,4 +678,3 @@ class DimensionIndexSequence(DataElementSequence):
                 segment_number_index,
                 image_position_index,
             ])
-

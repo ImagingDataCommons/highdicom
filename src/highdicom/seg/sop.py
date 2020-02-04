@@ -1,18 +1,14 @@
 """Module for the SOP class of the Segmentation IOD."""
-import datetime
 import itertools
 import logging
 import numpy as np
-import pydicom
-from collections import namedtuple, defaultdict
-from typing import NamedTuple, Optional, Sequence, Union, Tuple
+from collections import defaultdict
+from typing import Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom.sr.coding import Code
 from pydicom.uid import UID
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
-    VLMicroscopicImageStorage,
     VLSlideCoordinatesMicroscopicImageStorage,
     VLWholeSlideMicroscopyImageStorage,
 )
@@ -33,7 +29,6 @@ from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
 )
-from highdicom.sr.coding import CodedConcept
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +60,7 @@ class Segmentation(SOPClass):
                 SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
             content_description: Optional[str] = None,
-            content_creator_name: Optional[str] = None,
+
             transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
@@ -634,7 +629,7 @@ class Segmentation(SOPClass):
             if pixel_array.dtype == np.float:
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
-                planes = np.around(pixel_array * float(max_fractional_value))
+                planes = np.around(pixel_array * float(self.MaximumFractionalValue))
                 planes = planes.dtype(np.uint8)
             elif pixel_array.dtype in (np.uint8, np.uint16):
                 # Labeled masks must be converted to binary masks.
