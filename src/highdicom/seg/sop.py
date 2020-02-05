@@ -648,9 +648,13 @@ class Segmentation(SOPClass):
         # the new pixels and then re-encode. This process should be avoided if it is
         # not necessary in order to improve efficiency
         if self.SegmentationType == SegmentatationTypes.BINARY.value and
-            (get_expected_length(self) % 8) > 0:
+            ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0:
             re_encode_pixel_data = True
-            pixel_array = self.pixel_array
+            if hasattr(self, 'PixelData'):
+                full_pixel_array = self.pixel_array.flatten()
+            else:
+                # If this is the first segment added, the pixel array is empty
+                full_pixel_array = np.array([], np.bool)
 
         for i, segment_number in enumerate(encoded_segment_numbers):
             if pixel_array.dtype == np.float:
@@ -714,7 +718,11 @@ class Segmentation(SOPClass):
                 ]
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
-            self.PixelData += self._encode_pixels(planes[plane_sort_index])
+
+            if re_encode_pixel_data:
+                full_pixel_array = np.concatenate([full_pixel_array, planes[plane_sort_index]])
+            else:
+                self.PixelData += self._encode_pixels(planes[plane_sort_index])
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.
@@ -722,9 +730,13 @@ class Segmentation(SOPClass):
                 self.SegmentSequence.append(segment_descriptions[i])
             self._segment_inventory.add(segment_number)
 
-    # Add back the null trailing byte if required
-    if len(ds.PixelData) % 2 == 1:
-        ds.PixelData += b'0'
+        # Re-encode the whole pixel array at once if necessary
+        if re_encode_pixel_data:
+            self.PixelData = self._encode_pixels(full_pixel_array)
+
+        # Add back the null trailing byte if required
+        if len(ds.PixelData) % 2 == 1:
+            ds.PixelData += b'0'
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
@@ -741,7 +753,10 @@ class Segmentation(SOPClass):
 
         """
         # TODO: compress depending on transfer syntax UID
-        return planes.flatten().tobytes()
+        if self.SegmentationType == SegmentatationTypes.BINARY.value:
+            return pack_bits(planes.flatten())
+        else:
+            return planes.flatten().tobytes()
 
 
 class SurfaceSegmentation(SOPClass):
