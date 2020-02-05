@@ -6,6 +6,8 @@ from collections import defaultdict
 from typing import Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
+from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import UID
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
@@ -315,7 +317,7 @@ class Segmentation(SOPClass):
         self.SegmentationType = segmentation_type.value
         if self.SegmentationType == SegmentationTypes.BINARY.value:
             self.BitsAllocated = 1
-            self.HighBit = 1
+            self.HighBit = 0
         elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
             self.BitsAllocated = 8
             self.HighBit = 7
@@ -637,6 +639,19 @@ class Segmentation(SOPClass):
             for index in range(plane_position_values.shape[1])
         ]
 
+        # Before adding new pixel data, remove the trailing null padding byte
+        if len(ds.PixelData) == get_expected_length(self) + 1:
+            ds.PixelData = ds.PixelData[:-1]
+
+        # When using binary segmentations, the previous frames may have been padded
+        # to be a multiple of 8. In this case, we need to decode the pixel data, add
+        # the new pixels and then re-encode. This process should be avoided if it is
+        # not necessary in order to improve efficiency
+        if self.SegmentationType == SegmentatationTypes.BINARY.value and
+            (get_expected_length(self) % 8) > 0:
+            re_encode_pixel_data = True
+            pixel_array = self.pixel_array
+
         for i, segment_number in enumerate(encoded_segment_numbers):
             if pixel_array.dtype == np.float:
                 # Floating-point numbers must be mapped to 8-bit integers in
@@ -706,6 +721,10 @@ class Segmentation(SOPClass):
             if segment_number not in self._segment_inventory:
                 self.SegmentSequence.append(segment_descriptions[i])
             self._segment_inventory.add(segment_number)
+
+    # Add back the null trailing byte if required
+    if len(ds.PixelData) % 2 == 1:
+        ds.PixelData += b'0'
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
