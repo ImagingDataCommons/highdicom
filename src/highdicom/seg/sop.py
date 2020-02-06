@@ -614,6 +614,7 @@ class Segmentation(SOPClass):
                 ][0]
                 for p in plane_positions
             ])
+
         # Planes need to be sorted according to the Dimension Index Value
         # based on the order of the items in the Dimension Index Sequence.
         # Here we construct an index vector that we can subsequently use to
@@ -655,20 +656,23 @@ class Segmentation(SOPClass):
                 # Look up the position of the plane relative to the indexed
                 # dimension.
                 try:
-                    frame_content_item.DimensionIndexValues.extend([
+                    values = [
                         np.where(
                             (dimension_position_values[index] == pos)
                         )[0][0] + 1
                         for index, pos in enumerate(plane_position_values[j])
-                    ])
+                    ]
                 except IndexError as error:
-                    print(plane_position_values[j])
-                    print(dimension_position_values[0] == plane_position_values[j][0])
                     raise IndexError(
                         'Could not determine position of plane #{} in '
                         'three dimensional coordinate system based on '
                         'dimension index values: {}'.format(j, error)
                     )
+                if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                    frame_content_item.DimensionIndexValues.extend(values)
+                else:
+                    frame_content_item.DimensionIndexValues.append(values)
+
                 pffp_item.FrameContentSequence = [frame_content_item]
                 if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
