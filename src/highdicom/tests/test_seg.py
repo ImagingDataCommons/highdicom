@@ -679,6 +679,7 @@ class TestSegmentation(unittest.TestCase):
             instance.LossyImageCompressionMethod
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == self._ct_image.SOPInstanceUID
         assert instance.Rows == self._ct_image.pixel_array.shape[0]
@@ -702,6 +703,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 2
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -750,6 +753,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 6
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
 
