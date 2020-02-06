@@ -639,14 +639,14 @@ class Segmentation(SOPClass):
         ]
 
         # Before adding new pixel data, remove the trailing null padding byte
-        if len(ds.PixelData) == get_expected_length(self) + 1:
-            ds.PixelData = ds.PixelData[:-1]
+        if len(self.PixelData) == get_expected_length(self) + 1:
+            self.PixelData = self.PixelData[:-1]
 
         # When using binary segmentations, the previous frames may have been padded
         # to be a multiple of 8. In this case, we need to decode the pixel data, add
         # the new pixels and then re-encode. This process should be avoided if it is
         # not necessary in order to improve efficiency
-        if self.SegmentationType == SegmentatationTypes.BINARY.value and \
+        if self.SegmentationType == SegmentationTypes.BINARY.value and \
             ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0:
             re_encode_pixel_data = True
             if hasattr(self, 'PixelData'):
@@ -654,6 +654,8 @@ class Segmentation(SOPClass):
             else:
                 # If this is the first segment added, the pixel array is empty
                 full_pixel_array = np.array([], np.bool)
+        else:
+            re_encode_pixel_data = False
 
         for i, segment_number in enumerate(encoded_segment_numbers):
             if pixel_array.dtype == np.float:
@@ -721,8 +723,8 @@ class Segmentation(SOPClass):
             self.PixelData = self._encode_pixels(full_pixel_array)
 
         # Add back the null trailing byte if required
-        if len(ds.PixelData) % 2 == 1:
-            ds.PixelData += b'0'
+        if len(self.PixelData) % 2 == 1:
+            self.PixelData += b'0'
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
@@ -739,7 +741,7 @@ class Segmentation(SOPClass):
 
         """
         # TODO: compress depending on transfer syntax UID
-        if self.SegmentationType == SegmentatationTypes.BINARY.value:
+        if self.SegmentationType == SegmentationTypes.BINARY.value:
             return pack_bits(planes.flatten())
         else:
             return planes.flatten().tobytes()
