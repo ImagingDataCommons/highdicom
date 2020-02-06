@@ -598,13 +598,22 @@ class Segmentation(SOPClass):
         # X/Y/Z Offset In Slide Coordinate System and the Column/Row
         # Position in Total Image Pixel Matrix attributes in case of the
         # the slide coordinate system.
-        plane_position_values = np.array([
-            [
-                np.array(p[0][indexer.DimensionIndexPointer].value)
-                for indexer in self.DimensionIndexSequence[1:]
-            ]
-            for p in plane_positions
-        ])
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            plane_position_values = np.array([
+                [
+                    np.array(p[0][indexer.DimensionIndexPointer].value)
+                    for indexer in self.DimensionIndexSequence[1:]
+                ]
+                for p in plane_positions
+            ])
+        else:
+            plane_position_values = np.array([
+                [
+                    np.array(p[0][indexer.DimensionIndexPointer].value)
+                    for indexer in self.DimensionIndexSequence[1:]
+                ][0]
+                for p in plane_positions
+            ])
         # Planes need to be sorted according to the Dimension Index Value
         # based on the order of the items in the Dimension Index Sequence.
         # Here we construct an index vector that we can subsequently use to
@@ -648,11 +657,13 @@ class Segmentation(SOPClass):
                 try:
                     frame_content_item.DimensionIndexValues.extend([
                         np.where(
-                            (dimension_position_values[index] == pos).all(axis=1)
+                            (dimension_position_values[index] == pos)
                         )[0][0] + 1
                         for index, pos in enumerate(plane_position_values[j])
                     ])
                 except IndexError as error:
+                    print(plane_position_values[j])
+                    print(dimension_position_values[0] == plane_position_values[j][0])
                     raise IndexError(
                         'Could not determine position of plane #{} in '
                         'three dimensional coordinate system based on '
