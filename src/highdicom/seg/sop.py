@@ -646,7 +646,7 @@ class Segmentation(SOPClass):
         # to be a multiple of 8. In this case, we need to decode the pixel data, add
         # the new pixels and then re-encode. This process should be avoided if it is
         # not necessary in order to improve efficiency
-        if self.SegmentationType == SegmentatationTypes.BINARY.value and
+        if self.SegmentationType == SegmentatationTypes.BINARY.value and \
             ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0:
             re_encode_pixel_data = True
             if hasattr(self, 'PixelData'):
