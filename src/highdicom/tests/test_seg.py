@@ -286,13 +286,11 @@ class TestDerivationImage(unittest.TestCase):
             )
 
     def test_construction_optional_argument(self):
-        seq = DerivationImage(
+        item = DerivationImage(
             referenced_sop_class_uid=self._sop_class_uid,
             referenced_sop_instance_uid=self._sop_instance_uid,
             referenced_frame_numbers=[self._frame_number]
         )
-        assert len(seq) == 1
-        item = seq[0]
         assert len(item.DerivationCodeSequence) == 1
         src_img_seq = item.SourceImageSequence
         assert len(src_img_seq) == 1

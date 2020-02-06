@@ -695,7 +695,7 @@ class Segmentation(SOPClass):
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
                 else:
                     pffp_item.PlanePositionSequence = plane_positions[j]
-                if isinstance(segment_derivations, Sequence):
+                if isinstance(segment_derivations[i], Sequence):
                     pffp_item.DerivationImageSequence = segment_derivations[i]
                 else:
                     pffp_item.DerivationImageSequence = [segment_derivations[i]]
