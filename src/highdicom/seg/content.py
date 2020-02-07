@@ -587,8 +587,7 @@ class DimensionIndexSequence(DataElementSequence):
                 'SegmentIdentificationSequence'
             )
             segment_number_index.DimensionOrganizationUID = dim_uid
-            segment_number_index.DimensionDescriptionLabel = \
-                'Segment Number'
+            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
 
             x_image_dimension_index = Dataset()
             x_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
@@ -664,6 +663,7 @@ class DimensionIndexSequence(DataElementSequence):
                 'SegmentIdentificationSequence'
             )
             segment_number_index.DimensionOrganizationUID = dim_uid
+            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
 
             image_position_index = Dataset()
             image_position_index.DimensionIndexPointer = tag_for_keyword(
@@ -673,6 +673,8 @@ class DimensionIndexSequence(DataElementSequence):
                 'PlanePositionSequence'
             )
             image_position_index.DimensionOrganizationUID = dim_uid
+            image_position_index.DimensionDescriptionLabel = \
+                'Image Position Patient'
 
             self.extend([
                 segment_number_index,

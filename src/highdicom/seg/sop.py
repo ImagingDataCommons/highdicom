@@ -605,6 +605,7 @@ class Segmentation(SOPClass):
             ]
             for p in plane_positions
         ])
+
         # Planes need to be sorted according to the Dimension Index Value
         # based on the order of the items in the Dimension Index Sequence.
         # Here we construct an index vector that we can subsequently use to
@@ -646,18 +647,31 @@ class Segmentation(SOPClass):
                 # Look up the position of the plane relative to the indexed
                 # dimension.
                 try:
-                    frame_content_item.DimensionIndexValues.extend([
-                        np.where(
-                            (dimension_position_values[index] == pos).all(axis=1)
-                        )[0][0] + 1
-                        for index, pos in enumerate(plane_position_values[j])
-                    ])
+                    if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                        index_values = [
+                            np.where(
+                                (dimension_position_values[idx] == pos)
+                            )[0][0] + 1
+                            for idx, pos in enumerate(plane_position_values[j])
+                        ]
+                    else:
+                        # In case of the patient coordinate system, the
+                        # value of the attribute the Dimension Index Sequence
+                        # points to (Image Position Patient) has a value
+                        # multiplicity greater than one.
+                        index_values = [
+                            np.where(
+                                (dimension_position_values[idx] == pos).all(axis=1)
+                            )[0][0] + 1
+                            for idx, pos in enumerate(plane_position_values[j])
+                        ]
                 except IndexError as error:
                     raise IndexError(
                         'Could not determine position of plane #{} in '
                         'three dimensional coordinate system based on '
                         'dimension index values: {}'.format(j, error)
                     )
+                frame_content_item.DimensionIndexValues.extend(index_values)
                 pffp_item.FrameContentSequence = [frame_content_item]
                 if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
