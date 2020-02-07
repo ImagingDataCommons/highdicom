@@ -48,6 +48,7 @@ class Segmentation(SOPClass):
             self,
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
+            segmentation_type: Union[str, SegmentationTypes],
             segment_descriptions: Sequence[SegmentDescription],
             segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
@@ -58,8 +59,6 @@ class Segmentation(SOPClass):
             manufacturer_model_name: str,
             software_versions: Union[str, Tuple[str]],
             device_serial_number: str,
-            segmentation_type: Union[str, SegmentationTypes] = \
-                SegmentationTypes.FRACTIONAL,
             fractional_type: Union[str, SegmentationFractionalTypes] = \
                 SegmentationFractionalTypes.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
@@ -106,6 +105,8 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
+        segmentation_type: Union[str, highdicom.seg.content.SegmentationTypes]
+            Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
         segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
@@ -131,8 +132,6 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
-        segmentation_type: Union[str, highdicom.seg.content.SegmentationTypes], optional
-            Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
@@ -330,6 +329,8 @@ class Segmentation(SOPClass):
                     'Maximum fractional value must not exceed image bit depth.'
                 )
             self.MaximumFractionalValue = max_fractional_value
+        else:
+            raise ValueError( 'Unknown segmentation type "{}"'.format(segmentation_type))
 
         self.BitsStored = self.BitsAllocated
         self.LossyImageCompression = getattr(
