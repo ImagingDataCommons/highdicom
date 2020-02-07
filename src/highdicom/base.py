@@ -119,6 +119,7 @@ class SOPClass(Dataset):
             self.is_little_endian = True
         if transfer_syntax_uid in (
                 ExplicitVRLittleEndian,
+                ExplicitVRBigEndian,
                 DeflatedExplicitVRLittleEndian
             ):
             self.is_implicit_VR = False

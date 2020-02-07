@@ -360,7 +360,7 @@ def _convert_legacy_to_enhanced(
             ref_ds.SpacingBetweenSlices
     except AttributeError:
         pass
-    shared_item.MixelMeasuresSequence = [
+    shared_item.PixelMeasuresSequence = [
         pixel_measures_item,
     ]
 

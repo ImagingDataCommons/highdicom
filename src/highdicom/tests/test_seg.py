@@ -452,7 +452,7 @@ class TestPlanePositionSequence(unittest.TestCase):
         self._image_position = (1.0, 2.0, 3.0)
 
     def test_construction(self):
-        seq = PlanePositionSequence(self._image_position)
+        seq = PlanePositionSequence(image_position=self._image_position)
         assert len(seq) == 1
         item = seq[0]
         assert item.ImagePositionPatient == list(self._image_position)
@@ -679,6 +679,7 @@ class TestSegmentation(unittest.TestCase):
             instance.LossyImageCompressionMethod
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == self._ct_image.SOPInstanceUID
         assert instance.Rows == self._ct_image.pixel_array.shape[0]
@@ -702,6 +703,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 2
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -750,6 +753,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 6
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
 
@@ -989,7 +994,7 @@ class TestSegmentation(unittest.TestCase):
         )
         # FIXME
         plane_positions = [
-            PlanePositionSequence((0.0, 0.0, 0.0)),
+            PlanePositionSequence(image_position=(0.0, 0.0, 0.0)),
         ]
         instance = Segmentation(
             source_images=[self._ct_image],
@@ -1033,8 +1038,8 @@ class TestSegmentation(unittest.TestCase):
         # FIXME
         plane_positions = [
             PlanePositionSlideSequence(
-                (i*1.0, i*1.0, 1.0),
-                (i*1, i*1)
+                image_position=(i*1.0, i*1.0, 1.0),
+                pixel_matrix_position=(i*1, i*1)
             )
             for i in range(self._sm_image.pixel_array.shape[0])
         ]
