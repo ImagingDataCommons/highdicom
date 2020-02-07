@@ -1,7 +1,7 @@
 import os
 import unittest
 from datetime import datetime
-from pkg_resources import resource_filename
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -579,7 +579,8 @@ class TestSegmentation(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        data_dir = resource_filename('highdicom', 'data')
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
         self._segment_descriptions = [
             SegmentDescription(
                 segment_number=1,
