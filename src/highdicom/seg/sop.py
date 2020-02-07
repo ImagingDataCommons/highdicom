@@ -711,7 +711,7 @@ class Segmentation(SOPClass):
                 else:
                     pffp_item.PlanePositionSequence = plane_positions[j]
                 if isinstance(segment_derivations[i], Sequence):
-                    pffp_item.DerivationImageSequence = segment_derivations[i]
+                    pffp_item.DerivationImageSequence = [segment_derivations[i][j]]
                 else:
                     pffp_item.DerivationImageSequence = [segment_derivations[i]]
                 identification = Dataset()
