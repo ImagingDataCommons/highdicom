@@ -19,7 +19,6 @@ from highdicom.base import SOPClass
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
-    DerivationImage,
     SegmentDescription,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -50,7 +49,6 @@ class Segmentation(SOPClass):
             pixel_array: np.ndarray,
             segmentation_type: Union[str, SegmentationTypes],
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -109,13 +107,6 @@ class Segmentation(SOPClass):
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References to the source images (and frames within the source
-            images) for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -183,9 +174,6 @@ class Segmentation(SOPClass):
                   encoded in `pixel_array`.
                 * Length of `plane_positions` does not match number of 2D planes
                   in `pixel_array` (size of first array dimension).
-                * Length of `segment_descriptions` or `segment_derivations`
-                  does not match number of segments encoded in `pixel_array`
-                  (number of unique positive values in `pixel_array`).
 
         Note
         ----
@@ -359,7 +347,7 @@ class Segmentation(SOPClass):
                     spacing_between_slices=src_img.get('SpacingBetweenSlices', None)
                 )
             # TODO: ensure derived segmentation image and original image have
-            # same physical dimeensions
+            # same physical dimensions
             seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
             seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
             src_row_dim = src_img.Rows
@@ -492,7 +480,6 @@ class Segmentation(SOPClass):
         self.add_segments(
             pixel_array=pixel_array,
             segment_descriptions=segment_descriptions,
-            segment_derivations=segment_derivations,
             plane_positions=plane_positions
         )
 
@@ -503,7 +490,6 @@ class Segmentation(SOPClass):
             self,
             pixel_array: np.ndarray,
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]
         ) -> Dataset:
         """Adds one or more segments to the segmentation image.
@@ -534,22 +520,14 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
-            Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
         plane_positions: Union[Sequence[highdicom.seg.content.PlanePositionSequence], Sequence[highdicom.seg.content.PlanePositionSlideSequence]]
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
         Note
         ----
-        Items of `segment_descriptions` and `segment_derivations` must be sorted
-        by segment number in ascending order.
+        Items of `segment_descriptions` must be sorted by segment number in
+        ascending order.
         In case `segmentation_type` is ``"BINARY"``, the number of items per
         sequence must match the number of unique positive pixel values in
         `pixel_array`. In case `segmentation_type` is ``"FRACTIONAL"``, only
@@ -570,7 +548,8 @@ class Segmentation(SOPClass):
             encoded_segment_numbers = np.unique(
                 pixel_array[pixel_array > 0].astype(np.uint16)
             )
-        elif pixel_array.dtype == np.float and self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
+        elif (pixel_array.dtype == np.float and
+                self.SegmentationType == SegmentationTypes.FRACTIONAL.value):
             if np.min(pixel_array) < 0.0 or np.max(pixel_array) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
@@ -584,11 +563,6 @@ class Segmentation(SOPClass):
             raise ValueError(
                 'Number of encoded segments does not match number of '
                 'provided segment descriptions.'
-            )
-        if len(encoded_segment_numbers) != len(segment_derivations):
-            raise ValueError(
-                'Number of encoded segments does not match number of '
-                'provided segment derivations.'
             )
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
@@ -710,10 +684,12 @@ class Segmentation(SOPClass):
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
                 else:
                     pffp_item.PlanePositionSequence = plane_positions[j]
-                if isinstance(segment_derivations[i], Sequence):
-                    pffp_item.DerivationImageSequence = [segment_derivations[i][j]]
-                else:
-                    pffp_item.DerivationImageSequence = [segment_derivations[i]]
+
+                # Determining the source images that map to the frame is not
+                # always trivial. Since DerivationImageSequence is a type 2
+                # attribute, we leave its value empty.
+                pffp_item.DerivationImageSequence = []
+
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
                 pffp_item.SegmentIdentificationSequence = [
@@ -723,7 +699,10 @@ class Segmentation(SOPClass):
                 self.NumberOfFrames += 1
 
             if re_encode_pixel_data:
-                full_pixel_array = np.concatenate([full_pixel_array, planes[plane_sort_index]])
+                full_pixel_array = np.concatenate([
+                    full_pixel_array,
+                    planes[plane_sort_index]
+                ])
             else:
                 self.PixelData += self._encode_pixels(planes[plane_sort_index])
 
@@ -776,7 +755,6 @@ class SurfaceSegmentation(SOPClass):
             source_images: Sequence[Dataset],
             surfaces: Sequence[Surface],
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -800,13 +778,6 @@ class SurfaceSegmentation(SOPClass):
             Surfaces
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References to the source images (and frames within the source
-            images) for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -844,8 +815,6 @@ class SurfaceSegmentation(SOPClass):
                   and series.
                 * Items of `source_images` have different number of rows and
                   columns.
-                * Length of `segment_descriptions` or `segment_derivations`
-                  does not match number of items in `surfaces`
 
         Note
         ----

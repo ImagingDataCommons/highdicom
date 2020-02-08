@@ -14,7 +14,6 @@ from pydicom.uid import generate_uid, UID
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation
 from highdicom.seg.content import (
     AlgorithmIdentificationSequence,
-    DerivationImage,
     DimensionIndexSequence,
     PlanePositionSequence,
     PlanePositionSlideSequence,
@@ -244,58 +243,6 @@ class TestSegmentDescription(unittest.TestCase):
         with pytest.raises(AttributeError):
             item.TrackingID
             item.TrackingUID
-
-
-class TestDerivationImage(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self._sop_class_uid = generate_uid()
-        self._sop_instance_uid = generate_uid()
-        self._frame_number = 1
-
-    def test_construction(self):
-        item = DerivationImage(
-            self._sop_class_uid,
-            self._sop_instance_uid
-        )
-        assert len(item.DerivationCodeSequence) == 1
-        assert item.DerivationCodeSequence[0] == \
-            codes.cid7203.Segmentation
-        src_img_seq = item.SourceImageSequence
-        assert len(src_img_seq) == 1
-        src_img_item = src_img_seq[0]
-        assert src_img_item.ReferencedSOPClassUID == self._sop_class_uid
-        assert src_img_item.ReferencedSOPInstanceUID == self._sop_instance_uid
-        assert len(src_img_item.PurposeOfReferenceCodeSequence) == 1
-        assert src_img_item.PurposeOfReferenceCodeSequence[0] == \
-            codes.cid7202.SourceImageForImageProcessingOperation
-        with pytest.raises(AttributeError):
-            src_img_item.ReferencedFrameNumber
-
-    def test_construction_missing_required_argument(self):
-        with pytest.raises(TypeError):
-            DerivationImage(
-                referenced_sop_class_uid=self._sop_class_uid
-            )
-
-    def test_construction_missing_required_argument_2(self):
-        with pytest.raises(TypeError):
-            DerivationImage(
-                referenced_sop_instance_uid=self._sop_instance_uid
-            )
-
-    def test_construction_optional_argument(self):
-        item = DerivationImage(
-            referenced_sop_class_uid=self._sop_class_uid,
-            referenced_sop_instance_uid=self._sop_instance_uid,
-            referenced_frame_numbers=[self._frame_number]
-        )
-        assert len(item.DerivationCodeSequence) == 1
-        src_img_seq = item.SourceImageSequence
-        assert len(src_img_seq) == 1
-        src_img_item = src_img_seq[0]
-        assert src_img_item.ReferencedFrameNumber == [self._frame_number]
 
 
 class TestSurface(unittest.TestCase):
@@ -613,12 +560,6 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._ct_pixel_array[1:5, 10:15] = True
-        self._ct_segment_derivations = [
-            DerivationImage(
-                referenced_sop_class_uid=self._ct_image.SOPClassUID,
-                referenced_sop_instance_uid=self._ct_image.SOPInstanceUID
-            ),
-        ]
         self._sm_image = dcmread(
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
@@ -627,12 +568,6 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9, :] = True
-        self._sm_segment_derivations = [
-            DerivationImage(
-                referenced_sop_class_uid=self._sm_image.SOPClassUID,
-                referenced_sop_instance_uid=self._sm_image.SOPInstanceUID
-            ),
-        ]
 
     def test_construction(self):
         instance = Segmentation(
@@ -640,7 +575,6 @@ class TestSegmentation(unittest.TestCase):
             self._ct_pixel_array,
             SegmentationTypes.FRACTIONAL.value,
             self._segment_descriptions,
-            self._ct_segment_derivations,
             self._series_instance_uid,
             self._series_number,
             self._sop_instance_uid,
@@ -701,7 +635,6 @@ class TestSegmentation(unittest.TestCase):
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
-        assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
@@ -715,7 +648,6 @@ class TestSegmentation(unittest.TestCase):
             self._sm_pixel_array,
             SegmentationTypes.FRACTIONAL.value,
             self._segment_descriptions,
-            self._sm_segment_derivations,
             self._series_instance_uid,
             self._series_number,
             self._sop_instance_uid,
@@ -752,7 +684,6 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
-        assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
@@ -766,7 +697,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -783,7 +713,6 @@ class TestSegmentation(unittest.TestCase):
                 source_images=[self._ct_image],
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -800,7 +729,6 @@ class TestSegmentation(unittest.TestCase):
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -818,7 +746,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
                 instance_number=self._instance_number,
@@ -835,8 +762,7 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
-                series_number=self._series_number,
+                series_instance_uid=self._series_instance_uid,
                 sop_instance_uid=self._sop_instance_uid,
                 instance_number=self._instance_number,
                 manufacturer=self._manufacturer,
@@ -852,9 +778,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
-                sop_instance_uid=self._sop_instance_uid,
+                series_number=self._series_number,
                 instance_number=self._instance_number,
                 manufacturer=self._manufacturer,
                 manufacturer_model_name=self._manufacturer_model_name,
@@ -869,10 +794,9 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
-                instance_number=self._instance_number,
+                sop_instance_uid=self._sop_instance_uid,
                 manufacturer=self._manufacturer,
                 manufacturer_model_name=self._manufacturer_model_name,
                 software_versions=self._software_versions,
@@ -886,24 +810,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
-                series_instance_uid=self._series_instance_uid,
-                series_number=self._series_number,
-                sop_instance_uid=self._sop_instance_uid,
-                manufacturer=self._manufacturer,
-                manufacturer_model_name=self._manufacturer_model_name,
-                software_versions=self._software_versions,
-                device_serial_number=self._device_serial_number
-            )
-
-    def test_construction_missing_required_attribute_2(self):
-        with pytest.raises(TypeError):
-            Segmentation(
-                source_images=[self._ct_image],
-                pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
-                segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -920,7 +826,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -937,7 +842,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -954,7 +858,6 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypes.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
-                segment_derivations=self._ct_segment_derivations,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -974,7 +877,6 @@ class TestSegmentation(unittest.TestCase):
             pixel_array=self._ct_pixel_array,
             segmentation_type=SegmentationTypes.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
-            segment_derivations=self._ct_segment_derivations,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
             sop_instance_uid=self._sop_instance_uid,
@@ -1016,7 +918,6 @@ class TestSegmentation(unittest.TestCase):
             pixel_array=self._ct_pixel_array,
             segmentation_type=SegmentationTypes.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
-            segment_derivations=self._ct_segment_derivations,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
             sop_instance_uid=self._sop_instance_uid,
@@ -1064,7 +965,6 @@ class TestSegmentation(unittest.TestCase):
             pixel_array=self._sm_pixel_array,
             segmentation_type=SegmentationTypes.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
-            segment_derivations=self._sm_segment_derivations,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
             sop_instance_uid=self._sop_instance_uid,
