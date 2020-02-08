@@ -276,12 +276,12 @@ class Segmentation(SOPClass):
         # General Reference
         self.SourceImageSequence = []
         referenced_series = defaultdict(list)
-        for src_img in self._source_images:
+        for s_img in self._source_images:
             ref = Dataset()
-            ref.ReferencedSOPClassUID = src_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
+            ref.ReferencedSOPClassUID = s_img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
             self.SourceImageSequence.append(ref)
-            referenced_series[src_img.SeriesInstanceUID].append(ref)
+            referenced_series[s_img.SeriesInstanceUID].append(ref)
 
         # Common Instance Reference
         self.ReferencedSeriesSequence = []
