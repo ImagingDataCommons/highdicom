@@ -6,7 +6,6 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
-from pydicom.sr.codedict import codes
 
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypes
@@ -172,58 +171,6 @@ class SegmentDescription(Dataset):
                 )
                 for structure in primary_anatomic_structures
             ]
-
-
-class DerivationImage(Dataset):
-
-    """Dataset providing references to the source image of a segmentation image
-    based on the Derivation Image functional group macro.
-    """
-
-    def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> None:
-        """
-        Parameters
-        ----------
-        referenced_sop_class_uid: str
-            SOP Class UID of the referenced source image
-        referenced_sop_instance_uid: str
-            SOP Instance UID of the referenced source image
-        referenced_frame_numbers: Sequence[int], optional
-            Frame number within the reference source image
-
-        """
-        super().__init__()
-        source_image_item = Dataset()
-        source_image_item.ReferencedSOPClassUID = referenced_sop_class_uid
-        source_image_item.ReferencedSOPInstanceUID = referenced_sop_instance_uid
-        if referenced_frame_numbers is not None:
-            source_image_item.ReferencedFrameNumber = referenced_frame_numbers
-        purpose_code = codes.cid7202.SourceImageForImageProcessingOperation
-        source_image_item.PurposeOfReferenceCodeSequence = [
-            CodedConcept(
-                purpose_code.value,
-                purpose_code.scheme_designator,
-                purpose_code.meaning,
-                purpose_code.scheme_version
-            ),
-        ]
-        derivation_code = codes.cid7203.Segmentation
-        self.DerivationCodeSequence = [
-            CodedConcept(
-                derivation_code.value,
-                derivation_code.scheme_designator,
-                derivation_code.meaning,
-                derivation_code.scheme_version
-            ),
-        ]
-        self.SourceImageSequence = [
-            source_image_item,
-        ]
 
 
 class Surface(Dataset):
@@ -395,6 +342,32 @@ class PlanePositionSequence(DataElementSequence):
         item.ImagePositionPatient = list(image_position)
         self.append(item)
 
+    def are_spatial_locations_preserved(self, other) -> bool:
+        """Determines whether spatial locations between two images (source
+        image and derived image) have been preserved.
+
+        Parameters
+        ----------
+        other: PlanePositionSequence
+            Plane position of other image that should be compared
+
+        Returns
+        -------
+        bool
+            Whether the spatial locations have been preserved between the two
+            images
+
+        """
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                'Can only compare spatial locations between instances of '
+                'class "{}".'.format(self.__class__.__name__)
+            )
+        return np.array_equal(
+            np.array(other[0].ImagePositionPatient),
+            np.array(self[0].ImagePositionPatient)
+        )
+
 
 class PlanePositionSlideSequence(DataElementSequence):
 
@@ -515,6 +488,39 @@ class PlanePositionSlideSequence(DataElementSequence):
             pixel_matrix_position=(row_offset_frame, column_offset_frame)
         )
 
+    def are_spatial_locations_preserved(self, other) -> bool:
+        """Determines whether spatial locations between two images (source
+        image and derived image) have been preserved.
+
+        Parameters
+        ----------
+        other: PlanePositionSlideSequence
+            Plane position of other image that should be compared
+
+        Returns
+        -------
+        bool
+            Whether the spatial locations have been preserved between the two
+            images
+
+        """
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                'Can only compare spatial locations between instances of '
+                'class "{}".'.format(self.__class__.__name__)
+            )
+        return np.array_equal(
+            np.array([
+                other[0].XOffsetInSlideCoordinateSystem,
+                other[0].YOffsetInSlideCoordinateSystem,
+                other[0].ZOffsetInSlideCoordinateSystem,
+            ]),
+            np.array([
+                self[0].XOffsetInSlideCoordinateSystem,
+                self[0].YOffsetInSlideCoordinateSystem,
+                self[0].ZOffsetInSlideCoordinateSystem,
+            ]),
+        )
 
 class PlaneOrientationSequence(DataElementSequence):
 

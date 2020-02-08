@@ -6,7 +6,10 @@ from collections import defaultdict
 from typing import Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
+from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import UID
+from pydicom.sr.codedict import codes
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
     VLSlideCoordinatesMicroscopicImageStorage,
@@ -17,7 +20,6 @@ from highdicom.base import SOPClass
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
-    DerivationImage,
     SegmentDescription,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -28,7 +30,9 @@ from highdicom.seg.content import (
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
+    SpatialLocationsPreserved,
 )
+from highdicom.sr.coding import CodedConcept
 
 
 logger = logging.getLogger(__name__)
@@ -46,8 +50,8 @@ class Segmentation(SOPClass):
             self,
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
+            segmentation_type: Union[str, SegmentationTypes],
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -102,15 +106,10 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
+        segmentation_type: Union[str, highdicom.seg.content.SegmentationTypes]
+            Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References to the source images (and frames within the source
-            images) for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -178,9 +177,6 @@ class Segmentation(SOPClass):
                   encoded in `pixel_array`.
                 * Length of `plane_positions` does not match number of 2D planes
                   in `pixel_array` (size of first array dimension).
-                * Length of `segment_descriptions` or `segment_derivations`
-                  does not match number of segments encoded in `pixel_array`
-                  (number of unique positive values in `pixel_array`).
 
         Note
         ----
@@ -191,6 +187,7 @@ class Segmentation(SOPClass):
         """  # noqa
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
+        self._source_images = source_images
 
         uniqueness_criteria = set(
             (
@@ -199,7 +196,7 @@ class Segmentation(SOPClass):
                 image.Rows,
                 image.Columns,
             )
-            for image in source_images
+            for image in self._source_images
         )
         if len(uniqueness_criteria) > 1:
             raise ValueError(
@@ -207,9 +204,9 @@ class Segmentation(SOPClass):
                 'have the same image dimensions (number of rows/columns).'
             )
 
-        src_img = source_images[0]
+        src_img = self._source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if is_multiframe and len(source_images) > 1:
+        if is_multiframe and len(self._source_images) > 1:
             raise ValueError(
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
@@ -279,7 +276,7 @@ class Segmentation(SOPClass):
         # General Reference
         self.SourceImageSequence = []
         referenced_series = defaultdict(list)
-        for src_img in source_images:
+        for src_img in self._source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = src_img.SOPClassUID
             ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
@@ -306,18 +303,27 @@ class Segmentation(SOPClass):
         self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
         self.ContentCreatorName = content_creator_name
-        self.SegmentationType = SegmentationTypes.FRACTIONAL.value
-        self.BitsAllocated = 8
-        self.HighBit = 7
-        segmentation_fractional_type = SegmentationFractionalTypes(
-            fractional_type
-        )
-        self.SegmentationFractionalType = segmentation_fractional_type.value
-        if max_fractional_value > 2**8:
-            raise ValueError(
-                'Maximum fractional value must not exceed image bit depth.'
+
+        segmentation_type = SegmentationTypes(segmentation_type)
+        self.SegmentationType = segmentation_type.value
+        if self.SegmentationType == SegmentationTypes.BINARY.value:
+            self.BitsAllocated = 1
+            self.HighBit = 0
+        elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
+            self.BitsAllocated = 8
+            self.HighBit = 7
+            segmentation_fractional_type = SegmentationFractionalTypes(
+                fractional_type
             )
-        self.MaximumFractionalValue = max_fractional_value
+            self.SegmentationFractionalType = segmentation_fractional_type.value
+            if max_fractional_value > 2**8:
+                raise ValueError(
+                    'Maximum fractional value must not exceed image bit depth.'
+                )
+            self.MaximumFractionalValue = max_fractional_value
+        else:
+            raise ValueError( 'Unknown segmentation type "{}"'.format(segmentation_type))
+
         self.BitsStored = self.BitsAllocated
         self.LossyImageCompression = getattr(
             src_img,
@@ -342,10 +348,13 @@ class Segmentation(SOPClass):
                 pixel_measures = PixelMeasuresSequence(
                     pixel_spacing=src_img.PixelSpacing,
                     slice_thickness=src_img.SliceThickness,
-                    spacing_between_slices=src_img.get('SpacingBetweenSlices', None)
+                    spacing_between_slices=src_img.get(
+                        'SpacingBetweenSlices',
+                        None
+                    )
                 )
             # TODO: ensure derived segmentation image and original image have
-            # same physical dimeensions
+            # same physical dimensions
             seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
             seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
             src_row_dim = src_img.Rows
@@ -384,101 +393,11 @@ class Segmentation(SOPClass):
         self.NumberOfFrames = 0
         self.PerFrameFunctionalGroupsSequence = []
 
-        if plane_positions is None:
-            if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
-                    plane_positions = [
-                        item.PlanePositionSlideSequence
-                        for item in src_img.PerFrameFunctionalGroupsSequence
-                    ]
-                else:
-                    # If Dimension Organization Type is TILED_FULL, plane
-                    # positions are implicit and need to be computed.
-                    image_origin = src_img.TotalPixelMatrixOriginSequence[0]
-                    orientation = tuple(
-                        float(v) for v in src_img.ImageOrientationSlide
-                    )
-                    tiles_per_column = int(
-                        np.ceil(
-                            src_img.TotalPixelMatrixRows /
-                            src_img.Rows
-                        )
-                    )
-                    tiles_per_row = int(
-                        np.ceil(
-                            src_img.TotalPixelMatrixColumns /
-                            src_img.Columns
-                        )
-                    )
-                    num_focal_planes = getattr(
-                        src_img,
-                        'NumberOfFocalPlanes',
-                        1
-                    )
-                    row_range = range(1, tiles_per_column + 1)
-                    column_range = range(1, tiles_per_row + 1)
-                    depth_range = range(1, num_focal_planes + 1)
-
-                    shared_fg = self.SharedFunctionalGroupsSequence[0]
-                    pixel_measures = shared_fg.PixelMeasuresSequence[0]
-                    pixel_spacing = tuple(
-                        float(v) for v in pixel_measures.PixelSpacing
-                    )
-                    slice_thickness = getattr(
-                        pixel_measures,
-                        'SliceThickness',
-                        1.0
-                    )
-                    spacing_between_slices = getattr(
-                        pixel_measures,
-                        'SpacingBetweenSlices',
-                        1.0
-                    )
-                    plane_positions = [
-                        PlanePositionSlideSequence.compute_for_tiled_full(
-                            row_index=r,
-                            column_index=c,
-                            depth_index=d,
-                            x_offset=image_origin.XOffsetInSlideCoordinateSystem,
-                            y_offset=image_origin.YOffsetInSlideCoordinateSystem,
-                            z_offset=1.0,  # TODO
-                            rows=self.Rows,
-                            columns=self.Columns,
-                            image_orientation=orientation,
-                            pixel_spacing=pixel_spacing,
-                            slice_thickness=slice_thickness,
-                            spacing_between_slices=spacing_between_slices
-                        )
-                        for r, c, d in itertools.product(
-                            row_range,
-                            column_range,
-                            depth_range
-                        )
-                    ]
-            else:
-                if is_multiframe:
-                    plane_positions = [
-                        item.PlanePositionSequence
-                        for item in src_img.PerFrameFunctionalGroupsSequence
-                    ]
-                else:
-                    plane_positions = [
-                        PlanePositionSequence(src_img.ImagePositionPatient)
-                        for src_img in source_images
-                    ]
-
-        if pixel_array.shape[0] != len(plane_positions):
-            raise ValueError(
-                'Number of pixel array planes does not match number of '
-                'provided image positions.'
-            )
-
         self._segment_inventory = set()
         self.PixelData = b''
         self.add_segments(
             pixel_array=pixel_array,
             segment_descriptions=segment_descriptions,
-            segment_derivations=segment_derivations,
             plane_positions=plane_positions
         )
 
@@ -489,8 +408,12 @@ class Segmentation(SOPClass):
             self,
             pixel_array: np.ndarray,
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
-            plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]]
+            plane_positions: Optional[
+                Union[
+                    Sequence[PlanePositionSequence],
+                    Sequence[PlanePositionSlideSequence]
+                ]
+            ] = None
         ) -> Dataset:
         """Adds one or more segments to the segmentation image.
 
@@ -520,22 +443,14 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
-            Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
-        plane_positions: Union[Sequence[highdicom.seg.content.PlanePositionSequence], Sequence[highdicom.seg.content.PlanePositionSlideSequence]]
+        plane_positions: Union[Sequence[highdicom.seg.content.PlanePositionSequence], Sequence[highdicom.seg.content.PlanePositionSlideSequence]], optional
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
         Note
         ----
-        Items of `segment_descriptions` and `segment_derivations` must be sorted
-        by segment number in ascending order.
+        Items of `segment_descriptions` must be sorted by segment number in
+        ascending order.
         In case `segmentation_type` is ``"BINARY"``, the number of items per
         sequence must match the number of unique positive pixel values in
         `pixel_array`. In case `segmentation_type` is ``"FRACTIONAL"``, only
@@ -556,7 +471,8 @@ class Segmentation(SOPClass):
             encoded_segment_numbers = np.unique(
                 pixel_array[pixel_array > 0].astype(np.uint16)
             )
-        elif pixel_array.dtype == np.float:
+        elif (pixel_array.dtype == np.float and
+                self.SegmentationType == SegmentationTypes.FRACTIONAL.value):
             if np.min(pixel_array) < 0.0 or np.max(pixel_array) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
@@ -571,11 +487,6 @@ class Segmentation(SOPClass):
                 'Number of encoded segments does not match number of '
                 'provided segment descriptions.'
             )
-        if len(encoded_segment_numbers) != len(segment_derivations):
-            raise ValueError(
-                'Number of encoded segments does not match number of '
-                'provided segment derivations.'
-            )
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
             for item in segment_descriptions
@@ -588,6 +499,108 @@ class Segmentation(SOPClass):
             raise ValueError(
                 'Described and encoded segment numbers must match.'
             )
+
+        src_img = self._source_images[0]
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
+                source_plane_positions = [
+                    item.PlanePositionSlideSequence
+                    for item in src_img.PerFrameFunctionalGroupsSequence
+                ]
+            else:
+                # If Dimension Organization Type is TILED_FULL, plane
+                # positions are implicit and need to be computed.
+                image_origin = src_img.TotalPixelMatrixOriginSequence[0]
+                orientation = tuple(
+                    float(v) for v in src_img.ImageOrientationSlide
+                )
+                tiles_per_column = int(
+                    np.ceil(
+                        src_img.TotalPixelMatrixRows /
+                        src_img.Rows
+                    )
+                )
+                tiles_per_row = int(
+                    np.ceil(
+                        src_img.TotalPixelMatrixColumns /
+                        src_img.Columns
+                    )
+                )
+                num_focal_planes = getattr(
+                    src_img,
+                    'NumberOfFocalPlanes',
+                    1
+                )
+                row_range = range(1, tiles_per_column + 1)
+                column_range = range(1, tiles_per_row + 1)
+                depth_range = range(1, num_focal_planes + 1)
+
+                shared_fg = self.SharedFunctionalGroupsSequence[0]
+                pixel_measures = shared_fg.PixelMeasuresSequence[0]
+                pixel_spacing = tuple(
+                    float(v) for v in pixel_measures.PixelSpacing
+                )
+                slice_thickness = getattr(
+                    pixel_measures,
+                    'SliceThickness',
+                    1.0
+                )
+                spacing_between_slices = getattr(
+                    pixel_measures,
+                    'SpacingBetweenSlices',
+                    1.0
+                )
+                source_plane_positions = [
+                    PlanePositionSlideSequence.compute_for_tiled_full(
+                        row_index=r,
+                        column_index=c,
+                        depth_index=d,
+                        x_offset=image_origin.XOffsetInSlideCoordinateSystem,
+                        y_offset=image_origin.YOffsetInSlideCoordinateSystem,
+                        z_offset=1.0,  # TODO
+                        rows=self.Rows,
+                        columns=self.Columns,
+                        image_orientation=orientation,
+                        pixel_spacing=pixel_spacing,
+                        slice_thickness=slice_thickness,
+                        spacing_between_slices=spacing_between_slices
+                    )
+                    for r, c, d in itertools.product(
+                        row_range,
+                        column_range,
+                        depth_range
+                    )
+                ]
+        else:
+            if is_multiframe:
+                source_plane_positions = [
+                    item.PlanePositionSequence
+                    for item in src_img.PerFrameFunctionalGroupsSequence
+                ]
+            else:
+                source_plane_positions = [
+                    PlanePositionSequence(src_img.ImagePositionPatient)
+                    for src_img in self._source_images
+                ]
+
+        if plane_positions is None:
+            are_spatial_locations_preserved = True
+            plane_positions = source_plane_positions
+        else:
+            are_spatial_locations_preserved = all(
+                plane_positions[i].are_spatial_locations_preserved(
+                    source_plane_positions[i]
+                )
+                for i in range(len(plane_positions))
+            )
+
+        if pixel_array.shape[0] != len(plane_positions):
+            raise ValueError(
+                'Number of pixel array planes does not match number of '
+                'provided image positions.'
+            )
+
 
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
@@ -625,6 +638,25 @@ class Segmentation(SOPClass):
             np.unique(plane_position_values[:, index], axis=0)
             for index in range(plane_position_values.shape[1])
         ]
+
+        # Before adding new pixel data, remove the trailing null padding byte
+        if len(self.PixelData) == get_expected_length(self) + 1:
+            self.PixelData = self.PixelData[:-1]
+
+        # When using binary segmentations, the previous frames may have been padded
+        # to be a multiple of 8. In this case, we need to decode the pixel data, add
+        # the new pixels and then re-encode. This process should be avoided if it is
+        # not necessary in order to improve efficiency
+        if self.SegmentationType == SegmentationTypes.BINARY.value and \
+            ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0:
+            re_encode_pixel_data = True
+            if hasattr(self, 'PixelData'):
+                full_pixel_array = self.pixel_array.flatten()
+            else:
+                # If this is the first segment added, the pixel array is empty
+                full_pixel_array = np.array([], np.bool)
+        else:
+            re_encode_pixel_data = False
 
         for i, segment_number in enumerate(encoded_segment_numbers):
             if pixel_array.dtype == np.float:
@@ -677,10 +709,57 @@ class Segmentation(SOPClass):
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
                 else:
                     pffp_item.PlanePositionSequence = plane_positions[j]
-                if isinstance(segment_derivations[i], Sequence):
-                    pffp_item.DerivationImageSequence = segment_derivations[i]
+
+                # Determining the source images that map to the frame is not
+                # always trivial. Since DerivationImageSequence is a type 2
+                # attribute, we leave its value empty.
+                pffp_item.DerivationImageSequence = []
+
+                if are_spatial_locations_preserved:
+                    derivation_image_item = Dataset()
+                    derivation_code = codes.cid7203.Segmentation
+                    derivation_image_item.DerivationCodeSequence = [
+                        CodedConcept(
+                            derivation_code.value,
+                            derivation_code.scheme_designator,
+                            derivation_code.meaning,
+                            derivation_code.scheme_version
+                        ),
+                    ]
+
+                    derivation_src_img_item = Dataset()
+                    if len(plane_sort_index) > len(self._source_images):
+                        # A single multi-frame source image
+                        src_img_item = self.SourceImageSequence[0]
+                        # Frame numbers are one-based
+                        derivation_src_img_item.ReferencedFrameNumber = j + 1
+                    else:
+                        # Multiple single-frame source images
+                        src_img_item = self.SourceImageSequence[j]
+                    derivation_src_img_item.ReferencedSOPClassUID = \
+                        src_img_item.ReferencedSOPClassUID
+                    derivation_src_img_item.ReferencedSOPInstanceUID = \
+                        src_img_item.ReferencedSOPInstanceUID
+                    purpose_code = \
+                        codes.cid7202.SourceImageForImageProcessingOperation
+                    derivation_src_img_item.PurposeOfReferenceCodeSequence = [
+                        CodedConcept(
+                            purpose_code.value,
+                            purpose_code.scheme_designator,
+                            purpose_code.meaning,
+                            purpose_code.scheme_version
+                        ),
+                    ]
+                    derivation_src_img_item.SpatialLocationsPreserved = 'YES'
+                    derivation_image_item.SourceImageSequence = [
+                        derivation_src_img_item,
+                    ]
+                    pffp_item.DerivationImageSequence.append(
+                        derivation_image_item
+                    )
                 else:
-                    pffp_item.DerivationImageSequence = [segment_derivations[i]]
+                    logger.warning('spatial locations not preserved')
+
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
                 pffp_item.SegmentIdentificationSequence = [
@@ -688,13 +767,28 @@ class Segmentation(SOPClass):
                 ]
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
-            self.PixelData += self._encode_pixels(planes[plane_sort_index])
+
+            if re_encode_pixel_data:
+                full_pixel_array = np.concatenate([
+                    full_pixel_array,
+                    planes[plane_sort_index]
+                ])
+            else:
+                self.PixelData += self._encode_pixels(planes[plane_sort_index])
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.
             if segment_number not in self._segment_inventory:
                 self.SegmentSequence.append(segment_descriptions[i])
             self._segment_inventory.add(segment_number)
+
+        # Re-encode the whole pixel array at once if necessary
+        if re_encode_pixel_data:
+            self.PixelData = self._encode_pixels(full_pixel_array)
+
+        # Add back the null trailing byte if required
+        if len(self.PixelData) % 2 == 1:
+            self.PixelData += b'0'
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
@@ -711,7 +805,10 @@ class Segmentation(SOPClass):
 
         """
         # TODO: compress depending on transfer syntax UID
-        return planes.flatten().tobytes()
+        if self.SegmentationType == SegmentationTypes.BINARY.value:
+            return pack_bits(planes.flatten())
+        else:
+            return planes.flatten().tobytes()
 
 
 class SurfaceSegmentation(SOPClass):
@@ -728,7 +825,6 @@ class SurfaceSegmentation(SOPClass):
             source_images: Sequence[Dataset],
             surfaces: Sequence[Surface],
             segment_descriptions: Sequence[SegmentDescription],
-            segment_derivations: Sequence[Union[DerivationImage, Sequence[DerivationImage]]],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -752,13 +848,6 @@ class SurfaceSegmentation(SOPClass):
             Surfaces
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
-        segment_derivations: Sequence[Union[highdicom.seg.content.DerivationImage, Sequence[highdicom.seg.content.DerivationImage]]
-            References to the source images (and frames within the source
-            images) for each segment encoded in `pixel_array`.
-            Sequence may be empty if it is not possible to reference segments
-            relative to source images, because spatial locations were not
-            preserved upon processing of source images, for example due to
-            resampling
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -796,8 +885,6 @@ class SurfaceSegmentation(SOPClass):
                   and series.
                 * Items of `source_images` have different number of rows and
                   columns.
-                * Length of `segment_descriptions` or `segment_derivations`
-                  does not match number of items in `surfaces`
 
         Note
         ----
@@ -815,7 +902,7 @@ class SurfaceSegmentation(SOPClass):
                 image.Rows,
                 image.Columns,
             )
-            for image in source_images
+            for image in self._source_images
         )
         if len(uniqueness_criteria) > 1:
             raise ValueError(
@@ -823,9 +910,9 @@ class SurfaceSegmentation(SOPClass):
                 'have the same image dimensions (number of rows/columns).'
             )
 
-        src_img = source_images[0]
+        src_img = self._source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if is_multiframe and len(source_images) > 1:
+        if is_multiframe and len(self._source_images) > 1:
             raise ValueError(
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
