@@ -25,3 +25,12 @@ class SegmentationFractionalTypes(Enum):
 
     PROBABILITY = 'PROBABILITY'
     OCCUPANCY = 'OCCUPANCY'
+
+
+class SpatialLocationsPreserved(Enum):
+
+    """Enumerated values for attribute Spatial Locations Preserved."""
+
+    YES = 'YES'
+    NO = 'NO'
+    REORIENTED_ONLY = 'REORIENTED_ONLY'

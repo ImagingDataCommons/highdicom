@@ -6,7 +6,6 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
-from pydicom.sr.codedict import codes
 
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypes
@@ -343,6 +342,32 @@ class PlanePositionSequence(DataElementSequence):
         item.ImagePositionPatient = list(image_position)
         self.append(item)
 
+    def are_spatial_locations_preserved(self, other) -> bool:
+        """Determines whether spatial locations between two images (source
+        image and derived image) have been preserved.
+
+        Parameters
+        ----------
+        other: PlanePositionSequence
+            Plane position of other image that should be compared
+
+        Returns
+        -------
+        bool
+            Whether the spatial locations have been preserved between the two
+            images
+
+        """
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                'Can only compare spatial locations between instances of '
+                'class "{}".'.format(self.__class__.__name__)
+            )
+        return np.array_equal(
+            np.array(other[0].ImagePositionPatient),
+            np.array(self[0].ImagePositionPatient)
+        )
+
 
 class PlanePositionSlideSequence(DataElementSequence):
 
@@ -463,6 +488,39 @@ class PlanePositionSlideSequence(DataElementSequence):
             pixel_matrix_position=(row_offset_frame, column_offset_frame)
         )
 
+    def are_spatial_locations_preserved(self, other) -> bool:
+        """Determines whether spatial locations between two images (source
+        image and derived image) have been preserved.
+
+        Parameters
+        ----------
+        other: PlanePositionSlideSequence
+            Plane position of other image that should be compared
+
+        Returns
+        -------
+        bool
+            Whether the spatial locations have been preserved between the two
+            images
+
+        """
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                'Can only compare spatial locations between instances of '
+                'class "{}".'.format(self.__class__.__name__)
+            )
+        return np.array_equal(
+            np.array([
+                other[0].XOffsetInSlideCoordinateSystem,
+                other[0].YOffsetInSlideCoordinateSystem,
+                other[0].ZOffsetInSlideCoordinateSystem,
+            ]),
+            np.array([
+                self[0].XOffsetInSlideCoordinateSystem,
+                self[0].YOffsetInSlideCoordinateSystem,
+                self[0].ZOffsetInSlideCoordinateSystem,
+            ]),
+        )
 
 class PlaneOrientationSequence(DataElementSequence):
 
