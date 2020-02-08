@@ -174,58 +174,6 @@ class SegmentDescription(Dataset):
             ]
 
 
-class DerivationImage(Dataset):
-
-    """Dataset providing references to the source image of a segmentation image
-    based on the Derivation Image functional group macro.
-    """
-
-    def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> None:
-        """
-        Parameters
-        ----------
-        referenced_sop_class_uid: str
-            SOP Class UID of the referenced source image
-        referenced_sop_instance_uid: str
-            SOP Instance UID of the referenced source image
-        referenced_frame_numbers: Sequence[int], optional
-            Frame number within the reference source image
-
-        """
-        super().__init__()
-        source_image_item = Dataset()
-        source_image_item.ReferencedSOPClassUID = referenced_sop_class_uid
-        source_image_item.ReferencedSOPInstanceUID = referenced_sop_instance_uid
-        if referenced_frame_numbers is not None:
-            source_image_item.ReferencedFrameNumber = referenced_frame_numbers
-        purpose_code = codes.cid7202.SourceImageForImageProcessingOperation
-        source_image_item.PurposeOfReferenceCodeSequence = [
-            CodedConcept(
-                purpose_code.value,
-                purpose_code.scheme_designator,
-                purpose_code.meaning,
-                purpose_code.scheme_version
-            ),
-        ]
-        derivation_code = codes.cid7203.Segmentation
-        self.DerivationCodeSequence = [
-            CodedConcept(
-                derivation_code.value,
-                derivation_code.scheme_designator,
-                derivation_code.meaning,
-                derivation_code.scheme_version
-            ),
-        ]
-        self.SourceImageSequence = [
-            source_image_item,
-        ]
-
-
 class Surface(Dataset):
 
     """Dataset representing an item of the Surface Sequence attribute."""
