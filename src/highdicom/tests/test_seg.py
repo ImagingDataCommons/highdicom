@@ -636,9 +636,12 @@ class TestSegmentation(unittest.TestCase):
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
         assert len(frame_content_item.DimensionIndexValues) == 2
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 1
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -684,10 +687,15 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
         assert len(frame_content_item.DimensionIndexValues) == 6
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 1
+            source_image_item = derivation_image_item.SourceImageSequence[0]
+            assert hasattr(source_image_item, 'ReferencedFrameNumber')
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
 
