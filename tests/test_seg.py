@@ -12,18 +12,20 @@ from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import generate_uid, UID
 
-from highdicom.seg.sop import Segmentation, SurfaceSegmentation
-from highdicom.seg.content import (
+from highdicom.content import (
     AlgorithmIdentificationSequence,
     DimensionIndexSequence,
     PlanePositionSequence,
-    PlanePositionSlideSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
+)
+from highdicom.enum import CoordinateSystemNames
+from highdicom.seg.content import (
     SegmentDescription,
     Surface,
 )
 from highdicom.seg.enum import SegmentAlgorithmTypes, SegmentationTypes
+from highdicom.seg.sop import Segmentation, SurfaceSegmentation
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -398,25 +400,24 @@ class TestPlanePositionSequence(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._image_position = (1.0, 2.0, 3.0)
+        self._pixel_matrix_position = (10, 20)
 
-    def test_construction(self):
-        seq = PlanePositionSequence(image_position=self._image_position)
+    def test_construction_1(self):
+        seq = PlanePositionSequence(
+            coordinate_system=CoordinateSystemNames.PATIENT,
+            image_position=self._image_position
+        )
         assert len(seq) == 1
         item = seq[0]
         assert item.ImagePositionPatient == list(self._image_position)
+        with pytest.raises(AttributeError):
+            item.XOffsetInSlideCoordinateSystem
 
-
-class TestPlanePositionSlideSequence(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self._image_position = (1.0, 2.0, 3.0)
-        self._pixel_matrix_position = (10, 20)
-
-    def test_construction(self):
-        seq = PlanePositionSlideSequence(
-            self._image_position,
-            self._pixel_matrix_position
+    def test_construction_2(self):
+        seq = PlanePositionSequence(
+            coordinate_system=CoordinateSystemNames.SLIDE,
+            image_position=self._image_position,
+            pixel_matrix_position=self._pixel_matrix_position
         )
         assert len(seq) == 1
         item = seq[0]
@@ -427,16 +428,32 @@ class TestPlanePositionSlideSequence(unittest.TestCase):
             self._pixel_matrix_position[0]
         assert item.ColumnPositionInTotalImagePixelMatrix == \
             self._pixel_matrix_position[1]
+        with pytest.raises(AttributeError):
+            item.ImagePositionPatient
 
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
-            PlanePositionSlideSequence(
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
                 image_position=self._image_position
             )
 
     def test_construction_missing_required_argument_2(self):
         with pytest.raises(TypeError):
-            PlanePositionSlideSequence(
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
+                pixel_matrix_position=self._pixel_matrix_position
+            )
+
+    def test_construction_missing_required_argument_3(self):
+        with pytest.raises(TypeError):
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT
+            )
+
+    def test_construction_missing_required_argument_4(self):
+        with pytest.raises(TypeError):
+            PlanePositionSequence(
                 pixel_matrix_position=self._pixel_matrix_position
             )
 
@@ -1049,7 +1066,6 @@ class TestSegmentation(unittest.TestCase):
         assert instance.ContentCreatorName == content_creator_name
 
     def test_construction_optional_arguments_2(self):
-        # FIXME
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
@@ -1059,12 +1075,14 @@ class TestSegmentation(unittest.TestCase):
         )
         image_orientation = (-1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
         plane_orientation = PlaneOrientationSequence(
-            'PATIENT',
+            coordinate_system=CoordinateSystemNames.PATIENT,
             image_orientation=image_orientation
         )
-        # FIXME
         plane_positions = [
-            PlanePositionSequence(image_position=(0.0, 0.0, 0.0)),
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT,
+                image_position=(0.0, 0.0, 0.0)
+            ),
         ]
         instance = Segmentation(
             source_images=[self._ct_image],
@@ -1093,7 +1111,6 @@ class TestSegmentation(unittest.TestCase):
         assert po_item.ImageOrientationPatient == list(image_orientation)
 
     def test_construction_optional_arguments_3(self):
-        # FIXME
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
@@ -1102,12 +1119,12 @@ class TestSegmentation(unittest.TestCase):
         )
         image_orientation = (-1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
         plane_orientation = PlaneOrientationSequence(
-            'SLIDE',
+            coordinate_system=CoordinateSystemNames.SLIDE,
             image_orientation=image_orientation
         )
-        # FIXME
         plane_positions = [
-            PlanePositionSlideSequence(
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
                 image_position=(i*1.0, i*1.0, 1.0),
                 pixel_matrix_position=(i*1, i*1)
             )
