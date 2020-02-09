@@ -1,0 +1,4 @@
+mypy==0.720
+pytest==5.0.1
+pytest-flake8==1.0.4
+pytest-localserver==0.5.0

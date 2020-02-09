@@ -13,6 +13,14 @@ highdicom package
    :undoc-members:
    :show-inheritance:
 
+highdicom.content module
+++++++++++++++++++++++++
+
+.. automodule:: highdicom.content
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 highdicom.enum module
 +++++++++++++++++++++
 
