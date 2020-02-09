@@ -584,13 +584,13 @@ class Segmentation(SOPClass):
 
         if plane_positions is None:
             plane_positions = source_plane_positions
-        are_spatial_locations_preserved = all([
+        are_spatial_locations_preserved = (
             all(
                 plane_positions[i] == source_plane_positions[i]
                 for i in range(len(plane_positions))
-            ),
+            ) and
             self._plane_orientation == self._source_plane_orientation
-        ])
+        )
 
         if pixel_array.shape[0] != len(plane_positions):
             raise ValueError(
