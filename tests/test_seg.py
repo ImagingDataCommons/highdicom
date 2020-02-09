@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pydicom.data import get_testdata_files
+from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
@@ -578,6 +578,12 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._ct_series_mask_array[1:2, 1:5, 7:9] = True
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._ct_multiframe_mask_array = np.zeros(
+            self._ct_multiframe.pixel_array.shape,
+            dtype=np.bool
+        )
+        self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
 
     def test_construction(self):
         instance = Segmentation(
@@ -710,6 +716,7 @@ class TestSegmentation(unittest.TestCase):
             frame_item.PlanePositionSequence
 
     def test_construction_3(self):
+        # Segmentation instance from a series of single-frame CT images
         instance = Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
@@ -761,6 +768,79 @@ class TestSegmentation(unittest.TestCase):
             assert source_image_item.ReferencedSOPClassUID == src_im.SOPClassUID
             assert source_image_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
             assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+        uid_to_plane_position = {
+            fm.DerivationImageSequence[0].SourceImageSequence[0].ReferencedSOPInstanceUID: \
+            fm.PlanePositionSequence[0].ImagePositionPatient
+            for fm in instance.PerFrameFunctionalGroupsSequence
+        }
+        source_uid_to_plane_position = {
+            dcm.SOPInstanceUID: dcm.ImagePositionPatient
+            for dcm in self._ct_series
+        }
+        assert source_uid_to_plane_position == uid_to_plane_position
+        with pytest.raises(AttributeError):
+            frame_item.PlanePositionSlideSequence
+
+    def test_construction_4(self):
+        # Segmentation instance from an enhanced (multi-frame) CT image
+        instance = Segmentation(
+            [self._ct_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypes.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        assert instance.PatientID == self._ct_multiframe.PatientID
+        assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
+        assert len(instance.SegmentSequence) == 1
+        assert len(instance.SourceImageSequence) == 1
+        ref_item = instance.SourceImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
+        assert instance.NumberOfFrames == self._ct_multiframe.pixel_array.shape[0]
+        assert instance.Rows == self._ct_multiframe.pixel_array.shape[1]
+        assert instance.Columns == self._ct_multiframe.pixel_array.shape[2]
+        assert len(instance.SharedFunctionalGroupsSequence) == 1
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == \
+                self._ct_multiframe.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
+        assert pm_item.SliceThickness == \
+                self._ct_multiframe.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_multiframe.SharedFunctionalGroupsSequence[0].PlaneOrientationSequence[0].ImageOrientationPatient
+        assert len(instance.DimensionOrganizationSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
+        assert len(instance.PerFrameFunctionalGroupsSequence) == self._ct_multiframe.NumberOfFrames
+        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert len(frame_item.FrameContentSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
+        assert len(frame_item.PlanePositionSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 2
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 1
+            source_image_item = derivation_image_item.SourceImageSequence[0]
+            assert source_image_item.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
+            assert source_image_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
+            assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+        for i, (src_fm, seg_fm) in enumerate(zip(self._ct_multiframe.PerFrameFunctionalGroupsSequence,
+                                                 instance.PerFrameFunctionalGroupsSequence)):
+            assert src_fm.PlanePositionSequence[0].ImagePositionPatient == \
+                seg_fm.PlanePositionSequence[0].ImagePositionPatient
+            source_image_item = seg_fm.DerivationImageSequence[0].SourceImageSequence[0]
+            assert source_image_item.ReferencedFrameNumber == i + 1
+            assert source_image_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
