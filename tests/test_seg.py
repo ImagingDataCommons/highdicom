@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from pydicom.data import get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
@@ -569,6 +570,14 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9, :] = True
+        self._ct_series = [
+            dcmread(f) for f in get_testdata_files('77654033/CT2')
+        ]
+        self._ct_series_mask_array = np.zeros(
+            (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
+            dtype=np.bool
+        )
+        self._ct_series_mask_array[1:2, 1:5, 7:9] = True
 
     def test_construction(self):
         instance = Segmentation(
@@ -699,6 +708,61 @@ class TestSegmentation(unittest.TestCase):
             assert hasattr(source_image_item, 'ReferencedFrameNumber')
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
+
+    def test_construction_3(self):
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypes.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        src_im = self._ct_series[0]
+        assert instance.PatientID == src_im.PatientID
+        assert instance.AccessionNumber == src_im.AccessionNumber
+        assert len(instance.SegmentSequence) == 1
+        assert len(instance.SourceImageSequence) == len(self._ct_series)
+        ref_item = instance.SourceImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
+        assert instance.Rows == src_im.pixel_array.shape[0]
+        assert instance.Columns == src_im.pixel_array.shape[1]
+        assert len(instance.SharedFunctionalGroupsSequence) == 1
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == src_im.PixelSpacing
+        assert pm_item.SliceThickness == src_im.SliceThickness
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            src_im.ImageOrientationPatient
+        assert len(instance.DimensionOrganizationSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
+        assert instance.NumberOfFrames == len(self._ct_series)
+        assert len(instance.PerFrameFunctionalGroupsSequence) == \
+            len(self._ct_series)
+        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert len(frame_item.FrameContentSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
+        assert len(frame_item.PlanePositionSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 2
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 1
+            source_image_item = derivation_image_item.SourceImageSequence[0]
+            assert source_image_item.ReferencedSOPClassUID == src_im.SOPClassUID
+            assert source_image_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
+            assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+        with pytest.raises(AttributeError):
+            frame_item.PlanePositionSlideSequence
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
