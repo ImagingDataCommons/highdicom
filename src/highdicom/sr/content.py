@@ -508,7 +508,8 @@ class ReferencedSegmentationFrame(ContentSequence):
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_number,
-            referenced_segment_numbers=segment_number
+            referenced_segment_numbers=segment_number,
+            relationship_type=RelationshipTypes.CONTAINS
         )
         self.append(segmentation_item)
         if not isinstance(source_image, SourceImageForSegmentation):
@@ -567,7 +568,8 @@ class ReferencedSegment(ContentSequence):
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_numbers,
-            referenced_segment_numbers=segment_number
+            referenced_segment_numbers=segment_number,
+            relationship_type=RelationshipTypes.CONTAINS
         )
         self.append(segment_item)
         if source_images is not None:

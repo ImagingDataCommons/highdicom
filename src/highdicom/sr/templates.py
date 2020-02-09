@@ -1239,7 +1239,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 value='125007',
                 meaning='Measurement Group',
                 scheme_designator='DCM'
-            )
+            ),
+            relationship_type=RelationshipTypes.CONTAINS
         )
         group_item.ContentSequence = ContentSequence()
         if not isinstance(tracking_identifier, TrackingIdentifier):
@@ -1675,7 +1676,8 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 
         """  # noqa
         value_item = NumContentItem(
-            name=derivation
+            name=derivation,
+            relationship_type=RelationshipTypes.CONTAINS
         )
         value_item.ContentSequence = ContentSequence()
         for group in measurement_groups:
@@ -1710,14 +1712,16 @@ class MeasurementReport(Template):
             observation_context: ObservationContext,
             procedure_reported: Union[CodedConcept, Code],
             imaging_measurements: Optional[
-                Union[
-                    PlanarROIMeasurementsAndQualitativeEvaluations,
-                    VolumetricROIMeasurementsAndQualitativeEvaluations,
-                    MeasurementsAndQualitativeEvaluations
+                Sequence[
+                    Union[
+                        PlanarROIMeasurementsAndQualitativeEvaluations,
+                        VolumetricROIMeasurementsAndQualitativeEvaluations,
+                        MeasurementsAndQualitativeEvaluations
+                    ]
                 ]
             ] = None,
             derived_imaging_measurements: Optional[
-                MeasurementsDerivedFromMultipleROIMeasurements
+                Sequence[MeasurementsDerivedFromMultipleROIMeasurements]
             ] = None,
             title: Optional[Union[CodedConcept, Code]] = None,
             language_of_content_item_and_descendants:
@@ -1732,7 +1736,7 @@ class MeasurementReport(Template):
             one or more coded description(s) of the procedure
             (see CID 100 "Quantitative Diagnostic Imaging Procedures" for
             options)
-        imaging_measurements: Union[Sequence[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations]], optional
+        imaging_measurements: Sequence[Union[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations, highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations, highdicom.sr.templates.MeasurementsAndQualitativeEvaluations]], optional
             measurements and qualitative evaluations of images or regions
             within images
         derived_imaging_measurements: Sequence[highdicom.sr.templates.MeasurementsDerivedFromMultipleROIMeasurements], optional
@@ -1811,8 +1815,8 @@ class MeasurementReport(Template):
                 relationship_type=RelationshipTypes.CONTAINS
             )
             container_item.ContentSequence = []
-            for measurement in imaging_measurements:
-                if not isinstance(measurement, measurement_types):
+            for measurements in imaging_measurements:
+                if not isinstance(measurements, measurement_types):
                     raise TypeError(
                         'Measurements must have one of the following types: '
                         '"{}"'.format(
@@ -1824,7 +1828,7 @@ class MeasurementReport(Template):
                             )
                         )
                     )
-                container_item.ContentSequence.extend(measurement)
+                container_item.ContentSequence.extend(measurements)
         elif derived_imaging_measurements is not None:
             derived_measurement_types = (
                 MeasurementsDerivedFromMultipleROIMeasurements,
@@ -1838,8 +1842,8 @@ class MeasurementReport(Template):
                 relationship_type=RelationshipTypes.CONTAINS
             )
             container_item.ContentSequence = []
-            for measurement in derived_imaging_measurements:
-                if not isinstance(measurement, derived_measurement_types):
+            for measurements in derived_imaging_measurements:
+                if not isinstance(measurements, derived_measurement_types):
                     raise TypeError(
                         'Measurements must have one of the following types: '
                         '"{}"'.format(
@@ -1851,7 +1855,7 @@ class MeasurementReport(Template):
                             )
                         )
                     )
-                container_item.ContentSequence.extend(measurement)
+                container_item.ContentSequence.extend(measurements)
         else:
             raise TypeError(
                 'One of the following arguments must be provided: '
