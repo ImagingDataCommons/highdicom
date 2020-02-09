@@ -1,5 +1,5 @@
 """Generic Data Elements that can be included in a variety of IODs."""
-from typing import Dict, Optional, Sequence, Union, Tuple
+from typing import Dict, Optional, Union, Tuple
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword

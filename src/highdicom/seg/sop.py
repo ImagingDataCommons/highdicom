@@ -31,7 +31,6 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
-    SpatialLocationsPreserved,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.utils import compute_plane_positions_tiled_full
