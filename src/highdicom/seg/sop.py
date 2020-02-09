@@ -80,13 +80,17 @@ class Segmentation(SOPClass):
             from which the segmentation was derived
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating point data type representing a mask image, where pixel
-            values either encode the probability of a given pixel
-            belonging to a segment
-            (if `fractional_type` is ``"PROBABILITY"``)
-            or the extent to which a segment occupies the pixel
-            (if `fractional_type` is ``"OCCUPANCY"``).
-            In the latter case, only one segment can be encoded by
+            floating point data type representing a mask image. If 
+            `segmentation_type` is ``"BINARY"``, a boolean or unsigned 8-bit
+            or 16-bit integer array representing a labeled mask image, where
+            positive pixel values encode segment numbers. If `segmentation_type`
+            is ``"FRACTIONAL"``, pixel values either encode the probability of a
+            given pixel belonging to a segment (if `fractional_type` is
+            ``"PROBABILITY"``) or the extent to which a segment occupies the pixel
+            (if `fractional_type` is ``"OCCUPANCY"``). If an array with an integer
+            data type is passed for a ``"FRACTIONAL"`` segmentation, then the value
+            is treated as a fraction of ``"max_fractional_value"``.
+            In the ``"FRACTIONAL"``, case, only one segment can be encoded by
             `pixel_array`. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
@@ -365,7 +369,7 @@ class Segmentation(SOPClass):
                 )
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = src_sg.PlaneOrientationSequence
+                source_plane_orientation = src_sfg.PlaneOrientationSequence
         else:
             source_plane_orientation = PlaneOrientationSequence(
                 coordinate_system=self._coordinate_system,
@@ -660,7 +664,7 @@ class Segmentation(SOPClass):
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 planes = np.around(pixel_array * float(self.MaximumFractionalValue))
-                planes = planes.dtype(np.uint8)
+                planes = planes.astype(np.uint8)
             elif pixel_array.dtype in (np.uint8, np.uint16):
                 # Labeled masks must be converted to binary masks.
                 planes = np.zeros(pixel_array.shape, dtype=np.bool)

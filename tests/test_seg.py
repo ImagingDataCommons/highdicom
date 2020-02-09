@@ -2,6 +2,7 @@ import os
 import unittest
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
@@ -571,6 +572,7 @@ class TestSegmentation(unittest.TestCase):
         self._content_description = 'Test Segmentation'
         self._content_creator_name = 'Robo^Doc'
 
+        # A single CT image
         self._ct_image = dcmread(
             os.path.join(data_dir, 'test_files', 'ct_image.dcm')
         )
@@ -579,6 +581,8 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._ct_pixel_array[1:5, 10:15] = True
+
+        # A microscopy image
         self._sm_image = dcmread(
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
@@ -587,14 +591,20 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9, :] = True
-        self._ct_series = [
+
+        # A series of single frame CT images
+        ct_series = [
             dcmread(f) for f in get_testdata_files('77654033/CT2')
         ]
+        # Ensure the frames are in the right spatial order (only 3rd dimension changes)
+        self._ct_series = sorted(ct_series, key=lambda x: x.ImagePositionPatient[2])
         self._ct_series_mask_array = np.zeros(
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=np.bool
         )
         self._ct_series_mask_array[1:2, 1:5, 7:9] = True
+
+        # An enhanced (multiframe) CT image
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
         self._ct_multiframe_mask_array = np.zeros(
             self._ct_multiframe.pixel_array.shape,
@@ -860,6 +870,69 @@ class TestSegmentation(unittest.TestCase):
             assert source_image_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
+
+    def test_pixel_types(self):
+        tests = [
+            ([self._ct_image], self._ct_pixel_array),
+            #([self._sm_image], self._sm_pixel_array), TODO fix this (why is it 4D?)
+            (self._ct_series, self._ct_series_mask_array),
+            ([self._ct_multiframe], self._ct_multiframe_mask_array),
+        ]
+
+        for source, mask in tests:
+            for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
+                instance = Segmentation(
+                    source,
+                    mask.astype(pix_type),
+                    SegmentationTypes.FRACTIONAL.value,
+                    self._segment_descriptions,
+                    self._series_instance_uid,
+                    self._series_number,
+                    self._sop_instance_uid,
+                    self._instance_number,
+                    self._manufacturer,
+                    self._manufacturer_model_name,
+                    self._software_versions,
+                    self._device_serial_number,
+                    max_fractional_value=1
+                )
+
+                # Write to disk and read in again
+                with TemporaryDirectory() as tmp:
+                    tmp_file = Path(tmp) / 'instance.dcm'
+                    instance.save_as(str(tmp_file))
+                    instance_reread = dcmread(str(tmp_file))
+
+                # Ensure the recovered pixel array matches what is expected
+                assert (instance_reread.pixel_array == mask).all()
+
+        for source, mask in tests:
+            for pix_type in [np.bool, np.uint8, np.uint16]:
+                instance = Segmentation(
+                    source,
+                    mask.astype(pix_type),
+                    SegmentationTypes.BINARY.value,
+                    self._segment_descriptions,
+                    self._series_instance_uid,
+                    self._series_number,
+                    self._sop_instance_uid,
+                    self._instance_number,
+                    self._manufacturer,
+                    self._manufacturer_model_name,
+                    self._software_versions,
+                    self._device_serial_number,
+                    max_fractional_value=1
+                )
+
+                # Write to disk and read in again
+                with TemporaryDirectory() as tmp:
+                    tmp_file = Path(tmp) / 'instance.dcm'
+                    instance.save_as(str(tmp_file))
+                    instance_reread = dcmread(str(tmp_file))
+
+                # Ensure the recovered pixel array matches what is expected
+                assert (instance_reread.pixel_array == mask).all()
+
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
