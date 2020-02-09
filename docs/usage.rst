@@ -29,7 +29,8 @@ In this example, we create a segmentation object from some test images by simple
    from highdicom.seg.sop import Segmentation
 
 
-   # The segmentation object records various information about the algorithm used to produce the segmentation
+   # The segmentation object records various information about the algorithm used to
+   # produce the segmentation
    # Here we define this information
    ALGORITHM_NAME = 'My First Segmentation Algorithm'
    ALGORITHM_VERSION = '0.1'
@@ -46,17 +47,18 @@ In this example, we create a segmentation object from some test images by simple
    # Create an example segmentation mask by simple thresholding of the pixels
    seg_array = image_array > image_array.mean()
 
-   # The segmentation object requires certain information about the information that produced the segmentation
-   # In particular, the family of algorithms should be described by a suitable coding scheme.
-   # Here, we use the DCM coding scheme, which pydicom makes available as a python enum.
+   # The segmentation object requires certain information about the information that produced
+   # the segmentation. In particular, the family of algorithms should be described by a suitable
+   # coding scheme. Here, we use the DCM coding scheme, which pydicom makes available as a python
+   # enum.
    algo_identifier = AlgorithmIdentificationSequence(name=ALGORITHM_NAME,
                                                      family=codes.DCM.ArtificialIntelligence,
                                                      version=ALGORITHM_VERSION,
                                                      source=ALGORITHM_MANUFACTURER)
 
-   # We also need to describe each segment (class) in the segmentation, and the algorithm that produced it.
-   # This should be done using a suitable coding scheme. Here we use the SNOMED (SCT) coding scheme to describe a
-   # tumor
+   # We also need to describe each segment (class) in the segmentation, and the algorithm that
+   # produced it. This should be done using a suitable coding scheme. Here we use the SNOMED
+   # (SCT) coding scheme to describe a tumor
    seg_desc = [SegmentDescription(segment_number=1,
                                   segment_label='Tumor',
                                   segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
@@ -65,7 +67,9 @@ In this example, we create a segmentation object from some test images by simple
                                   algorithm_identification=algo_identifier)]
 
    # With this information, we can construct a segmentation object straightforwardly
-   # We also need to generate a SOP Instance UID and Series Instance UID, and provide a series number.
+   # We also need to generate a SOP Instance UID and Series Instance UID, and provide a series
+   # number. Highdicom will get the rest of the information it needs (such as patient information 
+   # and spatial information) from the source datasets directly.
    seg = Segmentation(source_images=datasets,
                       pixel_array=seg_array,
                       segment_descriptions=seg_desc,
