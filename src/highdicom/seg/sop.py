@@ -17,22 +17,24 @@ from pydicom._storage_sopclass_uids import (
 )
 
 from highdicom.base import SOPClass
-from highdicom.enum import CoordinateSystemNames
-from highdicom.seg.content import (
+from highdicom.content import (
     DimensionIndexSequence,
-    SegmentDescription,
     PlaneOrientationSequence,
     PlanePositionSequence,
-    PlanePositionSlideSequence,
-    PixelMeasuresSequence,
+    PixelMeasuresSequence
+)
+from highdicom.seg.content import (
+    SegmentDescription,
     Surface,
 )
+from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
     SpatialLocationsPreserved,
 )
 from highdicom.sr.coding import CodedConcept
+from highdicom.utils import compute_plane_positions_tiled_full
 
 
 logger = logging.getLogger(__name__)
@@ -68,12 +70,7 @@ class Segmentation(SOPClass):
             transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
-            plane_positions: Optional[
-                Union[
-                    Sequence[PlanePositionSequence],
-                    Sequence[PlanePositionSlideSequence]
-                ]
-            ] = None,
+            plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
             **kwargs
         ) -> None:
         """
@@ -106,7 +103,7 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segmentation_type: Union[str, highdicom.seg.content.SegmentationTypes]
+        segmentation_type: Union[str, highdicom.seg.enum.SegmentationTypes]
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`
@@ -126,7 +123,7 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
-        fractional_type: Union[str, highdicom.seg.content.SegmentationFractionalTypes], optional
+        fractional_type: Union[str, highdicom.seg.enum.SegmentationFractionalTypes], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
         max_fractional_value: int, optional
@@ -151,7 +148,7 @@ class Segmentation(SOPClass):
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image as the
             same plane orientation as the source image(s).
-        plane_positions: Union[Sequence[PlanePositionSequence], Sequence[PlanePositionSlideSequence]], optional
+        plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
             Position of each plane in `pixel_array` in the three-dimensional
             patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image has the
@@ -361,21 +358,25 @@ class Segmentation(SOPClass):
             # Do we need to take ImageOrientationPatient/ImageOrientationPatient
             # into account?
 
-        if plane_orientation is None:
-            if is_multiframe:
-                if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                    plane_orientation = PlaneOrientationSequence(
-                        coordinate_system=self._coordinate_system,
-                        image_orientation=src_img.ImageOrientationSlide
-                    )
-                else:
-                    src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
-                    plane_orientation = src_shared_fg.PlaneOrientationSequence
-            else:
-                plane_orientation = PlaneOrientationSequence(
+        if is_multiframe:
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationPatient
+                    image_orientation=src_img.ImageOrientationSlide
                 )
+            else:
+                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+                source_plane_orientation = src_sg.PlaneOrientationSequence
+        else:
+            source_plane_orientation = PlaneOrientationSequence(
+                coordinate_system=self._coordinate_system,
+                image_orientation=src_img.ImageOrientationPatient
+            )
+        if plane_orientation is None:
+            plane_orientation = source_plane_orientation
+        self._plane_orientation = plane_orientation
+        self._source_plane_orientation = plane_orientation
+
         self.DimensionIndexSequence = DimensionIndexSequence(
             coordinate_system=self._coordinate_system
         )
@@ -408,12 +409,7 @@ class Segmentation(SOPClass):
             self,
             pixel_array: np.ndarray,
             segment_descriptions: Sequence[SegmentDescription],
-            plane_positions: Optional[
-                Union[
-                    Sequence[PlanePositionSequence],
-                    Sequence[PlanePositionSlideSequence]
-                ]
-            ] = None
+            plane_positions: Optional[Sequence[PlanePositionSequence]] = None
         ) -> Dataset:
         """Adds one or more segments to the segmentation image.
 
@@ -443,7 +439,7 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        plane_positions: Union[Sequence[highdicom.seg.content.PlanePositionSequence], Sequence[highdicom.seg.content.PlanePositionSlideSequence]], optional
+        plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
@@ -552,7 +548,7 @@ class Segmentation(SOPClass):
                     1.0
                 )
                 source_plane_positions = [
-                    PlanePositionSlideSequence.compute_for_tiled_full(
+                    compute_plane_positions_tiled_full(
                         row_index=r,
                         column_index=c,
                         depth_index=d,
@@ -580,20 +576,22 @@ class Segmentation(SOPClass):
                 ]
             else:
                 source_plane_positions = [
-                    PlanePositionSequence(src_img.ImagePositionPatient)
+                    PlanePositionSequence(
+                        coordinate_system=CoordinateSystemNames.PATIENT,
+                        image_position=src_img.ImagePositionPatient
+                    )
                     for src_img in self._source_images
                 ]
 
         if plane_positions is None:
-            are_spatial_locations_preserved = True
             plane_positions = source_plane_positions
-        else:
-            are_spatial_locations_preserved = all(
-                plane_positions[i].are_spatial_locations_preserved(
-                    source_plane_positions[i]
-                )
+        are_spatial_locations_preserved = all([
+            all(
+                plane_positions[i] == source_plane_positions[i]
                 for i in range(len(plane_positions))
-            )
+            ),
+            self._plane_orientation == self._source_plane_orientation
+        ])
 
         if pixel_array.shape[0] != len(plane_positions):
             raise ValueError(

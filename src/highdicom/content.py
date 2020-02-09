@@ -202,7 +202,7 @@ class PlaneOrientationSequence(DataElementSequence):
         Parameters
         ----------
         coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
-            Subject (``"patient"`` or ``"slide"``) that was the target of
+            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
         image_orientation: Tuple[float, float, float, float, float, float]
             Direction cosines for the first row (first triplet) and the first
@@ -282,7 +282,7 @@ class DimensionIndexSequence(DataElementSequence):
         Parameters
         ----------
         coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
-            Subject (``"patient"`` or ``"slide"``) that was the target of
+            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
 
         """
