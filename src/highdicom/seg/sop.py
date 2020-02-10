@@ -644,17 +644,22 @@ class Segmentation(SOPClass):
         if len(self.PixelData) == get_expected_length(self) + 1:
             self.PixelData = self.PixelData[:-1]
 
-        # When using binary segmentations, the previous frames may have been padded
-        # to be a multiple of 8. In this case, we need to decode the pixel data, add
-        # the new pixels and then re-encode. This process should be avoided if it is
-        # not necessary in order to improve efficiency
-        if self.SegmentationType == SegmentationTypes.BINARY.value and \
-            ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0:
+        # When using binary segmentation type, the previous frames may have been
+        # padded to be a multiple of 8. In this case, we need to decode the
+        # pixel data, add the new pixels and then re-encode. This process
+        # should be avoided if it is not necessary in order to improve
+        # efficiency.
+        if (self.SegmentationType == SegmentationTypes.BINARY.value and
+                ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0):
             re_encode_pixel_data = True
-            if hasattr(self, 'PixelData'):
+            logger.warning(
+                'pixel data needs to be re-encoded for binary bitpacking - '
+                'consider using FRACTIONAL instead of BINARY segmentation type'
+            )
+            # If this is the first segment added, the pixel array is empty
+            if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
                 full_pixel_array = self.pixel_array.flatten()
             else:
-                # If this is the first segment added, the pixel array is empty
                 full_pixel_array = np.array([], np.bool)
         else:
             re_encode_pixel_data = False
@@ -772,7 +777,7 @@ class Segmentation(SOPClass):
             if re_encode_pixel_data:
                 full_pixel_array = np.concatenate([
                     full_pixel_array,
-                    planes[plane_sort_index]
+                    planes[plane_sort_index].flatten()
                 ])
             else:
                 self.PixelData += self._encode_pixels(planes[plane_sort_index])

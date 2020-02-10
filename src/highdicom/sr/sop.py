@@ -42,7 +42,9 @@ class Comprehensive3DSR(SOPClass):
             institutional_department_name: Optional[str] = None,
             verifying_observer_name: Optional[str] = None,
             verifying_organization: Optional[str] = None,
-            performed_procedure_codes: Optional[Sequence[Union[Code, CodedConcept]]] = None,
+            performed_procedure_codes: Optional[
+                Sequence[Union[Code, CodedConcept]]
+            ] = None,
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
             record_evidence: bool = True,
