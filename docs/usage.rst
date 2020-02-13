@@ -70,7 +70,7 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
 
     # Create the Segmentation instance
     seg_dataset = Segmentation(
-        source_images=imgage_datasets,
+        source_images=image_datasets,
         pixel_array=mask,
         segmentation_type=SegmentationTypes.BINARY,
         segment_descriptions=[description_segment_1],
@@ -80,10 +80,13 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
         instance_number=1,
         manufacturer='Manufacturer',
         software_versions='v1',
-        device_serial_number='Device XYZ'
+        device_serial_number='Device XYZ',
+        manufacturer_model_name='The best one'
     )
 
     print(seg_dataset)
+
+    seg_dataset.save_as("seg.dcm")
 
 
 Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
