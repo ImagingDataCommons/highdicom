@@ -920,6 +920,13 @@ class TestSegmentation(unittest.TestCase):
                 # Ensure the recovered pixel array matches what is expected
                 assert (instance_reread.pixel_array == mask).all()
 
+                # Add another segment
+                if pix_type not in {np.bool, np.float}:
+                    instance.add_segments(
+                        mask.astype(pix_type) * 2,
+                        self._additional_segment_descriptions
+                    )
+
         for source, mask in tests:
             for pix_type in [np.bool, np.uint8, np.uint16]:
                 instance = Segmentation(
