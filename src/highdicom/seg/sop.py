@@ -459,6 +459,8 @@ class Segmentation(SOPClass):
         """
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
+        if pixel_array.ndim != 3:
+            raise ValueError('pixel array must be a 2D or 3D array')
 
         if pixel_array.shape[1:3] != (self.Rows, self.Columns):
             raise ValueError(
@@ -480,6 +482,10 @@ class Segmentation(SOPClass):
             encoded_segment_numbers = np.array([1])
         else:
             raise TypeError('Pixel array has wrong data type.')
+
+        # Check that the new segments do not already exist
+        if len(set(encoded_segment_numbers) & self._segment_inventory) > 0:
+            raise ValueError('Segment with given segment number already exists')
 
         if len(encoded_segment_numbers) != len(segment_descriptions):
             raise ValueError(

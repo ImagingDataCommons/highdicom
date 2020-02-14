@@ -561,6 +561,20 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
+        self._additional_segment_descriptions = [
+            SegmentDescription(
+                segment_number=2,
+                segment_label='Segment #2',
+                segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+                segmented_property_type=codes.SCT.Tumor,
+                algorithm_type=SegmentAlgorithmTypes.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='foo',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            ),
+        ]
         self._series_instance_uid = generate_uid()
         self._series_number = 1
         self._sop_instance_uid = generate_uid()
@@ -587,10 +601,10 @@ class TestSegmentation(unittest.TestCase):
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
         self._sm_pixel_array = np.zeros(
-            self._sm_image.pixel_array.shape,
+                self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
             dtype=np.bool
         )
-        self._sm_pixel_array[2:3, 1:5, 7:9, :] = True
+        self._sm_pixel_array[2:3, 1:5, 7:9] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -874,7 +888,7 @@ class TestSegmentation(unittest.TestCase):
     def test_pixel_types(self):
         tests = [
             ([self._ct_image], self._ct_pixel_array),
-            #([self._sm_image], self._sm_pixel_array), TODO fix this (why is it 4D?)
+            #([self._sm_image], self._sm_pixel_array),  # TODO failing because of ordering?
             (self._ct_series, self._ct_series_mask_array),
             ([self._ct_multiframe], self._ct_multiframe_mask_array),
         ]
@@ -933,6 +947,51 @@ class TestSegmentation(unittest.TestCase):
                 # Ensure the recovered pixel array matches what is expected
                 assert (instance_reread.pixel_array == mask).all()
 
+                # Add another segment
+                if pix_type != np.bool:
+                    instance.add_segments(
+                        mask.astype(pix_type) * 2,
+                        self._additional_segment_descriptions
+                    )
+
+    def test_multi_segments(self):
+        # Test that the multi-segment encoding is behaving as expected
+
+        # Create an example mask with two segments
+        multi_segment_mask = np.zeros(
+            self._ct_image.pixel_array.shape,
+            dtype=np.uint8
+        )
+        multi_segment_mask[1:5, 10:15] = 1
+        multi_segment_mask[5:7, 1:5] = 2
+
+        # The expected encoding splits into two channels stacked down axis 0
+        expected_encoding = np.stack([multi_segment_mask == i for i in [1, 2]])
+
+        instance = Segmentation(
+            [self._ct_image],
+            multi_segment_mask,
+            SegmentationTypes.BINARY.value,
+            self._segment_descriptions + self._additional_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1
+        )
+
+        # Write to disk and read in again
+        with TemporaryDirectory() as tmp:
+            tmp_file = Path(tmp) / 'instance.dcm'
+            instance.save_as(str(tmp_file))
+            instance_reread = dcmread(str(tmp_file))
+
+        # Ensure the recovered pixel array matches what is expected
+        assert (instance_reread.pixel_array == expected_encoding).all()
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
