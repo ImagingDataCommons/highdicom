@@ -81,22 +81,22 @@ class Segmentation(SOPClass):
             from which the segmentation was derived
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating point data type representing a mask image. If pixel_array
+            floating point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
-            values True and False or 0 and 1), the segment number used to enocde
-            the segment is taken from segment_descriptions.
+            values ``True`` and ``False`` or ``0`` and ``1``), the segment number
+            used to encode the segment is taken from segment_descriptions.
             Otherwise, if pixel_array contains multiple integer values, each value
             is treated as a different segment whose segment number is that integer
             value. In this case, all segments found in the array must be described
-            in segment_descriptions. Note that this is valid for both ``"BINARY"``
+            in `segment_descriptions`. Note that this is valid for both ``"BINARY"``
             and ``"FRACTIONAL"`` segmentations.
             For ``"FRACTIONAL"`` segmentations, values either encode the probability
             of a given pixel belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
-            When pixel_array is only one segment can be encoded by
-            `pixel_array`. Additional segments can be subsequently
+            When `pixel_array` has a floating point data type, only one segment can be
+            encoded. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
             If `pixel_array` represents a 3D image, the first dimension
@@ -115,7 +115,7 @@ class Segmentation(SOPClass):
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
-            pixel_arrays with multiple integer values, the segment description
+            pixel arrays with multiple integer values, the segment description
             with the corresponding segment_number is used to describe each segment.
         series_instance_uid: str
             UID of the series
@@ -429,23 +429,22 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating point data type representing a mask image. If pixel_array
+            floating point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
-            values True and False or 0 and 1), the segment number used to
-            enocde the segment is taken from segment_descriptions.
-            Otherwise, if pixel_array contains multiple integer values, each
-            value is treated as a different segment whose segment number is
-            that integer value. In this case, all segments found in the array
-            must be described in segment_descriptions.
-            Note that this is valid for both ``"BINARY"`` and ``"FRACTIONAL"``
-            segmentations.
-            For ``"FRACTIONAL"`` segmentations, values either encode the
-            probability of a given pixel belonging to a segment
+            values ``True`` and ``False`` or ``0`` and ``1``), the segment number
+            used to encode the segment is taken from segment_descriptions.
+            Otherwise, if pixel_array contains multiple integer values, each value
+            is treated as a different segment whose segment number is that integer
+            value. In this case, all segments found in the array must be described
+            in `segment_descriptions`. Note that this is valid for both ``"BINARY"``
+            and ``"FRACTIONAL"`` segmentations.
+            For ``"FRACTIONAL"`` segmentations, values either encode the probability
+            of a given pixel belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
-            When pixel_array is only one segment can be encoded by
-            `pixel_array`. Additional segments can be subsequently
+            When `pixel_array` has a floating point data type, only one segment can be
+            encoded. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
             If `pixel_array` represents a 3D image, the first dimension
@@ -462,7 +461,7 @@ class Segmentation(SOPClass):
             *Image Orientation (Slide)* attribute).
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
-            pixel_arrays with multiple integer values, the segment description
+            pixel arrays with multiple integer values, the segment description
             with the corresponding segment_number is used to describe each
             segment.
         plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
@@ -526,22 +525,28 @@ class Segmentation(SOPClass):
                     )
 
         elif (pixel_array.dtype == np.float):
-            if self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
-                if np.min(pixel_array) < 0.0 or np.max(pixel_array) > 1.0:
-                    raise ValueError(
-                        'Floating point pixel array values must be in the '
-                        'range [0, 1].'
-                    )
-                if len(segment_descriptions) != 1:
-                    raise ValueError(
-                        'When providing a float-valued pixel array, provide '
-                        'only a single segment description.'
-                    )
-            else:
-                raise TypeError(
-                    'When using BINARY segmentation type, do not pass pixel '
-                    'array with float-valued elements.'
+            unique_values = np.unique(pixel_array)
+            if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
+                raise ValueError(
+                    'Floating point pixel array values must be in the '
+                    'range [0, 1].'
                 )
+            if len(segment_descriptions) != 1:
+                raise ValueError(
+                    'When providing a float-valued pixel array, provide only '
+                    'a single segment description'
+                )
+            if self.SegmentationType == SegmentationTypes.BINARY.value:
+                non_boolean_values = np.logical_and(
+                    unique_values > 0.0,
+                    unique_values < 1.0
+                )
+                if np.any(non_boolean_values):
+                    raise ValueError(
+                        'Floating point pixel array values must be either 0.0 or 1.0 '
+                        'in case of BINARY segmentation type.'
+                    )
+                pixel_array = pixel_array.astype(np.bool)
         else:
             raise TypeError('Pixel array has an invalid data type.')
 

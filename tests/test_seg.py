@@ -951,7 +951,7 @@ class TestSegmentation(unittest.TestCase):
                 )
 
         for source, mask in tests:
-            for pix_type in [np.bool, np.uint8, np.uint16]:
+            for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
                     mask.astype(pix_type),
