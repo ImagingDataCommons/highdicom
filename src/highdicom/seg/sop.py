@@ -116,7 +116,7 @@ class Segmentation(SOPClass):
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
-            with the corresponding segment_number is used to describe each segment.
+            with the corresponding segment number is used to describe each segment.
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -462,7 +462,7 @@ class Segmentation(SOPClass):
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
-            with the corresponding segment_number is used to describe each
+            with the corresponding segment number is used to describe each
             segment.
         plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
