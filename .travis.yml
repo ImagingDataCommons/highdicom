@@ -8,4 +8,4 @@ install:
   - "pip install -r requirements_test.txt"
   - "pip install ."
 script:
-  - pytest -v --flake8 --ignore-glob='src/highdicom/_*'
+  - pytest -v --flake8 --ignore-glob='src/highdicom/_*' --ignore-glob='bin/*'

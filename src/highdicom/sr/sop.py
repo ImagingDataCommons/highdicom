@@ -156,10 +156,10 @@ class Comprehensive3DSR(SOPClass):
                     'has been verified.'
                 )
             self.VerificationFlag = 'VERIFIED'
-            ovserver_item = Dataset()
-            ovserver_item.VerifyingObserverName = verifying_observer_name
-            ovserver_item.VerifyingOrganization = verifying_organization
-            ovserver_item.VerificationDateTime = DT(now)
+            observer_item = Dataset()
+            observer_item.VerifyingObserverName = verifying_observer_name
+            observer_item.VerifyingOrganization = verifying_organization
+            observer_item.VerificationDateTime = DT(now)
             self.VerifyingObserverSequence = [observer_item]
         else:
             self.VerificationFlag = 'UNVERIFIED'
@@ -204,7 +204,8 @@ class Comprehensive3DSR(SOPClass):
             for pre in previous_versions:
                 if pre.StudyInstanceUID != evidence[0].StudyInstanceUID:
                     raise ValueError(
-                        'Previous version data sets must belong to the same study.'
+                        'Previous version data sets must belong to the '
+                        'same study.'
                     )
                 pre_instance_item = Dataset()
                 pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
@@ -213,7 +214,7 @@ class Comprehensive3DSR(SOPClass):
                     pre_instance_item
                 )
             pre_study_item = Dataset()
-            pre_study_item.StudyInstanceUID = previous_versions[0].StudyInstanceUID
+            pre_study_item.StudyInstanceUID = pre.StudyInstanceUID
             pre_study_item.ReferencedSeriesSequence = []
             for pre_series_uid, pre_instance_items in pre_collection.items():
                 pre_series_item = Dataset()
