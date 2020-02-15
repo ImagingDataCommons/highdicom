@@ -921,11 +921,10 @@ class TestSegmentation(unittest.TestCase):
                 assert (instance_reread.pixel_array == mask).all()
 
                 # Add another segment
-                if pix_type not in {np.bool, np.float}:
-                    instance.add_segments(
-                        mask.astype(pix_type) * 2,
-                        self._additional_segment_descriptions
-                    )
+                instance.add_segments(
+                    mask.astype(pix_type),
+                    self._additional_segment_descriptions
+                )
 
         for source, mask in tests:
             for pix_type in [np.bool, np.uint8, np.uint16]:
@@ -955,11 +954,10 @@ class TestSegmentation(unittest.TestCase):
                 assert (instance_reread.pixel_array == mask).all()
 
                 # Add another segment
-                if pix_type != np.bool:
-                    instance.add_segments(
-                        mask.astype(pix_type) * 2,
-                        self._additional_segment_descriptions
-                    )
+                instance.add_segments(
+                    mask.astype(pix_type),
+                    self._additional_segment_descriptions
+                )
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
@@ -972,33 +970,42 @@ class TestSegmentation(unittest.TestCase):
         multi_segment_mask[1:5, 10:15] = 1
         multi_segment_mask[5:7, 1:5] = 2
 
-        # The expected encoding splits into two channels stacked down axis 0
-        expected_encoding = np.stack([multi_segment_mask == i for i in [1, 2]])
-
-        instance = Segmentation(
-            [self._ct_image],
-            multi_segment_mask,
-            SegmentationTypes.BINARY.value,
-            self._segment_descriptions + self._additional_segment_descriptions,
-            self._series_instance_uid,
-            self._series_number,
-            self._sop_instance_uid,
-            self._instance_number,
-            self._manufacturer,
-            self._manufacturer_model_name,
-            self._software_versions,
-            self._device_serial_number,
-            max_fractional_value=1
+        # Create another example mask with two segments,
+        # where one is empty
+        multi_segment_mask_empty = np.zeros(
+            self._ct_image.pixel_array.shape,
+            dtype=np.uint8
         )
+        multi_segment_mask_empty[5:7, 1:5] = 2
 
-        # Write to disk and read in again
-        with TemporaryDirectory() as tmp:
-            tmp_file = Path(tmp) / 'instance.dcm'
-            instance.save_as(str(tmp_file))
-            instance_reread = dcmread(str(tmp_file))
+        for mask in [multi_segment_mask, multi_segment_mask_empty]:
+            # The expected encoding splits into two channels stacked down axis 0
+            expected_encoding = np.stack([mask == i for i in [1, 2]])
 
-        # Ensure the recovered pixel array matches what is expected
-        assert (instance_reread.pixel_array == expected_encoding).all()
+            instance = Segmentation(
+                [self._ct_image],
+                mask,
+                SegmentationTypes.BINARY.value,
+                self._segment_descriptions + self._additional_segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                max_fractional_value=1
+            )
+
+            # Write to disk and read in again
+            with TemporaryDirectory() as tmp:
+                tmp_file = Path(tmp) / 'instance.dcm'
+                instance.save_as(str(tmp_file))
+                instance_reread = dcmread(str(tmp_file))
+
+            # Ensure the recovered pixel array matches what is expected
+            assert (instance_reread.pixel_array == expected_encoding).all()
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
