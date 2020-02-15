@@ -138,11 +138,12 @@ class PlanePositionSequence(DataElementSequence):
                     'Position in Pixel Matrix must be specified for '
                     'slide coordinate system.'
                 )
+            row_position, col_position = pixel_matrix_position
             item.XOffsetInSlideCoordinateSystem = image_position[0]
             item.YOffsetInSlideCoordinateSystem = image_position[1]
             item.ZOffsetInSlideCoordinateSystem = image_position[2]
-            item.RowPositionInTotalImagePixelMatrix = pixel_matrix_position[0]
-            item.ColumnPositionInTotalImagePixelMatrix = pixel_matrix_position[1]
+            item.RowPositionInTotalImagePixelMatrix = row_position
+            item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImagePositionPatient = list(image_position)
         self.append(item)

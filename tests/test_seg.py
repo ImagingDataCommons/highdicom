@@ -113,7 +113,8 @@ class TestSegmentDescription(unittest.TestCase):
         super().setUp()
         self._segment_number = 1
         self._segment_label = 'segment #1'
-        self._segmented_property_category = codes.SCT.MorphologicallyAbnormalStructure
+        self._segmented_property_category = \
+            codes.SCT.MorphologicallyAbnormalStructure
         self._segmented_property_type = codes.SCT.Neoplasm
         self._segment_algorithm_type = SegmentAlgorithmTypes.AUTOMATIC.value
         self._algorithm_identification = AlgorithmIdentificationSequence(
@@ -547,12 +548,15 @@ class TestSegmentation(unittest.TestCase):
         super().setUp()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
+        self._segmented_property_category = \
+            codes.SCT.MorphologicallyAbnormalStructure
+        self._segmented_property_type = codes.SCT.Neoplasm
         self._segment_descriptions = [
             SegmentDescription(
                 segment_number=1,
                 segment_label='Segment #1',
-                segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
-                segmented_property_type=codes.SCT.Neoplasm,
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
                 algorithm_type=SegmentAlgorithmTypes.AUTOMATIC.value,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='bla',
@@ -565,8 +569,8 @@ class TestSegmentation(unittest.TestCase):
             SegmentDescription(
                 segment_number=2,
                 segment_label='Segment #2',
-                segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
-                segmented_property_type=codes.SCT.Tumor,
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
                 algorithm_type=SegmentAlgorithmTypes.AUTOMATIC.value,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='foo',
@@ -601,7 +605,7 @@ class TestSegmentation(unittest.TestCase):
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
         self._sm_pixel_array = np.zeros(
-                self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
+            self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
@@ -610,8 +614,12 @@ class TestSegmentation(unittest.TestCase):
         ct_series = [
             dcmread(f) for f in get_testdata_files('77654033/CT2')
         ]
-        # Ensure the frames are in the right spatial order (only 3rd dimension changes)
-        self._ct_series = sorted(ct_series, key=lambda x: x.ImagePositionPatient[2])
+        # Ensure the frames are in the right spatial order
+        # (only 3rd dimension changes)
+        self._ct_series = sorted(
+            ct_series,
+            key=lambda x: x.ImagePositionPatient[2]
+        )
         self._ct_series_mask_array = np.zeros(
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=np.bool
@@ -673,7 +681,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(instance.SourceImageSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         ref_item = instance.SourceImageSequence[0]
-        assert ref_item.ReferencedSOPInstanceUID == self._ct_image.SOPInstanceUID
+        assert ref_item.ReferencedSOPInstanceUID == \
+            self._ct_image.SOPInstanceUID
         assert instance.Rows == self._ct_image.pixel_array.shape[0]
         assert instance.Columns == self._ct_image.pixel_array.shape[1]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
@@ -722,7 +731,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
-        assert ref_item.ReferencedSOPInstanceUID == self._sm_image.SOPInstanceUID
+        assert ref_item.ReferencedSOPInstanceUID == \
+            self._sm_image.SOPInstanceUID
         assert instance.Rows == self._sm_image.pixel_array.shape[1]
         assert instance.Columns == self._sm_image.pixel_array.shape[2]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
@@ -807,13 +817,14 @@ class TestSegmentation(unittest.TestCase):
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
             assert source_image_item.ReferencedSOPClassUID == src_im.SOPClassUID
-            assert source_image_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
+            assert source_image_item.ReferencedSOPInstanceUID == \
+                src_im.SOPInstanceUID
             assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
-        uid_to_plane_position = {
-            fm.DerivationImageSequence[0].SourceImageSequence[0].ReferencedSOPInstanceUID: \
-            fm.PlanePositionSequence[0].ImagePositionPatient
-            for fm in instance.PerFrameFunctionalGroupsSequence
-        }
+        uid_to_plane_position = {}
+        for fm in instance.PerFrameFunctionalGroupsSequence:
+            src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
+            uid_to_plane_position[src_img_item.ReferencedSOPInstanceUID] = \
+                fm.PlanePositionSequence[0].ImagePositionPatient
         source_uid_to_plane_position = {
             dcm.SOPInstanceUID: dcm.ImagePositionPatient
             for dcm in self._ct_series
@@ -843,25 +854,29 @@ class TestSegmentation(unittest.TestCase):
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
-        assert ref_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
-        assert instance.NumberOfFrames == self._ct_multiframe.pixel_array.shape[0]
+        assert ref_item.ReferencedSOPInstanceUID == \
+            self._ct_multiframe.SOPInstanceUID
+        assert instance.NumberOfFrames == \
+            self._ct_multiframe.pixel_array.shape[0]
         assert instance.Rows == self._ct_multiframe.pixel_array.shape[1]
         assert instance.Columns == self._ct_multiframe.pixel_array.shape[2]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
+        src_shared_item = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == \
-                self._ct_multiframe.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
+            src_shared_item.PixelMeasuresSequence[0].PixelSpacing
         assert pm_item.SliceThickness == \
-                self._ct_multiframe.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness
+            src_shared_item.PixelMeasuresSequence[0].SliceThickness
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
-            self._ct_multiframe.SharedFunctionalGroupsSequence[0].PlaneOrientationSequence[0].ImageOrientationPatient
+            src_shared_item.PlaneOrientationSequence[0].ImageOrientationPatient
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
-        assert len(instance.PerFrameFunctionalGroupsSequence) == self._ct_multiframe.NumberOfFrames
+        assert len(instance.PerFrameFunctionalGroupsSequence) == \
+            self._ct_multiframe.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
@@ -872,23 +887,32 @@ class TestSegmentation(unittest.TestCase):
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
-            assert source_image_item.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
-            assert source_image_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
+            assert source_image_item.ReferencedSOPClassUID == \
+                self._ct_multiframe.SOPClassUID
+            assert source_image_item.ReferencedSOPInstanceUID == \
+                self._ct_multiframe.SOPInstanceUID
             assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
-        for i, (src_fm, seg_fm) in enumerate(zip(self._ct_multiframe.PerFrameFunctionalGroupsSequence,
-                                                 instance.PerFrameFunctionalGroupsSequence)):
+        for i, (src_fm, seg_fm) in enumerate(
+                zip(
+                    self._ct_multiframe.PerFrameFunctionalGroupsSequence,
+                    instance.PerFrameFunctionalGroupsSequence
+                )
+            ):
             assert src_fm.PlanePositionSequence[0].ImagePositionPatient == \
                 seg_fm.PlanePositionSequence[0].ImagePositionPatient
-            source_image_item = seg_fm.DerivationImageSequence[0].SourceImageSequence[0]
+            derivation_image_item = seg_fm.DerivationImageSequence[0]
+            source_image_item = derivation_image_item.SourceImageSequence[0]
             assert source_image_item.ReferencedFrameNumber == i + 1
-            assert source_image_item.ReferencedSOPInstanceUID == self._ct_multiframe.SOPInstanceUID
+            assert source_image_item.ReferencedSOPInstanceUID == \
+                self._ct_multiframe.SOPInstanceUID
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
     def test_pixel_types(self):
+        # TODO failing because of ordering?
         tests = [
             ([self._ct_image], self._ct_pixel_array),
-            #([self._sm_image], self._sm_pixel_array),  # TODO failing because of ordering?
+            # ([self._sm_image], self._sm_pixel_array),
             (self._ct_series, self._ct_series_mask_array),
             ([self._ct_multiframe], self._ct_multiframe_mask_array),
         ]
@@ -927,7 +951,7 @@ class TestSegmentation(unittest.TestCase):
                 )
 
         for source, mask in tests:
-            for pix_type in [np.bool, np.uint8, np.uint16]:
+            for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
                     mask.astype(pix_type),
@@ -982,11 +1006,15 @@ class TestSegmentation(unittest.TestCase):
             # The expected encoding splits into two channels stacked down axis 0
             expected_encoding = np.stack([mask == i for i in [1, 2]])
 
+            all_segment_descriptions = (
+                self._segment_descriptions +
+                self._additional_segment_descriptions
+            )
             instance = Segmentation(
                 [self._ct_image],
                 mask,
                 SegmentationTypes.BINARY.value,
-                self._segment_descriptions + self._additional_segment_descriptions,
+                all_segment_descriptions,
                 self._series_instance_uid,
                 self._series_number,
                 self._sop_instance_uid,
@@ -1271,8 +1299,8 @@ class TestSegmentation(unittest.TestCase):
         plane_positions = [
             PlanePositionSequence(
                 coordinate_system=CoordinateSystemNames.SLIDE,
-                image_position=(i*1.0, i*1.0, 1.0),
-                pixel_matrix_position=(i*1, i*1)
+                image_position=(i * 1.0, i * 1.0, 1.0),
+                pixel_matrix_position=(i * 1, i * 1)
             )
             for i in range(self._sm_image.pixel_array.shape[0])
         ]

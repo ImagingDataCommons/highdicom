@@ -42,7 +42,7 @@ class ContentItem(Dataset):
         relationship_type: Union[str, highdicom.sr.enum.RelationshipTypes], optional
             type of relationship with parent content item
 
-        """  #noqa
+        """  # noqa
         super(ContentItem, self).__init__()
         value_type = ValueTypes(value_type)
         self.ValueType = value_type.value
@@ -114,7 +114,7 @@ class ContentItem(Dataset):
         AttributeError
             when content item has no `ContentSequence` attribute
 
-        """  #noqa
+        """  # noqa
         try:
             content_sequence = self.ContentSequence
         except AttributeError:
@@ -189,7 +189,7 @@ class ContentSequence(DataElementSequence):
         highdicom.sr.value_types.ContentSequence[highdicom.sr.value_types.ContentItem]
             matched content items
 
-        """  #noqa
+        """  # noqa
         def has_matching_name(item):
             if name is None:
                 return True
@@ -207,9 +207,9 @@ class ContentSequence(DataElementSequence):
 
         return self.__class__([
             item for item in self
-            if has_matching_name(item)
-            and has_matching_value_type(item)
-            and has_matching_relationship_type(item)
+            if has_matching_name(item) and
+            has_matching_value_type(item) and
+            has_matching_relationship_type(item)
         ])
 
     def append(self, item: ContentItem):
@@ -258,7 +258,6 @@ class ContentSequence(DataElementSequence):
                 )
             )
         super(ContentSequence, self).insert(position, item)
-
 
 
 class CodeContentItem(ContentItem):
@@ -341,7 +340,7 @@ class TextContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.enum.RelationshipTypes, str], optional
             type of relationship with parent content item
 
-        """
+        """ # noqa
         super(TextContentItem, self).__init__(
             ValueTypes.TEXT, name, relationship_type
         )
@@ -608,8 +607,12 @@ class ImageContentItem(ContentItem):
             name: Union[Code, CodedConcept],
             referenced_sop_class_uid: Union[str, UID],
             referenced_sop_instance_uid: Union[str, UID],
-            referenced_frame_numbers: Optional[Union[int, Sequence[int]]] = None,
-            referenced_segment_numbers: Optional[Union[int, Sequence[int]]] = None,
+            referenced_frame_numbers: Optional[
+                Union[int, Sequence[int]]
+            ] = None,
+            referenced_segment_numbers: Optional[
+                Union[int, Sequence[int]]
+            ] = None,
             relationship_type: Optional[Union[str, RelationshipTypes]] = None
         ):
         """
@@ -781,20 +784,6 @@ class Scoord3DContentItem(ContentItem):
         graphic_type = GraphicTypes3D(graphic_type)
         self.GraphicType = graphic_type.value
 
-        def is_point(coordinate):
-            try:
-                return all([
-                    isinstance(coordinate, (list, tuple, )),
-                    len(coordinate) == 3,
-                    all(isinstance(c, float) for c in coordinate),
-                ])
-            except IndexError:
-                return False
-
-        are_all_points = all(
-            is_point(coordinates)
-            for coordinates in graphic_data
-        )
         if graphic_type == GraphicTypes3D.POINT:
             if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 3:
                 raise ValueError(
@@ -837,9 +826,10 @@ class TcoordContentItem(ContentItem):
     def __init__(
             self,
             name: Union[Code, CodedConcept],
-            referenced_sample_positions: Union[str, TemporalRangeTypes],
-            referenced_time_offsets: Optional[Sequence[int]] = None,
-            referenced_date_time: Optional[Sequence[float]] = None,
+            temporal_range_type: Union[str, TemporalRangeTypes],
+            referenced_sample_positions: Optional[Sequence[int]] = None,
+            referenced_time_offsets: Optional[Sequence[float]] = None,
+            referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
             relationship_type: Optional[Union[str, RelationshipTypes]] = None
         ):
         """

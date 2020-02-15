@@ -154,11 +154,13 @@ class TimePointContext(Template):
             time_point: str,
             time_point_type: Optional[Union[CodedConcept, Code]] = None,
             time_point_order: Optional[int] = None,
-            subject_time_point_identifier:
-                Optional[LongitudinalTemporalOffsetFromEvent] = None,
+            subject_time_point_identifier: Optional[
+                LongitudinalTemporalOffsetFromEvent
+            ] = None,
             protocol_time_point_identifier: Optional[str] = None,
-            temporal_offset_from_event:
-                Optional[LongitudinalTemporalOffsetFromEvent] = None,
+            temporal_offset_from_event: Optional[
+                LongitudinalTemporalOffsetFromEvent
+            ] = None,
             temporal_event_type: Optional[Union[CodedConcept, Code]] = None
         ):
         """
@@ -298,7 +300,7 @@ class MeasurementStatisticalProperties(Template):
                 value=authority,
                 relationship_type=RelationshipTypes.HAS_PROPERTIES
             )
-            self.append(authority_item)
+            self.append(description_item)
         if authority is not None:
             authority_item = TextContentItem(
                 name=CodedConcept(
@@ -317,6 +319,7 @@ class NormalRangeProperties(Template):
     """TID 312 Normal Range Properties"""
 
     def __init__(
+            self,
             values: Sequence[NumContentItem],
             description: Optional[str] = None,
             authority: Optional[str] = None
@@ -346,27 +349,18 @@ class NormalRangeProperties(Template):
         self.extend(values)
         if description is not None:
             description_item = TextContentItem(
-                name=CodedConcept(
-                    value='121407',
-                    meaning='Normal Range Description',
-                    scheme_designator='DCM'
-                ),
-                value=authority,
+                name=codes.DCM.NormalRangeDescription,
+                value=description,
                 relationship_type=RelationshipTypes.HAS_PROPERTIES
             )
-            self.append(authority_item)
+            self.append(description_item)
         if authority is not None:
             authority_item = TextContentItem(
-                name=CodedConcept(
-                    value='121408',
-                    meaning='Normal Range Authority',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.NormalRangeAuthority,
                 value=authority,
                 relationship_type=RelationshipTypes.HAS_PROPERTIES
             )
             self.append(authority_item)
-
 
 
 class MeasurementProperties(Template):
@@ -378,8 +372,9 @@ class MeasurementProperties(Template):
             normality: Optional[Union[CodedConcept, Code]] = None,
             level_of_significance: Optional[Union[CodedConcept, Code]] = None,
             selection_status: Optional[Union[CodedConcept, Code]] = None,
-            measurement_statistical_properties:
-                Optional[MeasurementStatisticalProperties] = None,
+            measurement_statistical_properties: Optional[
+                MeasurementStatisticalProperties
+            ] = None,
             normal_range_properties: Optional[NormalRangeProperties] = None,
             upper_measurement_uncertainty: Optional[Union[int, float]] = None,
             lower_measurement_uncertainty: Optional[Union[int, float]] = None
@@ -422,7 +417,7 @@ class MeasurementProperties(Template):
             )
             self.append(normality_item)
         if measurement_statistical_properties is not None:
-            if not isinstance(measurment_statistical_properties,
+            if not isinstance(measurement_statistical_properties,
                               MeasurementStatisticalProperties):
                 raise TypeError(
                     'Argument "measurment_statistical_properties" must have '
@@ -646,22 +641,14 @@ class DeviceObserverIdentifyingAttributes(Template):
             self.append(serial_number_item)
         if physical_location is not None:
             physical_location_item = TextContentItem(
-                name=CodedConcept(
-                    value='121017',
-                    meaning='Device Observer Physical Location During Observation',
-                    scheme_designator='DCM',
-                ),
+                name=codes.DCM.DeviceObserverPhysicalLocationDuringObservation,
                 value=physical_location,
                 relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
             )
             self.append(physical_location_item)
         if role_in_procedure is not None:
             role_in_procedure_item = CodeContentItem(
-                name=CodedConcept(
-                    value='113876',
-                    meaning='Device Role in Procedure',
-                    scheme_designator='DCM',
-                ),
+                name=codes.DCM.DeviceRoleInProcedure,
                 value=role_in_procedure,
                 relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
             )
@@ -858,23 +845,15 @@ class SubjectContextDevice(Template):
         """
         super().__init__()
         device_name_item = TextContentItem(
-            name=CodedConcept(
-                value='121193',
-                meaning='Device Subject Name',
-                scheme_designator='DCM'
-            ),
-            value=device_name,
+            name=codes.DCM.DeviceSubjectName,
+            value=name,
             relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
         )
         self.append(device_name_item)
-        if device_uid is not None:
+        if uid is not None:
             device_uid_item = UIDRefContentItem(
-                name=CodedConcept(
-                    value='121198',
-                    meaning='Device Subject UID',
-                    scheme_designator='DCM'
-                ),
-                value=device_uid,
+                name=codes.DCM.DeviceSubjectUID,
+                value=uid,
                 relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
             )
             self.append(device_uid_item)
@@ -913,11 +892,7 @@ class SubjectContextDevice(Template):
             self.append(serial_number_item)
         if physical_location is not None:
             physical_location_item = TextContentItem(
-                name=CodedConcept(
-                    value='121197',
-                    meaning='Device Subject Physical Location During Observation',
-                    scheme_designator='DCM',
-                ),
+                name=codes.DCM.DeviceSubjectPhysicalLocationDuringObservation,
                 value=physical_location,
                 relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
             )
@@ -987,7 +962,7 @@ class ObservationContext(Template):
             a whole-slide microscopy image, a fetus in an ultrasound image, or
             a pacemaker device in a chest X-ray image)
 
-        """
+        """  # noqa
         super().__init__()
         if observer_person_context is not None:
             if not isinstance(observer_person_context, ObserverContext):
@@ -1040,7 +1015,6 @@ class LanguageOfContentItemAndDescendants(Template):
             relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
         )
         self.append(language_item)
-
 
 
 class Measurement(Template):
@@ -1455,15 +1429,15 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             if not isinstance(referenced_volume_surface,
                               VolumeSurface):
                 raise TypeError(
-                    'Items of argument "referenced_volume_surface" must have type '
-                    'VolumeSurface.'
+                    'Items of argument "referenced_volume_surface" must have '
+                    'type VolumeSurface.'
                 )
             group_item.ContentSequence.append(referenced_volume_surface)
         elif referenced_segment is not None:
-            if not isinstance(referenced_segment,
-                              (ReferencedSegment,
-                               ReferencedSegmentationFrame)
-                             ):
+            if not isinstance(
+                    referenced_segment,
+                    (ReferencedSegment, ReferencedSegmentationFrame)
+                ):
                 raise TypeError(
                     'Argument "referenced_segment" must have type '
                     'ReferencedSegment or '
@@ -1708,7 +1682,8 @@ class MeasurementReport(Template):
 
     """TID 1500 Measurement Report"""
 
-    def __init__(self,
+    def __init__(
+            self,
             observation_context: ObservationContext,
             procedure_reported: Union[CodedConcept, Code],
             imaging_measurements: Optional[
@@ -1716,7 +1691,7 @@ class MeasurementReport(Template):
                     Union[
                         PlanarROIMeasurementsAndQualitativeEvaluations,
                         VolumetricROIMeasurementsAndQualitativeEvaluations,
-                        MeasurementsAndQualitativeEvaluations
+                        MeasurementsAndQualitativeEvaluations,
                     ]
                 ]
             ] = None,
@@ -1724,8 +1699,9 @@ class MeasurementReport(Template):
                 Sequence[MeasurementsDerivedFromMultipleROIMeasurements]
             ] = None,
             title: Optional[Union[CodedConcept, Code]] = None,
-            language_of_content_item_and_descendants:
-                Optional[LanguageOfContentItemAndDescendants] = None
+            language_of_content_item_and_descendants: Optional[
+                LanguageOfContentItemAndDescendants
+            ] = None
         ):
         """
         Parameters
@@ -1887,5 +1863,3 @@ class ImageLibrary(Template):
             relationship_type=RelationshipTypes.CONTAINS
         )
         self.append(library_item)
-
-
