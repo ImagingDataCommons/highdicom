@@ -1,8 +1,8 @@
+from io import BytesIO
 import os
 import unittest
 from datetime import datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
@@ -911,11 +911,11 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to disk and read in again
-                with TemporaryDirectory() as tmp:
-                    tmp_file = Path(tmp) / 'instance.dcm'
-                    instance.save_as(str(tmp_file))
-                    instance_reread = dcmread(str(tmp_file))
+                # Write to buffer and read in again
+                with BytesIO() as fp:
+                    instance.save_as(fp)
+                    fp.seek(0)
+                    instance_reread = dcmread(fp)
 
                 # Ensure the recovered pixel array matches what is expected
                 assert (instance_reread.pixel_array == mask).all()
@@ -944,11 +944,11 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to disk and read in again
-                with TemporaryDirectory() as tmp:
-                    tmp_file = Path(tmp) / 'instance.dcm'
-                    instance.save_as(str(tmp_file))
-                    instance_reread = dcmread(str(tmp_file))
+                # Write to buffer and read in again
+                with BytesIO() as fp:
+                    instance.save_as(fp)
+                    fp.seek(0)
+                    instance_reread = dcmread(fp)
 
                 # Ensure the recovered pixel array matches what is expected
                 assert (instance_reread.pixel_array == mask).all()
@@ -998,11 +998,11 @@ class TestSegmentation(unittest.TestCase):
                 max_fractional_value=1
             )
 
-            # Write to disk and read in again
-            with TemporaryDirectory() as tmp:
-                tmp_file = Path(tmp) / 'instance.dcm'
-                instance.save_as(str(tmp_file))
-                instance_reread = dcmread(str(tmp_file))
+            # Write to buffer and read in again
+            with BytesIO() as fp:
+                instance.save_as(fp)
+                fp.seek(0)
+                instance_reread = dcmread(fp)
 
             # Ensure the recovered pixel array matches what is expected
             assert (instance_reread.pixel_array == expected_encoding).all()
