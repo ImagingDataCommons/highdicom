@@ -155,7 +155,7 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
 
 .. _sr:
 
-Structured Reports (SR) documents
+Structured Report (SR) documents
 ---------------------------------
 
 Create a Structured Report document that contains a numeric area measurement for
