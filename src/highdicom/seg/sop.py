@@ -543,8 +543,8 @@ class Segmentation(SOPClass):
                 )
                 if np.any(non_boolean_values):
                     raise ValueError(
-                        'Floating point pixel array values must be either 0.0 or 1.0 '
-                        'in case of BINARY segmentation type.'
+                        'Floating point pixel array values must be either '
+                        '0.0 or 1.0 in case of BINARY segmentation type.'
                     )
                 pixel_array = pixel_array.astype(np.bool)
         else:
