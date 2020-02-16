@@ -662,7 +662,8 @@ class TestFindingSite(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._location = codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
+        self._location = \
+            codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
         self._finding_site = FindingSite(
             anatomic_location=self._location
         )
@@ -729,9 +730,6 @@ class TestMeasurement(unittest.TestCase):
             tracking_identifier=self._tracking_identifier
         )
 
-    def test_measurement(self):
-        item = self._measurement[0]
-
     def test_name(self):
         item = self._measurement[0]
         assert item.ConceptNameCodeSequence[0] == self._name
@@ -741,7 +739,9 @@ class TestMeasurement(unittest.TestCase):
         assert len(item.MeasuredValueSequence) == 1
         assert len(item.MeasuredValueSequence[0]) == 3
         assert item.MeasuredValueSequence[0].NumericValue == DS(self._value)
-        assert item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0] == self._unit
+        value_item = item.MeasuredValueSequence[0]
+        unit_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_item == self._unit
         with pytest.raises(AttributeError):
             item.NumericValueQualifierCodeSequence
 
@@ -768,7 +768,8 @@ class TestMeasurementOptional(unittest.TestCase):
         )
         self._derivation = codes.cid7464.Total
         self._method = codes.cid7473.AreaOfClosedIrregularPolygon
-        self._location = codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
+        self._location = \
+            codes.cid6300.RightAnteriorMiddlePeripheralZoneOfProstate
         self._finding_site = FindingSite(
             anatomic_location=self._location
         )
@@ -829,7 +830,7 @@ class TestReferencedSegment(unittest.TestCase):
         self._sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         self._sop_instance_uid = generate_uid()
         self._segment_number = 1
-        self._frame_numbers = [1,2]
+        self._frame_numbers = [1, 2, ]
         self._source_series = SourceSeriesForSegmentation(
             referenced_series_instance_uid=generate_uid()
         )
@@ -1105,7 +1106,9 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert self._report.PatientName == self._ref_dataset.PatientName
 
     def test_study_attributes(self):
-        assert self._report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        assert (
+            self._report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        )
         assert self._report.AccessionNumber == self._ref_dataset.AccessionNumber
 
     def test_series_attributes(self):

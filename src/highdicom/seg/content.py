@@ -64,7 +64,7 @@ class SegmentDescription(Dataset):
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 
-        """
+        """  # noqa
         super().__init__()
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
@@ -131,8 +131,9 @@ class Surface(Dataset):
             points: np.ndarray,
             is_processed: Optional[bool] = None,
             processing_ratio: Optional[float] = None,
-            processing_algorithm_identification:
-                Optional[AlgorithmIdentificationSequence] = None,
+            processing_algorithm_identification: Optional[
+                AlgorithmIdentificationSequence
+            ] = None,
             is_finite_volume: Optional[bool] = None,
             is_manifold: Optional[bool] = None
         ):

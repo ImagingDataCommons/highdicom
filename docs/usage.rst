@@ -153,11 +153,10 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
 
     print(seg_dataset)
 
-
 .. _sr:
 
-Structured Reports (SR) documents
----------------------------------
+Structured Report (SR) documents
+--------------------------------
 
 Create a Structured Report document that contains a numeric area measurement for
 a planar region of interest (ROI) in a single-frame computed tomography (CT)

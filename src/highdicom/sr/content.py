@@ -214,8 +214,9 @@ class ImageRegion(ScoordContentItem):
             graphic_type: Union[GraphicTypes, str],
             graphic_data: np.ndarray,
             source_image: SourceImageForRegion,
-            pixel_origin_interpretation:
-                Optional[Union[PixelOriginInterpretations, str]] = None
+            pixel_origin_interpretation: Optional[
+                Union[PixelOriginInterpretations, str]
+            ] = None
         ) -> None:
         """
         Parameters
@@ -250,7 +251,7 @@ class ImageRegion(ScoordContentItem):
             pixel_origin_interpretation = PixelOriginInterpretations.VOLUME
         if pixel_origin_interpretation == PixelOriginInterpretations.FRAME:
             if (not hasattr(source_image, 'ReferencedFrameNumber') or
-                source_image.ReferencedFrameNumber is None):
+                    source_image.ReferencedFrameNumber is None):
                 raise ValueError(
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
@@ -326,7 +327,9 @@ class VolumeSurface(Scoord3DContentItem):
             graphic_type: Union[GraphicTypes3D, str],
             graphic_data: np.ndarray,
             frame_of_reference_uid: str,
-            source_images: Optional[Sequence[SourceImageForSegmentation]] = None,
+            source_images: Optional[
+                Sequence[SourceImageForSegmentation]
+            ] = None,
             source_series: Optional[SourceSeriesForSegmentation] = None
         ) -> None:
         """
@@ -533,7 +536,9 @@ class ReferencedSegment(ContentSequence):
             sop_instance_uid: str,
             segment_number: int,
             frame_numbers: Optional[Sequence[int]] = None,
-            source_images: Optional[Sequence[SourceImageForSegmentation]] = None,
+            source_images: Optional[
+                Sequence[SourceImageForSegmentation]
+            ] = None,
             source_series: Optional[SourceSeriesForSegmentation] = None
         ) -> None:
         """
@@ -593,5 +598,3 @@ class ReferencedSegment(ContentSequence):
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
-
-

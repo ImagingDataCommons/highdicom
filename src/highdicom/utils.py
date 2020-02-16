@@ -40,10 +40,10 @@ def tile_pixel_matrix(
     """
     tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
     tiles_per_col = int(np.ceil(total_pixel_matrix_columns / columns))
-    tile_row_indices = range(1, tiles_per_row+1)
+    tile_row_indices = range(1, tiles_per_row + 1)
     if tuple(image_orientation[:3]) == (0.0, -1.0, 0.0):
         tile_row_indices = reversed(tile_row_indices)
-    tile_col_indices = range(1, tiles_per_col+1)
+    tile_col_indices = range(1, tiles_per_col + 1)
     if tuple(image_orientation[3:]) == (-1.0, 0.0, 0.0):
         tile_col_indices = reversed(tile_col_indices)
     return itertools.product(tile_row_indices, tile_col_indices)
@@ -141,5 +141,3 @@ def compute_plane_positions_tiled_full(
         image_position=(x_offset_frame, y_offset_frame, z_offset_frame),
         pixel_matrix_position=(row_offset_frame, column_offset_frame)
     )
-
-

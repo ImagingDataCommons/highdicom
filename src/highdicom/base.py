@@ -109,7 +109,7 @@ class SOPClass(Dataset):
         required by the corresponding Information Object Definition (IOD).
         Additional optional attributes can subsequently be added to the dataset.
 
-        """
+        """  # noqa
         super().__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian
@@ -231,7 +231,8 @@ class SOPClass(Dataset):
                     dataset.SOPClassUID
                 )
             )
-        iod_key = sop_class_name.replace(' Storage', '').replace(' ', '-').lower()
+        iod_key = sop_class_name.replace(' Storage', '').replace(' ', '-')
+        iod_key = iod_key.lower()
         for module_item in IOD_MODULE_MAP[iod_key]:
             module_key = module_item['key']
             if module_item['ie'] != ie:

@@ -46,7 +46,6 @@ def _create_modules(directory):
     filename = os.path.join(directory, 'module_to_attributes.json')
     module_to_attributes = _load_json_from_file(filename)
     modules = collections.defaultdict(list)
-    lut = collections.defaultdict(list)
     for item in module_to_attributes:
         path = item['path'].split(':')[1:]
         tag = path.pop(-1)
@@ -106,5 +105,3 @@ if __name__ == '__main__':
         fp.write('\n\n')
         modules_formatted = _dump_json(modules).replace('null', 'None')
         fp.write('MODULE_ATTRIBUTE_MAP = {}'.format(modules_formatted))
-
-

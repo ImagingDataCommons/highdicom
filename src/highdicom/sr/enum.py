@@ -78,6 +78,3 @@ class PixelOriginInterpretations(Enum):
 
     FRAME = 'FRAME'
     VOLUME = 'VOLUME'
-
-
-

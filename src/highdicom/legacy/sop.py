@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
-     # CT Image Storage
+    # CT Image Storage
     '1.2.840.10008.5.1.4.1.1.2': '1.2.840.10008.5.1.4.1.1.2.2',
-     # MR Image Storage
+    # MR Image Storage
     '1.2.840.10008.5.1.4.1.1.4': '1.2.840.10008.5.1.4.1.1.4.4',
-     # PET Image Storage
+    # PET Image Storage
     '1.2.840.10008.5.1.4.1.1.128': '1.2.840.10008.5.1.4.1.1.128.1',
 }
 
@@ -167,7 +167,7 @@ def _convert_legacy_to_enhanced(
     unassigned_dataelements = collections.defaultdict(list)
 
     # Per-Frame Functional Groups
-    perframe_func_groups_items = []
+    perframe_items = []
     for i, ds in enumerate(sf_datasets):
         perframe_item = Dataset()
 
@@ -312,7 +312,7 @@ def _convert_legacy_to_enhanced(
         # Real World Value Mapping (U) - PET only
         # TODO: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.11
 
-        perframe_func_groups_items.append(perframe_item)
+        perframe_items.append(perframe_item)
 
         # All other attributes that are not assigned to functional groups.
         for tag, da in ds.items():
@@ -380,10 +380,10 @@ def _convert_legacy_to_enhanced(
     ]
 
     for i, ca_item in enumerate(unassigned_perframe_ca_items):
-        perframe_func_groups_items[i].UnassignedPerFrameConvertedAttributesSequence = [
+        perframe_items[i].UnassignedPerFrameConvertedAttributesSequence = [
             ca_item,
         ]
-    mf_dataset.PerFrameFunctionalGroupsSequence = perframe_func_groups_items
+    mf_dataset.PerFrameFunctionalGroupsSequence = perframe_items
 
     mf_dataset.AcquisitionContextSequence = []
 
@@ -618,4 +618,3 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             **kwargs
         )
         _convert_legacy_to_enhanced(legacy_datasets, self)
-
