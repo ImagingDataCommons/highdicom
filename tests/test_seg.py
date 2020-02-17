@@ -749,9 +749,8 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.ImageOrientationSlide
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 6
-        assert instance.NumberOfFrames == self._sm_image.NumberOfFrames
-        assert len(instance.PerFrameFunctionalGroupsSequence) == \
-            self._sm_image.NumberOfFrames
+        assert instance.NumberOfFrames == 1  # sparse!
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1

@@ -23,11 +23,14 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
+from highdicom.enum import (
+    CoordinateSystemNames,
+    DimensionOrganizationTypes,
+)
 from highdicom.seg.content import (
     SegmentDescription,
     Surface,
 )
-from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
@@ -396,6 +399,12 @@ class Segmentation(SOPClass):
         dimension_organization.DimensionOrganizationUID = \
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            self.DimensionOrganizationType = \
+                DimensionOrganizationTypes.TILED_SPARSE.value
+        else:
+            self.DimensionOrganizationType = \
+                DimensionOrganizationTypes.THREE_DIMENSIONAL.value
 
         shared_func_groups.PixelMeasuresSequence = pixel_measures
         shared_func_groups.PlaneOrientationSequence = plane_orientation
@@ -733,7 +742,26 @@ class Segmentation(SOPClass):
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
 
+            supports_sparse_tile_encoding = (
+                self.DimensionOrganizationType ==
+                DimensionOrganizationTypes.TILED_SPARSE.value
+            )
+            contained_plane_index = []
             for j in plane_sort_index:
+                if np.sum(planes[j]) == 0 and supports_sparse_tile_encoding:
+                    logger.info(
+                        'skip empty plane {} of segment #{}'.format(
+                            j, segment_number
+                        )
+                    )
+                    continue
+                contained_plane_index.append(j)
+                logger.info(
+                    'add plane #{} for segment #{}'.format(
+                        j, segment_number
+                    )
+                )
+
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
                 frame_content_item.DimensionIndexValues = [segment_number]
@@ -832,13 +860,16 @@ class Segmentation(SOPClass):
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
 
+            contained_plane_index = np.array(contained_plane_index, dtype=int)
             if re_encode_pixel_data:
                 full_pixel_array = np.concatenate([
                     full_pixel_array,
-                    planes[plane_sort_index].flatten()
+                    planes[contained_plane_index].flatten()
                 ])
             else:
-                self.PixelData += self._encode_pixels(planes[plane_sort_index])
+                self.PixelData += self._encode_pixels(
+                    planes[contained_plane_index]
+                )
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.
