@@ -1,5 +1,4 @@
-"""Package for CT, MR and PET image modalities that allow conversion of series
-of legacy single-frame image instances into enhanced multi-frame image
+"""Package for creation of Legacy Converted Enhanced CT, MR or PET Image
 instances.
 """
 
