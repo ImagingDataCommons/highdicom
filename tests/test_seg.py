@@ -25,8 +25,18 @@ from highdicom.seg.content import (
     SegmentDescription,
     Surface,
 )
-from highdicom.seg.enum import SegmentAlgorithmTypes, SegmentationTypes
+from highdicom.seg.enum import SegmentAlgorithmTypes, SegmentsOverlap, SegmentationTypes
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation
+
+
+def interleave_frames(a1, a2):
+    # Interleave the frames (down the first dimension) coming from two arrays
+    assert a1.shape == a2.shape
+    out_shape = (a1.shape[0] + a2.shape[0], ) + a1.shape[1:]
+    out = np.empty(out_shape)
+    out[::2] = a1
+    out[1::2] = a2
+    return out
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -708,6 +718,7 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_content_item.DimensionIndexValues) == 2
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
+        assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -763,6 +774,7 @@ class TestSegmentation(unittest.TestCase):
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
             assert hasattr(source_image_item, 'ReferencedFrameNumber')
+        assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
 
@@ -830,6 +842,7 @@ class TestSegmentation(unittest.TestCase):
             for dcm in self._ct_series
         }
         assert source_uid_to_plane_position == uid_to_plane_position
+        assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -905,6 +918,7 @@ class TestSegmentation(unittest.TestCase):
             assert source_image_item.ReferencedFrameNumber == i + 1
             assert source_image_item.ReferencedSOPInstanceUID == \
                 self._ct_multiframe.SOPInstanceUID
+        assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -945,10 +959,26 @@ class TestSegmentation(unittest.TestCase):
                 assert (instance_reread.pixel_array == mask).all()
 
                 # Add another segment
+                additional_mask = (1 - mask)
                 instance.add_segments(
-                    mask.astype(pix_type),
+                    additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
                 )
+                assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.UNDEFINED
+
+                # Write to buffer and read in again
+                with BytesIO() as fp:
+                    instance.save_as(fp)
+                    fp.seek(0)
+                    instance_reread = dcmread(fp)
+
+                # Concatenate to create the expected encoding
+                if mask.ndim == 2:
+                    expected_encoding = np.stack([mask, additional_mask])
+                else:
+                    expected_encoding = np.concatenate([mask, additional_mask], axis=0)
+
+                assert np.array_equal(instance_reread.pixel_array, expected_encoding)
 
         for source, mask in tests:
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
@@ -978,10 +1008,26 @@ class TestSegmentation(unittest.TestCase):
                 assert (instance_reread.pixel_array == mask).all()
 
                 # Add another segment
+                additional_mask = (1 - mask)
                 instance.add_segments(
-                    mask.astype(pix_type),
+                    additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
                 )
+                assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.UNDEFINED
+
+                # Write to buffer and read in again
+                with BytesIO() as fp:
+                    instance.save_as(fp)
+                    fp.seek(0)
+                    instance_reread = dcmread(fp)
+
+                # Concatenate to create the expected encoding
+                if mask.ndim == 2:
+                    expected_encoding = np.stack([mask, additional_mask])
+                else:
+                    expected_encoding = np.concatenate([mask, additional_mask], axis=0)
+
+                assert np.array_equal(instance_reread.pixel_array, expected_encoding)
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
@@ -1034,6 +1080,57 @@ class TestSegmentation(unittest.TestCase):
 
             # Ensure the recovered pixel array matches what is expected
             assert (instance_reread.pixel_array == expected_encoding).all()
+
+    def test_construction_wrong_segment_order(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segment_descriptions=self._additional_segment_descriptions + self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_duplicate_segment_number(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segment_descriptions=self._segment_descriptions + self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_non_described_segment(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array * 3,
+                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segment_descriptions=self._segment_descriptions + self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):

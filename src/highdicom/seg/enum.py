@@ -34,3 +34,12 @@ class SpatialLocationsPreserved(Enum):
     YES = 'YES'
     NO = 'NO'
     REORIENTED_ONLY = 'REORIENTED_ONLY'
+
+
+class SegmentsOverlap(Enum):
+
+    """Enumerated values for attribute Segments Overlap Attribute."""
+
+    YES = 'YES'
+    UNDEFINED = 'UNDEFINED'
+    NO = 'NO'

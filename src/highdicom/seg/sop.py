@@ -31,6 +31,7 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
+    SegmentsOverlap,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.utils import compute_plane_positions_tiled_full
@@ -553,6 +554,17 @@ class Segmentation(SOPClass):
         # Check that the new segments do not already exist
         if len(set(described_segment_numbers) & self._segment_inventory) > 0:
             raise ValueError('Segment with given segment number already exists')
+
+        # Set the optional tag value SegmentsOverlap to NO to indicate that the
+        # segments do not overlap. We can know this for sure if it's the first
+        # segment (or set of segments) to be added because they are contained
+        # within a single pixel array.
+        if len(self._segment_inventory) == 0:
+            self.SegmentsOverlap = SegmentsOverlap.NO.value
+        else:
+            # If this is not the first set of segments to be added, we cannot
+            # be sure whether there is overlap with the existing segments
+            self.SegmentsOverlap = SegmentsOverlap.UNDEFINED.value
 
         src_img = self._source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
