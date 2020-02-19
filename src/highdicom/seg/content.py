@@ -127,8 +127,8 @@ class Surface(Dataset):
 
     def __init__(
             self,
-            number: int,
-            points: np.ndarray,
+            surface_number: int,
+            surface_points: np.ndarray,
             is_processed: Optional[bool] = None,
             processing_ratio: Optional[float] = None,
             processing_algorithm_identification: Optional[
@@ -140,13 +140,13 @@ class Surface(Dataset):
         """
         Parameters
         ----------
-        number: int
+        surface_number: int
             One-based index number of the surface
-        points: numpy.ndarray
+        surface_points: numpy.ndarray
             Array of shape (n, 3), where *n* is the number of points defining
             the surface of a mesh (polyhedral object in the three-dimensional
-            slide or patient coordinate system) or a point cloud, where each
-            point is defined by a (x, y, z) coordinate triplet
+            slide or patient coordinate system) or a point cloud. Each
+            point is defined by a (x, y, z) coordinate triplet.
         is_processed: bool, optional
             Whether the surface has been processed to reduce the number of
             points
@@ -170,7 +170,7 @@ class Surface(Dataset):
 
         """  # noqa
         super().__init__()
-        self.SurfaceNumber = number
+        self.SurfaceNumber = surface_number
 
         if is_processed is not None:
             if is_processed:
@@ -201,14 +201,14 @@ class Surface(Dataset):
         else:
             self.Manifold = 'UNKNOWN'
 
-        if points.shape[1] != 3:
+        if surface_points.shape[1] != 3:
             raise ValueError(
                 'Points must supposed to be 3D spatial coordinates and must '
                 'be represented as a vector of length 3.'
             )
         points_item = Dataset()
-        points_item.NumberOfSurfacePoints = points.shape[0]
-        points_item.PointCoordinateData = points.flatten().tolist()
+        points_item.NumberOfSurfacePoints = surface_points.shape[0]
+        points_item.PointCoordinateData = surface_points.flatten().tolist()
         self.SurfacePointsSequence = [points_item]
         # TODO: compute bounding box
         # self.PointsBoundingBox = []

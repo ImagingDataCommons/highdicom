@@ -25,7 +25,6 @@ from highdicom.content import (
 )
 from highdicom.enum import (
     CoordinateSystemNames,
-    DimensionOrganizationTypes,
 )
 from highdicom.seg.content import (
     SegmentDescription,
@@ -225,8 +224,8 @@ class Segmentation(SOPClass):
         supported_transfer_syntaxes = {
             '1.2.840.10008.1.2',       # Implicit Little Endian
             '1.2.840.10008.1.2.1',     # Explicit Little Endian
-            '1.2.840.10008.1.2.4.90',  # JPEG2000
-            '1.2.840.10008.1.2.4.80',  # JPEG-LS
+            # '1.2.840.10008.1.2.4.90',  # JPEG2000
+            # '1.2.840.10008.1.2.4.80',  # JPEG-LS
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -262,10 +261,8 @@ class Segmentation(SOPClass):
 
         # Using Container Type Code Sequence attribute would be more elegant,
         # but unfortunately it is a type 2 attribute.
-        if src_img.SOPClassUID in (
-                VLSlideCoordinatesMicroscopicImageStorage,
-                VLWholeSlideMicroscopyImageStorage,
-            ):
+        if (hasattr(src_img, 'ImageOrientationSlide') or
+                hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
             self._coordinate_system = CoordinateSystemNames.SLIDE
         else:
             self._coordinate_system = CoordinateSystemNames.PATIENT
@@ -379,6 +376,12 @@ class Segmentation(SOPClass):
                     coordinate_system=self._coordinate_system,
                     image_orientation=src_img.ImageOrientationSlide
                 )
+                if src_img.SOPClassUID == VLWholeSlideMicroscopyImageStorage:
+                    self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
+                    self.TotalPixelMatrixColumns = \
+                        src_img.TotalPixelMatrixColumns
+                    self.TotalPixelMatrixFocalPlanes = \
+                        src_img.TotalPixelMatrixFocalPlanes
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
                 source_plane_orientation = src_sfg.PlaneOrientationSequence
@@ -399,12 +402,6 @@ class Segmentation(SOPClass):
         dimension_organization.DimensionOrganizationUID = \
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            self.DimensionOrganizationType = \
-                DimensionOrganizationTypes.TILED_SPARSE.value
-        else:
-            self.DimensionOrganizationType = \
-                DimensionOrganizationTypes.THREE_DIMENSIONAL.value
 
         shared_func_groups.PixelMeasuresSequence = pixel_measures
         shared_func_groups.PlaneOrientationSequence = plane_orientation
@@ -742,13 +739,9 @@ class Segmentation(SOPClass):
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
 
-            supports_sparse_tile_encoding = (
-                self.DimensionOrganizationType ==
-                DimensionOrganizationTypes.TILED_SPARSE.value
-            )
             contained_plane_index = []
             for j in plane_sort_index:
-                if np.sum(planes[j]) == 0 and supports_sparse_tile_encoding:
+                if np.sum(planes[j]) == 0:
                     logger.info(
                         'skip empty plane {} of segment #{}'.format(
                             j, segment_number
