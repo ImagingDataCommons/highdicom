@@ -1,4 +1,4 @@
-"""Enumerate values specific to the Segmentation IOD."""
+"""Enumerate values specific to Segmentation IODs."""
 from enum import Enum
 
 

@@ -23,11 +23,13 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
+from highdicom.enum import (
+    CoordinateSystemNames,
+)
 from highdicom.seg.content import (
     SegmentDescription,
     Surface,
 )
-from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import (
     SegmentationFractionalTypes,
     SegmentationTypes,
@@ -223,8 +225,8 @@ class Segmentation(SOPClass):
         supported_transfer_syntaxes = {
             '1.2.840.10008.1.2',       # Implicit Little Endian
             '1.2.840.10008.1.2.1',     # Explicit Little Endian
-            '1.2.840.10008.1.2.4.90',  # JPEG2000
-            '1.2.840.10008.1.2.4.80',  # JPEG-LS
+            # '1.2.840.10008.1.2.4.90',  # JPEG2000
+            # '1.2.840.10008.1.2.4.80',  # JPEG-LS
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -260,10 +262,8 @@ class Segmentation(SOPClass):
 
         # Using Container Type Code Sequence attribute would be more elegant,
         # but unfortunately it is a type 2 attribute.
-        if src_img.SOPClassUID in (
-                VLSlideCoordinatesMicroscopicImageStorage,
-                VLWholeSlideMicroscopyImageStorage,
-            ):
+        if (hasattr(src_img, 'ImageOrientationSlide') or
+                hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
             self._coordinate_system = CoordinateSystemNames.SLIDE
         else:
             self._coordinate_system = CoordinateSystemNames.PATIENT
@@ -377,6 +377,12 @@ class Segmentation(SOPClass):
                     coordinate_system=self._coordinate_system,
                     image_orientation=src_img.ImageOrientationSlide
                 )
+                if src_img.SOPClassUID == VLWholeSlideMicroscopyImageStorage:
+                    self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
+                    self.TotalPixelMatrixColumns = \
+                        src_img.TotalPixelMatrixColumns
+                    self.TotalPixelMatrixFocalPlanes = \
+                        src_img.TotalPixelMatrixFocalPlanes
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
                 source_plane_orientation = src_sfg.PlaneOrientationSequence
@@ -745,7 +751,22 @@ class Segmentation(SOPClass):
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
 
+            contained_plane_index = []
             for j in plane_sort_index:
+                if np.sum(planes[j]) == 0:
+                    logger.info(
+                        'skip empty plane {} of segment #{}'.format(
+                            j, segment_number
+                        )
+                    )
+                    continue
+                contained_plane_index.append(j)
+                logger.info(
+                    'add plane #{} for segment #{}'.format(
+                        j, segment_number
+                    )
+                )
+
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
                 frame_content_item.DimensionIndexValues = [segment_number]
@@ -844,13 +865,16 @@ class Segmentation(SOPClass):
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
 
+            contained_plane_index = np.array(contained_plane_index, dtype=int)
             if re_encode_pixel_data:
                 full_pixel_array = np.concatenate([
                     full_pixel_array,
-                    planes[plane_sort_index].flatten()
+                    planes[contained_plane_index].flatten()
                 ])
             else:
-                self.PixelData += self._encode_pixels(planes[plane_sort_index])
+                self.PixelData += self._encode_pixels(
+                    planes[contained_plane_index]
+                )
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.

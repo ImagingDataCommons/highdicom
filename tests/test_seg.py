@@ -278,8 +278,8 @@ class TestSurface(unittest.TestCase):
 
     def test_construction(self):
         item = Surface(
-            self._number,
-            self._points
+            surface_number=self._number,
+            surface_points=self._points
         )
         assert item.SurfaceNumber == self._number
         assert item.SurfaceProcessing is None
@@ -295,28 +295,28 @@ class TestSurface(unittest.TestCase):
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
             Surface(
-                number=self._number,
+                surface_number=self._number,
             )
 
     def test_construction_missing_required_attribute_2(self):
         with pytest.raises(TypeError):
             Surface(
-                points=self._points
+                surface_points=self._points
             )
 
     def test_construction_missing_conditionally_required_attribute(self):
         with pytest.raises(TypeError):
             Surface(
-                number=self._number,
-                points=self._points,
+                surface_number=self._number,
+                surface_points=self._points,
                 is_processed=True,
             )
 
     def test_construction_missing_conditionally_required_attribute_2(self):
         with pytest.raises(TypeError):
             Surface(
-                number=self._number,
-                points=self._points,
+                surface_number=self._number,
+                surface_points=self._points,
                 is_processed=True,
                 processing_ratio=self._ratio,
             )
@@ -324,16 +324,16 @@ class TestSurface(unittest.TestCase):
     def test_construction_missing_conditionally_required_attribute_3(self):
         with pytest.raises(TypeError):
             Surface(
-                number=self._number,
-                points=self._points,
+                surface_number=self._number,
+                surface_points=self._points,
                 is_processed=True,
                 processing_algorithm_identification=None,
             )
 
     def test_construction_optional_attribute(self):
         item = Surface(
-            number=self._number,
-            points=self._points,
+            surface_number=self._number,
+            surface_points=self._points,
             is_processed=True,
             processing_ratio=self._ratio,
             processing_algorithm_identification=self._algorithm_identification,
@@ -346,8 +346,8 @@ class TestSurface(unittest.TestCase):
 
     def test_construction_optional_attribute_2(self):
         item = Surface(
-            number=self._number,
-            points=self._points,
+            surface_number=self._number,
+            surface_points=self._points,
             is_finite_volume=True,
             is_manifold=True
         )
@@ -356,8 +356,8 @@ class TestSurface(unittest.TestCase):
 
     def test_construction_optional_attribute_3(self):
         item = Surface(
-            number=self._number,
-            points=self._points,
+            surface_number=self._number,
+            surface_points=self._points,
             is_finite_volume=False,
             is_manifold=False
         )
@@ -744,6 +744,10 @@ class TestSegmentation(unittest.TestCase):
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
             self._sm_image.SOPInstanceUID
+        assert instance.TotalPixelMatrixRows == \
+            self._sm_image.TotalPixelMatrixRows
+        assert instance.TotalPixelMatrixColumns == \
+            self._sm_image.TotalPixelMatrixColumns
         assert instance.Rows == self._sm_image.pixel_array.shape[1]
         assert instance.Columns == self._sm_image.pixel_array.shape[2]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
@@ -760,9 +764,8 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.ImageOrientationSlide
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 6
-        assert instance.NumberOfFrames == self._sm_image.NumberOfFrames
-        assert len(instance.PerFrameFunctionalGroupsSequence) == \
-            self._sm_image.NumberOfFrames
+        assert instance.NumberOfFrames == 1  # sparse!
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
@@ -794,12 +797,12 @@ class TestSegmentation(unittest.TestCase):
             self._software_versions,
             self._device_serial_number
         )
-        src_im = self._ct_series[0]
+        src_im = self._ct_series[1]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == len(self._ct_series)
-        ref_item = instance.SourceImageSequence[0]
+        ref_item = instance.SourceImageSequence[1]
         assert ref_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
         assert instance.Rows == src_im.pixel_array.shape[0]
         assert instance.Columns == src_im.pixel_array.shape[1]
@@ -815,9 +818,8 @@ class TestSegmentation(unittest.TestCase):
             src_im.ImageOrientationPatient
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
-        assert instance.NumberOfFrames == len(self._ct_series)
-        assert len(instance.PerFrameFunctionalGroupsSequence) == \
-            len(self._ct_series)
+        assert instance.NumberOfFrames == 1
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
@@ -840,6 +842,7 @@ class TestSegmentation(unittest.TestCase):
         source_uid_to_plane_position = {
             dcm.SOPInstanceUID: dcm.ImagePositionPatient
             for dcm in self._ct_series
+            if dcm.SOPInstanceUID in uid_to_plane_position
         }
         assert source_uid_to_plane_position == uid_to_plane_position
         assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.NO
@@ -923,15 +926,21 @@ class TestSegmentation(unittest.TestCase):
             frame_item.PlanePositionSlideSequence
 
     def test_pixel_types(self):
-        # TODO failing because of ordering?
         tests = [
             ([self._ct_image], self._ct_pixel_array),
-            # ([self._sm_image], self._sm_pixel_array),
+            ([self._sm_image], self._sm_pixel_array),
             (self._ct_series, self._ct_series_mask_array),
             ([self._ct_multiframe], self._ct_multiframe_mask_array),
         ]
 
         for source, mask in tests:
+            if mask.ndim > 2:
+                expected_encoding = np.stack([
+                    frame for frame in mask if np.sum(frame) > 0
+                ])
+                expected_encoding = expected_encoding.squeeze()
+            else:
+                expected_encoding = mask
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
@@ -956,7 +965,10 @@ class TestSegmentation(unittest.TestCase):
                     instance_reread = dcmread(fp)
 
                 # Ensure the recovered pixel array matches what is expected
-                assert (instance_reread.pixel_array == mask).all()
+                assert np.array_equal(
+                    instance_reread.pixel_array,
+                    expected_encoding
+                )
 
                 # Add another segment
                 additional_mask = (1 - mask)
@@ -981,6 +993,18 @@ class TestSegmentation(unittest.TestCase):
                 assert np.array_equal(instance_reread.pixel_array, expected_encoding)
 
         for source, mask in tests:
+            if mask.ndim > 2:
+                expected_encoding = np.stack([
+                    frame for frame in mask if np.sum(frame) > 0
+                ])
+                if len(np.unique(mask)) > 2:
+                    expected_encoding = np.stack([
+                        frame == i for i in np.arange(1, len(np.unique(mask)))
+                        for frame in expected_encoding
+                    ])
+                expected_encoding = expected_encoding.squeeze()
+            else:
+                expected_encoding = (mask > 0).astype(mask.dtype)
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
@@ -1005,7 +1029,10 @@ class TestSegmentation(unittest.TestCase):
                     instance_reread = dcmread(fp)
 
                 # Ensure the recovered pixel array matches what is expected
-                assert (instance_reread.pixel_array == mask).all()
+                assert np.array_equal(
+                    instance_reread.pixel_array,
+                    expected_encoding
+                )
 
                 # Add another segment
                 additional_mask = (1 - mask)
@@ -1050,7 +1077,12 @@ class TestSegmentation(unittest.TestCase):
 
         for mask in [multi_segment_mask, multi_segment_mask_empty]:
             # The expected encoding splits into two channels stacked down axis 0
-            expected_encoding = np.stack([mask == i for i in [1, 2]])
+            if len(np.unique(mask)) > 2:
+                expected_encoding = np.stack([
+                    mask == i for i in np.arange(1, len(np.unique(mask)))
+                ])
+            else:
+                expected_encoding = (mask > 0).astype(mask.dtype)
 
             all_segment_descriptions = (
                 self._segment_descriptions +
@@ -1079,7 +1111,10 @@ class TestSegmentation(unittest.TestCase):
                 instance_reread = dcmread(fp)
 
             # Ensure the recovered pixel array matches what is expected
-            assert (instance_reread.pixel_array == expected_encoding).all()
+            assert np.array_equal(
+                instance_reread.pixel_array,
+                expected_encoding
+            )
 
     def test_construction_wrong_segment_order(self):
         with pytest.raises(ValueError):

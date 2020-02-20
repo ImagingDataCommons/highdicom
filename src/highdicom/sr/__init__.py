@@ -1,4 +1,4 @@
-"""Package for modality Structured Reporting (SR)."""
+"""Package for creationg of Structured Report (SR) instances."""
 
 SOP_CLASS_UIDS = {
     '1.2.840.10008.5.1.4.1.1.88.1',   # Text SR
