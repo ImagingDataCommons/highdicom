@@ -619,6 +619,7 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
+        self._sm_pixel_array[6:9, 2:8, 1:4] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -764,8 +765,12 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.ImageOrientationSlide
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 6
-        assert instance.NumberOfFrames == 1  # sparse!
-        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
+
+        # Number of frames should be number of frames in the segmentation mask
+        # that are non-empty, due to sparsity
+        num_frames = (self._sm_pixel_array.sum(axis=(1, 2)) > 0).sum()
+        assert instance.NumberOfFrames == num_frames
+        assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
@@ -926,6 +931,7 @@ class TestSegmentation(unittest.TestCase):
             frame_item.PlanePositionSlideSequence
 
     def test_pixel_types(self):
+        # A series of tests on different types of image
         tests = [
             ([self._ct_image], self._ct_pixel_array),
             ([self._sm_image], self._sm_pixel_array),
@@ -934,13 +940,26 @@ class TestSegmentation(unittest.TestCase):
         ]
 
         for source, mask in tests:
+
+            # Create a mask for an additional segment as the complement of the original mask
+            additional_mask = (1 - mask)
+
+            # Find the expected encodings for the masks
             if mask.ndim > 2:
                 expected_encoding = np.stack([
                     frame for frame in mask if np.sum(frame) > 0
                 ])
+                expected_additional_encoding = np.stack([
+                    frame for frame in additional_mask if np.sum(frame) > 0
+                ])
+                two_segment_expected_encoding = np.concatenate([expected_encoding, expected_additional_encoding], axis=0)
                 expected_encoding = expected_encoding.squeeze()
+                expected_additional_encoding = expected_additional_encoding.squeeze()
             else:
                 expected_encoding = mask
+                two_segment_expected_encoding = np.stack([mask, additional_mask])
+
+            # Test instance creation for different pixel types
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
@@ -971,7 +990,6 @@ class TestSegmentation(unittest.TestCase):
                 )
 
                 # Add another segment
-                additional_mask = (1 - mask)
                 instance.add_segments(
                     additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
@@ -984,27 +1002,27 @@ class TestSegmentation(unittest.TestCase):
                     fp.seek(0)
                     instance_reread = dcmread(fp)
 
-                # Concatenate to create the expected encoding
-                if mask.ndim == 2:
-                    expected_encoding = np.stack([mask, additional_mask])
-                else:
-                    expected_encoding = np.concatenate([mask, additional_mask], axis=0)
-
-                assert np.array_equal(instance_reread.pixel_array, expected_encoding)
+                # Ensure the recovered pixel array matches what is expected
+                assert np.array_equal(instance_reread.pixel_array, two_segment_expected_encoding)
 
         for source, mask in tests:
+            additional_mask = (1 - mask)
             if mask.ndim > 2:
                 expected_encoding = np.stack([
                     frame for frame in mask if np.sum(frame) > 0
                 ])
-                if len(np.unique(mask)) > 2:
-                    expected_encoding = np.stack([
-                        frame == i for i in np.arange(1, len(np.unique(mask)))
-                        for frame in expected_encoding
-                    ])
+                expected_additional_encoding = np.stack([
+                    frame for frame in additional_mask if np.sum(frame) > 0
+                ])
+                two_segment_expected_encoding = np.concatenate([
+                    expected_encoding, expected_additional_encoding
+                    ] , axis=0)
                 expected_encoding = expected_encoding.squeeze()
+                expected_additional_encoding = expected_additional_encoding.squeeze()
             else:
                 expected_encoding = (mask > 0).astype(mask.dtype)
+                expected_additional_encoding = (additional_mask > 0).astype(mask.dtype)
+                two_segment_expected_encoding = np.stack([expected_encoding, expected_additional_encoding])
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
@@ -1035,7 +1053,6 @@ class TestSegmentation(unittest.TestCase):
                 )
 
                 # Add another segment
-                additional_mask = (1 - mask)
                 instance.add_segments(
                     additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
@@ -1048,13 +1065,8 @@ class TestSegmentation(unittest.TestCase):
                     fp.seek(0)
                     instance_reread = dcmread(fp)
 
-                # Concatenate to create the expected encoding
-                if mask.ndim == 2:
-                    expected_encoding = np.stack([mask, additional_mask])
-                else:
-                    expected_encoding = np.concatenate([mask, additional_mask], axis=0)
-
-                assert np.array_equal(instance_reread.pixel_array, expected_encoding)
+                # Ensure the recovered pixel array matches what is expected
+                assert np.array_equal(instance_reread.pixel_array, two_segment_expected_encoding)
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
