@@ -3,7 +3,6 @@ import datetime
 from typing import Dict, Optional, Union, Sequence, Tuple
 
 import numpy as np
-from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
@@ -129,8 +128,8 @@ class PlanePositionSequence(DataElementSequence):
         ----------
         image_position: Tuple[float, float, float]
             Offset of the first row and first column of the plane (frame) in
-            millimeter along the x, y, and z axis of the patient coordinate
-            system
+            millimeter along the x, y, and z axis of the three-dimensional
+            patient or slide coordinate system
         pixel_matrix_position: Tuple[int, int], optional
             Offset of the first row and first column of the plane (frame) in
             pixels along the row and column direction of the total pixel matrix
@@ -215,7 +214,7 @@ class PlaneOrientationSequence(DataElementSequence):
         image_orientation: Tuple[float, float, float, float, float, float]
             Direction cosines for the first row (first triplet) and the first
             column (second triplet) of an image with respect to the x, y, and z
-            axis of the three-dimensional slide coordinate system
+            axis of the three-dimensional coordinate system
 
         """
         super().__init__()
@@ -268,139 +267,6 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         else:
             return False
-
-
-class DimensionIndexSequence(DataElementSequence):
-
-    """Sequence of data elements describing dimension indices for the patient
-    or slide coordinate system based on the Dimension Index functional
-    group macro.
-
-    Note
-    ----
-    The order of indices is fixed.
-
-    """
-
-    def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames]
-        ) -> None:
-        """
-        Parameters
-        ----------
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
-            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
-
-        """
-        super().__init__()
-        coordinate_system = CoordinateSystemNames(coordinate_system)
-        if coordinate_system == CoordinateSystemNames.SLIDE:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
-
-            segment_number_index = Dataset()
-            segment_number_index.DimensionIndexPointer = tag_for_keyword(
-                'ReferencedSegmentNumber'
-            )
-            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
-                'SegmentIdentificationSequence'
-            )
-            segment_number_index.DimensionOrganizationUID = dim_uid
-            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
-
-            x_image_dimension_index = Dataset()
-            x_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'XOffsetInSlideCoordinateSystem'
-            )
-            x_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            x_image_dimension_index.DimensionOrganizationUID = dim_uid
-            x_image_dimension_index.DimensionDescriptionLabel = \
-                'X Offset in Slide Coordinate System'
-
-            y_image_dimension_index = Dataset()
-            y_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'YOffsetInSlideCoordinateSystem'
-            )
-            y_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            y_image_dimension_index.DimensionOrganizationUID = dim_uid
-            y_image_dimension_index.DimensionDescriptionLabel = \
-                'Y Offset in Slide Coordinate System'
-
-            z_image_dimension_index = Dataset()
-            z_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'ZOffsetInSlideCoordinateSystem'
-            )
-            z_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            z_image_dimension_index.DimensionOrganizationUID = dim_uid
-            z_image_dimension_index.DimensionDescriptionLabel = \
-                'Z Offset in Slide Coordinate System'
-
-            col_image_dimension_index = Dataset()
-            col_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'ColumnPositionInTotalImagePixelMatrix'
-            )
-            col_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            col_image_dimension_index.DimensionOrganizationUID = dim_uid
-            col_image_dimension_index.DimensionDescriptionLabel = \
-                'Column Position In Total Image Pixel Matrix'
-
-            row_image_dimension_index = Dataset()
-            row_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'RowPositionInTotalImagePixelMatrix'
-            )
-            row_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            row_image_dimension_index.DimensionOrganizationUID = dim_uid
-            row_image_dimension_index.DimensionDescriptionLabel = \
-                'Row Position In Total Image Pixel Matrix'
-
-            self.extend([
-                segment_number_index,
-                x_image_dimension_index,
-                y_image_dimension_index,
-                z_image_dimension_index,
-                col_image_dimension_index,
-                row_image_dimension_index,
-            ])
-
-        elif coordinate_system == CoordinateSystemNames.PATIENT:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
-
-            segment_number_index = Dataset()
-            segment_number_index.DimensionIndexPointer = tag_for_keyword(
-                'ReferencedSegmentNumber'
-            )
-            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
-                'SegmentIdentificationSequence'
-            )
-            segment_number_index.DimensionOrganizationUID = dim_uid
-            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
-
-            image_position_index = Dataset()
-            image_position_index.DimensionIndexPointer = tag_for_keyword(
-                'ImagePositionPatient'
-            )
-            image_position_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSequence'
-            )
-            image_position_index.DimensionOrganizationUID = dim_uid
-            image_position_index.DimensionDescriptionLabel = \
-                'Image Position Patient'
-
-            self.extend([
-                segment_number_index,
-                image_position_index,
-            ])
 
 
 class IssuerOfIdentifier(Dataset):

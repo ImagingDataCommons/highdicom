@@ -15,13 +15,13 @@ from pydicom.uid import generate_uid, UID
 
 from highdicom.content import (
     AlgorithmIdentificationSequence,
-    DimensionIndexSequence,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
+    DimensionIndexSequence,
     SegmentDescription,
     Surface,
 )
