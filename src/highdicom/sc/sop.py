@@ -133,7 +133,7 @@ class SCImage(SOPClass):
         laterality: Union[str, highdicom.enum.Lateralities], optional
             Laterality of the examined body part (required if
             `coordinate_system` is ``"PATIENT"``)
-        patient_orientation: 
+        patient_orientation:
                 Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationsBiped, highdicom.enum.PatientOrientationsBiped], Tuple[highdicom.enum.PatientOrientationsQuadruped, highdicom.enum.PatientOrientationsQuadruped]], optional
             Orientation of the patient along the row and column axes of the
             image (required if `coordinate_system` is ``"PATIENT"``)
@@ -256,9 +256,9 @@ class SCImage(SOPClass):
             pixel_array.dtype == np.uint16 and bits_allocated not in (12, 16),
         )
         if any(wrong_bit_depth_assignment):
-            raise ValueError('Pixel array has an unnexpected bit depth.')
+            raise ValueError('Pixel array has an unexpected bit depth.')
         if bits_allocated not in (1, 8, 12, 16):
-            raise ValueError('Unnexpected number of bits allocated.')
+            raise ValueError('Unexpected number of bits allocated.')
         self.BitsAllocated = bits_allocated
         self.HighBit = self.BitsAllocated - 1
         self.BitsStored = self.BitsAllocated
@@ -275,11 +275,11 @@ class SCImage(SOPClass):
             )
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
-                    'Pixel array has an unnexpected photometric interpretation.'
+                    'Pixel array has an unexpected photometric interpretation.'
                 )
             if pixel_array.shape[-1] != 3:
                 raise ValueError(
-                    'Pixel array has an unnexpected number of color channels.'
+                    'Pixel array has an unexpected number of color channels.'
                 )
             if bits_allocated != 8:
                 raise ValueError('Color images must be 8-bit.')
@@ -298,13 +298,13 @@ class SCImage(SOPClass):
             )
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
-                    'Pixel array has an unnexpected photometric interpretation.'
+                    'Pixel array has an unexpected photometric interpretation.'
                 )
             self.PhotometricInterpretation = photometric_interpretation.value
             self.SamplesPerPixel = 1
         else:
             raise ValueError(
-                'Pixel array has an unnexpected number of dimensions.'
+                'Pixel array has an unexpected number of dimensions.'
             )
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
