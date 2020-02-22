@@ -655,6 +655,16 @@ class TestSegmentation(unittest.TestCase):
             frame for frame in mask if np.sum(frame) > 0
         ])
 
+    @staticmethod
+    def get_array_after_writing(instance):
+        # Write a DICOM object to a buffer, read it again and reconstruct the mask
+        with BytesIO() as fp:
+            instance.save_as(fp)
+            fp.seek(0)
+            instance_reread = dcmread(fp)
+
+        return instance_reread
+
     def test_construction(self):
         instance = Segmentation(
             [self._ct_image],
@@ -987,7 +997,7 @@ class TestSegmentation(unittest.TestCase):
                 with BytesIO() as fp:
                     instance.save_as(fp)
                     fp.seek(0)
-                    instance_reread = dcmread(fp)
+                    instance_reread = self.get_array_after_writing(instance)
 
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(
@@ -1104,12 +1114,10 @@ class TestSegmentation(unittest.TestCase):
         )
 
         # Write to buffer and read in again
-        print(len(instance.PixelData))
         with BytesIO() as fp:
             instance.save_as(fp)
             fp.seek(0)
             instance_reread = dcmread(fp)
-        print(len(instance_reread.PixelData))
 
         assert np.array_equal(instance_reread.pixel_array, odd_mask)
 
@@ -1119,12 +1127,10 @@ class TestSegmentation(unittest.TestCase):
         )
 
         # Write to buffer and read in again
-        print(len(instance.PixelData))
         with BytesIO() as fp:
             instance.save_as(fp)
             fp.seek(0)
             instance_reread = dcmread(fp)
-        print(len(instance_reread.PixelData))
 
         expected_two_segment_mask = np.stack([odd_mask, addtional_odd_mask], axis=0)
         assert np.array_equal(instance_reread.pixel_array, expected_two_segment_mask)

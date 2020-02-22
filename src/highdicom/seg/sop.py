@@ -712,10 +712,6 @@ class Segmentation(SOPClass):
             for index in range(plane_position_values.shape[1])
         ]
 
-        # Before adding new pixel data, remove the trailing null padding byte
-        if len(self.PixelData) == get_expected_length(self) + 1:
-            self.PixelData = self.PixelData[:-1]
-
         # When using binary segmentation type, the previous frames may have been
         # padded to be a multiple of 8. In this case, we need to decode the
         # pixel data, add the new pixels and then re-encode. This process
@@ -735,6 +731,10 @@ class Segmentation(SOPClass):
                 full_pixel_array = np.array([], np.bool)
         else:
             re_encode_pixel_data = False
+
+            # Before adding new pixel data, remove the trailing null padding byte
+            if len(self.PixelData) == get_expected_length(self) + 1:
+                self.PixelData = self.PixelData[:-1]
 
         for i, segment_number in enumerate(described_segment_numbers):
             if pixel_array.dtype == np.float:
