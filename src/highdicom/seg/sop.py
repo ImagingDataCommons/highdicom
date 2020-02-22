@@ -18,7 +18,6 @@ from pydicom._storage_sopclass_uids import (
 
 from highdicom.base import SOPClass
 from highdicom.content import (
-    DimensionIndexSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence
@@ -27,6 +26,7 @@ from highdicom.enum import (
     CoordinateSystemNames,
 )
 from highdicom.seg.content import (
+    DimensionIndexSequence,
     SegmentDescription,
     Surface,
 )
