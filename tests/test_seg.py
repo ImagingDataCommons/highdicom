@@ -29,16 +29,6 @@ from highdicom.seg.enum import SegmentAlgorithmTypes, SegmentsOverlap, Segmentat
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation
 
 
-def interleave_frames(a1, a2):
-    # Interleave the frames (down the first dimension) coming from two arrays
-    assert a1.shape == a2.shape
-    out_shape = (a1.shape[0] + a2.shape[0], ) + a1.shape[1:]
-    out = np.empty(out_shape)
-    out[::2] = a1
-    out[1::2] = a2
-    return out
-
-
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
 
     def setUp(self):
