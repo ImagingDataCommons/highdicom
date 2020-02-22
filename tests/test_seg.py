@@ -663,7 +663,7 @@ class TestSegmentation(unittest.TestCase):
             fp.seek(0)
             instance_reread = dcmread(fp)
 
-        return instance_reread
+        return instance_reread.pixel_array
 
     def test_construction(self):
         instance = Segmentation(
@@ -993,15 +993,9 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = self.get_array_after_writing(instance)
-
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(
-                    instance_reread.pixel_array,
+                    self.get_array_after_writing(instance),
                     expected_encoding
                 )
 
@@ -1012,14 +1006,9 @@ class TestSegmentation(unittest.TestCase):
                 )
                 assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.UNDEFINED
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = dcmread(fp)
-
                 # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(instance_reread.pixel_array, two_segment_expected_encoding)
+                assert np.array_equal(self.get_array_after_writing(instance),
+                                      two_segment_expected_encoding)
 
         for source, mask in tests:
             additional_mask = (1 - mask)
@@ -1052,15 +1041,9 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = dcmread(fp)
-
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(
-                    instance_reread.pixel_array,
+                    self.get_array_after_writing(instance),
                     expected_encoding
                 )
 
@@ -1071,14 +1054,11 @@ class TestSegmentation(unittest.TestCase):
                 )
                 assert SegmentsOverlap[instance.SegmentsOverlap] == SegmentsOverlap.UNDEFINED
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = dcmread(fp)
-
                 # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(instance_reread.pixel_array, two_segment_expected_encoding)
+                assert np.array_equal(
+                    self.get_array_after_writing(instance),
+                    two_segment_expected_encoding
+                )
 
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded properly
@@ -1113,28 +1093,18 @@ class TestSegmentation(unittest.TestCase):
             device_serial_number=self._device_serial_number
         )
 
-        # Write to buffer and read in again
-        with BytesIO() as fp:
-            instance.save_as(fp)
-            fp.seek(0)
-            instance_reread = dcmread(fp)
-
-        assert np.array_equal(instance_reread.pixel_array, odd_mask)
+        assert np.array_equal(self.get_array_after_writing(instance), odd_mask)
 
         instance.add_segments(
             addtional_odd_mask,
             self._additional_segment_descriptions
         )
 
-        # Write to buffer and read in again
-        with BytesIO() as fp:
-            instance.save_as(fp)
-            fp.seek(0)
-            instance_reread = dcmread(fp)
-
         expected_two_segment_mask = np.stack([odd_mask, addtional_odd_mask], axis=0)
-        assert np.array_equal(instance_reread.pixel_array, expected_two_segment_mask)
-
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_two_segment_mask
+        )
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
@@ -1184,15 +1154,9 @@ class TestSegmentation(unittest.TestCase):
                 max_fractional_value=1
             )
 
-            # Write to buffer and read in again
-            with BytesIO() as fp:
-                instance.save_as(fp)
-                fp.seek(0)
-                instance_reread = dcmread(fp)
-
             # Ensure the recovered pixel array matches what is expected
             assert np.array_equal(
-                instance_reread.pixel_array,
+                self.get_array_after_writing(instance),
                 expected_encoding
             )
 
