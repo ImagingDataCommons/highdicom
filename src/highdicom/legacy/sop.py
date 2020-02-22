@@ -412,6 +412,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
+            dataset_sorter: Optional[Callable] = sort_slices
             **kwargs
         ) -> None:
         """
@@ -428,6 +429,9 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        dataset_sorter: Callable, optional
+            Function that takes a ``Sequence[pydicom.dataset.Dataset]`` as
+            input and returns ``List[pydicom.dataset.Dataset]`` as output
         **kwargs: Dict[str, Any], optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -471,7 +475,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)
+        _convert_legacy_to_enhanced(dataset_sorter(legacy_datasets), self)
         self.PresentationLUTShape = 'IDENTITY'
 
 
@@ -486,6 +490,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
+            dataset_sorter: Optional[Callable] = sort_slices
             **kwargs
         ) -> None:
         """
@@ -502,6 +507,9 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        dataset_sorter: Callable, optional
+            Function that takes a ``Sequence[pydicom.dataset.Dataset]`` as
+            input and returns ``List[pydicom.dataset.Dataset]`` as output
         **kwargs: Dict[str, Any], optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -545,7 +553,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)
+        _convert_legacy_to_enhanced(data_set_sorter(legacy_datasets), self)
 
 
 class LegacyConvertedEnhancedPETImage(SOPClass):
@@ -559,6 +567,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
+            dataset_sorter: Optional[Callable] = sort_slices
             **kwargs
         ) -> None:
         """
@@ -575,6 +584,9 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        dataset_sorter: Callable, optional
+            Function that takes a ``Sequence[pydicom.dataset.Dataset]`` as
+            input and returns ``List[pydicom.dataset.Dataset]`` as output
         **kwargs: Dict[str, Any], optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -618,4 +630,4 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)
+        _convert_legacy_to_enhanced(dataset_sorter(legacy_datasets), self)
