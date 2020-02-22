@@ -614,6 +614,9 @@ class TestSegmentation(unittest.TestCase):
         self._sm_image = dcmread(
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
+        # Override te existing ImageOrientationSlide to make the frame ordering simpler
+        # for the tests
+        self._sm_image.ImageOrientationSlide = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
         self._sm_pixel_array = np.zeros(
             self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
             dtype=np.bool
@@ -644,6 +647,13 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
+
+    @staticmethod
+    def remove_empty_frames(mask):
+        # Remove empty frames from an array
+        return np.stack([
+            frame for frame in mask if np.sum(frame) > 0
+        ])
 
     def test_construction(self):
         instance = Segmentation(
@@ -946,12 +956,8 @@ class TestSegmentation(unittest.TestCase):
 
             # Find the expected encodings for the masks
             if mask.ndim > 2:
-                expected_encoding = np.stack([
-                    frame for frame in mask if np.sum(frame) > 0
-                ])
-                expected_additional_encoding = np.stack([
-                    frame for frame in additional_mask if np.sum(frame) > 0
-                ])
+                expected_encoding = self.remove_empty_frames(mask)
+                expected_additional_encoding = self.remove_empty_frames(additional_mask)
                 two_segment_expected_encoding = np.concatenate([expected_encoding, expected_additional_encoding], axis=0)
                 expected_encoding = expected_encoding.squeeze()
                 expected_additional_encoding = expected_additional_encoding.squeeze()
@@ -1008,15 +1014,11 @@ class TestSegmentation(unittest.TestCase):
         for source, mask in tests:
             additional_mask = (1 - mask)
             if mask.ndim > 2:
-                expected_encoding = np.stack([
-                    frame for frame in mask if np.sum(frame) > 0
-                ])
-                expected_additional_encoding = np.stack([
-                    frame for frame in additional_mask if np.sum(frame) > 0
-                ])
+                expected_encoding = self.remove_empty_frames(mask)
+                expected_additional_encoding = self.remove_empty_frames(additional_mask)
                 two_segment_expected_encoding = np.concatenate([
                     expected_encoding, expected_additional_encoding
-                    ] , axis=0)
+                    ], axis=0)
                 expected_encoding = expected_encoding.squeeze()
                 expected_additional_encoding = expected_additional_encoding.squeeze()
             else:
@@ -1067,6 +1069,66 @@ class TestSegmentation(unittest.TestCase):
 
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(instance_reread.pixel_array, two_segment_expected_encoding)
+
+    def test_odd_number_pixels(self):
+        # Test that an image with an odd number of pixels per frame is encoded properly
+        # Including when additional segments are subsequently added
+
+        # Create an instance with an odd number of pixels in each frame
+        # Based on the single frame CT image
+        odd_instance = self._ct_image
+        r = 9
+        c = 9
+        odd_pixels = np.random.randint(256, size=(r, c), dtype=np.uint16)
+
+        odd_instance.PixelData = odd_pixels.flatten().tobytes()
+        odd_instance.Rows = r
+        odd_instance.Columns = c
+
+        odd_mask = np.random.randint(2, size=odd_pixels.shape, dtype=np.bool)
+        addtional_odd_mask = np.random.randint(2, size=odd_pixels.shape, dtype=np.bool)
+
+        instance = Segmentation(
+            [odd_instance],
+            odd_mask,
+            SegmentationTypes.BINARY.value,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+
+        # Write to buffer and read in again
+        print(len(instance.PixelData))
+        with BytesIO() as fp:
+            instance.save_as(fp)
+            fp.seek(0)
+            instance_reread = dcmread(fp)
+        print(len(instance_reread.PixelData))
+
+        assert np.array_equal(instance_reread.pixel_array, odd_mask)
+
+        instance.add_segments(
+            addtional_odd_mask,
+            self._additional_segment_descriptions
+        )
+
+        # Write to buffer and read in again
+        print(len(instance.PixelData))
+        with BytesIO() as fp:
+            instance.save_as(fp)
+            fp.seek(0)
+            instance_reread = dcmread(fp)
+        print(len(instance_reread.PixelData))
+
+        expected_two_segment_mask = np.stack([odd_mask, addtional_odd_mask], axis=0)
+        assert np.array_equal(instance_reread.pixel_array, expected_two_segment_mask)
+
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
