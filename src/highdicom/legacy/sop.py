@@ -12,6 +12,7 @@ from pydicom.uid import UID
 
 from highdicom.base import SOPClass
 from highdicom.legacy import SOP_CLASS_UIDS
+from highdicom.utiles import sort_slices
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
@@ -470,7 +471,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)
         self.PresentationLUTShape = 'IDENTITY'
 
 
@@ -544,7 +545,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)
 
 
 class LegacyConvertedEnhancedPETImage(SOPClass):
@@ -617,4 +618,4 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(sort_slices(legacy_datasets), self)

@@ -1,22 +1,23 @@
 import itertools
-from typing import Generator, Tuple
+from typing import Generator, List, Sequence, Tuple
 
 import numpy as np
+from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 
 
-def tile_pixel_matrix(
+def generate_tile_positions(
         total_pixel_matrix_rows: int,
         total_pixel_matrix_columns: int,
         rows: int,
         columns: int,
         image_orientation: Tuple[float, float, float, float, float, float]
     ) -> Generator:
-    """Tiles an image into smaller frames given the size of the
-    total pixel matrix, the size of each frame and the orientation of the image
-    with respect to the three-dimensional slide coordinate system.
+    """Tiles the total pixel matrix of an image into smaller, equally sized
+    frames and computes the position of each tile (frame) with respect to the
+    total pixel matrix.
 
     Parameters
     ----------
@@ -25,9 +26,9 @@ def tile_pixel_matrix(
     total_pixel_matrix_columns: int
         Number of columns in the total pixel matrix
     rows: int
-        Number of rows per tile
+        Number of rows per frame
     columns: int
-        Number of columns per tile
+        Number of columns per frame
     image_orientation: Tuple[float, float, float, float, float, float]
         Cosines of row (first triplet) and column (second triplet) direction
         for x, y and z axis of the slide coordinate system
@@ -35,7 +36,8 @@ def tile_pixel_matrix(
     Returns
     -------
     Generator
-        One-based row, column coordinates of each image tile
+        One-based row, column coordinates of each frame relative to the
+        total pixel matrix
 
     """
     tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
@@ -141,3 +143,61 @@ def compute_plane_positions_tiled_full(
         image_position=(x_offset_frame, y_offset_frame, z_offset_frame),
         pixel_matrix_position=(row_offset_frame, column_offset_frame)
     )
+
+
+def compute_image_offset(
+        image_position: Tuple[float, float, float],
+        image_orientation: Tuple[float, float, float, float, float, float]
+    ) -> float:
+    '''Computes the offset of an image in three-dimensional space
+    from the origin of the frame of reference.
+
+    Parameters
+    ----------
+    image_position: Tuple[float, float, float]
+        Offset of the first row and first column of the plane (frame) in
+        millimeter along the x, y, and z axis of the three-dimensional
+        coordinate system
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Direction cosines for the first row (first triplet) and the first
+        column (second triplet) of an image with respect to the x, y, and z
+        axis of the three-dimensional coordinate system
+
+    Returns
+    -------
+    float
+        Offset
+
+    '''
+    position = np.array(image_position, dtype=float)
+    orientation = np.array(image_orientation, dtype=float)
+    normal = np.cross(orientation[0:3], orientation[3:6])
+    return float(np.sum(normal * position))
+
+
+def sort_slices(datasets: Sequence[Dataset]) -> List[Dataset]:
+    '''Sorts single-frame image instances based on their position in the
+    three-dimensional coordinate system.
+
+    Parameters
+    ----------
+    datasets: Sequence[pydicom.dataset.Dataset]
+        DICOM data sets of single-frame image instances
+
+    Returns
+    -------
+    List[pydicom.dataset.Dataset]
+        sorted DICOM data sets
+
+    '''
+
+    def sort_func(ds):
+        distance = compute_image_offset(
+            ds.ImageOrientationPatient, ds.ImagePositionPatient
+        )
+        return (distance, )
+
+    if len(datasets) == 0:
+        return []
+
+    return sorted(datasets, key=sort_func, reverse=False)
