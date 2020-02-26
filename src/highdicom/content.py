@@ -10,9 +10,8 @@ from pydicom.sr.codedict import codes
 
 from highdicom.enum import (
     CoordinateSystemNames,
-    UniversalEntityIDTypes,
+    UniversalEntityIDTypeValues,
 )
-from highdicom.seg.enum import SegmentAlgorithmTypes
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -277,7 +276,7 @@ class IssuerOfIdentifier(Dataset):
             self,
             issuer_of_identifier: str,
             issuer_of_identifier_type: Optional[
-                Union[str, UniversalEntityIDTypes]
+                Union[str, UniversalEntityIDTypeValues]
             ] = None
         ):
         """
@@ -285,7 +284,7 @@ class IssuerOfIdentifier(Dataset):
         ----------
         issuer_of_identifier: str
             Identifier of the entity that created the examined specimen
-        issuer_of_identifier_type: Union[str, highdicom.enum.UniversalEntityIDTypes], optional
+        issuer_of_identifier_type: Union[str, highdicom.enum.UniversalEntityIDTypeValues], optional
             Type of identifier of the entity that created the examined specimen
             (required if `issuer_of_specimen_id` is a Unique Entity ID)
 
@@ -295,7 +294,7 @@ class IssuerOfIdentifier(Dataset):
             self.LocalNamespaceEntityID = issuer_of_identifier
         else:
             self.UniversalEntityID = issuer_of_identifier
-            issuer_of_identifier_type = UniversalEntityIDTypes(
+            issuer_of_identifier_type = UniversalEntityIDTypeValues(
                 issuer_of_identifier_type
             )
             self.UniversalEntityIDType = issuer_of_identifier_type.value

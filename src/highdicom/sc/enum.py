@@ -2,7 +2,7 @@
 from enum import Enum
 
 
-class ConversionTypes(Enum):
+class ConversionTypeValues(Enum):
 
     """Enumerated values for attribute Conversion Type."""
 

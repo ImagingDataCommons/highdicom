@@ -16,7 +16,7 @@ from pydicom.uid import (
 from pydicom.valuerep import DA, DT, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
-from highdicom.enum import ContentQualifications
+from highdicom.enum import ContentQualificationValues
 from highdicom.version import __version__
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
@@ -174,7 +174,9 @@ class SOPClass(Dataset):
         self.ContentDate = DA(datetime.now().date())
         self.ContentTime = TM(datetime.now().time())
         if content_qualification is not None:
-            content_qualification = ContentQualifications(content_qualification)
+            content_qualification = ContentQualificationValues(
+                content_qualification
+            )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
             self.CodingSchemeIdentificationSequence = []

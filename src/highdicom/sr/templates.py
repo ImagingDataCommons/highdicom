@@ -17,13 +17,13 @@ from highdicom.sr.content import (
     ReferencedSegmentationFrame,
     SourceImageForMeasurement,
 )
+from highdicom.sr.enum import RelationshipTypeValues
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
     ContentItem,
     ContentSequence,
     NumContentItem,
-    RelationshipTypes,
     TextContentItem,
     UIDRefContentItem,
 )
@@ -80,7 +80,7 @@ class AlgorithmIdentification(Template):
                 scheme_designator='DCM'
             ),
             value=name,
-            relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.append(name_item)
         version_item = TextContentItem(
@@ -90,7 +90,7 @@ class AlgorithmIdentification(Template):
                 scheme_designator='DCM'
             ),
             value=version,
-            relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.append(version_item)
         if parameters is not None:
@@ -102,7 +102,7 @@ class AlgorithmIdentification(Template):
                         scheme_designator='DCM'
                     ),
                     value=param,
-                    relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 self.append(parameter_item)
 
@@ -130,7 +130,7 @@ class TrackingIdentifier(Template):
                     scheme_designator='DCM'
                 ),
                 value=identifier,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(tracking_identifier_item)
         tracking_uid_item = UIDRefContentItem(
@@ -140,7 +140,7 @@ class TrackingIdentifier(Template):
                 scheme_designator='DCM'
             ),
             value=uid,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(tracking_uid_item)
 
@@ -198,7 +198,7 @@ class TimePointContext(Template):
                 scheme_designator='UMLS'
             ),
             value=time_point,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(time_point_item)
         if time_point_type is not None:
@@ -209,7 +209,7 @@ class TimePointContext(Template):
                     scheme_designator='DCM'
                 ),
                 value=time_point_type,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(time_point_type_item)
         if time_point_order is not None:
@@ -220,7 +220,7 @@ class TimePointContext(Template):
                     scheme_designator='DCM'
                 ),
                 value=time_point_order,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(time_point_order_item)
         if subject_time_point_identifier is not None:
@@ -231,7 +231,7 @@ class TimePointContext(Template):
                     scheme_designator='DCM'
                 ),
                 value=subject_time_point_identifier,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(subject_time_point_identifier_item)
         if protocol_time_point_identifier is not None:
@@ -242,7 +242,7 @@ class TimePointContext(Template):
                     scheme_designator='DCM'
                 ),
                 value=protocol_time_point_identifier,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(protocol_time_point_identifier_item)
         if temporal_offset_from_event is not None:
@@ -298,7 +298,7 @@ class MeasurementStatisticalProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=authority,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(description_item)
         if authority is not None:
@@ -309,7 +309,7 @@ class MeasurementStatisticalProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=authority,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(authority_item)
 
@@ -351,14 +351,14 @@ class NormalRangeProperties(Template):
             description_item = TextContentItem(
                 name=codes.DCM.NormalRangeDescription,
                 value=description,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(description_item)
         if authority is not None:
             authority_item = TextContentItem(
                 name=codes.DCM.NormalRangeAuthority,
                 value=authority,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(authority_item)
 
@@ -413,7 +413,7 @@ class MeasurementProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=normality,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(normality_item)
         if measurement_statistical_properties is not None:
@@ -440,7 +440,7 @@ class MeasurementProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=level_of_significance,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(level_of_significance_item)
         if selection_status is not None:
@@ -451,7 +451,7 @@ class MeasurementProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=selection_status,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(selection_status_item)
         if upper_measurement_uncertainty is not None:
@@ -462,7 +462,7 @@ class MeasurementProperties(Template):
                     scheme_designator='SCT'
                 ),
                 value=upper_measurement_uncertainty,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(upper_measurement_uncertainty_item)
         if lower_measurement_uncertainty is not None:
@@ -473,7 +473,7 @@ class MeasurementProperties(Template):
                     scheme_designator='SCT'
                 ),
                 value=lower_measurement_uncertainty,
-                relationship_type=RelationshipTypes.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(lower_measurement_uncertainty_item)
 
@@ -513,7 +513,7 @@ class PersonObserverIdentifyingAttributes(Template):
                 scheme_designator='DCM',
             ),
             value=name,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(name_item)
         if login_name is not None:
@@ -524,7 +524,7 @@ class PersonObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=login_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(login_name_item)
         if organization_name is not None:
@@ -535,7 +535,7 @@ class PersonObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=organization_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(organization_name_item)
         if role_in_organization is not None:
@@ -546,7 +546,7 @@ class PersonObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=role_in_organization,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(role_in_organization_item)
         if role_in_procedure is not None:
@@ -557,7 +557,7 @@ class PersonObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=role_in_procedure,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(role_in_procedure_item)
 
@@ -603,7 +603,7 @@ class DeviceObserverIdentifyingAttributes(Template):
                 scheme_designator='DCM',
             ),
             value=uid,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(device_observer_item)
         if manufacturer_name is not None:
@@ -614,7 +614,7 @@ class DeviceObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=manufacturer_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(manufacturer_name_item)
         if model_name is not None:
@@ -625,7 +625,7 @@ class DeviceObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=model_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(model_name_item)
         if serial_number is not None:
@@ -636,21 +636,21 @@ class DeviceObserverIdentifyingAttributes(Template):
                     scheme_designator='DCM',
                 ),
                 value=serial_number,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(serial_number_item)
         if physical_location is not None:
             physical_location_item = TextContentItem(
                 name=codes.DCM.DeviceObserverPhysicalLocationDuringObservation,
                 value=physical_location,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(physical_location_item)
         if role_in_procedure is not None:
             role_in_procedure_item = CodeContentItem(
                 name=codes.DCM.DeviceRoleInProcedure,
                 value=role_in_procedure,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(role_in_procedure_item)
 
@@ -685,7 +685,7 @@ class ObserverContext(Template):
                 scheme_designator='DCM',
             ),
             value=observer_type,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(observer_type_item)
         if observer_type == codes.cid270.Person:
@@ -735,7 +735,7 @@ class SubjectContextFetus(Template):
                 scheme_designator='DCM'
             ),
             value=subject_id,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(subject_id_item)
 
@@ -775,7 +775,7 @@ class SubjectContextSpecimen(Template):
                 scheme_designator='DCM'
             ),
             value=uid,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(specimen_uid_item)
         if identifier is not None:
@@ -786,7 +786,7 @@ class SubjectContextSpecimen(Template):
                     scheme_designator='DCM'
                 ),
                 value=identifier,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(specimen_identifier_item)
         if container_identifier is not None:
@@ -797,7 +797,7 @@ class SubjectContextSpecimen(Template):
                     scheme_designator='DCM'
                 ),
                 value=container_identifier,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(container_identifier_item)
         if specimen_type is not None:
@@ -808,7 +808,7 @@ class SubjectContextSpecimen(Template):
                     scheme_designator='DCM'
                 ),
                 value=specimen_type,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(specimen_type_item)
 
@@ -847,14 +847,14 @@ class SubjectContextDevice(Template):
         device_name_item = TextContentItem(
             name=codes.DCM.DeviceSubjectName,
             value=name,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(device_name_item)
         if uid is not None:
             device_uid_item = UIDRefContentItem(
                 name=codes.DCM.DeviceSubjectUID,
                 value=uid,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(device_uid_item)
         if manufacturer_name is not None:
@@ -865,7 +865,7 @@ class SubjectContextDevice(Template):
                     scheme_designator='DCM',
                 ),
                 value=manufacturer_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(manufacturer_name_item)
         if model_name is not None:
@@ -876,7 +876,7 @@ class SubjectContextDevice(Template):
                     scheme_designator='DCM',
                 ),
                 value=model_name,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(model_name_item)
         if serial_number is not None:
@@ -887,14 +887,14 @@ class SubjectContextDevice(Template):
                     scheme_designator='DCM',
                 ),
                 value=serial_number,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(serial_number_item)
         if physical_location is not None:
             physical_location_item = TextContentItem(
                 name=codes.DCM.DeviceSubjectPhysicalLocationDuringObservation,
                 value=physical_location,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(physical_location_item)
 
@@ -932,7 +932,7 @@ class SubjectContext(Template):
                 scheme_designator='DCM'
             ),
             value=subject_class,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(subject_class_item)
         self.extend(subject_class_specific_context)
@@ -1012,7 +1012,7 @@ class LanguageOfContentItemAndDescendants(Template):
                 scheme_designator='DCM',
             ),
             value=language,
-            relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.append(language_item)
 
@@ -1084,7 +1084,7 @@ class Measurement(Template):
             value=value,
             unit=unit,
             qualifier=qualifier,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         value_item.ContentSequence = ContentSequence()
         if tracking_identifier is not None:
@@ -1102,7 +1102,7 @@ class Measurement(Template):
                     scheme_designator='SCT'
                 ),
                 value=method,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             value_item.ContentSequence.append(method_item)
         if derivation is not None:
@@ -1113,7 +1113,7 @@ class Measurement(Template):
                     scheme_designator='DCM'
                 ),
                 value=derivation,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             value_item.ContentSequence.append(derivation_item)
         if finding_sites is not None:
@@ -1214,7 +1214,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 meaning='Measurement Group',
                 scheme_designator='DCM'
             ),
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         group_item.ContentSequence = ContentSequence()
         if not isinstance(tracking_identifier, TrackingIdentifier):
@@ -1237,7 +1237,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     scheme_designator='NCIt'
                 ),
                 value=session,
-                relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             group_item.ContentSequence.append(session_item)
         if finding_type is not None:
@@ -1248,7 +1248,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     scheme_designator='DCM'
                 ),
                 value=finding_type,
-                relationship_type=RelationshipTypes.CONTAINS
+                relationship_type=RelationshipTypeValues.CONTAINS
             )
             group_item.ContentSequence.append(finding_type_item)
         if method is not None:
@@ -1259,7 +1259,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     scheme_designator='SCT'
                 ),
                 value=method,
-                relationship_type=RelationshipTypes.CONTAINS
+                relationship_type=RelationshipTypeValues.CONTAINS
             )
             group_item.ContentSequence.append(method_item)
         if finding_sites is not None:
@@ -1651,7 +1651,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         """  # noqa
         value_item = NumContentItem(
             name=derivation,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         value_item.ContentSequence = ContentSequence()
         for group in measurement_groups:
@@ -1761,7 +1761,7 @@ class MeasurementReport(Template):
                     scheme_designator='DCM',
                 ),
                 value=procedure,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             item.ContentSequence.append(procedure_item)
         image_library_item = ImageLibrary()
@@ -1788,7 +1788,7 @@ class MeasurementReport(Template):
                     meaning='Imaging Measurements',
                     scheme_designator='DCM'
                 ),
-                relationship_type=RelationshipTypes.CONTAINS
+                relationship_type=RelationshipTypeValues.CONTAINS
             )
             container_item.ContentSequence = []
             for measurements in imaging_measurements:
@@ -1815,7 +1815,7 @@ class MeasurementReport(Template):
                     meaning='Derived Imaging Measurements',
                     scheme_designator='DCM'
                 ),
-                relationship_type=RelationshipTypes.CONTAINS
+                relationship_type=RelationshipTypeValues.CONTAINS
             )
             container_item.ContentSequence = []
             for measurements in derived_imaging_measurements:
@@ -1860,6 +1860,6 @@ class ImageLibrary(Template):
                 meaning='Image Library',
                 scheme_designator='DCM'
             ),
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.append(library_item)

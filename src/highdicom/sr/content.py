@@ -5,10 +5,10 @@ import numpy as np
 from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
-    GraphicTypes,
-    GraphicTypes3D,
-    PixelOriginInterpretations,
-    RelationshipTypes,
+    GraphicTypeValues,
+    GraphicTypeValues3D,
+    PixelOriginInterpretationValues,
+    RelationshipTypeValues,
 )
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -53,7 +53,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
             ),
             value=value,
             unit=unit,
-            relationship_type=RelationshipTypes.HAS_OBS_CONTEXT
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         event_type_item = CodeContentItem(
             name=CodedConcept(
@@ -62,7 +62,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
                 scheme_designator='DCM'
             ),
             value=event_type,
-            relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.ContentSequence = ContentSequence([event_type_item])
 
@@ -100,7 +100,7 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypes.SELECTED_FROM
+            relationship_type=RelationshipTypeValues.SELECTED_FROM
         )
 
 
@@ -137,7 +137,7 @@ class SourceImageForRegion(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypes.SELECTED_FROM
+            relationship_type=RelationshipTypeValues.SELECTED_FROM
         )
 
 
@@ -174,7 +174,7 @@ class SourceImageForSegmentation(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -199,7 +199,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
                 scheme_designator='DCM'
             ),
             value=referenced_series_instance_uid,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -211,35 +211,35 @@ class ImageRegion(ScoordContentItem):
 
     def __init__(
             self,
-            graphic_type: Union[GraphicTypes, str],
+            graphic_type: Union[GraphicTypeValues, str],
             graphic_data: np.ndarray,
             source_image: SourceImageForRegion,
             pixel_origin_interpretation: Optional[
-                Union[PixelOriginInterpretations, str]
+                Union[PixelOriginInterpretationValues, str]
             ] = None
         ) -> None:
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, str]
             name of the graphic type
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
         source_image: pydicom.sr.template.SourceImageForRegion
             source image to which `graphic_data` relates
-        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretations, str], optional
+        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretationValues, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
-            (``highdicom.sr.enum.PixelOriginInterpretations.VOLUME``) or
+            (``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
-            (``highdicom.sr.enum.PixelOriginInterpretations.FRAME``)
+            (``highdicom.sr.enum.PixelOriginInterpretationValues.FRAME``)
             of the source image
-            (default: ``highdicom.sr.enum.PixelOriginInterpretations.VOLUME``)
+            (default: ``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``)
 
         """  # noqa
-        graphic_type = GraphicTypes(graphic_type)
-        if graphic_type == GraphicTypes.MULTIPOINT:
+        graphic_type = GraphicTypeValues(graphic_type)
+        if graphic_type == GraphicTypeValues.MULTIPOINT:
             raise ValueError(
                 'Graphic type "MULTIPOINT" is not valid for region.'
             )
@@ -248,8 +248,8 @@ class ImageRegion(ScoordContentItem):
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
         if pixel_origin_interpretation is None:
-            pixel_origin_interpretation = PixelOriginInterpretations.VOLUME
-        if pixel_origin_interpretation == PixelOriginInterpretations.FRAME:
+            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
+        if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
             if (not hasattr(source_image, 'ReferencedFrameNumber') or
                     source_image.ReferencedFrameNumber is None):
                 raise ValueError(
@@ -265,7 +265,7 @@ class ImageRegion(ScoordContentItem):
             graphic_type=graphic_type,
             graphic_data=graphic_data,
             pixel_origin_interpretation=pixel_origin_interpretation,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.ContentSequence = [source_image]
 
@@ -278,14 +278,14 @@ class ImageRegion3D(Scoord3DContentItem):
 
     def __init__(
             self,
-            graphic_type: Union[GraphicTypes3D, str],
+            graphic_type: Union[GraphicTypeValues3D, str],
             graphic_data: np.ndarray,
             frame_of_reference_uid: str
         ) -> None:
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypes3D, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
@@ -294,12 +294,12 @@ class ImageRegion3D(Scoord3DContentItem):
             UID of the frame of reference
 
         """  # noqa
-        graphic_type = GraphicTypes3D(graphic_type)
-        if graphic_type == GraphicTypes3D.MULTIPOINT:
+        graphic_type = GraphicTypeValues3D(graphic_type)
+        if graphic_type == GraphicTypeValues3D.MULTIPOINT:
             raise ValueError(
                 'Graphic type "MULTIPOINT" is not valid for region.'
             )
-        if graphic_type == GraphicTypes3D.ELLIPSOID:
+        if graphic_type == GraphicTypeValues3D.ELLIPSOID:
             raise ValueError(
                 'Graphic type "ELLIPSOID" is not valid for region.'
             )
@@ -312,7 +312,7 @@ class ImageRegion3D(Scoord3DContentItem):
             graphic_type=graphic_type,
             graphic_data=graphic_data,
             frame_of_reference_uid=frame_of_reference_uid,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -324,7 +324,7 @@ class VolumeSurface(Scoord3DContentItem):
 
     def __init__(
             self,
-            graphic_type: Union[GraphicTypes3D, str],
+            graphic_type: Union[GraphicTypeValues3D, str],
             graphic_data: np.ndarray,
             frame_of_reference_uid: str,
             source_images: Optional[
@@ -335,7 +335,7 @@ class VolumeSurface(Scoord3DContentItem):
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypes, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: Sequence[Sequence[int]]
             ordered set of (row, column, frame) coordinate pairs
@@ -352,8 +352,8 @@ class VolumeSurface(Scoord3DContentItem):
         Either one or more source images or one source series must be provided.
 
         """  # noqa
-        graphic_type = GraphicTypes3D(graphic_type)
-        if graphic_type != GraphicTypes3D.ELLIPSOID:
+        graphic_type = GraphicTypeValues3D(graphic_type)
+        if graphic_type != GraphicTypeValues3D.ELLIPSOID:
             raise ValueError(
                 'Graphic type for volume surface must be "ELLIPSOID".'
             )
@@ -366,7 +366,7 @@ class VolumeSurface(Scoord3DContentItem):
             frame_of_reference_uid=frame_of_reference_uid,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.ContentSequence = ContentSequence()
         if source_images is not None:
@@ -411,7 +411,7 @@ class RealWorldValueMap(CompositeContentItem):
             ),
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.67',
             referenced_sop_instance_uid=referenced_sop_instance_uid,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -444,7 +444,7 @@ class FindingSite(CodeContentItem):
                 scheme_designator='SCT'
             ),
             value=anatomic_location,
-            relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.ContentSequence = ContentSequence()
         if laterality is not None:
@@ -455,7 +455,7 @@ class FindingSite(CodeContentItem):
                     scheme_designator='SCT'
                 ),
                 value=laterality,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             self.ContentSequence.append(laterality_item)
         if topographical_modifier is not None:
@@ -466,7 +466,7 @@ class FindingSite(CodeContentItem):
                     scheme_designator='SCT'
                 ),
                 value=topographical_modifier,
-                relationship_type=RelationshipTypes.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             self.ContentSequence.append(modifier_item)
 
@@ -512,7 +512,7 @@ class ReferencedSegmentationFrame(ContentSequence):
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_number,
             referenced_segment_numbers=segment_number,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.append(segmentation_item)
         if not isinstance(source_image, SourceImageForSegmentation):
@@ -574,7 +574,7 @@ class ReferencedSegment(ContentSequence):
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_numbers,
             referenced_segment_numbers=segment_number,
-            relationship_type=RelationshipTypes.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.append(segment_item)
         if source_images is not None:

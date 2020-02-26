@@ -25,7 +25,11 @@ from highdicom.seg.content import (
     SegmentDescription,
     Surface,
 )
-from highdicom.seg.enum import SegmentAlgorithmTypes, SegmentationTypes
+from highdicom.seg.enum import (
+    SegmentAlgorithmTypeValues,
+    SegmentsOverlapValues,
+    SegmentationTypeValues,
+)
 from highdicom.seg.sop import Segmentation, SurfaceSegmentation
 
 
@@ -116,7 +120,8 @@ class TestSegmentDescription(unittest.TestCase):
         self._segmented_property_category = \
             codes.SCT.MorphologicallyAbnormalStructure
         self._segmented_property_type = codes.SCT.Neoplasm
-        self._segment_algorithm_type = SegmentAlgorithmTypes.AUTOMATIC.value
+        self._segment_algorithm_type = \
+            SegmentAlgorithmTypeValues.AUTOMATIC.value
         self._algorithm_identification = AlgorithmIdentificationSequence(
             name='bla',
             family=codes.DCM.ArtificialIntelligence,
@@ -557,7 +562,7 @@ class TestSegmentation(unittest.TestCase):
                 segment_label='Segment #1',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
-                algorithm_type=SegmentAlgorithmTypes.AUTOMATIC.value,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='bla',
                     family=codes.DCM.ArtificialIntelligence,
@@ -571,7 +576,7 @@ class TestSegmentation(unittest.TestCase):
                 segment_label='Segment #2',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
-                algorithm_type=SegmentAlgorithmTypes.AUTOMATIC.value,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='foo',
                     family=codes.DCM.ArtificialIntelligence,
@@ -604,11 +609,15 @@ class TestSegmentation(unittest.TestCase):
         self._sm_image = dcmread(
             os.path.join(data_dir, 'test_files', 'sm_image.dcm')
         )
+        # Override te existing ImageOrientationSlide to make the frame ordering
+        # simpler for the tests
+        self._sm_image.ImageOrientationSlide = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
         self._sm_pixel_array = np.zeros(
             self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
+        self._sm_pixel_array[6:9, 2:8, 1:4] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -634,11 +643,28 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
 
+    @staticmethod
+    def remove_empty_frames(mask):
+        # Remove empty frames from an array
+        return np.stack([
+            frame for frame in mask if np.sum(frame) > 0
+        ])
+
+    @staticmethod
+    def get_array_after_writing(instance):
+        # Write DICOM object to buffer, read it again and reconstruct the mask
+        with BytesIO() as fp:
+            instance.save_as(fp)
+            fp.seek(0)
+            instance_reread = dcmread(fp)
+
+        return instance_reread.pixel_array
+
     def test_construction(self):
         instance = Segmentation(
             [self._ct_image],
             self._ct_pixel_array,
-            SegmentationTypes.FRACTIONAL.value,
+            SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
             self._series_number,
@@ -708,6 +734,8 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_content_item.DimensionIndexValues) == 2
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -715,7 +743,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             [self._sm_image],
             self._sm_pixel_array,
-            SegmentationTypes.FRACTIONAL.value,
+            SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
             self._series_number,
@@ -753,8 +781,12 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.ImageOrientationSlide
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 6
-        assert instance.NumberOfFrames == 1  # sparse!
-        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
+
+        # Number of frames should be number of frames in the segmentation mask
+        # that are non-empty, due to sparsity
+        num_frames = (self._sm_pixel_array.sum(axis=(1, 2)) > 0).sum()
+        assert instance.NumberOfFrames == num_frames
+        assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
@@ -766,6 +798,8 @@ class TestSegmentation(unittest.TestCase):
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
             assert hasattr(source_image_item, 'ReferencedFrameNumber')
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
 
@@ -774,7 +808,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
-            SegmentationTypes.FRACTIONAL.value,
+            SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
             self._series_number,
@@ -833,6 +867,8 @@ class TestSegmentation(unittest.TestCase):
             if dcm.SOPInstanceUID in uid_to_plane_position
         }
         assert source_uid_to_plane_position == uid_to_plane_position
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
@@ -841,7 +877,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             [self._ct_multiframe],
             self._ct_multiframe_mask_array,
-            SegmentationTypes.FRACTIONAL.value,
+            SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
             self._series_number,
@@ -908,10 +944,13 @@ class TestSegmentation(unittest.TestCase):
             assert source_image_item.ReferencedFrameNumber == i + 1
             assert source_image_item.ReferencedSOPInstanceUID == \
                 self._ct_multiframe.SOPInstanceUID
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
 
     def test_pixel_types(self):
+        # A series of tests on different types of image
         tests = [
             ([self._ct_image], self._ct_pixel_array),
             ([self._sm_image], self._sm_pixel_array),
@@ -920,18 +959,36 @@ class TestSegmentation(unittest.TestCase):
         ]
 
         for source, mask in tests:
+
+            # Create a mask for an additional segment as the complement of the
+            # original mask
+            additional_mask = (1 - mask)
+
+            # Find the expected encodings for the masks
             if mask.ndim > 2:
-                expected_encoding = np.stack([
-                    frame for frame in mask if np.sum(frame) > 0
-                ])
+                expected_encoding = self.remove_empty_frames(mask)
+                expected_additional_encoding = self.remove_empty_frames(
+                    additional_mask
+                )
+                two_segment_expected_encoding = np.concatenate(
+                    [expected_encoding, expected_additional_encoding],
+                    axis=0
+                )
                 expected_encoding = expected_encoding.squeeze()
+                expected_additional_encoding = \
+                    expected_additional_encoding.squeeze()
             else:
                 expected_encoding = mask
+                two_segment_expected_encoding = np.stack(
+                    [mask, additional_mask]
+                )
+
+            # Test instance creation for different pixel types
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
                     mask.astype(pix_type),
-                    SegmentationTypes.FRACTIONAL.value,
+                    SegmentationTypeValues.FRACTIONAL.value,
                     self._segment_descriptions,
                     self._series_instance_uid,
                     self._series_number,
@@ -944,42 +1001,50 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = dcmread(fp)
-
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(
-                    instance_reread.pixel_array,
+                    self.get_array_after_writing(instance),
                     expected_encoding
                 )
 
                 # Add another segment
                 instance.add_segments(
-                    mask.astype(pix_type),
+                    additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
                 )
+                assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+                    SegmentsOverlapValues.UNDEFINED
+
+                # Ensure the recovered pixel array matches what is expected
+                assert np.array_equal(self.get_array_after_writing(instance),
+                                      two_segment_expected_encoding)
 
         for source, mask in tests:
+            additional_mask = (1 - mask)
             if mask.ndim > 2:
-                expected_encoding = np.stack([
-                    frame for frame in mask if np.sum(frame) > 0
-                ])
-                if len(np.unique(mask)) > 2:
-                    expected_encoding = np.stack([
-                        frame == i for i in np.arange(1, len(np.unique(mask)))
-                        for frame in expected_encoding
-                    ])
+                expected_encoding = self.remove_empty_frames(mask)
+                expected_additional_encoding = \
+                    self.remove_empty_frames(additional_mask)
+                two_segment_expected_encoding = np.concatenate(
+                    [expected_encoding, expected_additional_encoding],
+                    axis=0
+                )
                 expected_encoding = expected_encoding.squeeze()
+                expected_additional_encoding = \
+                    expected_additional_encoding.squeeze()
             else:
                 expected_encoding = (mask > 0).astype(mask.dtype)
+                expected_additional_encoding = (additional_mask > 0).astype(
+                    mask.dtype
+                )
+                two_segment_expected_encoding = np.stack(
+                    [expected_encoding, expected_additional_encoding]
+                )
             for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                 instance = Segmentation(
                     source,
                     mask.astype(pix_type),
-                    SegmentationTypes.BINARY.value,
+                    SegmentationTypeValues.BINARY.value,
                     self._segment_descriptions,
                     self._series_instance_uid,
                     self._series_number,
@@ -992,23 +1057,86 @@ class TestSegmentation(unittest.TestCase):
                     max_fractional_value=1
                 )
 
-                # Write to buffer and read in again
-                with BytesIO() as fp:
-                    instance.save_as(fp)
-                    fp.seek(0)
-                    instance_reread = dcmread(fp)
-
                 # Ensure the recovered pixel array matches what is expected
                 assert np.array_equal(
-                    instance_reread.pixel_array,
+                    self.get_array_after_writing(instance),
                     expected_encoding
                 )
 
                 # Add another segment
                 instance.add_segments(
-                    mask.astype(pix_type),
+                    additional_mask.astype(pix_type),
                     self._additional_segment_descriptions
                 )
+                assert SegmentsOverlapValues(instance.SegmentsOverlap) == \
+                    SegmentsOverlapValues.UNDEFINED
+
+                # Ensure the recovered pixel array matches what is expected
+                assert np.array_equal(
+                    self.get_array_after_writing(instance),
+                    two_segment_expected_encoding
+                )
+
+    def test_odd_number_pixels(self):
+        # Test that an image with an odd number of pixels per frame is encoded
+        # properly Including when additional segments are subsequently added
+
+        # Create an instance with an odd number of pixels in each frame
+        # Based on the single frame CT image
+        odd_instance = self._ct_image
+        r = 9
+        c = 9
+        odd_pixels = np.random.randint(
+            256,
+            size=(r, c),
+            dtype=np.uint16
+        )
+
+        odd_instance.PixelData = odd_pixels.flatten().tobytes()
+        odd_instance.Rows = r
+        odd_instance.Columns = c
+
+        odd_mask = np.random.randint(
+            2,
+            size=odd_pixels.shape,
+            dtype=np.bool
+        )
+        addtional_odd_mask = np.random.randint(
+            2,
+            size=odd_pixels.shape,
+            dtype=np.bool
+        )
+
+        instance = Segmentation(
+            [odd_instance],
+            odd_mask,
+            SegmentationTypeValues.BINARY.value,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+
+        assert np.array_equal(self.get_array_after_writing(instance), odd_mask)
+
+        instance.add_segments(
+            addtional_odd_mask,
+            self._additional_segment_descriptions
+        )
+
+        expected_two_segment_mask = np.stack(
+            [odd_mask, addtional_odd_mask],
+            axis=0
+        )
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_two_segment_mask
+        )
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
@@ -1045,7 +1173,7 @@ class TestSegmentation(unittest.TestCase):
             instance = Segmentation(
                 [self._ct_image],
                 mask,
-                SegmentationTypes.BINARY.value,
+                SegmentationTypeValues.BINARY.value,
                 all_segment_descriptions,
                 self._series_instance_uid,
                 self._series_number,
@@ -1058,23 +1186,77 @@ class TestSegmentation(unittest.TestCase):
                 max_fractional_value=1
             )
 
-            # Write to buffer and read in again
-            with BytesIO() as fp:
-                instance.save_as(fp)
-                fp.seek(0)
-                instance_reread = dcmread(fp)
-
             # Ensure the recovered pixel array matches what is expected
             assert np.array_equal(
-                instance_reread.pixel_array,
+                self.get_array_after_writing(instance),
                 expected_encoding
+            )
+
+    def test_construction_wrong_segment_order(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._additional_segment_descriptions +
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_duplicate_segment_number(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._segment_descriptions +
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_non_described_segment(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array * 3,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._segment_descriptions +
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
             )
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
             Segmentation(
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1090,7 +1272,7 @@ class TestSegmentation(unittest.TestCase):
         with pytest.raises(TypeError):
             Segmentation(
                 source_images=[self._ct_image],
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1107,7 +1289,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -1123,7 +1305,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -1139,7 +1321,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 sop_instance_uid=self._sop_instance_uid,
@@ -1155,7 +1337,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1171,7 +1353,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1187,7 +1369,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1203,7 +1385,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1219,7 +1401,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1235,7 +1417,7 @@ class TestSegmentation(unittest.TestCase):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypes.FRACTIONAL.value,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1254,7 +1436,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=self._ct_pixel_array,
-            segmentation_type=SegmentationTypes.FRACTIONAL.value,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
@@ -1296,7 +1478,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=self._ct_pixel_array,
-            segmentation_type=SegmentationTypes.FRACTIONAL.value,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
@@ -1342,7 +1524,7 @@ class TestSegmentation(unittest.TestCase):
         instance = Segmentation(
             source_images=[self._sm_image],
             pixel_array=self._sm_pixel_array,
-            segmentation_type=SegmentationTypes.FRACTIONAL.value,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,

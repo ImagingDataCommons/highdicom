@@ -79,6 +79,7 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
         sop_instance_uid=generate_uid(),
         instance_number=1,
         manufacturer='Manufacturer',
+        manufacturer_model_name='Model',
         software_versions='v1',
         device_serial_number='Device XYZ',
         manufacturer_model_name='The best one'
@@ -147,6 +148,7 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
         sop_instance_uid=generate_uid(),
         instance_number=1,
         manufacturer='Manufacturer',
+        manufacturer_model_name='Model',
         software_versions='v1',
         device_serial_number='Device XYZ'
     )

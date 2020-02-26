@@ -10,7 +10,7 @@ class CoordinateSystemNames(Enum):
     SLIDE = 'SLIDE'
 
 
-class ContentQualifications(Enum):
+class ContentQualificationValues(Enum):
 
     """Enumerated values for Content Qualification attribute."""
 
@@ -19,7 +19,7 @@ class ContentQualifications(Enum):
     SERVICE = 'SERVICE'
 
 
-class DimensionOrganizationTypes(Enum):
+class DimensionOrganizationTypeValues(Enum):
 
     """Enumerated values for Dimension Organization Type attribute."""
 
@@ -29,7 +29,7 @@ class DimensionOrganizationTypes(Enum):
     TILED_SPARSE = 'TILED_SPARSE'
 
 
-class PhotometricInterpretations(Enum):
+class PhotometricInterpretationValues(Enum):
 
     """Enumerated values for Photometric Interpretation attribute."""
 
@@ -44,7 +44,7 @@ class PhotometricInterpretations(Enum):
     YBR_RCT = 'YBR_RCT'
 
 
-class Lateralities(Enum):
+class LateralityValues(Enum):
 
     """Enumerated values for Laterality attribute."""
 
@@ -52,7 +52,7 @@ class Lateralities(Enum):
     L = 'L'
 
 
-class AnatomicalOrientationTypes(Enum):
+class AnatomicalOrientationTypeValues(Enum):
 
     """Enumerated values for Anatomical Orientation Type attribute."""
 
@@ -60,7 +60,7 @@ class AnatomicalOrientationTypes(Enum):
     QUADRUPED = 'QUADRUPED'
 
 
-class PatientOrientationsBiped(Enum):
+class PatientOrientationValuesBiped(Enum):
 
     """Enumerated values for Patient Orientation attribute
     if Anatomical Orientation Type attribute has value ``"BIPED"``.
@@ -74,7 +74,7 @@ class PatientOrientationsBiped(Enum):
     F = 'F'
 
 
-class PatientOrientationsQuadruped(Enum):
+class PatientOrientationValuesQuadruped(Enum):
 
     """Enumerated values for Patient Orientation attribute
     if Anatomical Orientation Type attribute has value ``"QUADRUPED"``.
@@ -95,7 +95,7 @@ class PatientOrientationsQuadruped(Enum):
     PL = 'PL'
 
 
-class UniversalEntityIDTypes(Enum):
+class UniversalEntityIDTypeValues(Enum):
 
     """Enumerated values for Universal Entity ID Type attribute."""
 

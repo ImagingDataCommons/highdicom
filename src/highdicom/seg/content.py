@@ -9,7 +9,7 @@ from pydicom.sr.coding import Code
 
 from highdicom.content import AlgorithmIdentificationSequence
 from highdicom.enum import CoordinateSystemNames
-from highdicom.seg.enum import SegmentAlgorithmTypes
+from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
 
 
@@ -23,7 +23,7 @@ class SegmentDescription(Dataset):
             segment_label: str,
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
-            algorithm_type: Union[SegmentAlgorithmTypes, str],
+            algorithm_type: Union[SegmentAlgorithmTypeValues, str],
             algorithm_identification: AlgorithmIdentificationSequence,
             tracking_uid: Optional[str] = None,
             tracking_id: Optional[str] = None,
@@ -49,7 +49,7 @@ class SegmentDescription(Dataset):
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
             (see CID 7151 Segmentation Property Types)
-        algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypes]
+        algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: AlgorithmIdentificationSequence, optional
             Information useful for identification of the algorithm, such
@@ -87,7 +87,8 @@ class SegmentDescription(Dataset):
                 segmented_property_type.scheme_version
             ),
         ]
-        self.SegmentAlgorithmType = SegmentAlgorithmTypes(algorithm_type).value
+        algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
+        self.SegmentAlgorithmType = algorithm_type.value
         self.SegmentAlgorithmName = algorithm_identification[0].AlgorithmName
         self.SegmentationAlgorithmIdentificationSequence = \
             algorithm_identification
