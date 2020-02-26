@@ -22,18 +22,16 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
-from highdicom.enum import (
-    CoordinateSystemNames,
-)
+from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
     SegmentDescription,
     Surface,
 )
 from highdicom.seg.enum import (
-    SegmentationFractionalTypes,
-    SegmentationTypes,
-    SegmentsOverlap,
+    SegmentationFractionalTypeValues,
+    SegmentationTypeValues,
+    SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.utils import compute_plane_positions_tiled_full
@@ -54,7 +52,7 @@ class Segmentation(SOPClass):
             self,
             source_images: Sequence[Dataset],
             pixel_array: np.ndarray,
-            segmentation_type: Union[str, SegmentationTypes],
+            segmentation_type: Union[str, SegmentationTypeValues],
             segment_descriptions: Sequence[SegmentDescription],
             series_instance_uid: str,
             series_number: int,
@@ -65,8 +63,8 @@ class Segmentation(SOPClass):
             software_versions: Union[str, Tuple[str]],
             device_serial_number: str,
             fractional_type: Optional[
-                Union[str, SegmentationFractionalTypes]
-            ] = SegmentationFractionalTypes.PROBABILITY,
+                Union[str, SegmentationFractionalTypeValues]
+            ] = SegmentationFractionalTypeValues.PROBABILITY,
             max_fractional_value: Optional[int] = 255,
             content_description: Optional[str] = None,
             content_creator_name: Optional[str] = None,
@@ -114,7 +112,7 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segmentation_type: Union[str, highdicom.seg.enum.SegmentationTypes]
+        segmentation_type: Union[str, highdicom.seg.enum.SegmentationTypeValues]
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
@@ -136,7 +134,7 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
-        fractional_type: Union[str, highdicom.seg.enum.SegmentationFractionalTypes], optional
+        fractional_type: Union[str, highdicom.seg.enum.SegmentationFractionalTypeValues], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
         max_fractional_value: int, optional
@@ -312,15 +310,15 @@ class Segmentation(SOPClass):
         self.ContentDescription = content_description
         self.ContentCreatorName = content_creator_name
 
-        segmentation_type = SegmentationTypes(segmentation_type)
+        segmentation_type = SegmentationTypeValues(segmentation_type)
         self.SegmentationType = segmentation_type.value
-        if self.SegmentationType == SegmentationTypes.BINARY.value:
+        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
-        elif self.SegmentationType == SegmentationTypes.FRACTIONAL.value:
+        elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
             self.BitsAllocated = 8
             self.HighBit = 7
-            segmentation_fractional_type = SegmentationFractionalTypes(
+            segmentation_fractional_type = SegmentationFractionalTypeValues(
                 fractional_type
             )
             self.SegmentationFractionalType = segmentation_fractional_type.value
@@ -543,7 +541,7 @@ class Segmentation(SOPClass):
                     'When providing a float-valued pixel array, provide only '
                     'a single segment description'
                 )
-            if self.SegmentationType == SegmentationTypes.BINARY.value:
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
                 non_boolean_values = np.logical_and(
                     unique_values > 0.0,
                     unique_values < 1.0
@@ -561,16 +559,16 @@ class Segmentation(SOPClass):
         if len(set(described_segment_numbers) & self._segment_inventory) > 0:
             raise ValueError('Segment with given segment number already exists')
 
-        # Set the optional tag value SegmentsOverlap to NO to indicate that the
-        # segments do not overlap. We can know this for sure if it's the first
-        # segment (or set of segments) to be added because they are contained
-        # within a single pixel array.
+        # Set the optional tag value SegmentsOverlapValues to NO to indicate
+        # that the segments do not overlap. We can know this for sure if it's
+        # the first segment (or set of segments) to be added because they are
+        # contained within a single pixel array.
         if len(self._segment_inventory) == 0:
-            self.SegmentsOverlap = SegmentsOverlap.NO.value
+            self.SegmentsOverlap = SegmentsOverlapValues.NO.value
         else:
             # If this is not the first set of segments to be added, we cannot
             # be sure whether there is overlap with the existing segments
-            self.SegmentsOverlap = SegmentsOverlap.UNDEFINED.value
+            self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
         src_img = self._source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
@@ -717,7 +715,7 @@ class Segmentation(SOPClass):
         # pixel data, add the new pixels and then re-encode. This process
         # should be avoided if it is not necessary in order to improve
         # efficiency.
-        if (self.SegmentationType == SegmentationTypes.BINARY.value and
+        if (self.SegmentationType == SegmentationTypeValues.BINARY.value and
                 ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0):
             re_encode_pixel_data = True
             logger.warning(
@@ -732,7 +730,7 @@ class Segmentation(SOPClass):
         else:
             re_encode_pixel_data = False
 
-            # Before adding new pixel data, remove the trailing null padding byte
+            # Before adding new pixel data, remove trailing null padding byte
             if len(self.PixelData) == get_expected_length(self) + 1:
                 self.PixelData = self.PixelData[:-1]
 
@@ -905,7 +903,7 @@ class Segmentation(SOPClass):
 
         """
         # TODO: compress depending on transfer syntax UID
-        if self.SegmentationType == SegmentationTypes.BINARY.value:
+        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             return pack_bits(planes.flatten())
         else:
             return planes.flatten().tobytes()

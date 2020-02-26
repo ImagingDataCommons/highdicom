@@ -2,7 +2,7 @@
 from enum import Enum
 
 
-class SegmentAlgorithmTypes(Enum):
+class SegmentAlgorithmTypeValues(Enum):
 
     """Enumerated values for attribute Segment Algorithm Type."""
 
@@ -11,7 +11,7 @@ class SegmentAlgorithmTypes(Enum):
     MANUAL = 'MANUAL'
 
 
-class SegmentationTypes(Enum):
+class SegmentationTypeValues(Enum):
 
     """Enumerated values for attribute Segmentation Type."""
 
@@ -19,7 +19,7 @@ class SegmentationTypes(Enum):
     FRACTIONAL = 'FRACTIONAL'
 
 
-class SegmentationFractionalTypes(Enum):
+class SegmentationFractionalTypeValues(Enum):
 
     """Enumerated values for attribute Segmentation Fractional Type."""
 
@@ -27,7 +27,7 @@ class SegmentationFractionalTypes(Enum):
     OCCUPANCY = 'OCCUPANCY'
 
 
-class SpatialLocationsPreserved(Enum):
+class SpatialLocationsPreservedValues(Enum):
 
     """Enumerated values for attribute Spatial Locations Preserved."""
 
@@ -36,9 +36,9 @@ class SpatialLocationsPreserved(Enum):
     REORIENTED_ONLY = 'REORIENTED_ONLY'
 
 
-class SegmentsOverlap(Enum):
+class SegmentsOverlapValues(Enum):
 
-    """Enumerated values for attribute Segments Overlap Attribute."""
+    """Enumerated values for attribute Segments Overlap."""
 
     YES = 'YES'
     UNDEFINED = 'UNDEFINED'

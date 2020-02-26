@@ -2,7 +2,7 @@
 from enum import Enum
 
 
-class ValueTypes(Enum):
+class ValueTypeValues(Enum):
 
     """Enumerated values for attribute Value Type."""
 
@@ -23,7 +23,7 @@ class ValueTypes(Enum):
     WAVEFORM = 'WAVEFORM'
 
 
-class GraphicTypes(Enum):
+class GraphicTypeValues(Enum):
 
     """Enumerated values for attribute Graphic Type."""
 
@@ -35,7 +35,7 @@ class GraphicTypes(Enum):
     POLYLINE = 'POLYLINE'
 
 
-class GraphicTypes3D(Enum):
+class GraphicTypeValues3D(Enum):
 
     """Enumerated values for attribute Graphic Type 3D."""
 
@@ -47,7 +47,7 @@ class GraphicTypes3D(Enum):
     POLYGON = 'POLYGON'
 
 
-class TemporalRangeTypes(Enum):
+class TemporalRangeTypeValues(Enum):
 
     """Enumerated values for attribute Temporal Range Type."""
 
@@ -59,7 +59,7 @@ class TemporalRangeTypes(Enum):
     SEGMENT = 'SEGMENT'
 
 
-class RelationshipTypes(Enum):
+class RelationshipTypeValues(Enum):
 
     """Enumerated values for attribute Relationship Type."""
 
@@ -72,7 +72,7 @@ class RelationshipTypes(Enum):
     SELECTED_FROM = 'SELECTED FROM'
 
 
-class PixelOriginInterpretations(Enum):
+class PixelOriginInterpretationValues(Enum):
 
     """Enumerated values for attribute Pixel Origin Interpretation."""
 

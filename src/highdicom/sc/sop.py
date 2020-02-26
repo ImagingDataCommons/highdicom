@@ -15,14 +15,14 @@ from highdicom.content import (
     SpecimenDescription,
 )
 from highdicom.enum import (
-    AnatomicalOrientationTypes,
+    AnatomicalOrientationTypeValues,
     CoordinateSystemNames,
-    Lateralities,
-    PhotometricInterpretations,
-    PatientOrientationsBiped,
-    PatientOrientationsQuadruped,
+    LateralityValues,
+    PhotometricInterpretationValues,
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesQuadruped,
 )
-from highdicom.sc.enum import ConversionTypes
+from highdicom.sc.enum import ConversionTypeValues
 from highdicom.sr.coding import CodedConcept
 
 
@@ -38,7 +38,10 @@ class SCImage(SOPClass):
     def __init__(
             self,
             pixel_array: np.ndarray,
-            photometric_interpretation: Union[str, PhotometricInterpretations],
+            photometric_interpretation: Union[
+                str,
+                PhotometricInterpretationValues
+            ],
             bits_allocated: int,
             coordinate_system: Union[str, CoordinateSystemNames],
             study_instance_uid: str,
@@ -57,19 +60,22 @@ class SCImage(SOPClass):
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[str] = None,
             pixel_spacing: Optional[Tuple[int, int]] = None,
-            laterality: Optional[Union[str, Lateralities]] = None,
+            laterality: Optional[Union[str, LateralityValues]] = None,
             patient_orientation: Optional[
                 Union[
                     Tuple[str, str],
-                    Tuple[PatientOrientationsBiped, PatientOrientationsBiped],
                     Tuple[
-                        PatientOrientationsQuadruped,
-                        PatientOrientationsQuadruped,
+                        PatientOrientationValuesBiped,
+                        PatientOrientationValuesBiped,
+                    ],
+                    Tuple[
+                        PatientOrientationValuesQuadruped,
+                        PatientOrientationValuesQuadruped,
                     ]
                 ]
             ] = None,
             anatomical_orientation_type: Optional[
-                Union[str, AnatomicalOrientationTypes]
+                Union[str, AnatomicalOrientationTypeValues]
             ] = None,
             container_identifier: Optional[str] = None,
             issuer_of_container_identifier: Optional[IssuerOfIdentifier] = None,
@@ -86,7 +92,7 @@ class SCImage(SOPClass):
             Array of unsigned integer pixel values representing a single-frame
             image; either a 2D grayscale image or a 3D color image
             (RGB color space)
-        photometric_interpretation: Union[str, highdicom.enum.PhotometricInterpretations]
+        photometric_interpretation: Union[str, highdicom.enum.PhotometricInterpretationValues]
             Interpretation of pixel data; either ``"MONOCHROME1"`` or
             ``"MONOCHROME2"`` for 2D grayscale images or ``"RGB"`` or
             ``"YBR_FULL"`` for 3D color images
@@ -130,14 +136,14 @@ class SCImage(SOPClass):
         pixel_spacing: Tuple[int, int], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
-        laterality: Union[str, highdicom.enum.Lateralities], optional
+        laterality: Union[str, highdicom.enum.LateralityValues], optional
             Laterality of the examined body part (required if
             `coordinate_system` is ``"PATIENT"``)
         patient_orientation:
-                Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationsBiped, highdicom.enum.PatientOrientationsBiped], Tuple[highdicom.enum.PatientOrientationsQuadruped, highdicom.enum.PatientOrientationsQuadruped]], optional
+                Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped]], optional
             Orientation of the patient along the row and column axes of the
             image (required if `coordinate_system` is ``"PATIENT"``)
-        anatomical_orientation_type: Union[str, highdicom.enum.AnatomicalOrientationTypes], optional
+        anatomical_orientation_type: Union[str, highdicom.enum.AnatomicalOrientationTypeValues], optional
             Type of anatomical orientation of patient relative to image (may be
             provide if `coordinate_system` is ``"PATIENT"`` and patient is
             an animal)
@@ -190,28 +196,31 @@ class SCImage(SOPClass):
                 )
 
             # General Series
-            laterality = Lateralities(laterality)
+            laterality = LateralityValues(laterality)
             self.Laterality = laterality.value
 
             # General Image
             if anatomical_orientation_type is not None:
-                anatomical_orientation_type = AnatomicalOrientationTypes(
+                anatomical_orientation_type = AnatomicalOrientationTypeValues(
                     anatomical_orientation_type
                 )
                 self.AnatomicalOrientationType = \
                     anatomical_orientation_type.value
             else:
-                anatomical_orientation_type = AnatomicalOrientationTypes.BIPED
+                anatomical_orientation_type = \
+                    AnatomicalOrientationTypeValues.BIPED
 
-            if anatomical_orientation_type == AnatomicalOrientationTypes.BIPED:
+            row_orientation, col_orientation = patient_orientation
+            if (anatomical_orientation_type ==
+                    AnatomicalOrientationTypeValues.BIPED):
                 patient_orientation = [
-                    PatientOrientationsBiped(patient_orientation[0]).value,
-                    PatientOrientationsBiped(patient_orientation[1]).value,
+                    PatientOrientationValuesBiped(row_orientation).value,
+                    PatientOrientationValuesBiped(col_orientation).value,
                 ]
             else:
                 patient_orientation = [
-                    PatientOrientationsQuadruped(patient_orientation[0]).value,
-                    PatientOrientationsQuadruped(patient_orientation[1]).value,
+                    PatientOrientationValuesQuadruped(row_orientation).value,
+                    PatientOrientationValuesQuadruped(col_orientation).value,
                 ]
             self.PatientOrientation = patient_orientation
 
@@ -239,7 +248,7 @@ class SCImage(SOPClass):
             self.SpecimenDescriptionSequence = specimen_descriptions
 
         # SC Equipment
-        self.ConversionType = ConversionTypes.DI.value
+        self.ConversionType = ConversionTypeValues.DI.value
 
         # SC Image
         now = datetime.datetime.now()
@@ -263,15 +272,15 @@ class SCImage(SOPClass):
         self.HighBit = self.BitsAllocated - 1
         self.BitsStored = self.BitsAllocated
         self.PixelRepresentation = 0
-        photometric_interpretation = PhotometricInterpretations(
+        photometric_interpretation = PhotometricInterpretationValues(
             photometric_interpretation
         )
         if pixel_array.ndim == 3:
             accepted_interpretations = (
-                PhotometricInterpretations.RGB.value,
-                PhotometricInterpretations.YBR_FULL.value,
-                PhotometricInterpretations.YBR_FULL_422.value,
-                PhotometricInterpretations.YBR_PARTIAL_420.value,
+                PhotometricInterpretationValues.RGB.value,
+                PhotometricInterpretationValues.YBR_FULL.value,
+                PhotometricInterpretationValues.YBR_FULL_422.value,
+                PhotometricInterpretationValues.YBR_PARTIAL_420.value,
             )
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
@@ -293,8 +302,8 @@ class SCImage(SOPClass):
             self.PlanarConfiguration = 0
         elif pixel_array.ndim == 2:
             accepted_interpretations = (
-                PhotometricInterpretations.MONOCHROME1.value,
-                PhotometricInterpretations.MONOCHROME2.value,
+                PhotometricInterpretationValues.MONOCHROME1.value,
+                PhotometricInterpretationValues.MONOCHROME2.value,
             )
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(

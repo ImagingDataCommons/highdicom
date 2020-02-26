@@ -22,8 +22,8 @@ from highdicom.sr.content import (
     SourceSeriesForSegmentation
 )
 from highdicom.sr.enum import (
-    GraphicTypes,
-    GraphicTypes3D,
+    GraphicTypeValues,
+    GraphicTypeValues3D,
 )
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -480,7 +480,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
-        graphic_type = GraphicTypes.POINT
+        graphic_type = GraphicTypeValues.POINT
         graphic_data = np.array([[1.0, 1.0]])
         pixel_origin_interpretation = 'FRAME'
         i = ScoordContentItem(
@@ -499,7 +499,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_scoord_item_construction_circle(self):
         name = codes.DCM.ImageRegion
-        graphic_type = GraphicTypes.CIRCLE
+        graphic_type = GraphicTypeValues.CIRCLE
         graphic_data = np.array([[1.0, 1.0], [2.0, 2.0]])
         pixel_origin_interpretation = 'VOLUME'
         i = ScoordContentItem(
@@ -519,7 +519,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_scoord3d_item_construction_point(self):
         name = codes.DCM.ImageRegion
-        graphic_type = GraphicTypes3D.POINT
+        graphic_type = GraphicTypeValues3D.POINT
         graphic_data = np.array([[1.0, 1.0, 1.0]])
         frame_of_reference_uid = '1.2.3'
         i = Scoord3DContentItem(
@@ -538,7 +538,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_scoord3d_item_construction_polygon(self):
         name = codes.DCM.ImageRegion
-        graphic_type = GraphicTypes3D.POLYGON
+        graphic_type = GraphicTypeValues3D.POLYGON
         graphic_data = np.array([
             [1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 1.0, 1.0]
         ])
@@ -778,7 +778,7 @@ class TestMeasurementOptional(unittest.TestCase):
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
-            graphic_type=GraphicTypes.POINT,
+            graphic_type=GraphicTypeValues.POINT,
             graphic_data=np.array([[1.0, 1.0]]),
             source_image=self._image
         )
@@ -881,7 +881,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
-            graphic_type=GraphicTypes.CIRCLE,
+            graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image
         )
@@ -932,7 +932,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._regions = [
             ImageRegion(
-                graphic_type=GraphicTypes.POLYLINE,
+                graphic_type=GraphicTypeValues.POLYLINE,
                 graphic_data=np.array([
                     [1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [1.0, 1.0]
                 ]),
@@ -951,7 +951,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_sop_instance_uid=generate_uid()
         )
         volume = VolumeSurface(
-            graphic_type=GraphicTypes3D.ELLIPSOID,
+            graphic_type=GraphicTypeValues3D.ELLIPSOID,
             graphic_data=np.array([
                 [1.0, 2.0, 2.0], [3.0, 2.0, 2.0],
                 [2.0, 1.0, 2.0], [2.0, 3.0, 2.0],
@@ -1012,7 +1012,7 @@ class TestMeasurementReport(unittest.TestCase):
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
-            graphic_type=GraphicTypes.CIRCLE,
+            graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image
         )
