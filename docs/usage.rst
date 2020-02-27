@@ -25,8 +25,8 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
     from highdicom.content import AlgorithmIdentificationSequence
     from highdicom.seg.content import SegmentDescription
     from highdicom.seg.enum import (
-        SegmentAlgorithmTypes,
-        SegmentationTypes
+        SegmentAlgorithmTypeValues,
+        SegmentationTypeValues
     )
     from highdicom.seg.sop import Segmentation
 
@@ -62,7 +62,7 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
         segment_label='first segment',
         segmented_property_category=codes.cid7150.Tissue,
         segmented_property_type=codes.cid7166.ConnectiveTissue,
-        algorithm_type=SegmentAlgorithmTypes.AUTOMATIC,
+        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
         tracking_uid=generate_uid(),
         tracking_id='test segmentation of computed tomography image'
@@ -72,7 +72,7 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
     seg_dataset = Segmentation(
         source_images=image_datasets,
         pixel_array=mask,
-        segmentation_type=SegmentationTypes.BINARY,
+        segmentation_type=SegmentationTypeValues.BINARY,
         segment_descriptions=[description_segment_1],
         series_instance_uid=generate_uid(),
         series_number=2,
@@ -82,7 +82,6 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
         manufacturer_model_name='Model',
         software_versions='v1',
         device_serial_number='Device XYZ',
-        manufacturer_model_name='The best one'
     )
 
     print(seg_dataset)
@@ -104,8 +103,8 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     from highdicom.content import AlgorithmIdentificationSequence
     from highdicom.seg.content import SegmentDescription
     from highdicom.seg.enum import (
-        SegmentAlgorithmTypes,
-        SegmentationTypes
+        SegmentAlgorithmTypeValues,
+        SegmentationTypeValues
     )
     from highdicom.seg.sop import Segmentation
 
@@ -131,7 +130,7 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
         segment_label='first segment',
         segmented_property_category=codes.cid7150.Tissue,
         segmented_property_type=codes.cid7166.ConnectiveTissue,
-        algorithm_type=SegmentAlgorithmTypes.AUTOMATIC,
+        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
         tracking_uid=generate_uid(),
         tracking_id='test segmentation of slide microscopy image'
@@ -141,7 +140,7 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     seg_dataset = Segmentation(
         source_images=[image_dataset],
         pixel_array=mask,
-        segmentation_type=SegmentationTypes.BINARY,
+        segmentation_type=SegmentationTypeValues.BINARY,
         segment_descriptions=[description_segment_1],
         series_instance_uid=generate_uid(),
         series_number=2,
@@ -187,10 +186,8 @@ image:
         PlanarROIMeasurementsAndQualitativeEvaluations,
         TrackingIdentifier,
     )
-    from highdicom.sr.value_types import (
-        CodedConcept,
-        GraphicTypes3D,
-    )
+    from highdicom.sr.value_types import CodedConcept
+    from highdicom.sr.enum import GraphicTypeValues3D
 
     # Path to multi-frame SM image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -220,7 +217,7 @@ image:
     # Describe the image region for which observations were made
     # (in physical space based on the frame of reference)
     referenced_region = ImageRegion3D(
-        graphic_type=GraphicTypes3D.POLYGON,
+        graphic_type=GraphicTypesValues3D.POLYGON,
         graphic_data=np.array([
             (165.0, 200.0, 134.0),
             (170.0, 200.0, 134.0),
