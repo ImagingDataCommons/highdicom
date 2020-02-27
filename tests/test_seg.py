@@ -23,14 +23,13 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.content import (
     DimensionIndexSequence,
     SegmentDescription,
-    Surface,
 )
 from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
     SegmentsOverlapValues,
     SegmentationTypeValues,
 )
-from highdicom.seg.sop import Segmentation, SurfaceSegmentation
+from highdicom.seg.sop import Segmentation
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -253,111 +252,6 @@ class TestSegmentDescription(unittest.TestCase):
         with pytest.raises(AttributeError):
             item.TrackingID
             item.TrackingUID
-
-
-class TestSurface(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self._number = 1
-        self._points = np.array([
-            [1.0, 1.0, 1.0],
-            [2.0, 2.0, 1.0],
-        ])
-        self._ratio = 1.0
-        self._algorithm_identification = AlgorithmIdentificationSequence(
-            name='vectorizer',
-            family=codes.DCM.MorphologicalOperations,
-            version='v1'
-        )
-
-    def test_construction(self):
-        item = Surface(
-            surface_number=self._number,
-            surface_points=self._points
-        )
-        assert item.SurfaceNumber == self._number
-        assert item.SurfaceProcessing is None
-        assert item.FiniteVolume == 'UNKNOWN'
-        assert item.Manifold == 'UNKNOWN'
-        assert len(item.SurfacePointsSequence) == 1
-        assert len(item.SurfacePointsNormalsSequence) == 0
-        assert len(item.SurfaceMeshPrimitivesSequence) == 1
-        with pytest.raises(AttributeError):
-            item.SurfaceProcessingRatio
-            item.SurfaceProcessingAlgorithmIdentificationSequence
-
-    def test_construction_missing_required_attribute(self):
-        with pytest.raises(TypeError):
-            Surface(
-                surface_number=self._number,
-            )
-
-    def test_construction_missing_required_attribute_2(self):
-        with pytest.raises(TypeError):
-            Surface(
-                surface_points=self._points
-            )
-
-    def test_construction_missing_conditionally_required_attribute(self):
-        with pytest.raises(TypeError):
-            Surface(
-                surface_number=self._number,
-                surface_points=self._points,
-                is_processed=True,
-            )
-
-    def test_construction_missing_conditionally_required_attribute_2(self):
-        with pytest.raises(TypeError):
-            Surface(
-                surface_number=self._number,
-                surface_points=self._points,
-                is_processed=True,
-                processing_ratio=self._ratio,
-            )
-
-    def test_construction_missing_conditionally_required_attribute_3(self):
-        with pytest.raises(TypeError):
-            Surface(
-                surface_number=self._number,
-                surface_points=self._points,
-                is_processed=True,
-                processing_algorithm_identification=None,
-            )
-
-    def test_construction_optional_attribute(self):
-        item = Surface(
-            surface_number=self._number,
-            surface_points=self._points,
-            is_processed=True,
-            processing_ratio=self._ratio,
-            processing_algorithm_identification=self._algorithm_identification,
-        )
-        assert item.SurfaceProcessing == 'YES'
-        assert item.SurfaceProcessingRatio == self._ratio
-        assert len(item.SurfaceProcessingAlgorithmIdentificationSequence) == 1
-        assert item.SurfaceProcessingAlgorithmIdentificationSequence[0] == \
-            self._algorithm_identification[0]
-
-    def test_construction_optional_attribute_2(self):
-        item = Surface(
-            surface_number=self._number,
-            surface_points=self._points,
-            is_finite_volume=True,
-            is_manifold=True
-        )
-        assert item.FiniteVolume == 'YES'
-        assert item.Manifold == 'YES'
-
-    def test_construction_optional_attribute_3(self):
-        item = Surface(
-            surface_number=self._number,
-            surface_points=self._points,
-            is_finite_volume=False,
-            is_manifold=False
-        )
-        assert item.FiniteVolume == 'NO'
-        assert item.Manifold == 'NO'
 
 
 class TestPixelMeasuresSequence(unittest.TestCase):
