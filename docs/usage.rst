@@ -206,11 +206,13 @@ image:
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
 
-    from highdicom.sr.content import ImageRegion3D
+    from highdicom.sr.content import (
+        FindingSite,
+        ImageRegion3D,
+    )
     from highdicom.sr.sop import Comprehensive3DSR
     from highdicom.sr.templates import (
         DeviceObserverIdentifyingAttributes,
-        FindingSite,
         Measurement,
         MeasurementProperties,
         MeasurementReport,
@@ -221,12 +223,12 @@ image:
         TrackingIdentifier,
     )
     from highdicom.sr.value_types import CodedConcept
-    from highdicom.sr.enum import GraphicTypeValues3D
+    from highdicom.sr.enum import 3D
 
-    # Path to multi-frame SM image instance stored as PS3.10 file
+    # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
 
-    # Read SM Image data set from PS3.10 files on disk
+    # Read CT Image data set from PS3.10 files on disk
     image_dataset = dcmread(str(image_file))
 
     # Describe the context of reported observations: the person that reported
@@ -251,7 +253,7 @@ image:
     # Describe the image region for which observations were made
     # (in physical space based on the frame of reference)
     referenced_region = ImageRegion3D(
-        graphic_type=GraphicTypesValues3D.POLYGON,
+        graphic_type=3D.POLYGON,
         graphic_data=np.array([
             (165.0, 200.0, 134.0),
             (170.0, 200.0, 134.0),
