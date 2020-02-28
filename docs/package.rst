@@ -151,3 +151,29 @@ highdicom.sr.value\_types module
    :undoc-members:
    :show-inheritance:
 
+
+.. _highdicom-sc-subpackage:
+
+highdicom.sc package
+---------------------
+
+.. automodule:: highdicom.sc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.sc.enum module
++++++++++++++++++++++++++
+
+.. automodule:: highdicom.sc.enum
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.sc.sop module
+++++++++++++++++++++++++
+
+.. automodule:: highdicom.sc.sop
+   :members:
+   :undoc-members:
+   :show-inheritance:
