@@ -1,5 +1,4 @@
 from io import BytesIO
-import os
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +29,7 @@ from highdicom.seg.enum import (
     SegmentationTypeValues,
 )
 from highdicom.seg.sop import Segmentation
+from highdicom.seg.utils import iter_segments
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -491,7 +491,7 @@ class TestSegmentation(unittest.TestCase):
 
         # A single CT image
         self._ct_image = dcmread(
-            os.path.join(data_dir, 'test_files', 'ct_image.dcm')
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
         self._ct_pixel_array = np.zeros(
             self._ct_image.pixel_array.shape,
@@ -501,7 +501,7 @@ class TestSegmentation(unittest.TestCase):
 
         # A microscopy image
         self._sm_image = dcmread(
-            os.path.join(data_dir, 'test_files', 'sm_image.dcm')
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
         # Override te existing ImageOrientationSlide to make the frame ordering
         # simpler for the tests
@@ -1440,3 +1440,83 @@ class TestSegmentation(unittest.TestCase):
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationSlide == list(image_orientation)
+
+
+class TestSegUtilities(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ct_image = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+
+    def test_iter_segments_ct_single_frame_2_segments(self):
+        image_dataset = self._ct_image
+        mask = np.zeros(
+            self._ct_image.pixel_array.shape,
+            dtype=np.uint8
+        )
+        mask[1:5, 10:15] = 1
+        mask[5:7, 1:5] = 2
+        algorithm_identification = AlgorithmIdentificationSequence(
+            name='test',
+            version='v1.0',
+            family=codes.cid7162.ArtificialIntelligence
+        )
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=1,
+                segment_label='tumor tissue',
+                segmented_property_category=codes.cid7150.Tissue,
+                segmented_property_type=codes.SCT.Neoplasm,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+                algorithm_identification=algorithm_identification,
+                tracking_uid=generate_uid(),
+                tracking_id='first segment'
+            ),
+            SegmentDescription(
+                segment_number=2,
+                segment_label='connective tissue',
+                segmented_property_category=codes.cid7150.Tissue,
+                segmented_property_type=codes.cid7166.ConnectiveTissue,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+                algorithm_identification=algorithm_identification,
+                tracking_uid=generate_uid(),
+                tracking_id='second segment'
+            ),
+        ]
+
+        seg_dataset = Segmentation(
+            source_images=[image_dataset],
+            pixel_array=mask,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=segment_descriptions,
+            series_instance_uid=generate_uid(),
+            series_number=2,
+            sop_instance_uid=generate_uid(),
+            instance_number=1,
+            manufacturer='Manufacturer',
+            manufacturer_model_name='Manufacturer Model',
+            software_versions='v1',
+            device_serial_number='Device XYZ'
+        )
+
+        generator = iter_segments(seg_dataset)
+        items = list(generator)
+        assert len(items) == 2
+        item_segment_1 = items[0]
+        assert np.squeeze(item_segment_1[0]).shape == mask.shape
+        seg_id_item_1 = item_segment_1[1][0].SegmentIdentificationSequence[0]
+        assert seg_id_item_1.ReferencedSegmentNumber == 1
+        assert item_segment_1[2].SegmentNumber == 1
+        item_segment_2 = items[1]
+        assert np.squeeze(item_segment_2[0]).shape == mask.shape
+        seg_id_item_2 = item_segment_2[1][0].SegmentIdentificationSequence[0]
+        assert seg_id_item_2.ReferencedSegmentNumber == 2
+        assert item_segment_2[2].SegmentNumber == 2
+

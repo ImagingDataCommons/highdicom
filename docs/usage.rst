@@ -3,12 +3,12 @@
 User guide
 ==========
 
-Creation of derived DICOM objects using the :mod:`highdicom` package.
+Creating and parsing DICOM objects using the :mod:`highdicom` package.
 
-.. _seg:
+.. _creating-seg:
 
-Segmentation (SEG) images
--------------------------
+Creating Segmentation (SEG) images
+----------------------------------
 
 Derive a Segmentation image from a series of single-frame Computed Tomography
 (CT) images:
@@ -154,10 +154,44 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
 
     print(seg_dataset)
 
-.. _sr:
+.. _parsing-seg:
 
-Structured Report (SR) documents
---------------------------------
+Parsing Segmentation (SEG) images
+---------------------------------
+
+Iterating over segments in a segmentation image instance:
+
+.. code-block:: python
+
+    from pathlib import Path
+
+    from pydicom.filereader import dcmread
+
+    from highdicom.seg.utils import iter_segments
+
+    # Path to multi-frame SEG image instance stored as PS3.10 file
+    seg_file = Path('/path/to/seg/file')
+
+    # Read SEG Image data set from PS3.10 files on disk
+    seg_dataset = dcmread(str(seg_file))
+
+    # Iterate over segments and print the information about the frames
+    # that encode the segment across different image positions
+    for frames, frame_descriptions, description in iter_segments(seg_dataset):
+        print(frames.shape)
+        print(
+            set([
+                item.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                for item in frame_descriptions
+            ])
+        )
+        print(description.SegmentNumber)
+
+
+.. _creating-sr:
+
+Creating Structured Report (SR) documents
+-----------------------------------------
 
 Create a Structured Report document that contains a numeric area measurement for
 a planar region of interest (ROI) in a single-frame computed tomography (CT)
@@ -287,11 +321,77 @@ image:
     print(sr_dataset)
 
 
-.. _legacy:
+.. _parsing-sr:
 
-Legacy Converted Enhanced Images
---------------------------------
+Parsing Structured Report (SR) documents
+----------------------------------------
+
+Finding relevant content in the nested SR content tree:
 
 .. code-block:: python
 
-    from highdicom.legacy.sop import LegacyConvertedEnhancedCTImage
+    from pathlib import Path
+
+    from pydicom.filereader import dcmread
+    from pydicom.sr.codedict import codes
+
+    from highdicom.sr.enum import ValueTypeValues, RelationshipTypeValues
+    from highdicom.sr.utils import find_content_items
+
+
+    # Path to SR document instance stored as PS3.10 file
+    document_file = Path('/path/to/document/file')
+
+    # Load document from file on disk
+    sr_dataset = dcmread(str(document_file))
+
+    # Find all content items that may contain other content items.
+    containers = find_content_items(
+        dataset=sr_dataset,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    print(containers)
+
+    # Query content of SR document, where content is structured according
+    # to TID 1500 "Measurment Report"
+    if sr_dataset.ContentTemplateSequence[0].TemplateIdentifier == 'TID1500':
+        # Determine who made the observations reported in the document
+        observers = find_content_items(
+            dataset=sr_dataset,
+            name=codes.DCM.PersonObserverName
+        )
+        print(observers)
+
+        # Find all imaging measurements reported in the document
+        measurements = find_content_items(
+            dataset=sr_dataset,
+            name=codes.DCM.ImagingMeasurements,
+            recursive=True
+        )
+        print(measurements)
+
+        # Find all findings reported in the document
+        findings = find_content_items(
+            dataset=sr_dataset,
+            name=codes.DCM.Finding,
+            recursive=True
+        )
+        print(findings)
+
+        # Find regions of interest (ROI) described in the document
+        # in form of spatial coordinates (SCOORD)
+        regions = find_content_items(
+            dataset=sr_dataset,
+            value_type=ValueTypeValues.SCOORD,
+            recursive=True
+        )
+        print(regions)
+
+.. .. _creation-legacy:
+
+.. Creating Legacy Converted Enhanced Images
+.. -----------------------------------------
+
+.. .. code-block:: python
+
+..     from highdicom.legacy.sop import LegacyConvertedEnhancedCTImage

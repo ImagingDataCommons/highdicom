@@ -86,53 +86,6 @@ class ContentItem(Dataset):
         """
         return getattr(self, 'RelationshipType', None)
 
-    def get_content_items(
-            self,
-            name: Optional[Union[Code, CodedConcept]] = None,
-            value_type: Optional[Union[ValueTypeValues, str]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> 'ContentSequence':
-        """Gets content items, i.e. items contained in the content sequence,
-        optionally filtering them based on specified criteria.
-
-        Parameters
-        ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded name that items should have
-        value_type: Union[highdicom.sr.value_types.ValueTypeValues, str], optional
-            type of value that items should have
-            (e.g. ``highdicom.sr.value_types.ValueTypeValues.CONTAINER``)
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
-            type of relationship that items should have with its parent
-            (e.g. ``highdicom.sr.enum.RelationshipTypeValues.CONTAINS``)
-
-        Returns
-        -------
-        highdicom.sr.value_types.ContentSequence[highdicom.sr.value_types.ContentItem]
-            matched child content items
-
-        Raises
-        ------
-        AttributeError
-            when content item has no `ContentSequence` attribute
-
-        """  # noqa
-        try:
-            content_sequence = self.ContentSequence
-        except AttributeError:
-            raise AttributeError(
-                'Content item "{}" does not contain any child items.'.format(
-                    self.name.meaning
-                )
-            )
-        return content_sequence.filter(
-            name=name,
-            value_type=value_type,
-            relationship_type=relationship_type
-        )
-
 
 class ContentSequence(DataElementSequence):
 
@@ -167,55 +120,6 @@ class ContentSequence(DataElementSequence):
         return self.__class__([
             item for item in self
             if hasattr(item, 'ContentSequence')
-        ])
-
-    def filter(
-            self,
-            name: Optional[Union[Code, CodedConcept]] = None,
-            value_type: Optional[Union[ValueTypeValues, str]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> 'ContentSequence':
-        """Filters content items.
-
-        Parameters
-        ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded name that items should have
-        value_type: Union[highdicom.sr.value_types.ValueTypeValues, str], optional
-            type of value that items should have
-            (e.g. ``highdicom.sr.value_types.ValueTypeValues.CONTAINER``)
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
-            type of relationship that items should have with its parent
-            (e.g. ``highdicom.sr.enum.RelationshipTypeValues.CONTAINS``)
-
-        Returns
-        -------
-        highdicom.sr.value_types.ContentSequence[highdicom.sr.value_types.ContentItem]
-            matched content items
-
-        """  # noqa
-        def has_matching_name(item):
-            if name is None:
-                return True
-            return item.name == name
-
-        def has_matching_value_type(item):
-            if value_type is None:
-                return True
-            return item.value_type == value_type.value
-
-        def has_matching_relationship_type(item):
-            if relationship_type is None:
-                return True
-            return item.relationship_type == relationship_type.value
-
-        return self.__class__([
-            item for item in self
-            if has_matching_name(item) and
-            has_matching_value_type(item) and
-            has_matching_relationship_type(item)
         ])
 
     def append(self, item: ContentItem):

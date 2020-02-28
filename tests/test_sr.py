@@ -1,10 +1,12 @@
 import unittest
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from pydicom.dataset import Dataset
+from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid, UID
@@ -24,7 +26,10 @@ from highdicom.sr.content import (
 from highdicom.sr.enum import (
     GraphicTypeValues,
     GraphicTypeValues3D,
+    RelationshipTypeValues,
+    ValueTypeValues,
 )
+from highdicom.sr.utils import find_content_items
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
@@ -1122,3 +1127,99 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert self._report.InstitutionName == self._institution_name
         assert self._report.Manufacturer == self._manufacturer
         assert self._report.Modality == 'SR'
+
+
+class TestSRUtilities(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sr_document = dcmread(
+            str(data_dir.joinpath('test_files', 'sr_document.dcm'))
+        )
+
+    def test_find_content_items(self):
+        items = find_content_items(self._sr_document)
+        assert len(items) == 8
+
+    def test_find_content_items_filtered_by_name(self):
+        items = find_content_items(
+            self._sr_document,
+            name=codes.DCM.ProcedureReported
+        )
+        assert len(items) == 1
+        name_code_value = items[0].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value == codes.DCM.ProcedureReported.value
+
+    def test_find_content_items_filtered_by_relationship_type(self):
+        items = find_content_items(
+            self._sr_document,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert len(items) == 4
+        name_code_value_1 = items[0].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_1 == codes.DCM.ObserverType.value
+        name_code_value_2 = items[1].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_2 == codes.DCM.PersonObserverName.value
+        name_code_value_3 = items[2].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_3 == codes.DCM.ObserverType.value
+        name_code_value_4 = items[3].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_4 == codes.DCM.DeviceObserverUID.value
+
+    def test_find_content_items_filtered_by_value_type(self):
+        items = find_content_items(
+            self._sr_document,
+            value_type=ValueTypeValues.UIDREF
+        )
+        assert len(items) == 1
+        name_code_value = items[0].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value == codes.DCM.DeviceObserverUID.value
+
+    def test_find_content_items_filtered_by_value_type_relationship_type(self):
+        items = find_content_items(
+            self._sr_document,
+            value_type=ValueTypeValues.CODE,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert len(items) == 2
+        name_code_value_1 = items[0].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_1 == codes.DCM.ObserverType.value
+        name_code_value_2 = items[1].ConceptNameCodeSequence[0].CodeValue
+        assert name_code_value_2 == codes.DCM.ObserverType.value
+
+    def test_find_content_items_recursively(self):
+        items = find_content_items(self._sr_document, recursive=True)
+        assert len(items) == 20
+
+    def test_find_content_items_filter_by_name_recursively(self):
+        items = find_content_items(
+            self._sr_document,
+            name=codes.DCM.TrackingUniqueIdentifier,
+            recursive=True
+        )
+        assert len(items) == 2
+
+    def test_find_content_items_filter_by_value_type_recursively(self):
+        items = find_content_items(
+            self._sr_document,
+            value_type=ValueTypeValues.SCOORD,
+            recursive=True
+        )
+        assert len(items) == 1
+
+    def test_find_content_items_filter_by_value_type_recursively_1(self):
+        items = find_content_items(
+            self._sr_document,
+            value_type=ValueTypeValues.CODE,
+            recursive=True
+        )
+        assert len(items) == 9
+
+    def test_find_content_items_filter_by_relationship_type_recursively(self):
+        items = find_content_items(
+            self._sr_document,
+            relationship_type=RelationshipTypeValues.CONTAINS,
+            recursive=True
+        )
+        assert len(items) == 6
