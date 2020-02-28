@@ -11,7 +11,7 @@ Please refer to the online documentation at [highdicom.readthedocs.io](https://h
 ## Support
 
 The developers gratefully acknowledge their support:
-* The [Alliance for Digital Pathology](/https://digitalpathologyalliance.org/)
+* The [Alliance for Digital Pathology](https://digitalpathologyalliance.org/)
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](http://qiicr.org)
 * [Radiomics](http://radiomics.io)
