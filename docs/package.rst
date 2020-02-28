@@ -92,6 +92,13 @@ highdicom.seg.sop module
    :undoc-members:
    :show-inheritance:
 
+highdicom.seg.utils module
+++++++++++++++++++++++++++
+
+.. automodule:: highdicom.seg.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. _highdicom-sr-subpackage:
 
@@ -131,6 +138,14 @@ highdicom.sr.sop module
 +++++++++++++++++++++++
 
 .. automodule:: highdicom.sr.sop
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.sr.utils module
++++++++++++++++++++++++++
+
+.. automodule:: highdicom.sr.utils
    :members:
    :undoc-members:
    :show-inheritance:
