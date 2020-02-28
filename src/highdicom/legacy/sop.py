@@ -585,7 +585,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
         except IndexError:
             raise ValueError('No DICOM data sets of provided.')
 
-        if ref_ds.Modality != 'PET':
+        if ref_ds.Modality != 'PT':
             raise ValueError(
                 'Wrong modality for conversion of legacy PET images.'
             )
