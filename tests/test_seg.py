@@ -1519,4 +1519,3 @@ class TestSegUtilities(unittest.TestCase):
         seg_id_item_2 = item_segment_2[1][0].SegmentIdentificationSequence[0]
         assert seg_id_item_2.ReferencedSegmentNumber == 2
         assert item_segment_2[2].SegmentNumber == 2
-
