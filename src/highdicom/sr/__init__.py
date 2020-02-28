@@ -1,10 +1,6 @@
 """Package for creationg of Structured Report (SR) instances."""
 
 SOP_CLASS_UIDS = {
-    '1.2.840.10008.5.1.4.1.1.88.1',   # Text SR
-    '1.2.840.10008.5.1.4.1.1.88.2',   # Audio SR
-    '1.2.840.10008.5.1.4.1.1.88.3',   # Detail SR
-    '1.2.840.10008.5.1.4.1.1.88.4',   # Comprehensive SR
     '1.2.840.10008.5.1.4.1.1.88.11',  # Basic Text SR
     '1.2.840.10008.5.1.4.1.1.88.22',  # Enhanced SR
     '1.2.840.10008.5.1.4.1.1.88.33',  # Comprehensive SR

@@ -9,22 +9,24 @@ from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
 from pydicom.uid import PYDICOM_IMPLEMENTATION_UID, ExplicitVRLittleEndian
 from pydicom.valuerep import DA, DT, TM
-from pydicom._storage_sopclass_uids import Comprehensive3DSRStorage
+from pydicom._storage_sopclass_uids import (
+    ComprehensiveSRStorage,
+    Comprehensive3DSRStorage,
+    EnhancedSRStorage,
+)
 
 from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
+from highdicom.sr.enum import ValueTypeValues
+from highdicom.sr.utils import find_content_items
 
 
 logger = logging.getLogger(__name__)
 
 
-class Comprehensive3DSR(SOPClass):
+class _SR(SOPClass):
 
-    """SOP class for a Comprehensive 3D Structured Report (SR) document, whose
-    content may include textual and a variety of coded information, numeric
-    measurement values, references to SOP Instances, as well as 2D or 3D
-    spatial or temporal regions of interest within such SOP Instances.
-    """
+    """Abstract base class for Structured Report (SR) SOP classes."""
 
     def __init__(
             self,
@@ -33,6 +35,7 @@ class Comprehensive3DSR(SOPClass):
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
+            sop_class_uid: str,
             instance_number: int,
             manufacturer: str,
             is_complete: bool = False,
@@ -117,7 +120,7 @@ class Comprehensive3DSR(SOPClass):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
-            sop_class_uid=Comprehensive3DSRStorage,
+            sop_class_uid=sop_class_uid,
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='SR',
@@ -232,3 +235,378 @@ class Comprehensive3DSR(SOPClass):
         self.ReferencedPerformedProcedureStepSequence = []
 
         self.copy_patient_and_study_information(evidence[0])
+
+
+class EnhancedSR(_SR):
+
+    """SOP class for an Enhanced Structured Report (SR) document, whose
+    content may include textual and a minimal amount of coded information,
+    numeric measurement values, references to SOP Instances (retricted to the
+    leaves of the tree), as well as 2D spatial or temporal regions of interest
+    within such SOP Instances.
+    """
+
+    def __init__(
+            self,
+            evidence: Sequence[Dataset],
+            content: Dataset,
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            is_complete: bool = False,
+            is_final: bool = False,
+            is_verified: bool = False,
+            institution_name: Optional[str] = None,
+            institutional_department_name: Optional[str] = None,
+            verifying_observer_name: Optional[str] = None,
+            verifying_organization: Optional[str] = None,
+            performed_procedure_codes: Optional[
+                Sequence[Union[Code, CodedConcept]]
+            ] = None,
+            requested_procedures: Optional[Sequence[Dataset]] = None,
+            previous_versions: Optional[Sequence[Dataset]] = None,
+            record_evidence: bool = True,
+            **kwargs
+        ):
+        """
+        Parameters
+        ----------
+        evidence: Sequence[pydicom.dataset.Dataset]
+            Instances that are referenced in the content tree and from which
+            the created SR document instance should inherit patient and study
+            information
+        content: pydicom.dataset.Dataset
+            Root container content items that should be included in the
+            SR document
+        series_instance_uid: str
+            Series Instance UID of the SR document series
+        series_number: Union[int, None]
+            Series Number of the SR document series
+        sop_instance_uid: str
+            SOP instance UID that should be assigned to the SR document instance
+        instance_number: int
+            Number that should be assigned to this SR document instance
+        manufacturer: str
+            Name of the manufacturer of the device that creates the SR document
+            instance (in a research setting this is typically the same
+            as `institution_name`)
+        is_complete: bool, optional
+            Whether the content is complete (default: ``False``)
+        is_final: bool, optional
+            Whether the report is the definitive means of communicating the
+            findings (default: ``False``)
+        is_verified: bool, optional
+            Whether the report has been verified by an observer accountable
+            for its content (default: ``False``)
+        institution_name: str, optional
+            Name of the institution of the person or device that creates the
+            SR document instance
+        institutional_department_name: str, optional
+            Name of the department of the person or device that creates the
+            SR document instance
+        verifying_observer_name: Union[str, None], optional
+            Name of the person that verfied the SR document
+            (required if `is_verified`)
+        verifying_organization: str
+            Name of the organization that verfied the SR document
+            (required if `is_verified`)
+        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+            Codes of the performed procedures that resulted in the SR document
+        requested_procedures: List[pydicom.dataset.Dataset]
+            Requested procedures that are being fullfilled by creation of the
+            SR document
+        previous_versions: List[pydicom.dataset.Dataset]
+            Instances representing previous versions of the SR document
+        record_evidence: bool, optional
+            Whether provided `evidence` should be recorded, i.e. included
+            in Current Requested Procedure Evidence Sequence or Pertinent
+            Other Evidence Sequence (default: ``True``)
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        Note
+        ----
+        Each dataset in `evidence` must be part of the same study.
+
+        """
+        super().__init__(
+            evidence=evidence,
+            content=content,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            sop_class_uid=EnhancedSRStorage,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            is_complete=is_complete,
+            is_final=is_final,
+            is_verified=is_verified,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
+            verifying_observer_name=verifying_observer_name,
+            verifying_organization=verifying_organization,
+            performed_procedure_codes=performed_procedure_codes,
+            requested_procedures=requested_procedures,
+            previous_versions=previous_versions,
+            record_evidence=record_evidence,
+            **kwargs
+        )
+        unsopported_content = find_content_items(
+            content,
+            value_type=ValueTypeValues.SCOORD3D,
+            recursive=True
+        )
+        if len(unsopported_content) > 0:
+            raise ValueError(
+                'Enhanced SR does not support content items with '
+                'SCOORD3D value type.'
+            )
+
+
+class ComprehensiveSR(_SR):
+
+    """SOP class for a Comprehensive Structured Report (SR) document, whose
+    content may include textual and a variety of coded information, numeric
+    measurement values, references to SOP Instances, as well as 2D
+    spatial or temporal regions of interest within such SOP Instances.
+    """
+
+    def __init__(
+            self,
+            evidence: Sequence[Dataset],
+            content: Dataset,
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            is_complete: bool = False,
+            is_final: bool = False,
+            is_verified: bool = False,
+            institution_name: Optional[str] = None,
+            institutional_department_name: Optional[str] = None,
+            verifying_observer_name: Optional[str] = None,
+            verifying_organization: Optional[str] = None,
+            performed_procedure_codes: Optional[
+                Sequence[Union[Code, CodedConcept]]
+            ] = None,
+            requested_procedures: Optional[Sequence[Dataset]] = None,
+            previous_versions: Optional[Sequence[Dataset]] = None,
+            record_evidence: bool = True,
+            **kwargs
+        ):
+        """
+        Parameters
+        ----------
+        evidence: Sequence[pydicom.dataset.Dataset]
+            Instances that are referenced in the content tree and from which
+            the created SR document instance should inherit patient and study
+            information
+        content: pydicom.dataset.Dataset
+            Root container content items that should be included in the
+            SR document
+        series_instance_uid: str
+            Series Instance UID of the SR document series
+        series_number: Union[int, None]
+            Series Number of the SR document series
+        sop_instance_uid: str
+            SOP instance UID that should be assigned to the SR document instance
+        instance_number: int
+            Number that should be assigned to this SR document instance
+        manufacturer: str
+            Name of the manufacturer of the device that creates the SR document
+            instance (in a research setting this is typically the same
+            as `institution_name`)
+        is_complete: bool, optional
+            Whether the content is complete (default: ``False``)
+        is_final: bool, optional
+            Whether the report is the definitive means of communicating the
+            findings (default: ``False``)
+        is_verified: bool, optional
+            Whether the report has been verified by an observer accountable
+            for its content (default: ``False``)
+        institution_name: str, optional
+            Name of the institution of the person or device that creates the
+            SR document instance
+        institutional_department_name: str, optional
+            Name of the department of the person or device that creates the
+            SR document instance
+        verifying_observer_name: Union[str, None], optional
+            Name of the person that verfied the SR document
+            (required if `is_verified`)
+        verifying_organization: str
+            Name of the organization that verfied the SR document
+            (required if `is_verified`)
+        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+            Codes of the performed procedures that resulted in the SR document
+        requested_procedures: List[pydicom.dataset.Dataset]
+            Requested procedures that are being fullfilled by creation of the
+            SR document
+        previous_versions: List[pydicom.dataset.Dataset]
+            Instances representing previous versions of the SR document
+        record_evidence: bool, optional
+            Whether provided `evidence` should be recorded, i.e. included
+            in Current Requested Procedure Evidence Sequence or Pertinent
+            Other Evidence Sequence (default: ``True``)
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        Note
+        ----
+        Each dataset in `evidence` must be part of the same study.
+
+        """
+        super().__init__(
+            evidence=evidence,
+            content=content,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            sop_class_uid=ComprehensiveSRStorage,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            is_complete=is_complete,
+            is_final=is_final,
+            is_verified=is_verified,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
+            verifying_observer_name=verifying_observer_name,
+            verifying_organization=verifying_organization,
+            performed_procedure_codes=performed_procedure_codes,
+            requested_procedures=requested_procedures,
+            previous_versions=previous_versions,
+            record_evidence=record_evidence,
+            **kwargs
+        )
+        unsopported_content = find_content_items(
+            content,
+            value_type=ValueTypeValues.SCOORD3D,
+            recursive=True
+        )
+        if len(unsopported_content) > 0:
+            raise ValueError(
+                'Comprehensive SR does not support content items with '
+                'SCOORD3D value type.'
+            )
+
+
+class Comprehensive3DSR(_SR):
+
+    """SOP class for a Comprehensive 3D Structured Report (SR) document, whose
+    content may include textual and a variety of coded information, numeric
+    measurement values, references to SOP Instances, as well as 2D or 3D
+    spatial or temporal regions of interest within such SOP Instances.
+    """
+
+    def __init__(
+            self,
+            evidence: Sequence[Dataset],
+            content: Dataset,
+            series_instance_uid: str,
+            series_number: int,
+            sop_instance_uid: str,
+            instance_number: int,
+            manufacturer: str,
+            is_complete: bool = False,
+            is_final: bool = False,
+            is_verified: bool = False,
+            institution_name: Optional[str] = None,
+            institutional_department_name: Optional[str] = None,
+            verifying_observer_name: Optional[str] = None,
+            verifying_organization: Optional[str] = None,
+            performed_procedure_codes: Optional[
+                Sequence[Union[Code, CodedConcept]]
+            ] = None,
+            requested_procedures: Optional[Sequence[Dataset]] = None,
+            previous_versions: Optional[Sequence[Dataset]] = None,
+            record_evidence: bool = True,
+            **kwargs
+        ):
+        """
+        Parameters
+        ----------
+        evidence: Sequence[pydicom.dataset.Dataset]
+            Instances that are referenced in the content tree and from which
+            the created SR document instance should inherit patient and study
+            information
+        content: pydicom.dataset.Dataset
+            Root container content items that should be included in the
+            SR document
+        series_instance_uid: str
+            Series Instance UID of the SR document series
+        series_number: Union[int, None]
+            Series Number of the SR document series
+        sop_instance_uid: str
+            SOP instance UID that should be assigned to the SR document instance
+        instance_number: int
+            Number that should be assigned to this SR document instance
+        manufacturer: str
+            Name of the manufacturer of the device that creates the SR document
+            instance (in a research setting this is typically the same
+            as `institution_name`)
+        is_complete: bool, optional
+            Whether the content is complete (default: ``False``)
+        is_final: bool, optional
+            Whether the report is the definitive means of communicating the
+            findings (default: ``False``)
+        is_verified: bool, optional
+            Whether the report has been verified by an observer accountable
+            for its content (default: ``False``)
+        institution_name: str, optional
+            Name of the institution of the person or device that creates the
+            SR document instance
+        institutional_department_name: str, optional
+            Name of the department of the person or device that creates the
+            SR document instance
+        verifying_observer_name: Union[str, None], optional
+            Name of the person that verfied the SR document
+            (required if `is_verified`)
+        verifying_organization: str
+            Name of the organization that verfied the SR document
+            (required if `is_verified`)
+        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+            Codes of the performed procedures that resulted in the SR document
+        requested_procedures: List[pydicom.dataset.Dataset]
+            Requested procedures that are being fullfilled by creation of the
+            SR document
+        previous_versions: List[pydicom.dataset.Dataset]
+            Instances representing previous versions of the SR document
+        record_evidence: bool, optional
+            Whether provided `evidence` should be recorded, i.e. included
+            in Current Requested Procedure Evidence Sequence or Pertinent
+            Other Evidence Sequence (default: ``True``)
+        **kwargs: Dict[str, Any], optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        Note
+        ----
+        Each dataset in `evidence` must be part of the same study.
+
+        """
+        super().__init__(
+            evidence=evidence,
+            content=content,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            sop_class_uid=Comprehensive3DSRStorage,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            is_complete=is_complete,
+            is_final=is_final,
+            is_verified=is_verified,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
+            verifying_observer_name=verifying_observer_name,
+            verifying_organization=verifying_organization,
+            performed_procedure_codes=performed_procedure_codes,
+            requested_procedures=requested_procedures,
+            previous_versions=previous_versions,
+            record_evidence=record_evidence,
+            **kwargs
+        )

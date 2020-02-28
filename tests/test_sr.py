@@ -16,6 +16,7 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
     FindingSite,
     ImageRegion,
+    ImageRegion3D,
     VolumeSurface,
     SourceImageForRegion,
     SourceImageForSegmentation,
@@ -44,11 +45,16 @@ from highdicom.sr.value_types import (
     TimeContentItem,
     UIDRefContentItem,
 )
-from highdicom.sr.sop import Comprehensive3DSR
+from highdicom.sr.sop import (
+    ComprehensiveSR,
+    Comprehensive3DSR,
+    EnhancedSR,
+)
 from highdicom.sr.templates import (
     DEFAULT_LANGUAGE,
     DeviceObserverIdentifyingAttributes,
     Measurement,
+    MeasurementProperties,
     MeasurementReport,
     ObservationContext,
     ObserverContext,
@@ -1068,7 +1074,7 @@ class TestMeasurementReport(unittest.TestCase):
         assert subitem.ConceptNameCodeSequence[0].CodeValue == '125007'
 
 
-class TestComprehensive3DSR(unittest.TestCase):
+class TestEnhancedSR(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -1086,7 +1092,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._ref_dataset.StudyDate = datetime.now().date()
         self._ref_dataset.StudyTime = datetime.now().time()
         self._ref_dataset.ReferringPhysicianName = 'doctor'
-        self._content = Dataset()
+
         self._series_instance_uid = generate_uid()
         self._series_number = 3
         self._sop_instance_uid = generate_uid()
@@ -1094,6 +1100,282 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._institution_name = 'institute'
         self._institutional_department_name = 'department'
         self._manufacturer = 'manufacturer'
+
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=generate_uid()
+            )
+        )
+        observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        referenced_region = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=np.array([
+                (165.0, 200.0),
+                (170.0, 200.0),
+                (170.0, 220.0),
+                (165.0, 220.0),
+                (165.0, 200.0),
+            ]),
+            source_image=SourceImageForRegion(
+                referenced_sop_class_uid=self._ref_dataset.SOPClassUID,
+                referenced_sop_instance_uid=self._ref_dataset.SOPInstanceUID
+            )
+        )
+        finding_sites = [
+            FindingSite(
+                anatomic_location=codes.SCT.CervicoThoracicSpine,
+                topographical_modifier=codes.SCT.VertebralForamen
+            ),
+        ]
+        measurements = [
+            Measurement(
+                name=codes.SCT.AreaOfDefinedRegion,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+                value=1.7,
+                unit=codes.UCUM.SquareMillimeter,
+                properties=MeasurementProperties(
+                    normality=CodedConcept(
+                        value="17621005",
+                        meaning="Normal",
+                        scheme_designator="SCT"
+                    ),
+                    level_of_significance=codes.SCT.NotSignificant
+                )
+            )
+        ]
+        imaging_measurements = [
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=TrackingIdentifier(
+                    uid=generate_uid(),
+                    identifier='Planar ROI Measurements'
+                ),
+                referenced_region=referenced_region,
+                finding_type=codes.SCT.SpinalCord,
+                measurements=measurements,
+                finding_sites=finding_sites
+            )
+        ]
+        self._content = MeasurementReport(
+            observation_context=observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=imaging_measurements
+        )[0]
+
+        self._report = EnhancedSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._institutional_department_name,
+            manufacturer=self._manufacturer
+        )
+
+    def test_sop_class_uid(self):
+        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+
+
+class TestComprehensiveSR(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ref_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+        self._series_instance_uid = generate_uid()
+        self._series_number = 3
+        self._sop_instance_uid = generate_uid()
+        self._instance_number = 4
+        self._institution_name = 'institute'
+        self._institutional_department_name = 'department'
+        self._manufacturer = 'manufacturer'
+
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=generate_uid()
+            )
+        )
+        observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        referenced_region = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=np.array([
+                (165.0, 200.0),
+                (170.0, 200.0),
+                (170.0, 220.0),
+                (165.0, 220.0),
+                (165.0, 200.0),
+            ]),
+            source_image=SourceImageForRegion(
+                referenced_sop_class_uid=self._ref_dataset.SOPClassUID,
+                referenced_sop_instance_uid=self._ref_dataset.SOPInstanceUID
+            )
+        )
+        finding_sites = [
+            FindingSite(
+                anatomic_location=codes.SCT.CervicoThoracicSpine,
+                topographical_modifier=codes.SCT.VertebralForamen
+            ),
+        ]
+        measurements = [
+            Measurement(
+                name=codes.SCT.AreaOfDefinedRegion,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+                value=1.7,
+                unit=codes.UCUM.SquareMillimeter,
+                properties=MeasurementProperties(
+                    normality=CodedConcept(
+                        value="17621005",
+                        meaning="Normal",
+                        scheme_designator="SCT"
+                    ),
+                    level_of_significance=codes.SCT.NotSignificant
+                )
+            )
+        ]
+        imaging_measurements = [
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=TrackingIdentifier(
+                    uid=generate_uid(),
+                    identifier='Planar ROI Measurements'
+                ),
+                referenced_region=referenced_region,
+                finding_type=codes.SCT.SpinalCord,
+                measurements=measurements,
+                finding_sites=finding_sites
+            )
+        ]
+        self._content = MeasurementReport(
+            observation_context=observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=imaging_measurements
+        )[0]
+
+        self._report = ComprehensiveSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._institutional_department_name,
+            manufacturer=self._manufacturer
+        )
+
+    def test_sop_class_uid(self):
+        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
+
+
+class TestComprehensive3DSR(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ref_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+        self._series_instance_uid = generate_uid()
+        self._series_number = 3
+        self._sop_instance_uid = generate_uid()
+        self._instance_number = 4
+        self._institution_name = 'institute'
+        self._institutional_department_name = 'department'
+        self._manufacturer = 'manufacturer'
+
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=generate_uid()
+            )
+        )
+        observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        referenced_region = ImageRegion3D(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            graphic_data=np.array([
+                (165.0, 200.0, 134.0),
+                (170.0, 200.0, 134.0),
+                (170.0, 220.0, 134.0),
+                (165.0, 220.0, 134.0),
+                (165.0, 200.0, 134.0),
+            ]),
+            frame_of_reference_uid=self._ref_dataset.FrameOfReferenceUID
+        )
+        finding_sites = [
+            FindingSite(
+                anatomic_location=codes.SCT.CervicoThoracicSpine,
+                topographical_modifier=codes.SCT.VertebralForamen
+            ),
+        ]
+        measurements = [
+            Measurement(
+                name=codes.SCT.AreaOfDefinedRegion,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+                value=1.7,
+                unit=codes.UCUM.SquareMillimeter,
+                properties=MeasurementProperties(
+                    normality=CodedConcept(
+                        value="17621005",
+                        meaning="Normal",
+                        scheme_designator="SCT"
+                    ),
+                    level_of_significance=codes.SCT.NotSignificant
+                )
+            )
+        ]
+        imaging_measurements = [
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=TrackingIdentifier(
+                    uid=generate_uid(),
+                    identifier='Planar ROI Measurements'
+                ),
+                referenced_region=referenced_region,
+                finding_type=codes.SCT.SpinalCord,
+                measurements=measurements,
+                finding_sites=finding_sites
+            )
+        ]
+        self._content = MeasurementReport(
+            observation_context=observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=imaging_measurements
+        )[0]
+
         self._report = Comprehensive3DSR(
             evidence=[self._ref_dataset],
             content=self._content,
@@ -1105,6 +1387,9 @@ class TestComprehensive3DSR(unittest.TestCase):
             institutional_department_name=self._institutional_department_name,
             manufacturer=self._manufacturer
         )
+
+    def test_sop_class_uid(self):
+        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
 
     def test_patient_attributes(self):
         assert self._report.PatientID == self._ref_dataset.PatientID
