@@ -284,14 +284,3 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.StudyTime = time_
             output_dataset.append(tmp_dataset)
         return output_dataset
-
-# class LegacyConvertedEnhancedCTImage(unittest.TestCase):
-#
-#     def setUp(self):
-#         super().setUp()
-#
-#
-# class LegacyConvertedEnhancedPETImage(unittest.TestCase):
-#
-#     def setUp(self):
-#         super().setUp()
