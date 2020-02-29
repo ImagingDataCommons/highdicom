@@ -613,12 +613,12 @@ class ScoordContentItem(ContentItem):
         graphic_data: numpy.ndarray[numpy.int]
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        pixel_origin_interpretation: Union[highdicom.sr.value_types.PixelOriginInterpretationValues, str]
+        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretationValues, str]
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
-            (``highdicom.sr.value_types.PixelOriginInterpretationValues.VOLUME``) or
+            (``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
-            (``highdicom.sr.value_types.PixelOriginInterpretationValues.FRAME``)
+            (``highdicom.sr.enum.PixelOriginInterpretationValues.FRAME``)
         fiducial_uid: Union[pydicom.uid.UID, str, None], optional
             unique identifier for the content item
         relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
