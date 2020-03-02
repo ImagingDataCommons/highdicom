@@ -95,7 +95,7 @@ class _SR(SOPClass):
         verifying_organization: str
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the
@@ -312,7 +312,7 @@ class EnhancedSR(_SR):
         verifying_organization: str
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the
@@ -440,7 +440,7 @@ class ComprehensiveSR(_SR):
         verifying_organization: str
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the
@@ -568,7 +568,7 @@ class Comprehensive3DSR(_SR):
         verifying_organization: str
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[pydicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the

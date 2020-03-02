@@ -9,7 +9,7 @@ Source code is available at Github and can be cloned via git:
 
     git clone https://github.com/mghcomputationalpathology/highdicom ~/highdicom
 
-The :mod:`dicomweb_client` package can be installed in *develop* mode for local development:
+The :mod:`highdicom` package can be installed in *develop* mode for local development:
 
 .. code-block:: none
 

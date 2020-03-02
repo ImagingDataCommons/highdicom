@@ -38,9 +38,9 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         ----------
         value: Union[int, float], optional
             offset in time from a particular event of significance
-        unit: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             unit of time, e.g., "Days" or "Seconds"
-        event_type: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
@@ -226,7 +226,7 @@ class ImageRegion(ScoordContentItem):
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        source_image: pydicom.sr.template.SourceImageForRegion
+        source_image: highdicom.sr.template.SourceImageForRegion
             source image to which `graphic_data` relates
         pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretationValues, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
@@ -428,12 +428,12 @@ class FindingSite(CodeContentItem):
         """
         Parameters
         ----------
-        anatomic_location: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded anatomic location (region or structure)
-        laterality: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        laterality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
             (see CID 244 "Laterality" for options)
-        topographical_modifier: Union[pydicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        topographical_modifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
         """  # noqa

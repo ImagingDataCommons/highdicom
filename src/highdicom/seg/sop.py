@@ -153,7 +153,7 @@ class Segmentation(SOPClass):
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
             same pixel measures as the source image(s).
-        plane_orientation: PlaneOrientationSequence, optional
+        plane_orientation: highdicom.content.PlaneOrientationSequence, optional
             Orientation of planes in `pixel_array` relative to axes of
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image as the

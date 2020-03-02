@@ -11,7 +11,7 @@ Motivation and goals
 --------------------
 
 The DICOM standard is crucial for achieving interoperability between image analysis applications and image storage and communication systems during both development and clinical deployment.
-However, the standard is vast and complex and implementing the standard correctly can be challenging - even for DICOM experts.
+However, the standard is vast and complex and implementing it correctly can be challenging - even for DICOM experts.
 The main goal of *highdicom* is to abstract the complexity of the standard and allow developers of image analysis applications to focus on the algorithm and the data analysis rather than low-level data encoding.
 To this end, *highdicom* provides a high-level, intuitive application programming interface (API) that enables developers to create high-quality DICOM objects in a few lines of Python code.
 Importantly, the API is compatible with digital pathology and radiology imaging modalities, including Slide Microscopy (SM), Computed Tomography (CT) and Magnetic Resonance (MR) imaging.

@@ -25,9 +25,9 @@ def find_content_items(
         SR document instance
     name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
         Coded name that items should have
-    value_type: Union[highdicom.sr.value_types.ValueTypeValues, str], optional
+    value_type: Union[highdicom.sr.enum.ValueTypeValues, str], optional
         Type of value that items should have
-        (e.g. ``highdicom.sr.value_types.ValueTypeValues.CONTAINER``)
+        (e.g. ``highdicom.sr.enum.ValueTypeValues.CONTAINER``)
     relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
         Type of relationship that items should have with its parent
         (e.g. ``highdicom.sr.enum.RelationshipTypeValues.CONTAINS``)

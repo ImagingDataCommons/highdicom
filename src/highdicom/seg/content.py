@@ -41,29 +41,29 @@ class SegmentDescription(Dataset):
             Number of the segment
         segment_label: str
             Label of the segment
-        segmented_property_category: Union[pydicom.sr.coding.Code, pydicom.sr.coding.CodedConcept]
+        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
             (see CID 7150 Segmentation Property Categories)
-        segmented_property_type: Union[pydicom.sr.coding.Code, pydicom.sr.coding.CodedConcept]
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
             (see CID 7151 Segmentation Property Types)
         algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
             Type of algorithm
-        algorithm_identification: AlgorithmIdentificationSequence, optional
+        algorithm_identification: highdicom.content.AlgorithmIdentificationSequence, optional
             Information useful for identification of the algorithm, such
             as its name or version
         tracking_uid: str, optional
             Unique tracking identifier (universally unique)
         tracking_id: str, optional
             Tracking identifier (unique only with the domain of use)
-        anatomic_regions: Sequence[Union[Code, CodedConcept]], optional
+        anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
             (see CID 4 Anatomic Region, CID 4031 Common Anatomic Regions, as
             as well as other CIDs for domain-specific anatomic regions)
-        primary_anatomic_structures: Sequence[Union[Code, CodedConcept]], optional
+        primary_anatomic_structures: Sequence[Union[highdicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 

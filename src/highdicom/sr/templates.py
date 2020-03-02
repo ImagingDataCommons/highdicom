@@ -1372,7 +1372,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.templates.Measurement], optional
             numeric measurements
-        qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
+        qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms
 
@@ -1497,7 +1497,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.templates.Measurement], optional
             measurements for a region of interest
-        qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
+        qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a region of interest
 
@@ -1592,7 +1592,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.templates.Measurement], optional
             measurements for a volume of interest
-        qualitative_evaluations: Sequence[pydicom.sr.coding.CodeContentItem], optional
+        qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a volume of interest
 
