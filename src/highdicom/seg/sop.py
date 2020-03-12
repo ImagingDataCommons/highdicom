@@ -494,6 +494,22 @@ class Segmentation(SOPClass):
                 'rows and columns.'
             )
 
+        # Check the z-dimension of the pixel array
+        src_img = self._source_images[0]
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
+        if is_multiframe:
+            if pixel_array.shape[0] != src_img.NumberOfFrames:
+                raise ValueError(
+                    'Number of frames in pixel array does not match number of '
+                    'frames in source image.'
+                )
+        else:
+            if pixel_array.shape[0] != len(self._source_images):
+                raise ValueError(
+                    'Number of frames in pixel array does not match number of '
+                    'source images.'
+                )
+
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
             for item in segment_descriptions
@@ -569,8 +585,6 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
-        src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
                 source_plane_positions = [
@@ -651,9 +665,9 @@ class Segmentation(SOPClass):
                 source_plane_positions = [
                     PlanePositionSequence(
                         coordinate_system=CoordinateSystemNames.PATIENT,
-                        image_position=src_img.ImagePositionPatient
+                        image_position=img.ImagePositionPatient
                     )
-                    for src_img in self._source_images
+                    for img in self._source_images
                 ]
 
         if plane_positions is None:
