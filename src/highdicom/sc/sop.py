@@ -8,6 +8,12 @@ import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
+from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
+from pydicom.uid import (
+    ImplicitVRLittleEndian,
+    ExplicitVRLittleEndian,
+    RLELossless,
+)
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -82,6 +88,7 @@ class SCImage(SOPClass):
             specimen_descriptions: Optional[
                 Sequence[SpecimenDescription]
             ] = None,
+            transfer_syntax_uid=ImplicitVRLittleEndian,
             **kwargs
         ):
         """
@@ -155,11 +162,27 @@ class SCImage(SOPClass):
         specimen_descriptions: Sequence[highdicom.content.SpecimenDescriptions], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. The following lossless compressed transfer syntaxes
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``).
         **kwargs: Dict[str, Any], optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
         """  # noqa
+        supported_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            RLELossless,
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                'Transfer syntax "{}" is not supported'.format(
+                    transfer_syntax_uid
+                )
+            )
+
         super().__init__(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
@@ -317,4 +340,9 @@ class SCImage(SOPClass):
             )
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
-        self.PixelData = pixel_array.tobytes()
+
+        # Pixel compression based on transfer syntax uid
+        if self.file_meta.TransferSyntaxUID == RLELossless:
+            self.PixelData = rle_encode_frame(pixel_array)
+        else:
+            self.PixelData = pixel_array.tobytes()

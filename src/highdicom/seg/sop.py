@@ -7,8 +7,16 @@ from typing import Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.pixel_data_handlers.util import get_expected_length
-from pydicom.uid import UID
+from pydicom.uid import (
+    UID,
+    ImplicitVRLittleEndian,
+    ExplicitVRLittleEndian,
+    JPEG2000Lossless,
+    JPEGLSLossless,
+    RLELossless,
+)
 from pydicom.sr.codedict import codes
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
@@ -67,7 +75,7 @@ class Segmentation(SOPClass):
             max_fractional_value: Optional[int] = 255,
             content_description: Optional[str] = None,
             content_creator_name: Optional[str] = None,
-            transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
+            transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
@@ -146,7 +154,8 @@ class Segmentation(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: JPEG2000 (``"1.2.840.10008.1.2.4.90"``) and
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``),
+            JPEG2000 (``"1.2.840.10008.1.2.4.90"``), and
             JPEG-LS (``"1.2.840.10008.1.2.4.80"``). Lossy compression is not
             supported.
         pixel_measures: PixelMeasures, optional
@@ -218,12 +227,12 @@ class Segmentation(SOPClass):
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
             )
-
         supported_transfer_syntaxes = {
-            '1.2.840.10008.1.2',       # Implicit Little Endian
-            '1.2.840.10008.1.2.1',     # Explicit Little Endian
-            # '1.2.840.10008.1.2.4.90',  # JPEG2000
-            # '1.2.840.10008.1.2.4.80',  # JPEG-LS
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            RLELossless,
+            # JPEG2000Lossless,
+            # JPEGLSLossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -314,6 +323,11 @@ class Segmentation(SOPClass):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
+            if self.file_meta.TransferSyntaxUID == RLELossless:
+                raise ValueError(
+                    'RLE transfer syntax is not compatible with the BINARY '
+                    'segmentation type'
+                )
         elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
             self.BitsAllocated = 8
             self.HighBit = 7
@@ -902,7 +916,10 @@ class Segmentation(SOPClass):
 
         """
         # TODO: compress depending on transfer syntax UID
-        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-            return pack_bits(planes.flatten())
+        if self.file_meta.TransferSyntaxUID == RLELossless:
+            return rle_encode_frame(planes)
         else:
-            return planes.flatten().tobytes()
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                return pack_bits(planes.flatten())
+            else:
+                return planes.flatten().tobytes()
