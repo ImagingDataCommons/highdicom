@@ -494,22 +494,6 @@ class Segmentation(SOPClass):
                 'rows and columns.'
             )
 
-        # Check the z-dimension of the pixel array
-        src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if is_multiframe:
-            if pixel_array.shape[0] != src_img.NumberOfFrames:
-                raise ValueError(
-                    'Number of frames in pixel array does not match number of '
-                    'frames in source image.'
-                )
-        else:
-            if pixel_array.shape[0] != len(self._source_images):
-                raise ValueError(
-                    'Number of frames in pixel array does not match number of '
-                    'source images.'
-                )
-
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
             for item in segment_descriptions
@@ -585,6 +569,8 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
+        src_img = self._source_images[0]
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
                 source_plane_positions = [
@@ -671,7 +657,25 @@ class Segmentation(SOPClass):
                 ]
 
         if plane_positions is None:
+            if pixel_array.shape[0] != len(source_plane_positions):
+                if is_multiframe:
+                    raise ValueError(
+                        'Number of frames in pixel array does not match number '
+                        ' of frames in source image.'
+                    )
+                else:
+                    raise ValueError(
+                        'Number of frames in pixel array does not match number '
+                        'of source images.'
+                    )
             plane_positions = source_plane_positions
+        else:
+            if pixel_array.shape[0] != len(plane_positions):
+                raise ValueError(
+                    'Number of pixel array planes does not match number of '
+                    'provided plane positions.'
+                )
+
         are_spatial_locations_preserved = (
             all(
                 plane_positions[i] == source_plane_positions[i]
@@ -679,12 +683,6 @@ class Segmentation(SOPClass):
             ) and
             self._plane_orientation == self._source_plane_orientation
         )
-
-        if pixel_array.shape[0] != len(plane_positions):
-            raise ValueError(
-                'Number of pixel array planes does not match number of '
-                'provided image positions.'
-            )
 
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
