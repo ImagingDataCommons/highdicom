@@ -917,7 +917,7 @@ class Segmentation(SOPClass):
         """
         # TODO: compress depending on transfer syntax UID
         if self.file_meta.TransferSyntaxUID == RLELossless:
-            return rle_encode_frame(planes)
+            return rle_encode_frame(planes[0, ...])
         else:
             if self.SegmentationType == SegmentationTypeValues.BINARY.value:
                 return pack_bits(planes.flatten())
