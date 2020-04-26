@@ -117,14 +117,10 @@ class SOPClass(Dataset):
             self.is_little_endian = False
         else:
             self.is_little_endian = True
-        if transfer_syntax_uid in (
-                ExplicitVRLittleEndian,
-                ExplicitVRBigEndian,
-                DeflatedExplicitVRLittleEndian
-            ):
-            self.is_implicit_VR = False
-        else:
+        if transfer_syntax_uid == ImplicitVRLittleEndian:
             self.is_implicit_VR = True
+        else:
+            self.is_implicit_VR = False
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
