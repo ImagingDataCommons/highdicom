@@ -235,7 +235,7 @@ class TimePointContext(Template):
             )
             self.append(subject_time_point_identifier_item)
         if protocol_time_point_identifier is not None:
-            protocol_time_point_identifier_item = NumContentItem(
+            protocol_time_point_identifier_item = TextContentItem(
                 name=CodedConcept(
                     value='126071',
                     meaning='Protocol Time Point Identifier',
@@ -297,7 +297,7 @@ class MeasurementStatisticalProperties(Template):
                     meaning='Population Description',
                     scheme_designator='DCM'
                 ),
-                value=authority,
+                value=description,
                 relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(description_item)
@@ -305,7 +305,7 @@ class MeasurementStatisticalProperties(Template):
             authority_item = TextContentItem(
                 name=CodedConcept(
                     value='121406',
-                    meaning='Population Authority',
+                    meaning='Reference Authority',
                     scheme_designator='DCM'
                 ),
                 value=authority,
@@ -935,7 +935,8 @@ class SubjectContext(Template):
             relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(subject_class_item)
-        self.extend(subject_class_specific_context)
+        if subject_class_specific_context is not None:
+            self.extend(subject_class_specific_context)
 
 
 class ObservationContext(Template):
@@ -1522,9 +1523,14 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
                 'Only one of the following arguments should be provided: '
                 '"referenced_region", "referenced_segment".'
             )
+        referenced_regions: Optional[
+            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
+        ] = None
+        if referenced_region is not None:
+            referenced_regions = [referenced_region]
         super().__init__(
             tracking_identifier=tracking_identifier,
-            referenced_regions=[referenced_region],
+            referenced_regions=referenced_regions,
             referenced_segment=referenced_segment,
             referenced_real_world_value_map=referenced_real_world_value_map,
             time_point_context=time_point_context,

@@ -1,7 +1,7 @@
 import logging
-from datetime import datetime
+import datetime
 from io import BytesIO
-from typing import Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
@@ -49,7 +49,9 @@ class SOPClass(Dataset):
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[str] = None,
-            content_qualification: Optional[str] = None,
+            content_qualification: Optional[
+                Union[str, ContentQualificationValues]
+            ] = None,
             coding_schemes: Optional[
                 Sequence[CodingSchemeIdentificationItem]
             ] = None
@@ -94,7 +96,7 @@ class SOPClass(Dataset):
            Time of study creation
         referring_physician_name: str, optional
             Name of the referring physician
-        content_qualification: str, optional
+        content_qualification: Union[str, highdicom.enum.ContentQualificationValues], optional
             Indicator of content qualification
         coding_schemes: Sequence[highdicom.sr.coding.CodingSchemeIdentificationItem], optional
             private or public coding schemes that are not part of the
@@ -167,15 +169,15 @@ class SOPClass(Dataset):
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         self.InstanceNumber = instance_number
-        self.ContentDate = DA(datetime.now().date())
-        self.ContentTime = TM(datetime.now().time())
+        self.ContentDate = DA(datetime.datetime.now().date())
+        self.ContentTime = TM(datetime.datetime.now().time())
         if content_qualification is not None:
             content_qualification = ContentQualificationValues(
                 content_qualification
             )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
-            self.CodingSchemeIdentificationSequence = []
+            self.CodingSchemeIdentificationSequence: List[Dataset] = []
             for item in coding_schemes:
                 if not isinstance(item, CodingSchemeIdentificationItem):
                     raise TypeError(
@@ -244,7 +246,7 @@ class SOPClass(Dataset):
                 )
             )
             [
-                self._copy_attribute(dataset, item['keyword'])
+                self._copy_attribute(dataset, str(item['keyword']))
                 for item in MODULE_ATTRIBUTE_MAP[module_key]
                 if len(item['path']) == 0
             ]

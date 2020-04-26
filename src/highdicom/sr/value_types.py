@@ -1,7 +1,7 @@
 """DICOM structured reporting content item value types."""
 import datetime
 from collections import namedtuple
-from typing import Any, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -419,7 +419,7 @@ class NumContentItem(ContentItem):
             ValueTypeValues.NUM, name, relationship_type
         )
         if value is not None:
-            self.MeasuredValueSequence = []
+            self.MeasuredValueSequence: List[Dataset] = []
             measured_value_sequence_item = Dataset()
             if not isinstance(value, (int, float, )):
                 raise TypeError(
@@ -690,7 +690,7 @@ class Scoord3DContentItem(ContentItem):
     def __init__(
             self,
             name: Union[Code, CodedConcept],
-            graphic_type: Union[str, GraphicTypeValues],
+            graphic_type: Union[GraphicTypeValues3D, str],
             graphic_data: np.ndarray,
             frame_of_reference_uid: Union[str, UID],
             fiducial_uid: Optional[Union[str, UID]] = None,
@@ -703,7 +703,7 @@ class Scoord3DContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.float]
             array of spatial coordinates, where each row of the array
@@ -792,7 +792,7 @@ class TcoordContentItem(ContentItem):
 
         """  # noqa
         super(TcoordContentItem, self).__init__(
-            ValueTypeValues.TSCOORD, name, relationship_type
+            ValueTypeValues.TCOORD, name, relationship_type
         )
         temporal_range_type = TemporalRangeTypeValues(temporal_range_type)
         self.TemporalRangeType = temporal_range_type.value

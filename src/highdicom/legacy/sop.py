@@ -1,8 +1,8 @@
 """Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 
-import collections
 import logging
-from typing import Optional, Sequence, Union
+from collections import defaultdict
+from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -164,7 +164,7 @@ def _convert_legacy_to_enhanced(
     pixel_representation = sf_datasets[0].PixelRepresentation
     volumetric_properties = 'VOLUME'
     unique_image_types = set()
-    unassigned_dataelements = collections.defaultdict(list)
+    unassigned_dataelements: Dict[str, List[Dataset]] = defaultdict(list)
 
     # Per-Frame Functional Groups
     perframe_items = []

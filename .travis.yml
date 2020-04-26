@@ -3,9 +3,12 @@ python:
   - "3.5"
   - "3.6"
   - "3.7"
+  - "3.8"
 install:
   - "pip install --upgrade setuptools pip"
   - "pip install -r requirements_test.txt"
   - "pip install ."
 script:
-  - pytest -v --flake8 --ignore-glob='src/highdicom/_*' --ignore-glob='bin/*'
+  - "pytest tests"
+  - "flake8 --exclude='bin,build,.eggs,src/highdicom/_*'"
+  - "mypy src/highdicom tests"

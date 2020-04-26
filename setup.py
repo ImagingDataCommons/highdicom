@@ -12,7 +12,7 @@ with io.open('src/highdicom/version.py', 'rt', encoding='utf8') as f:
 setuptools.setup(
     name='highdicom',
     version=version,
-    description='High-level abstractions for the DICOM standard.',
+    description='High-level DICOM abstractions.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
     url='https://github.com/mghcomputationalpathology/highdicom',
