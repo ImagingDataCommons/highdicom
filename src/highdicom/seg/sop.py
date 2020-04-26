@@ -651,13 +651,31 @@ class Segmentation(SOPClass):
                 source_plane_positions = [
                     PlanePositionSequence(
                         coordinate_system=CoordinateSystemNames.PATIENT,
-                        image_position=src_img.ImagePositionPatient
+                        image_position=img.ImagePositionPatient
                     )
-                    for src_img in self._source_images
+                    for img in self._source_images
                 ]
 
         if plane_positions is None:
+            if pixel_array.shape[0] != len(source_plane_positions):
+                if is_multiframe:
+                    raise ValueError(
+                        'Number of frames in pixel array does not match number '
+                        ' of frames in source image.'
+                    )
+                else:
+                    raise ValueError(
+                        'Number of frames in pixel array does not match number '
+                        'of source images.'
+                    )
             plane_positions = source_plane_positions
+        else:
+            if pixel_array.shape[0] != len(plane_positions):
+                raise ValueError(
+                    'Number of pixel array planes does not match number of '
+                    'provided plane positions.'
+                )
+
         are_spatial_locations_preserved = (
             all(
                 plane_positions[i] == source_plane_positions[i]
@@ -665,12 +683,6 @@ class Segmentation(SOPClass):
             ) and
             self._plane_orientation == self._source_plane_orientation
         )
-
-        if pixel_array.shape[0] != len(plane_positions):
-            raise ValueError(
-                'Number of pixel array planes does not match number of '
-                'provided image positions.'
-            )
 
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
