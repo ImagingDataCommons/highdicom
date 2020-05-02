@@ -6,6 +6,7 @@ from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
+from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
 from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
@@ -343,6 +344,6 @@ class SCImage(SOPClass):
 
         # Pixel compression based on transfer syntax uid
         if self.file_meta.TransferSyntaxUID == RLELossless:
-            self.PixelData = rle_encode_frame(pixel_array)
+            self.PixelData = encapsulate(rle_encode_frame(pixel_array))
         else:
             self.PixelData = pixel_array.tobytes()
