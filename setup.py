@@ -35,22 +35,7 @@ setuptools.setup(
     include_package_data=True,
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
-    setup_requires=[
-        'pytest-runner>=3.0',
-    ],
-    extras_require={
-        'docs': [
-            'sphinx>=1.7.1',
-            'sphinx-pyreverse>=0.0.12',
-            'sphinxcontrib-autoprogram>=0.1.4',
-            'sphinx_rtd_theme>=0.2.4'
-        ]
-    },
-    tests_require=[
-        'pytest>=3.3',
-        'pytest-flake8>=0.9',
-        'tox>=2.9'
-    ],
+    python_requires='>=3.6',
     install_requires=[
         'pydicom>=1.4.1',
         'numpy>=1.0',
