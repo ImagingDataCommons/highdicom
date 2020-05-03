@@ -1,6 +1,6 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
-from typing import Dict, Optional, Union, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -153,7 +153,7 @@ class PlanePositionSequence(DataElementSequence):
             item.ImagePositionPatient = list(image_position)
         self.append(item)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         """Determines whether two image planes have the same position.
 
         Parameters
@@ -225,7 +225,7 @@ class PlaneOrientationSequence(DataElementSequence):
             item.ImageOrientationPatient = list(image_orientation)
         self.append(item)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         """Determines whether two image planes have the same orientation.
 
         Parameters
@@ -547,7 +547,7 @@ class SpecimenDescription(Dataset):
         super().__init__()
         self.SpecimenIdentifier = specimen_id
         self.SpecimenUID = specimen_uid
-        self.SpecimenPreparationSequence = []
+        self.SpecimenPreparationSequence: List[Dataset] = []
         if specimen_preparation_steps is not None:
             for step in specimen_preparation_steps:
                 if not isinstance(step, ContentSequence):
@@ -579,7 +579,7 @@ class SpecimenDescription(Dataset):
                     )
                     loc_seq.append(loc_item)
             self.SpecimenLocalizationContentItemSequence = loc_seq
-        self.IssuerOfTheSpecimenIdentifierSequence = []
+        self.IssuerOfTheSpecimenIdentifierSequence: List[Dataset] = []
         if issuer_of_specimen_id is not None:
             self.IssuerOfTheSpecimenIdentifierSequence.append(
                 issuer_of_specimen_id
