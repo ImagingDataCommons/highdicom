@@ -1,7 +1,7 @@
 import logging
-from datetime import datetime
+import datetime
 from io import BytesIO
-from typing import Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
@@ -49,7 +49,9 @@ class SOPClass(Dataset):
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[str] = None,
-            content_qualification: Optional[str] = None,
+            content_qualification: Optional[
+                Union[str, ContentQualificationValues]
+            ] = None,
             coding_schemes: Optional[
                 Sequence[CodingSchemeIdentificationItem]
             ] = None
@@ -94,7 +96,7 @@ class SOPClass(Dataset):
            Time of study creation
         referring_physician_name: str, optional
             Name of the referring physician
-        content_qualification: str, optional
+        content_qualification: Union[str, highdicom.enum.ContentQualificationValues], optional
             Indicator of content qualification
         coding_schemes: Sequence[highdicom.sr.coding.CodingSchemeIdentificationItem], optional
             private or public coding schemes that are not part of the
@@ -167,15 +169,15 @@ class SOPClass(Dataset):
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         self.InstanceNumber = instance_number
-        self.ContentDate = DA(datetime.now().date())
-        self.ContentTime = TM(datetime.now().time())
+        self.ContentDate = DA(datetime.datetime.now().date())
+        self.ContentTime = TM(datetime.datetime.now().time())
         if content_qualification is not None:
             content_qualification = ContentQualificationValues(
                 content_qualification
             )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
-            self.CodingSchemeIdentificationSequence = []
+            self.CodingSchemeIdentificationSequence: List[Dataset] = []
             for item in coding_schemes:
                 if not isinstance(item, CodingSchemeIdentificationItem):
                     raise TypeError(
@@ -184,7 +186,11 @@ class SOPClass(Dataset):
                     )
                 self.CodingSchemeIdentificationSequence.append(item)
 
-    def _copy_attribute(self, dataset: Dataset, keyword: str):
+    def _copy_attribute(
+            self,
+            dataset: Dataset,
+            keyword: str
+    ) -> None:
         """Copies an attribute from `dataset` to `self`.
 
         Parameters
@@ -204,7 +210,11 @@ class SOPClass(Dataset):
             return
         self.add(data_element)
 
-    def _copy_root_attributes_of_module(self, dataset: Dataset, ie: str):
+    def _copy_root_attributes_of_module(
+            self,
+            dataset: Dataset,
+            ie: str
+    ) -> None:
         """Copies all attributes at the root level of a given module from
         `dataset` to `self`.
 
@@ -243,13 +253,11 @@ class SOPClass(Dataset):
                     ])
                 )
             )
-            [
-                self._copy_attribute(dataset, item['keyword'])
-                for item in MODULE_ATTRIBUTE_MAP[module_key]
-                if len(item['path']) == 0
-            ]
+            for item in MODULE_ATTRIBUTE_MAP[module_key]:
+                if len(item['path']) == 0:
+                    self._copy_attribute(dataset, str(item['keyword']))
 
-    def copy_patient_and_study_information(self, dataset: Dataset):
+    def copy_patient_and_study_information(self, dataset: Dataset) -> None:
         """Copies patient- and study-related metadata from `dataset` that
         are defined in the following modules: Patient, General Study,
         Patient Study, Clinical Trial Subject and Clinical Trial Study.
@@ -263,7 +271,7 @@ class SOPClass(Dataset):
         self._copy_root_attributes_of_module(dataset, 'Patient')
         self._copy_root_attributes_of_module(dataset, 'Study')
 
-    def copy_specimen_information(self, dataset: Dataset):
+    def copy_specimen_information(self, dataset: Dataset) -> None:
         """Copies specimen-related metadata from `dataset` that
         are defined in the Specimen module.
 

@@ -3,7 +3,7 @@ import itertools
 import logging
 import numpy as np
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Tuple
+from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
@@ -72,14 +72,14 @@ class Segmentation(SOPClass):
             fractional_type: Optional[
                 Union[str, SegmentationFractionalTypeValues]
             ] = SegmentationFractionalTypeValues.PROBABILITY,
-            max_fractional_value: Optional[int] = 255,
+            max_fractional_value: int = 255,
             content_description: Optional[str] = None,
             content_creator_name: Optional[str] = None,
             transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-            **kwargs
+            **kwargs: Any
         ) -> None:
         """
         Parameters
@@ -176,7 +176,7 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -288,8 +288,8 @@ class Segmentation(SOPClass):
         self.SoftwareVersions = software_versions
 
         # General Reference
-        self.SourceImageSequence = []
-        referenced_series = defaultdict(list)
+        self.SourceImageSequence: List[Dataset] = []
+        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
         for s_img in self._source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
@@ -298,7 +298,7 @@ class Segmentation(SOPClass):
             referenced_series[s_img.SeriesInstanceUID].append(ref)
 
         # Common Instance Reference
-        self.ReferencedSeriesSequence = []
+        self.ReferencedSeriesSequence: List[Dataset] = []
         for series_instance_uid, referenced_images in referenced_series.items():
             ref = Dataset()
             ref.SeriesInstanceUID = series_instance_uid
@@ -357,7 +357,8 @@ class Segmentation(SOPClass):
             self.LossyImageCompressionMethod = \
                 src_img.LossyImageCompressionMethod
 
-        self.SegmentSequence = []  # will be updated by "add_segments()"
+        # will be updated by "add_segments()"
+        self.SegmentSequence: List[Dataset] = []
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         shared_func_groups = Dataset()
@@ -422,9 +423,9 @@ class Segmentation(SOPClass):
         # NOTE: Information about individual frames will be updated by the
         # "add_segments()" method upon addition of segmentation bitplanes.
         self.NumberOfFrames = 0
-        self.PerFrameFunctionalGroupsSequence = []
+        self.PerFrameFunctionalGroupsSequence: List[Dataset] = []
 
-        self._segment_inventory = set()
+        self._segment_inventory: Set[int] = set()
         self.PixelData = b''
         self.add_segments(
             pixel_array=pixel_array,
@@ -595,8 +596,13 @@ class Segmentation(SOPClass):
                 # If Dimension Organization Type is TILED_FULL, plane
                 # positions are implicit and need to be computed.
                 image_origin = src_img.TotalPixelMatrixOriginSequence[0]
-                orientation = tuple(
-                    float(v) for v in src_img.ImageOrientationSlide
+                orientation = (
+                    float(src_img.ImageOrientationSlide[0]),
+                    float(src_img.ImageOrientationSlide[1]),
+                    float(src_img.ImageOrientationSlide[2]),
+                    float(src_img.ImageOrientationSlide[3]),
+                    float(src_img.ImageOrientationSlide[4]),
+                    float(src_img.ImageOrientationSlide[5]),
                 )
                 tiles_per_column = int(
                     np.ceil(
@@ -621,8 +627,9 @@ class Segmentation(SOPClass):
 
                 shared_fg = self.SharedFunctionalGroupsSequence[0]
                 pixel_measures = shared_fg.PixelMeasuresSequence[0]
-                pixel_spacing = tuple(
-                    float(v) for v in pixel_measures.PixelSpacing
+                pixel_spacing = (
+                    float(pixel_measures.PixelSpacing[0]),
+                    float(pixel_measures.PixelSpacing[1]),
                 )
                 slice_thickness = getattr(
                     pixel_measures,
@@ -888,7 +895,6 @@ class Segmentation(SOPClass):
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
 
-            contained_plane_index = np.array(contained_plane_index, dtype=int)
             if re_encode_pixel_data:
                 full_pixel_array = np.concatenate([
                     full_pixel_array,

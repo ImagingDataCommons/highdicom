@@ -1,7 +1,7 @@
 """DICOM structured reporting content item value types."""
 import datetime
 from collections import namedtuple
-from typing import Any, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -33,7 +33,7 @@ class ContentItem(Dataset):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -59,19 +59,19 @@ class ContentItem(Dataset):
             relationship_type = RelationshipTypeValues(relationship_type)
             self.RelationshipType = relationship_type.value
 
-    def __setattr__(self, name: str, value: Any):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name == 'ContentSequence':
             super(ContentItem, self).__setattr__(name, ContentSequence(value))
         else:
             super(ContentItem, self).__setattr__(name, value)
 
     @property
-    def name(self):
+    def name(self) -> CodedConcept:
         """CodedConcept: coded name of the content item"""
         return self.ConceptNameCodeSequence[0]
 
     @property
-    def value_type(self):
+    def value_type(self) -> str:
         """str: type of the content item
         (see `highdicom.sr.value_types.ValueTypeValues`)
 
@@ -79,7 +79,7 @@ class ContentItem(Dataset):
         return self.ValueType
 
     @property
-    def relationship_type(self):
+    def relationship_type(self) -> str:
         """str: type of relationship the content item has with its parent
         (see `highdicom.sr.enum.RelationshipTypeValues`)
 
@@ -91,7 +91,7 @@ class ContentSequence(DataElementSequence):
 
     """Sequence of DICOM SR Content Items."""
 
-    def __init__(self, items: Optional[Sequence] = None):
+    def __init__(self, items: Optional[Sequence] = None) -> None:
         if items is not None:
             if not all(isinstance(i, ContentItem) for i in items):
                 raise TypeError(
@@ -101,10 +101,10 @@ class ContentSequence(DataElementSequence):
                 )
         super(ContentSequence, self).__init__(items)
 
-    def __setitem__(self, position: int, item: ContentItem):
+    def __setitem__(self, position: int, item: ContentItem) -> None:
         self.insert(position, item)
 
-    def __contains__(self, item: ContentItem):
+    def __contains__(self, item: ContentItem) -> bool:
         return any(contained_item == item for contained_item in self)
 
     def get_nodes(self) -> 'ContentSequence':
@@ -122,7 +122,7 @@ class ContentSequence(DataElementSequence):
             if hasattr(item, 'ContentSequence')
         ])
 
-    def append(self, item: ContentItem):
+    def append(self, item: ContentItem) -> None:
         """Appends a content item to the sequence.
 
         Parameters
@@ -139,7 +139,7 @@ class ContentSequence(DataElementSequence):
             )
         super(ContentSequence, self).append(item)
 
-    def extend(self, items: Sequence[ContentItem]):
+    def extend(self, items: Sequence[ContentItem]) -> None:
         """Extends multiple content items to the sequence.
 
         Parameters
@@ -148,9 +148,10 @@ class ContentSequence(DataElementSequence):
             content items
 
         """
-        [self.append(i) for i in items]
+        for i in items:
+            self.append(i)
 
-    def insert(self, position: int, item: ContentItem):
+    def insert(self, position: int, item: ContentItem) -> None:
         """Inserts a content item into the sequence at a given position.
 
         Parameters
@@ -175,13 +176,13 @@ class CodeContentItem(ContentItem):
     """DICOM SR document content item for value type CODE."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[Code, CodedConcept],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ):
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[Code, CodedConcept],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -210,13 +211,13 @@ class PnameContentItem(ContentItem):
     """DICOM SR document content item for value type PNAME."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[str, PersonName],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ):
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[str, PersonName],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -245,7 +246,7 @@ class TextContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -274,7 +275,7 @@ class TimeContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -303,7 +304,7 @@ class DateContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -332,7 +333,7 @@ class DateTimeContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -361,7 +362,7 @@ class UIDRefContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -392,7 +393,7 @@ class NumContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -419,7 +420,7 @@ class NumContentItem(ContentItem):
             ValueTypeValues.NUM, name, relationship_type
         )
         if value is not None:
-            self.MeasuredValueSequence = []
+            self.MeasuredValueSequence: List[Dataset] = []
             measured_value_sequence_item = Dataset()
             if not isinstance(value, (int, float, )):
                 raise TypeError(
@@ -464,7 +465,7 @@ class ContainerContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -546,7 +547,7 @@ class ImageContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -602,7 +603,7 @@ class ScoordContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -690,20 +691,20 @@ class Scoord3DContentItem(ContentItem):
     def __init__(
             self,
             name: Union[Code, CodedConcept],
-            graphic_type: Union[str, GraphicTypeValues],
+            graphic_type: Union[GraphicTypeValues3D, str],
             graphic_data: np.ndarray,
             frame_of_reference_uid: Union[str, UID],
             fiducial_uid: Optional[Union[str, UID]] = None,
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
         name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, str]
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.float]
             array of spatial coordinates, where each row of the array
@@ -772,7 +773,7 @@ class TcoordContentItem(ContentItem):
             relationship_type: Optional[
                 Union[str, RelationshipTypeValues]
             ] = None
-        ):
+        ) -> None:
         """
         Parameters
         ----------
@@ -792,7 +793,7 @@ class TcoordContentItem(ContentItem):
 
         """  # noqa
         super(TcoordContentItem, self).__init__(
-            ValueTypeValues.TSCOORD, name, relationship_type
+            ValueTypeValues.TCOORD, name, relationship_type
         )
         temporal_range_type = TemporalRangeTypeValues(temporal_range_type)
         self.TemporalRangeType = temporal_range_type.value

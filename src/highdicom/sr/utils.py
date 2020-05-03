@@ -1,4 +1,5 @@
 """Utilities for working with SR document instances."""
+from enum import Enum
 from typing import List, Optional, Union
 
 from pydicom.dataset import Dataset
@@ -46,21 +47,29 @@ def find_content_items(
         When data set does not contain Content Sequence attribute.
 
     """  # noqa
-    def has_name(item, name):
+    def has_name(item: ContentItem, name: Optional[str]) -> bool:
         if name is None:
             return True
         return item.name == name
 
-    def has_value_type(item, value_type):
+    def has_value_type(
+            item: ContentItem,
+            value_type: Optional[Union[ValueTypeValues, str]]
+    ) -> bool:
         if value_type is None:
             return True
+        value_type = ValueTypeValues(value_type)
         return item.value_type == value_type.value
 
-    def has_relationship_type(item, relationship_type):
+    def has_relationship_type(
+            item: ContentItem,
+            relationship_type: Optional[Union[RelationshipTypeValues, str]]
+    ) -> bool:
         if relationship_type is None:
             return True
-        if item.relationship_type is None:
+        if getattr(item, 'relationship_type', None) is None:
             return False
+        relationship_type = RelationshipTypeValues(relationship_type)
         return item.relationship_type == relationship_type.value
 
     if not hasattr(dataset, 'ContentSequence'):
@@ -68,7 +77,13 @@ def find_content_items(
             'Data set does not contain a Content Sequence attribute.'
         )
 
-    def search_tree(node, name, value_type, relationship_type, recursive):
+    def search_tree(
+            node: Dataset,
+            name: Optional[Union[CodedConcept, Code]],
+            value_type: Optional[Union[ValueTypeValues, str]],
+            relationship_type: Optional[Union[RelationshipTypeValues, str]],
+            recursive: bool
+        ) -> List:
         matched_content_items = []
         for i, content_item in enumerate(node.ContentSequence):
             name_code = content_item.ConceptNameCodeSequence[0]

@@ -12,7 +12,7 @@ with io.open('src/highdicom/version.py', 'rt', encoding='utf8') as f:
 setuptools.setup(
     name='highdicom',
     version=version,
-    description='High-level abstractions for the DICOM standard.',
+    description='High-level DICOM abstractions.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
     url='https://github.com/mghcomputationalpathology/highdicom',
@@ -27,30 +27,15 @@ setuptools.setup(
         'Topic :: Multimedia :: Graphics',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        'Development Status :: 3 - Alpha',
+        'Programming Language :: Python :: 3.8',
+        'Development Status :: 4 - Beta',
     ],
     include_package_data=True,
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
-    setup_requires=[
-        'pytest-runner>=3.0',
-    ],
-    extras_require={
-        'docs': [
-            'sphinx>=1.7.1',
-            'sphinx-pyreverse>=0.0.12',
-            'sphinxcontrib-autoprogram>=0.1.4',
-            'sphinx_rtd_theme>=0.2.4'
-        ]
-    },
-    tests_require=[
-        'pytest>=3.3',
-        'pytest-flake8>=0.9',
-        'tox>=2.9'
-    ],
+    python_requires='>=3.6',
     install_requires=[
         'pydicom>=1.4.1',
         'numpy>=1.0',

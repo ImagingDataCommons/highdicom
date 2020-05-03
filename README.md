@@ -1,5 +1,9 @@
 [![Build Status](https://travis-ci.com/mghcomputationalpathology/highdicom.svg?branch=master)](https://travis-ci.com/mghcomputationalpathology/highdicom)
 
+[![PyPi Distribution](https://img.shields.io/pypi/v/highdicom.svg)](https://pypi.python.org/pypi/highdicom/)
+
+[![Python Versions](https://img.shields.io/pypi/pyversions/highdicom.svg)](https://pypi.org/project/highdicom/)
+
 # High DICOM
 
 A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations and image analysis results.

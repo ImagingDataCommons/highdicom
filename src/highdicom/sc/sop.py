@@ -2,10 +2,11 @@
 
 import logging
 import datetime
-from typing import Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
+from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
@@ -89,8 +90,8 @@ class SCImage(SOPClass):
             specimen_descriptions: Optional[
                 Sequence[SpecimenDescription]
             ] = None,
-            transfer_syntax_uid=ImplicitVRLittleEndian,
-            **kwargs
+            transfer_syntax_uid: str = ImplicitVRLittleEndian,
+            **kwargs: Any
         ):
         """
 
@@ -167,7 +168,7 @@ class SCImage(SOPClass):
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
             are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``).
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -237,16 +238,16 @@ class SCImage(SOPClass):
             row_orientation, col_orientation = patient_orientation
             if (anatomical_orientation_type ==
                     AnatomicalOrientationTypeValues.BIPED):
-                patient_orientation = [
+                patient_orientation = (
                     PatientOrientationValuesBiped(row_orientation).value,
                     PatientOrientationValuesBiped(col_orientation).value,
-                ]
+                )
             else:
-                patient_orientation = [
+                patient_orientation = (
                     PatientOrientationValuesQuadruped(row_orientation).value,
                     PatientOrientationValuesQuadruped(col_orientation).value,
-                ]
-            self.PatientOrientation = patient_orientation
+                )
+            self.PatientOrientation = list(patient_orientation)
 
         elif coordinate_system == CoordinateSystemNames.SLIDE:
             if container_identifier is None:
@@ -262,7 +263,7 @@ class SCImage(SOPClass):
 
             # Specimen
             self.ContainerIdentifier = container_identifier
-            self.IssuerOfTheContainerIdentifierSequence = []
+            self.IssuerOfTheContainerIdentifierSequence: List[Dataset] = []
             if issuer_of_container_identifier is not None:
                 self.IssuerOftheContainerIdentifierSequence.append(
                     issuer_of_container_identifier
@@ -300,12 +301,12 @@ class SCImage(SOPClass):
             photometric_interpretation
         )
         if pixel_array.ndim == 3:
-            accepted_interpretations = (
+            accepted_interpretations = {
                 PhotometricInterpretationValues.RGB.value,
                 PhotometricInterpretationValues.YBR_FULL.value,
                 PhotometricInterpretationValues.YBR_FULL_422.value,
                 PhotometricInterpretationValues.YBR_PARTIAL_420.value,
-            )
+            }
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
                     'Pixel array has an unexpected photometric interpretation.'
@@ -325,10 +326,10 @@ class SCImage(SOPClass):
             self.SamplesPerPixel = 3
             self.PlanarConfiguration = 0
         elif pixel_array.ndim == 2:
-            accepted_interpretations = (
+            accepted_interpretations = {
                 PhotometricInterpretationValues.MONOCHROME1.value,
                 PhotometricInterpretationValues.MONOCHROME2.value,
-            )
+            }
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
                     'Pixel array has an unexpected photometric interpretation.'

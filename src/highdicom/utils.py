@@ -1,5 +1,5 @@
 import itertools
-from typing import Generator, Tuple
+from typing import Iterator, Tuple
 
 import numpy as np
 
@@ -13,7 +13,7 @@ def tile_pixel_matrix(
         rows: int,
         columns: int,
         image_orientation: Tuple[float, float, float, float, float, float]
-    ) -> Generator:
+    ) -> Iterator[Tuple[int, int]]:
     """Tiles an image into smaller frames given the size of the
     total pixel matrix, the size of each frame and the orientation of the image
     with respect to the three-dimensional slide coordinate system.
@@ -34,18 +34,20 @@ def tile_pixel_matrix(
 
     Returns
     -------
-    Generator
+    Iterator
         One-based row, column coordinates of each image tile
 
     """
     tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
     tiles_per_col = int(np.ceil(total_pixel_matrix_columns / columns))
-    tile_row_indices = range(1, tiles_per_row + 1)
     if tuple(image_orientation[:3]) == (0.0, -1.0, 0.0):
-        tile_row_indices = reversed(tile_row_indices)
-    tile_col_indices = range(1, tiles_per_col + 1)
+        tile_row_indices = reversed(range(1, tiles_per_row + 1))
+    else:
+        tile_row_indices = iter(range(1, tiles_per_row + 1))
     if tuple(image_orientation[3:]) == (-1.0, 0.0, 0.0):
-        tile_col_indices = reversed(tile_col_indices)
+        tile_col_indices = reversed(range(1, tiles_per_col + 1))
+    else:
+        tile_col_indices = iter(range(1, tiles_per_col + 1))
     return itertools.product(tile_row_indices, tile_col_indices)
 
 
@@ -119,23 +121,23 @@ def compute_plane_positions_tiled_full(
         x_func = np.subtract
     else:
         x_func = np.add
-    x_offset_frame = x_func(
+    x_offset_frame = float(x_func(
         x_offset,
         (row_offset_frame * pixel_spacing[1])
-    )
+    ))
     if tuple([float(v) for v in image_orientation[3:]]) == (-1.0, 0.0, 0.0):
         y_func = np.subtract
     else:
         y_func = np.add
-    y_offset_frame = y_func(
+    y_offset_frame = float(y_func(
         y_offset,
         (column_offset_frame * pixel_spacing[0])
-    )
-    z_offset_frame = np.sum([
+    ))
+    z_offset_frame = float(np.sum([
         z_offset,
         (float(depth_index - 1) * slice_thickness),
         (float(depth_index - 1) * spacing_between_slices)
-    ])
+    ]))
     return PlanePositionSequence(
         coordinate_system=CoordinateSystemNames.SLIDE,
         image_position=(x_offset_frame, y_offset_frame, z_offset_frame),
