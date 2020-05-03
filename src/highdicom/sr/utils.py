@@ -67,7 +67,7 @@ def find_content_items(
     ) -> bool:
         if relationship_type is None:
             return True
-        if item.getattr('relationship_type', None) is None:
+        if getattr(item, 'relationship_type', None) is None:
             return False
         relationship_type = RelationshipTypeValues(relationship_type)
         return item.relationship_type == relationship_type.value
