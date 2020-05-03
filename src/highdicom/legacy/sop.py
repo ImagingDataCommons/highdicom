@@ -2,7 +2,7 @@
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -405,14 +405,14 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
     """SOP class for Legacy Converted Enhanced MR Image instances."""
 
     def __init__(
-            self,
-            legacy_datasets: Sequence[Dataset],
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            **kwargs
-        ) -> None:
+        self,
+        legacy_datasets: Sequence[Dataset],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -427,7 +427,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -479,14 +479,14 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
     """SOP class for Legacy Converted Enhanced CT Image instances."""
 
     def __init__(
-            self,
-            legacy_datasets: Sequence[Dataset],
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            **kwargs
-        ) -> None:
+        self,
+        legacy_datasets: Sequence[Dataset],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -501,7 +501,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -558,7 +558,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            **kwargs
+            **kwargs: Any
         ) -> None:
         """
         Parameters
@@ -574,7 +574,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 

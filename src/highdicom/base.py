@@ -186,7 +186,11 @@ class SOPClass(Dataset):
                     )
                 self.CodingSchemeIdentificationSequence.append(item)
 
-    def _copy_attribute(self, dataset: Dataset, keyword: str):
+    def _copy_attribute(
+            self,
+            dataset: Dataset,
+            keyword: str
+    ) -> None:
         """Copies an attribute from `dataset` to `self`.
 
         Parameters
@@ -206,7 +210,11 @@ class SOPClass(Dataset):
             return
         self.add(data_element)
 
-    def _copy_root_attributes_of_module(self, dataset: Dataset, ie: str):
+    def _copy_root_attributes_of_module(
+            self,
+            dataset: Dataset,
+            ie: str
+    ) -> None:
         """Copies all attributes at the root level of a given module from
         `dataset` to `self`.
 
@@ -245,13 +253,11 @@ class SOPClass(Dataset):
                     ])
                 )
             )
-            [
-                self._copy_attribute(dataset, str(item['keyword']))
-                for item in MODULE_ATTRIBUTE_MAP[module_key]
-                if len(item['path']) == 0
-            ]
+            for item in MODULE_ATTRIBUTE_MAP[module_key]:
+                if len(item['path']) == 0:
+                    self._copy_attribute(dataset, str(item['keyword']))
 
-    def copy_patient_and_study_information(self, dataset: Dataset):
+    def copy_patient_and_study_information(self, dataset: Dataset) -> None:
         """Copies patient- and study-related metadata from `dataset` that
         are defined in the following modules: Patient, General Study,
         Patient Study, Clinical Trial Subject and Clinical Trial Study.
@@ -265,7 +271,7 @@ class SOPClass(Dataset):
         self._copy_root_attributes_of_module(dataset, 'Patient')
         self._copy_root_attributes_of_module(dataset, 'Study')
 
-    def copy_specimen_information(self, dataset: Dataset):
+    def copy_specimen_information(self, dataset: Dataset) -> None:
         """Copies specimen-related metadata from `dataset` that
         are defined in the Specimen module.
 

@@ -1851,7 +1851,7 @@ class ImageLibrary(Template):
 
     """TID 1600 Image Library"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Note
         ----

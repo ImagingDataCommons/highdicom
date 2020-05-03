@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Optional, Sequence, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -10,7 +11,13 @@ class CodedConcept(Dataset):
 
     """Coded concept of a DICOM SR document content module attribute."""
 
-    def __init__(self, value, scheme_designator, meaning, scheme_version=None):
+    def __init__(
+            self,
+            value: str,
+            scheme_designator: str,
+            meaning: str,
+            scheme_version: Optional[str] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -38,7 +45,7 @@ class CodedConcept(Dataset):
             self.CodingSchemeVersion = str(scheme_version)
         # TODO: Enhanced Code Sequence Macro Attributes
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         """Compares `self` and `other` for equality.
 
         Parameters
@@ -54,7 +61,7 @@ class CodedConcept(Dataset):
         """
         return Code.__eq__(self, other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         """Compares `self` and `other` for inequality.
 
         Parameters
@@ -71,7 +78,7 @@ class CodedConcept(Dataset):
         return not (self == other)
 
     @property
-    def value(self):
+    def value(self) -> str:
         """str: value of either `CodeValue`, `LongCodeValue` or `URNCodeValue`
         attribute"""
         return getattr(
@@ -86,18 +93,18 @@ class CodedConcept(Dataset):
         )
 
     @property
-    def meaning(self):
+    def meaning(self) -> str:
         """str: meaning of the code"""
         return self.CodeMeaning
 
     @property
-    def scheme_designator(self):
+    def scheme_designator(self) -> str:
         """str: designator of the coding scheme (e.g. ``"DCM"``)"""
 
         return self.CodingSchemeDesignator
 
     @property
-    def scheme_version(self):
+    def scheme_version(self) -> str:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)
 
@@ -106,7 +113,7 @@ class CodingSchemeResourceItem(Dataset):
 
     """Class for items of the Coding Scheme Resource Sequence."""
 
-    def __init__(self, url, url_type):
+    def __init__(self, url: str, url_type: str) -> None:
         """
         Parameters
         ----------
@@ -127,9 +134,17 @@ class CodingSchemeIdentificationItem(Dataset):
 
     """Class for items of the Coding Scheme Identification Sequence."""
 
-    def __init__(self, designator, name=None, version=None, registry=None,
-                 uid=None, external_id=None, responsible_organization=None,
-                 resources=None):
+    def __init__(
+            self,
+            designator: str,
+            name: Optional[str] = None,
+            version: Optional[str] = None,
+            registry: Optional[str] = None,
+            uid: Optional[str] = None,
+            external_id: Optional[str] = None,
+            responsible_organization: Optional[str] = None,
+            resources: Optional[Sequence[CodingSchemeResourceItem]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -181,7 +196,7 @@ class CodingSchemeIdentificationItem(Dataset):
             elif external_id is not None:
                 self.CodingSchemeExternalID = str(external_id)
         if resources is not None:
-            self.CodingSchemeResourcesSequence = []
+            self.CodingSchemeResourcesSequence: Sequence[Dataset] = []
             for r in resources:
                 if not isinstance(r, CodingSchemeResourceItem):
                     raise TypeError(

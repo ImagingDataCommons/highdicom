@@ -2,7 +2,7 @@
 
 import logging
 import datetime
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
@@ -83,7 +83,7 @@ class SCImage(SOPClass):
             specimen_descriptions: Optional[
                 Sequence[SpecimenDescription]
             ] = None,
-            **kwargs
+            **kwargs: Any
         ):
         """
 
@@ -156,7 +156,7 @@ class SCImage(SOPClass):
         specimen_descriptions: Sequence[highdicom.content.SpecimenDescriptions], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 

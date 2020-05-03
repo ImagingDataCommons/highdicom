@@ -3,7 +3,7 @@ import itertools
 import logging
 import numpy as np
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Sequence, Union, Tuple
+from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
@@ -71,7 +71,7 @@ class Segmentation(SOPClass):
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-            **kwargs
+            **kwargs: Any
         ) -> None:
         """
         Parameters
@@ -167,7 +167,7 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 

@@ -3,7 +3,7 @@
 import datetime
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
@@ -51,8 +51,8 @@ class _SR(SOPClass):
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
             record_evidence: bool = True,
-            **kwargs
-        ):
+            **kwargs: Any
+        ) -> None:
         """
         Parameters
         ----------
@@ -106,7 +106,7 @@ class _SR(SOPClass):
             Whether provided `evidence` should be recorded, i.e. included
             in Current Requested Procedure Evidence Sequence or Pertinent
             Other Evidence Sequence (default: ``True``)
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -268,8 +268,8 @@ class EnhancedSR(_SR):
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
             record_evidence: bool = True,
-            **kwargs
-        ):
+            **kwargs: Any
+        ) -> None:
         """
         Parameters
         ----------
@@ -323,7 +323,7 @@ class EnhancedSR(_SR):
             Whether provided `evidence` should be recorded, i.e. included
             in Current Requested Procedure Evidence Sequence or Pertinent
             Other Evidence Sequence (default: ``True``)
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -396,8 +396,8 @@ class ComprehensiveSR(_SR):
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
             record_evidence: bool = True,
-            **kwargs
-        ):
+            **kwargs: Any
+        ) -> None:
         """
         Parameters
         ----------
@@ -451,7 +451,7 @@ class ComprehensiveSR(_SR):
             Whether provided `evidence` should be recorded, i.e. included
             in Current Requested Procedure Evidence Sequence or Pertinent
             Other Evidence Sequence (default: ``True``)
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
@@ -524,8 +524,8 @@ class Comprehensive3DSR(_SR):
             requested_procedures: Optional[Sequence[Dataset]] = None,
             previous_versions: Optional[Sequence[Dataset]] = None,
             record_evidence: bool = True,
-            **kwargs
-        ):
+            **kwargs: Any
+        ) -> None:
         """
         Parameters
         ----------
@@ -579,7 +579,7 @@ class Comprehensive3DSR(_SR):
             Whether provided `evidence` should be recorded, i.e. included
             in Current Requested Procedure Evidence Sequence or Pertinent
             Other Evidence Sequence (default: ``True``)
-        **kwargs: Dict[str, Any], optional
+        **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 

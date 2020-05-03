@@ -1,6 +1,6 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
-from typing import Dict, List, Optional, Union, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -153,7 +153,7 @@ class PlanePositionSequence(DataElementSequence):
             item.ImagePositionPatient = list(image_position)
         self.append(item)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         """Determines whether two image planes have the same position.
 
         Parameters
@@ -225,7 +225,7 @@ class PlaneOrientationSequence(DataElementSequence):
             item.ImageOrientationPatient = list(image_orientation)
         self.append(item)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         """Determines whether two image planes have the same orientation.
 
         Parameters
