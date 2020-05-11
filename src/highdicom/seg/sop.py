@@ -71,6 +71,7 @@ class Segmentation(SOPClass):
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+            series_description: Optional[str] = None,
             **kwargs: Any
         ) -> None:
         """
@@ -167,6 +168,8 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
+        series_description: str, optional
+            Human readable description of the series
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -272,6 +275,10 @@ class Segmentation(SOPClass):
             'PositionReferenceIndicator',
             None
         )
+
+        # General Series
+        if series_description is not None:
+            self.SeriesDescription = series_description
 
         # (Enhanced) General Equipment
         self.DeviceSerialNumber = device_serial_number
