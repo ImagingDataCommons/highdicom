@@ -377,7 +377,7 @@ class UIDRefContentItem(ContentItem):
         super(UIDRefContentItem, self).__init__(
             ValueTypeValues.UIDREF, name, relationship_type
         )
-        self.UID = UID(value)
+        self.UID = value
 
 
 class NumContentItem(ContentItem):

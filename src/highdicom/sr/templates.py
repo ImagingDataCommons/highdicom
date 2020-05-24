@@ -27,6 +27,7 @@ from highdicom.sr.value_types import (
     TextContentItem,
     UIDRefContentItem,
 )
+from highdicom.uid import UID
 
 
 DEFAULT_LANGUAGE = CodedConcept(
@@ -111,17 +112,23 @@ class TrackingIdentifier(Template):
 
     """TID 4108 Tracking Identifier"""
 
-    def __init__(self, uid: str, identifier: Optional[str] = None):
+    def __init__(
+            self,
+            uid: Optional[str] = None,
+            identifier: Optional[str] = None
+        ):
         """
         Parameters
         ----------
-        uid: Union[pydicom.uid.UID, str]
+        uid: Union[pydicom.uid.UID, str], optional
             globally unique identifier
         identifier: str, optional
             human readable identifier
 
         """
         super().__init__()
+        if uid is None:
+            uid = UID()
         if identifier is not None:
             tracking_identifier_item = TextContentItem(
                 name=CodedConcept(
