@@ -1,5 +1,5 @@
 """DICOM information object definitions (IODs)
-auto-generated on 2020-01-05 at 10:34:53.
+auto-generated on 2020-06-07 at 13:32:23.
 """
 
 IOD_MODULE_MAP = {
@@ -470,7 +470,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "basic-cardiac-ep": [
+    "basic-cardiac-electrophysiology-waveform": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -540,6 +540,18 @@ IOD_MODULE_MAP = {
             "ie": "Waveform",
             "key": "sop-common",
             "usage": "M"
+        }
+    ],
+    "basic-directory": [
+        {
+            "ie": "Basic Directory",
+            "key": "file-set-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Basic Directory",
+            "key": "directory-information",
+            "usage": "U"
         }
     ],
     "basic-structured-display": [
@@ -676,7 +688,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "basic-voice-audio": [
+    "basic-voice-audio-waveform": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -948,7 +960,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "breast-projection-x-ray-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -1070,7 +1082,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "breast-tomosynthesis-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -2068,6 +2080,108 @@ IOD_MODULE_MAP = {
             "usage": "U"
         }
     ],
+    "ct-performed-procedure-protocol": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "ct-protocol-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "protocol-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-protocol-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "instructions",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-positioning",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-ct-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-ct-reconstruction",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-storage",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "deformable-spatial-registration": [
         {
             "ie": "Patient",
@@ -2738,6 +2852,155 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
+    "encapsulated-mtl": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "encapsulated-document-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "encapsulated-document",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "manufacturing-3d-model",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "common-instance-reference",
+            "usage": "C"
+        }
+    ],
+    "encapsulated-obj": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "encapsulated-document-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "encapsulated-document",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "manufacturing-3d-model",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Encapsulated Document",
+            "key": "common-instance-reference",
+            "usage": "C"
+        }
+    ],
     "encapsulated-pdf": [
         {
             "ie": "Patient",
@@ -2858,6 +3121,11 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Encapsulated Document",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Encapsulated Document",
             "key": "sop-common",
             "usage": "M"
         },
@@ -2940,7 +3208,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-ct-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3082,7 +3350,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-mr-color-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3224,7 +3492,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-mr-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3376,7 +3644,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-pet-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3585,7 +3853,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-us-volume-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3659,7 +3927,7 @@ IOD_MODULE_MAP = {
             "usage": "C"
         }
     ],
-    "enhanced-x-ray-angiographic-image": [
+    "enhanced-xa-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -3752,7 +4020,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-xa-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -3826,7 +4094,7 @@ IOD_MODULE_MAP = {
             "usage": "C"
         }
     ],
-    "enhanced-x-ray-rf-image": [
+    "enhanced-xrf-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -3919,7 +4187,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "enhanced-xrf-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -4410,7 +4678,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "hemodynamic": [
+    "hemodynamic-waveform": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -4635,7 +4903,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "intravascular-oct-image": [
+    "intravascular-optical-coherence-tomography-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -4713,7 +4981,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "intravascular-optical-coherence-tomography-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -4974,7 +5242,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "legacy-converted-enhanced-ct-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -5106,7 +5374,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "legacy-converted-enhanced-mr-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -5243,7 +5511,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "legacy-converted-enhanced-pet-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -5648,7 +5916,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "MR Spectroscopy",
-            "key": "multi-frame-functional-groups",
+            "key": "mr-spectroscopy-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -5805,7 +6073,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "multi-frame-grayscale-byte-sc-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -5947,7 +6215,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "multi-frame-grayscale-word-sc-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -6206,7 +6474,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "multi-frame-true-color-sc-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -6562,7 +6830,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -7132,7 +7400,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "ophthalmic-tomography-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -7361,7 +7629,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "parametric-map-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -7808,6 +8076,68 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
+    "planned-imaging-agent-administration-sr": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "sr-document-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sr-document-general",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sr-document-content",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "procedure-log": [
         {
             "ie": "Patient",
@@ -8241,7 +8571,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Waveform",
-            "key": "current-frame-functional-groups",
+            "key": "real-time-audio-waveform-current-frame-functional-groups",
             "usage": "M"
         }
     ],
@@ -8358,7 +8688,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "current-frame-functional-groups",
+            "key": "real-time-video-endoscopic-image-current-frame-functional-groups",
             "usage": "M"
         }
     ],
@@ -8469,13 +8799,13 @@ IOD_MODULE_MAP = {
             "usage": "M"
         },
         {
-            "ie": "",
+            "ie": "Image",
             "key": "real-time-acquisition",
             "usage": "M"
         },
         {
-            "ie": "",
-            "key": "current-frame-functional-groups",
+            "ie": "Image",
+            "key": "real-time-video-photographic-image-current-frame-functional-groups",
             "usage": "M"
         }
     ],
@@ -8682,6 +9012,103 @@ IOD_MODULE_MAP = {
         {
             "ie": "Waveform",
             "key": "sop-common",
+            "usage": "M"
+        }
+    ],
+    "robotic-arm-radiation": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "rt-radiation-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "robotic-arm-delivery-device",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "robotic-arm-path",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "radiotherapy-common-instance",
             "usage": "M"
         }
     ],
@@ -9667,6 +10094,11 @@ IOD_MODULE_MAP = {
             "usage": "M"
         },
         {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
             "ie": "RT Radiation Set",
             "key": "general-reference",
             "usage": "M"
@@ -9928,7 +10360,7 @@ IOD_MODULE_MAP = {
             "usage": "U"
         }
     ],
-    "sc-image": [
+    "secondary-capture-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -10113,7 +10545,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "segmentation-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -10780,7 +11212,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "table-ct-performed-procedure-protocol": [
+    "tomotherapeutic-radiation": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -10818,17 +11250,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Series",
-            "key": "enhanced-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "ct-protocol-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Frame of Reference",
-            "key": "frame-of-reference",
+            "key": "enhanced-rt-series",
             "usage": "M"
         },
         {
@@ -10842,43 +11264,48 @@ IOD_MODULE_MAP = {
             "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "protocol-context",
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
             "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "patient-protocol-context",
-            "usage": "U"
+            "ie": "RT Radiation",
+            "key": "general-reference",
+            "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "instructions",
-            "usage": "U"
+            "ie": "RT Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "patient-positioning",
-            "usage": "U"
+            "ie": "RT Radiation",
+            "key": "rt-radiation-common",
+            "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "performed-ct-acquisition",
-            "usage": "U"
+            "ie": "RT Radiation",
+            "key": "tomotherapeutic-delivery-device",
+            "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "performed-ct-reconstruction",
-            "usage": "U"
+            "ie": "RT Radiation",
+            "key": "tomotherapeutic-beam",
+            "usage": "M"
         },
         {
-            "ie": "Procedure Protocol",
-            "key": "performed-storage",
-            "usage": "U"
-        },
-        {
-            "ie": "Procedure Protocol",
+            "ie": "RT Radiation",
             "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Radiation",
+            "key": "radiotherapy-common-instance",
             "usage": "M"
         }
     ],
@@ -12107,7 +12534,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "vl-whole-slide-microscopy-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -12665,7 +13092,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "x-ray-3d-angiographic-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -12817,7 +13244,7 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-functional-groups",
+            "key": "x-ray-3d-craniofacial-image-multi-frame-functional-groups",
             "usage": "M"
         },
         {
@@ -13115,139 +13542,7 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
-    "xa-xrf-grayscale-softcopy-presentation-state": [
-        {
-            "ie": "Patient",
-            "key": "patient",
-            "usage": "M"
-        },
-        {
-            "ie": "Patient",
-            "key": "clinical-trial-subject",
-            "usage": "U"
-        },
-        {
-            "ie": "Study",
-            "key": "general-study",
-            "usage": "M"
-        },
-        {
-            "ie": "Study",
-            "key": "patient-study",
-            "usage": "U"
-        },
-        {
-            "ie": "Study",
-            "key": "clinical-trial-study",
-            "usage": "U"
-        },
-        {
-            "ie": "Series",
-            "key": "general-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "clinical-trial-series",
-            "usage": "U"
-        },
-        {
-            "ie": "Series",
-            "key": "presentation-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Equipment",
-            "key": "general-equipment",
-            "usage": "M"
-        },
-        {
-            "ie": "Equipment",
-            "key": "enhanced-general-equipment",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "presentation-state-identification",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "presentation-state-relationship",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "presentation-state-shutter",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "bitmap-display-shutter",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "overlay-plane",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "overlay-activation",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "displayed-area",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "graphic-annotation",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "spatial-transformation",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "graphic-layer",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "softcopy-voi-lut",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "xa-xrf-presentation-state-mask",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "xa-xrf-presentation-state-shutter",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "xa-xrf-presentation-state-presentation",
-            "usage": "C"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "softcopy-presentation-lut",
-            "usage": "M"
-        },
-        {
-            "ie": "Presentation State",
-            "key": "sop-common",
-            "usage": "M"
-        }
-    ],
-    "xrf-image": [
+    "x-ray-radiofluoroscopic-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -13422,6 +13717,138 @@ IOD_MODULE_MAP = {
             "ie": "Image",
             "key": "frame-extraction",
             "usage": "C"
+        }
+    ],
+    "xa-xrf-grayscale-softcopy-presentation-state": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "presentation-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-relationship",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-shutter",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "bitmap-display-shutter",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "overlay-plane",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "overlay-activation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "displayed-area",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "graphic-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "spatial-transformation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "graphic-layer",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "softcopy-voi-lut",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "xa-xrf-presentation-state-mask",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "xa-xrf-presentation-state-shutter",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "xa-xrf-presentation-state-presentation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "softcopy-presentation-lut",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "sop-common",
+            "usage": "M"
         }
     ]
 }
