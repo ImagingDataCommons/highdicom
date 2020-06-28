@@ -6,7 +6,8 @@ import logging
 import os
 import sys
 
-from pydicom.datadict import keyword_for_tag
+from pydicom.datadict import dictionary_keyword, repeater_has_tag
+from pydicom.tag import Tag
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,11 @@ def _create_iods(directory):
     iods = collections.defaultdict(list)
     for item in ciod_to_modules:
         mapping = {
-            'key': item['module'],
+            'key': item['moduleId'],
             'usage': item['usage'],
             'ie': item['informationEntity'],
         }
-        iods[item['ciod']].append(mapping)
+        iods[item['ciodId']].append(mapping)
     return iods
 
 
@@ -48,21 +49,34 @@ def _create_modules(directory):
     modules = collections.defaultdict(list)
     for item in module_to_attributes:
         path = item['path'].split(':')[1:]
-        tag = path.pop(-1)
-        try:
-            mapping = {
-                'keyword': keyword_for_tag(tag),
-                'type': item['type'],
-                'path': [keyword_for_tag(t) for t in path],
-            }
-        except ValueError:
-            logger.error('Keyword not found for attribute "{}"'.format(tag))
+        tag_string = path.pop(-1)
+        # Handle attributes used for real-time communication, which are neither
+        # in DicomDictionary nor in RepeaterDictionary
+        if any(p.startswith('0006') for p in path):
+            logger.warning(f'skip attribute "{tag_string}"')
             continue
-        modules[item['module']].append(mapping)
+        logger.debug(f'add attribute "{tag_string}"')
+        # Handle attributes that are in RepeatersDictionary
+        tag_string = tag_string.replace('xx', '00')
+        tag = Tag(tag_string)
+        try:
+            keyword = dictionary_keyword(tag)
+        except KeyError:
+            logger.error(f'keyword not found for attribute "{tag}"')
+            continue
+        mapping = {
+            'keyword': keyword,
+            'type': item['type'],
+            'path': [dictionary_keyword(t) for t in path],
+        }
+        modules[item['moduleId']].append(mapping)
     return modules
 
 
 if __name__ == '__main__':
+
+    logging.basicConfig()
+    logger.setLevel(logging.DEBUG)
 
     # Positional argument is path to directory containing JSON files generated
     # using the dicom-standard Python package, see

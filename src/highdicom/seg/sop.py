@@ -393,8 +393,6 @@ class Segmentation(SOPClass):
                     self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
                     self.TotalPixelMatrixColumns = \
                         src_img.TotalPixelMatrixColumns
-                    self.TotalPixelMatrixFocalPlanes = \
-                        src_img.TotalPixelMatrixFocalPlanes
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
                 source_plane_orientation = src_sfg.PlaneOrientationSequence

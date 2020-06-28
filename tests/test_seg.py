@@ -1350,6 +1350,7 @@ class TestSegmentation(unittest.TestCase):
         max_fractional_value = 100
         content_description = 'bla bla bla'
         content_creator_name = 'Me Myself'
+        series_description = 'My First Segmentation'
         instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=self._ct_pixel_array,
@@ -1366,12 +1367,14 @@ class TestSegmentation(unittest.TestCase):
             fractional_type=fractional_type,
             max_fractional_value=max_fractional_value,
             content_description=content_description,
-            content_creator_name=content_creator_name
+            content_creator_name=content_creator_name,
+            series_description=series_description,
         )
         assert instance.SegmentationFractionalType == fractional_type
         assert instance.MaximumFractionalValue == max_fractional_value
         assert instance.ContentDescription == content_description
         assert instance.ContentCreatorName == content_creator_name
+        assert instance.SeriesDescription == series_description
 
     def test_construction_optional_arguments_2(self):
         pixel_spacing = (0.5, 0.5)

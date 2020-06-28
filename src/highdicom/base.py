@@ -37,8 +37,8 @@ class SOPClass(Dataset):
             sop_instance_uid: str,
             sop_class_uid: str,
             instance_number: int,
-            manufacturer: str,
             modality: str,
+            manufacturer: Optional[str] = None,
             transfer_syntax_uid: Optional[str] = None,
             patient_id: Optional[str] = None,
             patient_name: Optional[str] = None,
@@ -54,7 +54,8 @@ class SOPClass(Dataset):
             ] = None,
             coding_schemes: Optional[
                 Sequence[CodingSchemeIdentificationItem]
-            ] = None
+            ] = None,
+            series_description: Optional[str] = None
         ):
         """
         Parameters
@@ -101,6 +102,8 @@ class SOPClass(Dataset):
         coding_schemes: Sequence[highdicom.sr.coding.CodingSchemeIdentificationItem], optional
             private or public coding schemes that are not part of the
             DICOM standard
+        series_description: str, optional
+            Human readable description of the series
 
         Note
         ----
@@ -161,6 +164,8 @@ class SOPClass(Dataset):
         self.SeriesInstanceUID = str(series_instance_uid)
         self.SeriesNumber = series_number
         self.Modality = modality
+        if series_description is not None:
+            self.SeriesDescription = series_description
 
         # Equipment
         self.Manufacturer = manufacturer
