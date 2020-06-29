@@ -194,7 +194,7 @@ class SCImage(SOPClass):
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='OT',
-            transfer_syntax_uid=None,  # uncompressed!
+            transfer_syntax_uid=transfer_syntax_uid,  # uncompressed!
             patient_id=patient_id,
             patient_name=patient_name,
             patient_birth_date=patient_birth_date,
@@ -284,6 +284,12 @@ class SCImage(SOPClass):
         self.ImageType = ['DERIVED', 'SECONDARY', 'OTHER']
         self.Rows = pixel_array.shape[0]
         self.Columns = pixel_array.shape[1]
+        allowed_types = [np.bool, np.uint8, np.uint16]
+        if not any(pixel_array.dtype == t for t in allowed_types):
+            raise TypeError(
+                'Pixel array must be of type np.bool, np.uint8 or np.uint16. '
+                f'Found {pixel_array.dtype}.'
+            )
         wrong_bit_depth_assignment = (
             pixel_array.dtype == np.bool and bits_allocated != 1,
             pixel_array.dtype == np.uint8 and bits_allocated != 8,
@@ -293,6 +299,10 @@ class SCImage(SOPClass):
             raise ValueError('Pixel array has an unexpected bit depth.')
         if bits_allocated not in (1, 8, 12, 16):
             raise ValueError('Unexpected number of bits allocated.')
+        if transfer_syntax_uid == RLELossless and bits_allocated % 8 != 0:
+            raise ValueError(
+                'When using run length encoding, bits allocated must be a multiple of 16'
+            )
         self.BitsAllocated = bits_allocated
         self.HighBit = self.BitsAllocated - 1
         self.BitsStored = self.BitsAllocated
@@ -345,6 +355,6 @@ class SCImage(SOPClass):
 
         # Pixel compression based on transfer syntax uid
         if self.file_meta.TransferSyntaxUID == RLELossless:
-            self.PixelData = encapsulate(rle_encode_frame(pixel_array))
+            self.PixelData = encapsulate([rle_encode_frame(pixel_array)])
         else:
             self.PixelData = pixel_array.tobytes()
