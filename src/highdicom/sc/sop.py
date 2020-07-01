@@ -180,9 +180,7 @@ class SCImage(SOPClass):
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
-                'Transfer syntax "{}" is not supported'.format(
-                    transfer_syntax_uid
-                )
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported'
             )
 
         super().__init__(
@@ -194,7 +192,7 @@ class SCImage(SOPClass):
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='OT',
-            transfer_syntax_uid=transfer_syntax_uid,  # uncompressed!
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=patient_id,
             patient_name=patient_name,
             patient_birth_date=patient_birth_date,
