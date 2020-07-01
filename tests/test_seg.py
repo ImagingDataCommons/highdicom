@@ -956,7 +956,6 @@ class TestSegmentation(unittest.TestCase):
 
             for transfer_syntax_uid in valid_transfer_syntaxes:
                 for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
-                    print(transfer_syntax_uid, pix_type)
                     instance = Segmentation(
                         source,
                         mask.astype(pix_type),
