@@ -326,7 +326,8 @@ class Segmentation(SOPClass):
             self.HighBit = 0
             if self.file_meta.TransferSyntaxUID.is_encapsulated:
                 raise ValueError(
-                    f'The chosen transfer syntax {self.file_meta.TransferSyntaxUID} '
+                    'The chosen transfer syntax '
+                    f'{self.file_meta.TransferSyntaxUID} '
                     'is not compatible with the BINARY segmentation type'
                 )
         elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
@@ -762,17 +763,19 @@ class Segmentation(SOPClass):
             if len(self.PixelData) == get_expected_length(self) + 1:
                 self.PixelData = self.PixelData[:-1]
         else:
-            if (self.SegmentationType == SegmentationTypeValues.BINARY.value and
-                not is_encaps):
-                logger.warning(
-                    'pixel data needs to be re-encoded for binary bitpacking - '
-                    'consider using FRACTIONAL instead of BINARY segmentation type'
-                )
-            # In the case of encapsulated transfer syntaxes, we will accumulate a list
-            # of encoded frames to re-encapsulate at the end
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                if not is_encaps:
+                    logger.warning(
+                        'pixel data needs to be re-encoded for binary '
+                        'bitpacking - consider using FRACTIONAL instead of '
+                        'BINARY segmentation type'
+                    )
+            # In the case of encapsulated transfer syntaxes, we will accumulate
+            # a list of encoded frames to re-encapsulate at the end
             if is_encaps:
                 if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
-                    # Undo the encapsulation but not the encoding within each frame
+                    # Undo the encapsulation but not the encoding within each
+                    # frame
                     full_frames_list = decode_data_sequence(self.PixelData)
                 else:
                     full_frames_list = []

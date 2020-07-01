@@ -883,7 +883,8 @@ class TestSegmentation(unittest.TestCase):
                     [mask, additional_mask]
                 )
 
-            # Test instance creation for different pixel types and transfer syntaxes
+            # Test instance creation for different pixel types and transfer
+            # syntaxes
             valid_transfer_syntaxes = [
                 ExplicitVRLittleEndian,
                 ImplicitVRLittleEndian,
@@ -924,8 +925,10 @@ class TestSegmentation(unittest.TestCase):
                         SegmentsOverlapValues.UNDEFINED
 
                     # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(self.get_array_after_writing(instance),
-                                          two_segment_expected_encoding)
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        two_segment_expected_encoding
+                    )
 
         for source, mask in tests:
             additional_mask = (1 - mask)
