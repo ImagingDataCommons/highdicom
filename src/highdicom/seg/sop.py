@@ -984,6 +984,11 @@ class Segmentation(SOPClass):
             # Compress according to transfer syntax
             if self.file_meta.TransferSyntaxUID == RLELossless:
                 return rle_encode_frame(planes)
+            else:
+                raise NotImplementedError(
+                    'Transfer syntax not implemented: '
+                    f'{self.file_meta.TransferSyntaxUID}'
+                )
         else:
             if self.SegmentationType == SegmentationTypeValues.BINARY.value:
                 return pack_bits(planes.flatten())
