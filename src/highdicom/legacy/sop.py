@@ -2109,7 +2109,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable[...] = None,
+            sort_key: Callable = None,
             **kwargs: Any) -> None:
         """
         Parameters
