@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, Callable
 import numpy as np
 from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataset import Dataset
@@ -542,7 +542,7 @@ class Abstract_MultiframeModuleAdder(ABC):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -573,7 +573,7 @@ class Abstract_MultiframeModuleAdder(ABC):
                         return False
         return False
 
-    def _mark_tag_as_used(self, tg: Tag):
+    def _mark_tag_as_used(self, tg: Tag) -> None:
         if tg in self.SharedTags:
             self.SharedTags[tg] = True
         elif tg in self.ExcludedFromPerFrameTags:
@@ -583,8 +583,8 @@ class Abstract_MultiframeModuleAdder(ABC):
 
     def _copy_attrib_if_present(self, src_ds: Dataset, dest_ds: Dataset,
                                 src_kw_or_tg: str, dest_kw_or_tg: str = None,
-                                check_not_to_be_perframe=True,
-                                check_not_to_be_empty=False):
+                                check_not_to_be_perframe: bool = True,
+                                check_not_to_be_empty: bool = False) -> None:
         if type(src_kw_or_tg) == str:
             src_kw_or_tg = tag_for_keyword(src_kw_or_tg)
         if dest_kw_or_tg is None:
@@ -635,7 +635,7 @@ class Abstract_MultiframeModuleAdder(ABC):
         return self.TargetDataset[sf_tg].value[0]
 
     def _get_or_create_attribute(
-        self, src: Dataset, kw: str, default) -> DataElement:
+        self, src: Dataset, kw: str, default: Any) -> DataElement:
         tg = tag_for_keyword(kw)
         if kw in src:
             a = deepcopy(src[kw])
@@ -651,9 +651,9 @@ class Abstract_MultiframeModuleAdder(ABC):
         self._mark_tag_as_used(tg)
         return a
 
-    def _add_module(self, module_name: str, excepted_attributes=[],
-                    check_not_to_be_perframe=True,
-                    check_not_to_be_empty=False):
+    def _add_module(self, module_name: str, excepted_attributes: list = [],
+                    check_not_to_be_perframe: bool = True,
+                    check_not_to_be_empty: bool = False) -> None:
         # sf_sop_instance_uid = sf_datasets[0]
         # mf_sop_instance_uid = LEGACY_ENHANCED_SOP_CLASS_UID_MAP[
         #   sf_sop_instance_uid]
@@ -673,7 +673,7 @@ class Abstract_MultiframeModuleAdder(ABC):
                     check_not_to_be_empty=check_not_to_be_empty)
 
     @abstractmethod
-    def AddModule(self):
+    def AddModule(self) -> None:
         pass
 
 
@@ -681,7 +681,7 @@ class ImagePixelModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -693,7 +693,7 @@ class ImagePixelModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         module_and_excepted_at = {
          "image-pixel":
          [
@@ -716,7 +716,7 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -727,7 +727,7 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
             perframe_tags,
             shared_tags,
             multi_frame_output)
-        self._module_excepted_list = {
+        self._module_excepted_list: dict = {
          "patient": [],
          "clinical-trial-subject": [],
          "general-study":
@@ -812,7 +812,7 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
          ]
         }
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         for module_name, excpeted_a in self._module_excepted_list.items():
             self._add_module(
              module_name,
@@ -825,7 +825,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset,
@@ -839,7 +839,8 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
             multi_frame_output)
         self.Modality = modality
 
-    def _get_value_for_frame_type(self, attrib: DataElement):
+    def _get_value_for_frame_type(self,
+                                  attrib: DataElement) -> Union[list, None]:
         if type(attrib) != DataElement:
             return None
         output = ['', '', '', '']
@@ -860,7 +861,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
         return tag_for_keyword(seq_kw)
 
     def _add_module_to_functional_group(self, src_fg: Dataset,
-                                        dest_fg: Dataset, level):
+                                        dest_fg: Dataset, level: int) -> None:
         FrameType_a = src_fg['ImageType']
         if level == 0:
             FrameType_tg = tag_for_keyword('ImageType')
@@ -870,7 +871,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
         dest_fg[FrameType_tg] = DataElement(FrameType_tg,
                                             FrameType_a.VR, new_val)
 
-        def element_generator(kw, val) -> DataElement:
+        def element_generator(kw: str, val: Any) -> DataElement:
             return DataElement(
                 tag_for_keyword(kw),
                 dictionary_VR(tag_for_keyword(kw)), val)
@@ -881,7 +882,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
         dest_fg['VolumeBasedCalculationTechnique'] = element_generator(
             'VolumeBasedCalculationTechnique', "NONE")
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         im_type_tag = tag_for_keyword('ImageType')
         seq_tg = self._get_frame_type_seq_tag()
         if im_type_tag not in self.PerFrameTags:
@@ -906,7 +907,7 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -918,7 +919,7 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         # ct_mr = CommonCTMRImageDescriptionMacro(self.SingleFrameSet
         # , self.ExcludedFromPerFrameTags
         # , self.PerFrameTags
@@ -975,7 +976,7 @@ class ContrastBolusModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -987,7 +988,7 @@ class ContrastBolusModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         self._add_module('contrast-bolus')
 
 
@@ -995,7 +996,7 @@ class EnhancedCTImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1007,7 +1008,7 @@ class EnhancedCTImageModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         pass
         # David's code doesn't hold anything for this module ... should ask him
 
@@ -1016,7 +1017,7 @@ class EnhancedPETImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1028,7 +1029,7 @@ class EnhancedPETImageModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         pass
         # David's code doesn't hold anything for this module ... should ask him
 
@@ -1037,7 +1038,7 @@ class EnhancedMRImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1049,7 +1050,7 @@ class EnhancedMRImageModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         self._copy_attrib_if_present(
             self.SingleFrameSet[0],
             self.TargetDataset,
@@ -1096,7 +1097,7 @@ class AcquisitionContextModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1108,7 +1109,7 @@ class AcquisitionContextModule(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         self._copy_attrib_if_present(
             self.SingleFrameSet,
             self.TargetDataset,
@@ -1120,7 +1121,7 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1133,7 +1134,7 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
             multi_frame_output)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         # David's code is more complicaated than mine
         # Should check it out later.
         fa_seq_tg = tag_for_keyword('FrameAnatomySequence')
@@ -1173,7 +1174,7 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
                 bodypart_tg in tags or
                 anatomical_reg_tg)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
              self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1191,7 +1192,7 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1212,7 +1213,7 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
                 ImagerPixelSpacing_tg in tags)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1236,7 +1237,7 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
                           [item])
         dest_fg[pixel_measures_tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1254,7 +1255,7 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1271,7 +1272,7 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
         return ImagePositionPatient_tg in tags
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1285,7 +1286,7 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
                           [item])
         dest_fg[PlanePositionSequence_tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1303,7 +1304,7 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1320,7 +1321,7 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
         return ImageOrientationPatient_tg in tags
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1332,7 +1333,7 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1350,7 +1351,7 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1372,7 +1373,7 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
                 WindowCenterWidthExplanation_tg in tags)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1394,7 +1395,7 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1412,7 +1413,7 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1433,7 +1434,7 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
                 RescaleType_tg in tags)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1479,7 +1480,7 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1497,7 +1498,7 @@ class ReferencedImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1513,14 +1514,14 @@ class ReferencedImageFunctionalGroup(Abstract_MultiframeModuleAdder):
         return tag_for_keyword('ReferencedImageSequence') in tags
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         self._copy_attrib_if_present(src_fg,
                                      dest_fg,
                                      'ReferencedImageSequence',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1538,7 +1539,7 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1554,7 +1555,7 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
         return tag_for_keyword('SourceImageSequence') in tags
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1576,7 +1577,7 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         if (not self._contains_right_attributes(self.PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
@@ -1594,7 +1595,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1607,7 +1608,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
             multi_frame_output)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         for tg, used in self.PerFrameTags.items():
             if used not in self.ExcludedFromFunctionalGroupsTags:
@@ -1621,7 +1622,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         for i in range(0, len(self.SingleFrameSet)):
             item = self._get_perframe_item(i)
             self._add_module_to_functional_group(
@@ -1632,7 +1633,7 @@ class UnassignedShared(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1645,7 +1646,7 @@ class UnassignedShared(Abstract_MultiframeModuleAdder):
             multi_frame_output)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         for tg, used in self.SharedTags.items():
             if (not used and
@@ -1660,7 +1661,7 @@ class UnassignedShared(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         item = self._get_shared_item()
         self._add_module_to_functional_group(self.SingleFrameSet[0], item)
 
@@ -1669,7 +1670,7 @@ class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1682,7 +1683,7 @@ class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
             multi_frame_output)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         self._copy_attrib_if_present(src_fg,
                                      item,
@@ -1701,7 +1702,7 @@ class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
         seq = DataElement(tg, dictionary_VR(tg), [item])
         dest_fg[tg] = seq
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         for i in range(0, len(self.SingleFrameSet)):
             item = self._get_perframe_item(i)
             self._add_module_to_functional_group(
@@ -1712,7 +1713,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1734,7 +1735,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
                 AcquisitionDate_tg in tags)
 
     def _add_module_to_functional_group(
-        self, src_fg: Dataset, dest_fg: Dataset):
+        self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
         item['AcquisitionNumber'] = self._get_or_create_attribute(
             src_fg, 'AcquisitionNumber', 0)
@@ -1794,7 +1795,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[seq_tg] = DataElement(seq_tg, dictionary_VR(seq_tg), [item])
     # Also we want to add the earliest frame acq date time to the multiframe:
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         for i in range(0, len(self.SingleFrameSet)):
             item = self._get_perframe_item(i)
             self._add_module_to_functional_group(
@@ -1810,7 +1811,7 @@ class PixelData(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1833,7 +1834,7 @@ class PixelData(Abstract_MultiframeModuleAdder):
     #     ImagePositionPatient_tg = tag_for_keyword('ImagePositionPatient')
     #     return ImagePositionPatient_tg in tags
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         kw = 'NumberOfFrames'
         tg = tag_for_keyword(kw)
         FrameCount = len(self.SingleFrameSet)
@@ -1869,7 +1870,7 @@ class ContentDateTime(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1882,7 +1883,7 @@ class ContentDateTime(Abstract_MultiframeModuleAdder):
             multi_frame_output)
         self.EarliestContentDateTime = self.FarthestFutureDateTime
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         for i in range(0, len(self.SingleFrameSet)):
             src = self.SingleFrameSet[i]
             ContentDate_a = self._get_or_create_attribute(
@@ -1909,7 +1910,7 @@ class InstanceCreationDateTime(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1921,7 +1922,7 @@ class InstanceCreationDateTime(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         nnooww = datetime.now()
         n_d = DA(nnooww.date().strftime('%Y%m%d'))
         n_t = TM(nnooww.time().strftime('%H%M%S'))
@@ -1937,7 +1938,7 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -1949,11 +1950,11 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def _add_data_element_to_target(self, kw: str, value) -> None:
+    def _add_data_element_to_target(self, kw: str, value: Any) -> None:
         tg = tag_for_keyword(kw)
         self.TargetDataset[kw] = DataElement(tg, dictionary_VR(tg), value)
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         CodeValue_tg = tag_for_keyword('CodeValue')
         CodeMeaning_tg = tag_for_keyword('CodeMeaning')
         CodingSchemeDesignator_tg = tag_for_keyword('CodingSchemeDesignator')
@@ -1995,7 +1996,7 @@ class StackInformation(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
                  excluded_from_perframe_tags: dict,
-                 excluded_from_functional_tags: Sequence[Tag],
+                 excluded_from_functional_tags: dict,
                  perframe_tags: dict,
                  shared_tags: dict,
                  multi_frame_output: Dataset):
@@ -2068,7 +2069,7 @@ class StackInformation(Abstract_MultiframeModuleAdder):
         else:
             return False
 
-    def AddModule(self):
+    def AddModule(self) -> None:
         self._build_slices_geometry()
         round_digits = int(np.ceil(-np.log10(self._tolerance)))
         if self._are_all_slices_parallel():
@@ -2079,11 +2080,11 @@ class StackInformation(Abstract_MultiframeModuleAdder):
                 else:
                     self._slice_location_map[dist] = [idx]
             distance_index = 0
-            for loc, idx in sorted(self._slice_location_map.items()):
-                if len(idx) != 1:
+            for loc, idxs in sorted(self._slice_location_map.items()):
+                if len(idxs) != 1:
                     print('Error')
                     return
-                frame_index = idx[0]
+                frame_index = idxs[0]
                 frame = self._get_perframe_item(frame_index)
                 new_item = Dataset()
                 new_item["StackID"] = self._get_or_create_attribute(
@@ -2108,7 +2109,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key=None,
+            sort_key: Callable = None,
             **kwargs: Any) -> None:
         """
         Parameters
@@ -2260,8 +2261,8 @@ class LegacyConvertedEnhanceImage(SOPClass):
             out += (x['SOPInstanceUID'].value, )
         return out
 
-    def _find_per_frame_and_shared_tags(self):
-        rough_shared = {}
+    def _find_per_frame_and_shared_tags(self) -> None:
+        rough_shared: dict = {}
         sfs = self._legacy_datasets
         for ds in sfs:
             for ttag, elem in ds.items():
@@ -2319,11 +2320,11 @@ class LegacyConvertedEnhanceImage(SOPClass):
     def _istag_group_length(self, t: Tag) -> bool:
         return t.element == 0
 
-    def _isequal(self, v1, v2):
+    def _isequal(self, v1: Any, v2: Any) -> bool:
         from pydicom.valuerep import DSfloat
         float_tolerance = 1.0e-5
 
-        def is_equal_float(x1, x2) -> bool:
+        def is_equal_float(x1: float, x2: float) -> bool:
             return abs(x1 - x2) < float_tolerance
         if type(v1) != type(v2):
             return False
@@ -2345,7 +2346,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                     return False
         return True
 
-    def _isequal_dicom_dataset(self, ds1, ds2) -> bool:
+    def _isequal_dicom_dataset(self, ds1: Dataset, ds2: Dataset) -> bool:
         if type(ds1) != type(ds2):
             return False
         if type(ds1) != Dataset:
@@ -2358,16 +2359,16 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 return False
         return True
 
-    def AddNewBuildBlock(self, element: Abstract_MultiframeModuleAdder):
+    def AddNewBuildBlock(self, element: Abstract_MultiframeModuleAdder) -> None:
         if not isinstance(element, Abstract_MultiframeModuleAdder):
             raise ValueError('Build block must be an instance '
                              'of Abstract_MultiframeModuleAdder')
         self.__build_blocks.append(element)
 
-    def ClearBuildBlocks(self):
+    def ClearBuildBlocks(self) -> None:
         self.__build_blocks = []
 
-    def AddCommonCT_PET_MR_BuildBlocks(self):
+    def AddCommonCT_PET_MR_BuildBlocks(self) -> None:
         Blocks = [
             ImagePixelModule(
                 self._legacy_datasets,
@@ -2513,7 +2514,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         for b in Blocks:
             self.AddNewBuildBlock(b)
 
-    def AddCTSpecificBuildBlocks(self):
+    def AddCTSpecificBuildBlocks(self) -> None:
         Blocks = [
             CommonCTMRPETImageDescriptionMacro(
                 self._legacy_datasets,
@@ -2541,7 +2542,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         for b in Blocks:
             self.AddNewBuildBlock(b)
 
-    def AddMRSpecificBuildBlocks(self):
+    def AddMRSpecificBuildBlocks(self) -> None:
         Blocks = [
             CommonCTMRPETImageDescriptionMacro(
                 self._legacy_datasets,
@@ -2569,7 +2570,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         for b in Blocks:
             self.AddNewBuildBlock(b)
 
-    def AddPETSpecificBuildBlocks(self):
+    def AddPETSpecificBuildBlocks(self) -> None:
         Blocks = [
             CommonCTMRPETImageDescriptionMacro(
                 self._legacy_datasets,
@@ -2590,22 +2591,22 @@ class LegacyConvertedEnhanceImage(SOPClass):
         for b in Blocks:
             self.AddNewBuildBlock(b)
 
-    def AddBuildBlocksForCT(self):
+    def AddBuildBlocksForCT(self) -> None:
         self.ClearBuildBlocks()
         self.AddCommonCT_PET_MR_BuildBlocks()
         self.AddCTSpecificBuildBlocks()
 
-    def AddBuildBlocksForMR(self):
+    def AddBuildBlocksForMR(self) -> None:
         self.ClearBuildBlocks()
         self.AddCommonCT_PET_MR_BuildBlocks()
         self.AddMRSpecificBuildBlocks()
 
-    def AddBuildBlocksForPET(self):
+    def AddBuildBlocksForPET(self) -> None:
         self.ClearBuildBlocks()
         self.AddCommonCT_PET_MR_BuildBlocks()
         self.AddPETSpecificBuildBlocks()
 
-    def BuildMultiFrame(self):
+    def BuildMultiFrame(self) -> None:
         for builder in self.__build_blocks:
             builder.AddModule()
 
@@ -2634,7 +2635,7 @@ class GeometryOfSlice:
 
     def AreParallel(slice1: GeometryOfSlice,
                     slice2: GeometryOfSlice,
-                    tolerance=0.0001) -> bool:
+                    tolerance: float = 0.0001) -> bool:
         if (type(slice1) != GeometryOfSlice or
                 type(slice2) != GeometryOfSlice):
             print('Error')
