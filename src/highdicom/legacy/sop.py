@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union, Callable
-import numpy as np
+from numpy import log10, array, ceil, cross
 from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataset import Dataset
 from pydicom.tag import Tag
@@ -2039,12 +2039,12 @@ class StackInformation(Abstract_MultiframeModuleAdder):
             if (ImageOrientationPatient_v is not None and
                     ImagePositionPatient_v is not None and
                     PixelSpacing_v is not None):
-                row = np.array(ImageOrientationPatient_v[0:3])
-                col = np.array(ImageOrientationPatient_v[3:])
-                voxel_spaceing = np.array([PixelSpacing_v[0],
-                                          PixelSpacing_v[1],
-                                          SliceThickness_v])
-                tpl = np.array(ImagePositionPatient_v)
+                row = array(ImageOrientationPatient_v[0:3])
+                col = array(ImageOrientationPatient_v[3:])
+                voxel_spaceing = array([PixelSpacing_v[0],
+                                        PixelSpacing_v[1],
+                                        SliceThickness_v])
+                tpl = array(ImagePositionPatient_v)
                 dim = (Rows_v, Columns_v, 1)
                 self._slices.append(GeometryOfSlice(row, col,
                                     tpl, voxel_spaceing, dim))
@@ -2071,7 +2071,7 @@ class StackInformation(Abstract_MultiframeModuleAdder):
 
     def AddModule(self) -> None:
         self._build_slices_geometry()
-        round_digits = int(np.ceil(-np.log10(self._tolerance)))
+        round_digits = int(ceil(-log10(self._tolerance)))
         if self._are_all_slices_parallel():
             for idx, s in enumerate(self._slices):
                 dist = round(s.GetDistanceAlongOrigin(), round_digits)
@@ -2109,7 +2109,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable = None,
+            sort_key: Callable[..., Any] = None,
             **kwargs: Any) -> None:
         """
         Parameters
@@ -2613,10 +2613,10 @@ class LegacyConvertedEnhanceImage(SOPClass):
 
 class GeometryOfSlice:
     def __init__(self,
-                 row_vector: np.array,
-                 col_vector: np.array,
-                 top_left_corner_pos: np.array,
-                 voxel_spaceing: np.array,
+                 row_vector: array,
+                 col_vector: array,
+                 top_left_corner_pos: array,
+                 voxel_spaceing: array,
                  dimensions: tuple):
         self.RowVector = row_vector
         self.ColVector = col_vector
@@ -2624,9 +2624,8 @@ class GeometryOfSlice:
         self.VoxelSpacing = voxel_spaceing
         self.Dim = dimensions
 
-    def GetNormalVector(self) -> np.array:
-        return np.cross(self.RowVector,
-                        self.ColVector)
+    def GetNormalVector(self) -> array:
+        return cross(self.RowVector, self.ColVector)
 
     def GetDistanceAlongOrigin(self) -> float:
         n = self.GetNormalVector()
