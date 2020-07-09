@@ -1,4 +1,5 @@
 """Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -540,11 +541,12 @@ from abc import ABC, abstractmethod
 class Abstract_MultiframeModuleAdder(ABC):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
+
         self.ExcludedFromPerFrameTags = excluded_from_perframe_tags
         self.ExcludedFromFunctionalGroupsTags = excluded_from_functional_tags
         self.PerFrameTags = perframe_tags
@@ -611,9 +613,9 @@ class Abstract_MultiframeModuleAdder(ABC):
     def _get_perframe_item(self, index: int) -> Dataset:
         if index > len(self.SingleFrameSet):
             return None
-        pf_kw = 'PerFrameFunctionalGroupsSequence'
+        pf_kw: str = 'PerFrameFunctionalGroupsSequence'
         pf_tg = tag_for_keyword(pf_kw)
-        if pf_kw not in self.TargetDataset:
+        if pf_tg not in self.TargetDataset:
             seq = []
             for i in range(0, len(self.SingleFrameSet)):
                 seq.append(Dataset())
@@ -658,14 +660,15 @@ class Abstract_MultiframeModuleAdder(ABC):
         # iod_name = _SOP_CLASS_UID_IOD_KEY_MAP[mf_sop_instance_uid]
         # modules = IOD_MODULE_MAP[iod_name]
         from copy import deepcopy
-        attribs = MODULE_ATTRIBUTE_MAP[module_name]
+        attribs: list = MODULE_ATTRIBUTE_MAP[module_name]
         ref_dataset = self.SingleFrameSet[0]
         for a in attribs:
-            if a in excepted_attributes:
+            kw: str = a['keyword']
+            if kw in excepted_attributes:
                 continue
             if len(a['path']) == 0:
                 self._copy_attrib_if_present(
-                    ref_dataset, self.TargetDataset, a['keyword'],
+                    ref_dataset, self.TargetDataset, kw,
                     check_not_to_be_perframe=check_not_to_be_perframe,
                     check_not_to_be_empty=check_not_to_be_empty)
 
@@ -677,11 +680,11 @@ class Abstract_MultiframeModuleAdder(ABC):
 class ImagePixelModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -712,11 +715,11 @@ class ImagePixelModule(Abstract_MultiframeModuleAdder):
 class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -729,6 +732,7 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
          "clinical-trial-subject": [],
          "general-study":
          [
+            "StudyInstanceUID",
             "RequestingService"
          ],
          "patient-study":
@@ -739,6 +743,8 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
          "clinical-trial-study": [],
          "general-series":
          [
+            "SeriesInstanceUID",
+            "SeriesNumber",
             "SmallestPixelValueInSeries",
             "LargestPixelValueInSeries",
             "PerformedProcedureStepEndDate",
@@ -752,6 +758,9 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
          "frame-of-reference": [],
          "sop-common":
          [
+            "SOPClassUID",
+            "SOPInstanceUID",
+            "InstanceNumber",
             "SpecificCharacterSet",
             "EncryptedAttributesSequence",
             "MACParametersSequence",
@@ -815,11 +824,11 @@ class CompositeInstanceContex(Abstract_MultiframeModuleAdder):
 class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None,
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset,
                  modality: str = 'CT'):
         super().__init__(
             sf_datasets,
@@ -860,9 +869,11 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
         new_val = self._get_value_for_frame_type(FrameType_a)
         dest_fg[FrameType_tg] = DataElement(FrameType_tg,
                                             FrameType_a.VR, new_val)
-        element_generator = lambda kw, val: DataElement(
-            tag_for_keyword(kw),
-            dictionary_VR(tag_for_keyword(kw)), val)
+
+        def element_generator(kw, val) -> DataElement:
+            return DataElement(
+                tag_for_keyword(kw),
+                dictionary_VR(tag_for_keyword(kw)), val)
         dest_fg['PixelPresentation'] = element_generator(
             'PixelPresentation', "MONOCHROME")
         dest_fg['VolumetricProperties'] = element_generator(
@@ -894,11 +905,11 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
 class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -963,11 +974,11 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
 class ContrastBolusModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -983,11 +994,11 @@ class ContrastBolusModule(Abstract_MultiframeModuleAdder):
 class EnhancedCTImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1004,11 +1015,11 @@ class EnhancedCTImageModule(Abstract_MultiframeModuleAdder):
 class EnhancedPETImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1025,11 +1036,11 @@ class EnhancedPETImageModule(Abstract_MultiframeModuleAdder):
 class EnhancedMRImageModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1084,11 +1095,11 @@ class EnhancedMRImageModule(Abstract_MultiframeModuleAdder):
 class AcquisitionContextModule(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1108,11 +1119,11 @@ class AcquisitionContextModule(Abstract_MultiframeModuleAdder):
 class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1179,11 +1190,11 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
 class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1242,11 +1253,11 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
 class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1291,11 +1302,11 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
 class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1338,11 +1349,11 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
 class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1400,11 +1411,11 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
 class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1485,11 +1496,11 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
 class ReferencedImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1526,11 +1537,11 @@ class ReferencedImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1582,11 +1593,11 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
 class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1620,11 +1631,11 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
 class UnassignedShared(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1657,11 +1668,11 @@ class UnassignedShared(Abstract_MultiframeModuleAdder):
 class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1700,11 +1711,11 @@ class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
 class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1798,11 +1809,11 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
 class PixelData(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1857,11 +1868,11 @@ class PixelData(Abstract_MultiframeModuleAdder):
 class ContentDateTime(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1897,11 +1908,11 @@ class ContentDateTime(Abstract_MultiframeModuleAdder):
 class InstanceCreationDateTime(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1925,11 +1936,11 @@ class InstanceCreationDateTime(Abstract_MultiframeModuleAdder):
 class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
 
     def __init__(self, sf_datasets: Sequence[Dataset],
-                 excluded_from_perframe_tags: Sequence[Tag],
+                 excluded_from_perframe_tags: dict,
                  excluded_from_functional_tags: Sequence[Tag],
-                 perframe_tags: Sequence[Tag],
-                 shared_tags: Sequence[Tag],
-                 multi_frame_output: Dataset = None):
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
         super().__init__(
             sf_datasets,
             excluded_from_perframe_tags,
@@ -1980,6 +1991,113 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
             'Legacy Enhanced Image created from Classic Images')
 
 
+class StackInformation(Abstract_MultiframeModuleAdder):
+
+    def __init__(self, sf_datasets: Sequence[Dataset],
+                 excluded_from_perframe_tags: dict,
+                 excluded_from_functional_tags: Sequence[Tag],
+                 perframe_tags: dict,
+                 shared_tags: dict,
+                 multi_frame_output: Dataset):
+        super().__init__(
+            sf_datasets,
+            excluded_from_perframe_tags,
+            excluded_from_functional_tags,
+            perframe_tags,
+            shared_tags,
+            multi_frame_output)
+        self._slices: list = []
+        self._tolerance = 0.0001
+        self._slice_location_map: dict = {}
+
+    def _build_slices_geometry(self) -> None:
+        frame_count = len(self.SingleFrameSet)
+        for i in range(0, frame_count):
+            curr_frame = self.SingleFrameSet[i]
+            ImagePositionPatient_v = None \
+                if 'ImagePositionPatient' not in curr_frame\
+                else curr_frame['ImagePositionPatient'].value
+            ImageOrientationPatient_v = None \
+                if 'ImageOrientationPatient' not in curr_frame\
+                else curr_frame['ImageOrientationPatient'].value
+            PixelSpacing_v = None \
+                if 'PixelSpacing' not in curr_frame\
+                else curr_frame['PixelSpacing'].value
+            SliceThickness_v = 0.0 \
+                if 'SliceThickness' not in curr_frame\
+                else curr_frame['SliceThickness'].value
+            # SliceLocation_v = None \
+            #     if 'SliceLocation' not in curr_frame\
+            #     else curr_frame['SliceLocation'].value
+            Rows_v = 0 \
+                if 'Rows' not in curr_frame\
+                else curr_frame['Rows'].value
+            Columns_v = 0 \
+                if 'Columns' not in curr_frame\
+                else curr_frame['Columns'].value
+            if (ImageOrientationPatient_v is not None and
+                    ImagePositionPatient_v is not None and
+                    PixelSpacing_v is not None):
+                row = np.array(ImageOrientationPatient_v[0:3])
+                col = np.array(ImageOrientationPatient_v[3:])
+                voxel_spaceing = np.array([PixelSpacing_v[0],
+                                          PixelSpacing_v[1],
+                                          SliceThickness_v])
+                tpl = np.array(ImagePositionPatient_v)
+                dim = (Rows_v, Columns_v, 1)
+                self._slices.append(GeometryOfSlice(row, col,
+                                    tpl, voxel_spaceing, dim))
+            else:
+                print("Error in geometri ...")
+                self._slices = []  # clear the slices
+                break
+
+    def _are_all_slices_parallel(self) -> bool:
+        slice_count = len(self._slices)
+        if slice_count >= 2:
+            last_slice = self._slices[0]
+            for i in range(1, slice_count):
+                curr_slice = self._slices[i]
+                if not GeometryOfSlice.AreParallel(
+                    curr_slice, last_slice, self._tolerance):
+                    return False
+                last_slice = curr_slice
+            return True
+        elif slice_count == 1:
+            return True
+        else:
+            return False
+
+    def AddModule(self):
+        self._build_slices_geometry()
+        round_digits = int(np.ceil(-np.log10(self._tolerance)))
+        if self._are_all_slices_parallel():
+            for idx, s in enumerate(self._slices):
+                dist = round(s.GetDistanceAlongOrigin(), round_digits)
+                if dist in self._slice_location_map:
+                    self._slice_location_map[dist].append(idx)
+                else:
+                    self._slice_location_map[dist] = [idx]
+            distance_index = 0
+            for loc, idx in sorted(self._slice_location_map.items()):
+                if len(idx) != 1:
+                    print('Error')
+                    return
+                frame_index = idx[0]
+                frame = self._get_perframe_item(frame_index)
+                new_item = Dataset()
+                new_item["StackID"] = self._get_or_create_attribute(
+                    self.SingleFrameSet[0],
+                    "StackID", "0")
+                new_item["InStackPositionNumber"] =\
+                    self._get_or_create_attribute(
+                    self.SingleFrameSet[0],
+                    "InStackPositionNumber", distance_index)
+                tg = tag_for_keyword("FrameContentSequence")
+                frame[tg] = DataElement(tg, "SQ", [new_item])
+                distance_index += 1
+
+
 class LegacyConvertedEnhanceImage(SOPClass):
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
@@ -2026,7 +2144,6 @@ class LegacyConvertedEnhanceImage(SOPClass):
             instance_number=instance_number,
             manufacturer=ref_ds.Manufacturer,
             modality=ref_ds.Modality,
-            transfer_syntax_uid=None,  # FIXME: frame encoding
             patient_id=ref_ds.PatientID,
             patient_name=ref_ds.PatientName,
             patient_birth_date=ref_ds.PatientBirthDate,
@@ -2071,7 +2188,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             'AcquisitionContextSequence']
         to_be_removed_from_distinguishing_attribs = set()
         for kw in self.DistinguishingAttributeKeywords:
-            x = []
+            x: list = []
             not_present_attribute_count = 0
             for ds in legacy_datasets:
                 if kw in ds:
@@ -2113,11 +2230,11 @@ class LegacyConvertedEnhanceImage(SOPClass):
             tag_for_keyword('SpecificCharacterSet'): False}
 
         # ---------------------------------------------------------------------
-        self.PerFrameTags = {}
-        self.SharedTags = {}
+        self.PerFrameTags: dict = {}
+        self.SharedTags: dict = {}
         self._find_per_frame_and_shared_tags()
         # ----------------------------------------------------------------------
-        self.__build_blocks = []
+        self.__build_blocks: list = []
         # == == == == == == == == == == == == == == == == == == == == == == == =
         new_ds = []
         for item in sorted(self._legacy_datasets, key=sort_key):
@@ -2134,7 +2251,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             self.AddBuildBlocksForPET()
 
     def default_sort_key(x: Dataset) -> tuple:
-        out = tuple()
+        out: tuple = tuple()
         if 'SeriesNumber' in x:
             out += (x['SeriesNumber'].value, )
         if 'InstanceNumber' in x:
@@ -2203,8 +2320,11 @@ class LegacyConvertedEnhanceImage(SOPClass):
         return t.element == 0
 
     def _isequal(self, v1, v2):
+        from pydicom.valuerep import DSfloat
         float_tolerance = 1.0e-5
-        is_equal_float = lambda x1, x2: abs(x1 - x2) < float_tolerance
+
+        def is_equal_float(x1, x2) -> bool:
+            return abs(x1 - x2) < float_tolerance
         if type(v1) != type(v2):
             return False
         if type(v1) == DicomSequence:
@@ -2217,7 +2337,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             v11 = v1
             v22 = v2
         for xx, yy in zip(v11, v22):
-            if type(xx) == float:
+            if type(xx) == DSfloat or type(xx) == float:
                 if not is_equal_float(xx, yy):
                     return False
             else:
@@ -2234,7 +2354,9 @@ class LegacyConvertedEnhanceImage(SOPClass):
             if k1 not in ds2:
                 return False
             elem2 = ds2[k1]
-            return self._isequal(elem2.value, elem1.value)
+            if not self._isequal(elem2.value, elem1.value):
+                return False
+        return True
 
     def AddNewBuildBlock(self, element: Abstract_MultiframeModuleAdder):
         if not isinstance(element, Abstract_MultiframeModuleAdder):
@@ -2338,20 +2460,6 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self.PerFrameTags,
                 self.SharedTags,
                 self),
-            UnassignedPerFrame(
-                self._legacy_datasets,
-                self.ExcludedFromPerFrameTags,
-                self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
-                self.SharedTags,
-                self),
-            UnassignedShared(
-                self._legacy_datasets,
-                self.ExcludedFromPerFrameTags,
-                self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
-                self.SharedTags,
-                self),
             PixelData(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
@@ -2374,6 +2482,27 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self.SharedTags,
                 self),
             ContributingEquipmentSequence(
+                self._legacy_datasets,
+                self.ExcludedFromPerFrameTags,
+                self.ExcludedFromFunctionalGroupsTags,
+                self.PerFrameTags,
+                self.SharedTags,
+                self),
+            UnassignedPerFrame(
+                self._legacy_datasets,
+                self.ExcludedFromPerFrameTags,
+                self.ExcludedFromFunctionalGroupsTags,
+                self.PerFrameTags,
+                self.SharedTags,
+                self),
+            UnassignedShared(
+                self._legacy_datasets,
+                self.ExcludedFromPerFrameTags,
+                self.ExcludedFromFunctionalGroupsTags,
+                self.PerFrameTags,
+                self.SharedTags,
+                self),
+            StackInformation(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
@@ -2479,3 +2608,41 @@ class LegacyConvertedEnhanceImage(SOPClass):
     def BuildMultiFrame(self):
         for builder in self.__build_blocks:
             builder.AddModule()
+
+
+class GeometryOfSlice:
+    def __init__(self,
+                 row_vector: np.array,
+                 col_vector: np.array,
+                 top_left_corner_pos: np.array,
+                 voxel_spaceing: np.array,
+                 dimensions: tuple):
+        self.RowVector = row_vector
+        self.ColVector = col_vector
+        self.TopLeftCornerPosition = top_left_corner_pos
+        self.VoxelSpacing = voxel_spaceing
+        self.Dim = dimensions
+
+    def GetNormalVector(self) -> np.array:
+        return np.cross(self.RowVector,
+                        self.ColVector)
+
+    def GetDistanceAlongOrigin(self) -> float:
+        n = self.GetNormalVector()
+        return float(
+            self.TopLeftCornerPosition.dot(n))
+
+    def AreParallel(slice1: GeometryOfSlice,
+                    slice2: GeometryOfSlice,
+                    tolerance=0.0001) -> bool:
+        if (type(slice1) != GeometryOfSlice or
+                type(slice2) != GeometryOfSlice):
+            print('Error')
+            return False
+        else:
+            n1 = slice1.GetNormalVector()
+            n2 = slice2.GetNormalVector()
+            for el1, el2 in zip(n1, n2):
+                if abs(el1 - el2) > tolerance:
+                    return False
+            return True
