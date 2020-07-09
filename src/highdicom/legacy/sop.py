@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union, Callable
-from numpy import log10, array, ceil, cross
+from numpy import log10, array, ceil, cross, dot, ndarray
 from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataset import Dataset
 from pydicom.tag import Tag
@@ -2109,7 +2109,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable[..., Any] = None,
+            sort_key: Callable[...] = None,
             **kwargs: Any) -> None:
         """
         Parameters
@@ -2613,10 +2613,10 @@ class LegacyConvertedEnhanceImage(SOPClass):
 
 class GeometryOfSlice:
     def __init__(self,
-                 row_vector: array,
-                 col_vector: array,
-                 top_left_corner_pos: array,
-                 voxel_spaceing: array,
+                 row_vector: ndarray,
+                 col_vector: ndarray,
+                 top_left_corner_pos: ndarray,
+                 voxel_spaceing: ndarray,
                  dimensions: tuple):
         self.RowVector = row_vector
         self.ColVector = col_vector
@@ -2624,13 +2624,13 @@ class GeometryOfSlice:
         self.VoxelSpacing = voxel_spaceing
         self.Dim = dimensions
 
-    def GetNormalVector(self) -> array:
+    def GetNormalVector(self) -> ndarray:
         return cross(self.RowVector, self.ColVector)
 
     def GetDistanceAlongOrigin(self) -> float:
         n = self.GetNormalVector()
         return float(
-            self.TopLeftCornerPosition.dot(n))
+            dot(self.TopLeftCornerPosition, n))
 
     def AreParallel(slice1: GeometryOfSlice,
                     slice2: GeometryOfSlice,
@@ -2640,8 +2640,8 @@ class GeometryOfSlice:
             print('Error')
             return False
         else:
-            n1 = slice1.GetNormalVector()
-            n2 = slice2.GetNormalVector()
+            n1: ndarray = slice1.GetNormalVector()
+            n2: ndarray = slice2.GetNormalVector()
             for el1, el2 in zip(n1, n2):
                 if abs(el1 - el2) > tolerance:
                     return False
