@@ -1,4 +1,4 @@
-"""Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
+""" Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 from __future__ import annotations
 import logging
 from collections import defaultdict
@@ -549,7 +549,7 @@ class Abstract_MultiframeModuleAdder(ABC):
 
         self.ExcludedFromPerFrameTags = excluded_from_perframe_tags
         self.ExcludedFromFunctionalGroupsTags = excluded_from_functional_tags
-        self.PerFrameTags = perframe_tags
+        self._PerFrameTags = perframe_tags
         self.SharedTags = shared_tags
         self.TargetDataset = multi_frame_output
         self.SingleFrameSet = sf_datasets
@@ -578,8 +578,8 @@ class Abstract_MultiframeModuleAdder(ABC):
             self.SharedTags[tg] = True
         elif tg in self.ExcludedFromPerFrameTags:
             self.ExcludedFromPerFrameTags[tg] = True
-        elif tg in self.PerFrameTags:
-            self.PerFrameTags[tg] = True
+        elif tg in self._PerFrameTags:
+            self._PerFrameTags[tg] = True
 
     def _copy_attrib_if_present(self, src_ds: Dataset, dest_ds: Dataset,
                                 src_kw_or_tg: str, dest_kw_or_tg: str = None,
@@ -592,7 +592,7 @@ class Abstract_MultiframeModuleAdder(ABC):
         elif type(dest_kw_or_tg) == str:
             dest_kw_or_tg = tag_for_keyword(dest_kw_or_tg)
         if check_not_to_be_perframe:
-            if src_kw_or_tg in self.PerFrameTags:
+            if src_kw_or_tg in self._PerFrameTags:
                 return
         if src_kw_or_tg in src_ds:
             elem = src_ds[src_kw_or_tg]
@@ -885,7 +885,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
     def AddModule(self) -> None:
         im_type_tag = tag_for_keyword('ImageType')
         seq_tg = self._get_frame_type_seq_tag()
-        if im_type_tag not in self.PerFrameTags:
+        if im_type_tag not in self._PerFrameTags:
             self._add_module_to_functional_group(self.SingleFrameSet[0],
                                                  self.TargetDataset, 0)
             # ----------------------------
@@ -922,7 +922,7 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
     def AddModule(self) -> None:
         # ct_mr = CommonCTMRImageDescriptionMacro(self.SingleFrameSet
         # , self.ExcludedFromPerFrameTags
-        # , self.PerFrameTags
+        # , self._PerFrameTags
         # , self.SharedTags
         # , self.TargetDataset)
         # ct_mr.AddModule()
@@ -953,7 +953,7 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
             'LossyImageCompressionMethod']
         for kw in attribs_to_be_added:
             self._copy_attrib_if_present(ref_dataset, self.TargetDataset, kw)
-        if tag_for_keyword('PresentationLUTShape') not in self.PerFrameTags:
+        if tag_for_keyword('PresentationLUTShape') not in self._PerFrameTags:
             # actually should really invert the pixel data if MONOCHROME1,
             #           since only MONOCHROME2 is permitted : (
             # also, do not need to check if PhotometricInterpretation is
@@ -1175,13 +1175,13 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
                 anatomical_reg_tg)
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
              self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1238,13 +1238,13 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[pixel_measures_tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1287,13 +1287,13 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[PlanePositionSequence_tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1334,13 +1334,13 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1396,13 +1396,13 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1481,13 +1481,13 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1522,13 +1522,13 @@ class ReferencedImageFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_empty=False)
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1578,13 +1578,13 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
-        if (not self._contains_right_attributes(self.PerFrameTags) and
+        if (not self._contains_right_attributes(self._PerFrameTags) and
             (self._contains_right_attributes(self.SharedTags) or
             self._contains_right_attributes(self.ExcludedFromPerFrameTags))
             ):
             item = self._get_shared_item()
             self._add_module_to_functional_group(self.SingleFrameSet[0], item)
-        elif self._contains_right_attributes(self.PerFrameTags):
+        elif self._contains_right_attributes(self._PerFrameTags):
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 self._add_module_to_functional_group(
@@ -1610,7 +1610,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
     def _add_module_to_functional_group(
         self, src_fg: Dataset, dest_fg: Dataset) -> None:
         item = Dataset()
-        for tg, used in self.PerFrameTags.items():
+        for tg, used in self._PerFrameTags.items():
             if used not in self.ExcludedFromFunctionalGroupsTags:
                 self._copy_attrib_if_present(src_fg,
                                              item,
@@ -1742,7 +1742,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
         AcquisitionDateTime_a = self._get_or_create_attribute(
             src_fg, 'AcquisitionDateTime',  self.EarliestDateTime)
         AcquisitionDateTime_is_perframe = self._contains_right_attributes(
-            self.PerFrameTags)
+            self._PerFrameTags)
         if AcquisitionDateTime_a.value == self.EarliestDateTime:
             AcquisitionDate_a = self._get_or_create_attribute(
                 src_fg, 'AcquisitionDate', self.EarliestDate)
@@ -2104,7 +2104,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
 
     def __init__(
             self,
-            legacy_datasets: Sequence[Dataset],
+            frame_set: FrameSet,
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -2129,6 +2129,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
         """
+        legacy_datasets = frame_set.Frames
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2156,84 +2157,16 @@ class LegacyConvertedEnhanceImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs)
         self._legacy_datasets = legacy_datasets
-        self.DistinguishingAttributeKeywords = [
-            'PatientID',
-            'PatientName',
-            'Manufacturer',
-            'InstitutionName',
-            'InstitutionAddress',
-            'StationName',
-            'InstitutionalDepartmentName',
-            'ManufacturerModelName',
-            'DeviceSerialNumber',
-            'SoftwareVersions',
-            'GantryID',
-            'PixelPaddingValue',
-            'Modality',
-            'ImageType',
-            'BurnedInAnnotation',
-            'SOPClassUID',
-            'Rows',
-            'Columns',
-            'BitsStored',
-            'BitsAllocated',
-            'HighBit',
-            'PixelRepresentation',
-            'PhotometricInterpretation',
-            'PlanarConfiguration',
-            'SamplesPerPixel',
-            'ProtocolName',
-            'ImageOrientationPatient',
-            'PixelSpacing',
-            'SliceThickness',
-            'AcquisitionContextSequence']
-        to_be_removed_from_distinguishing_attribs = set()
-        for kw in self.DistinguishingAttributeKeywords:
-            x: list = []
-            not_present_attribute_count = 0
-            for ds in legacy_datasets:
-                if kw in ds:
-                    if len(x) == 0:
-                        x.append(ds[kw])
-                    else:
-                        already_has_new_value = False
-                        for x_elem in x:
-                            if self._isequal(x_elem.value, ds[kw].value):
-                                already_has_new_value = True
-                                break
-                        if not already_has_new_value:
-                            x.append(ds[kw])
-                else:
-                    to_be_removed_from_distinguishing_attribs.add(kw)
-                    not_present_attribute_count += 1
-            if not_present_attribute_count != len(legacy_datasets)\
-                    and not_present_attribute_count != 0:
-                raise ValueError('One or more datasets lack {} '
-                                 'distinguishing attributes'.format(kw))
-            if len(x) > 1:
-                error_msg = 'All instances must have the same'
-                ' value for {}.\n\tExisting values: '
-                for x_elem in x:
-                    error_msg += '\n\t\t{}'.format(x_elem.value)
-                raise ValueError(error_msg)
-        for kw in to_be_removed_from_distinguishing_attribs:
-            self.DistinguishingAttributeKeywords.remove(kw)
-        self.ExcludedFromPerFrameTags = {}
-        for i in self.DistinguishingAttributeKeywords:
-            self.ExcludedFromPerFrameTags[tag_for_keyword(i)] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionDateTime')] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionDate')] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionTime')] = False
+        self.DistinguishingAttributesTags = self._get_tag_used_dictionary(
+            frame_set.DistinguishingAttributesTags)
+        self.ExcludedFromPerFrameTags = self._get_tag_used_dictionary(
+            frame_set.ExcludedFromPerFrameTags)
+        self._PerFrameTags = self._get_tag_used_dictionary(
+            frame_set.PerFrameTags)
+        self.SharedTags = self._get_tag_used_dictionary(
+            frame_set.SharedTags)
         self.ExcludedFromFunctionalGroupsTags = {
             tag_for_keyword('SpecificCharacterSet'): False}
-
-        # ---------------------------------------------------------------------
-        self.PerFrameTags: dict = {}
-        self.SharedTags: dict = {}
-        self._find_per_frame_and_shared_tags()
         # ----------------------------------------------------------------------
         self.__build_blocks: list = []
         # == == == == == == == == == == == == == == == == == == == == == == == =
@@ -2251,6 +2184,12 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 'legacy-converted-enhanced-pet-image'):
             self.AddBuildBlocksForPET()
 
+    def _get_tag_used_dictionary(self, input: list) -> dict:
+        out: dict = {}
+        for item in input:
+            out[item] = False
+        return out
+
     def default_sort_key(x: Dataset) -> tuple:
         out: tuple = tuple()
         if 'SeriesNumber' in x:
@@ -2260,104 +2199,6 @@ class LegacyConvertedEnhanceImage(SOPClass):
         if 'SOPInstanceUID' in x:
             out += (x['SOPInstanceUID'].value, )
         return out
-
-    def _find_per_frame_and_shared_tags(self) -> None:
-        rough_shared: dict = {}
-        sfs = self._legacy_datasets
-        for ds in sfs:
-            for ttag, elem in ds.items():
-                if (not ttag.is_private and not
-                        self._istag_file_meta_information_group(ttag) and not
-                        self._istag_repeating_group(ttag) and not
-                        self._istag_group_length(ttag) and not
-                        self._istag_excluded_from_perframe(ttag) and
-                        ttag != tag_for_keyword('PixelData')):
-                    elem = ds[ttag]
-                    self.PerFrameTags[ttag] = False
-                    if ttag in rough_shared:
-                        rough_shared[ttag].append(elem.value)
-                    else:
-                        rough_shared[ttag] = [elem.value]
-        to_be_removed_from_shared = []
-        for ttag, v in rough_shared.items():
-            v = rough_shared[ttag]
-            if len(v) < len(self._legacy_datasets):
-                to_be_removed_from_shared.append(ttag)
-            else:
-                all_values_are_equal = True
-                for v_i in v:
-                    if not self._isequal(v_i, v[0]):
-                        all_values_are_equal = False
-                        break
-                if not all_values_are_equal:
-                    to_be_removed_from_shared.append(ttag)
-        from pydicom.datadict import keyword_for_tag
-        for t, v in rough_shared.items():
-            if keyword_for_tag(t) != 'PatientSex':
-                continue
-        for t in to_be_removed_from_shared:
-            del rough_shared[t]
-        for t, v in rough_shared.items():
-            self.SharedTags[t] = False
-            del self.PerFrameTags[t]
-        # for t in self.SharedTags:
-        #     print(keyword_for_tag(t))
-        # print('perframe ---------------------------')
-        # for t in self.PerFrameTags:
-        #     print (keyword_for_tag(t))
-
-    def _istag_excluded_from_perframe(self, t: Tag) -> bool:
-        return t in self.ExcludedFromPerFrameTags
-
-    def _istag_file_meta_information_group(self, t: Tag) -> bool:
-        return t.group == 0x0002
-
-    def _istag_repeating_group(self, t: Tag) -> bool:
-        g = t.group
-        return (g >= 0x5000 and g <= 0x501e) or\
-            (g >= 0x6000 and g <= 0x601e)
-
-    def _istag_group_length(self, t: Tag) -> bool:
-        return t.element == 0
-
-    def _isequal(self, v1: Any, v2: Any) -> bool:
-        from pydicom.valuerep import DSfloat
-        float_tolerance = 1.0e-5
-
-        def is_equal_float(x1: float, x2: float) -> bool:
-            return abs(x1 - x2) < float_tolerance
-        if type(v1) != type(v2):
-            return False
-        if type(v1) == DicomSequence:
-            for item1, item2 in zip(v1, v2):
-                self._isequal_dicom_dataset(item1, item2)
-        if type(v1) != MultiValue:
-            v11 = [v1]
-            v22 = [v2]
-        else:
-            v11 = v1
-            v22 = v2
-        for xx, yy in zip(v11, v22):
-            if type(xx) == DSfloat or type(xx) == float:
-                if not is_equal_float(xx, yy):
-                    return False
-            else:
-                if xx != yy:
-                    return False
-        return True
-
-    def _isequal_dicom_dataset(self, ds1: Dataset, ds2: Dataset) -> bool:
-        if type(ds1) != type(ds2):
-            return False
-        if type(ds1) != Dataset:
-            return False
-        for k1, elem1 in ds1.items():
-            if k1 not in ds2:
-                return False
-            elem2 = ds2[k1]
-            if not self._isequal(elem2.value, elem1.value):
-                return False
-        return True
 
     def AddNewBuildBlock(self, element: Abstract_MultiframeModuleAdder) -> None:
         if not isinstance(element, Abstract_MultiframeModuleAdder):
@@ -2374,140 +2215,140 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             CompositeInstanceContex(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             EnhancedCommonImageModule(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             AcquisitionContextModule(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             FrameAnatomyFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             PixelMeasuresFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             PlaneOrientationFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             PlanePositionFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             FrameVOILUTFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             PixelValueTransformationFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ReferencedImageFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ConversionSourceFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             FrameContentFunctionalGroup(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             PixelData(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ContentDateTime(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             InstanceCreationDateTime(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ContributingEquipmentSequence(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             UnassignedPerFrame(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             UnassignedShared(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             StackInformation(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self)
         ]
@@ -2520,7 +2361,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self,
                 'CT'),
@@ -2528,14 +2369,14 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ContrastBolusModule(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self)
         ]
@@ -2548,7 +2389,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self,
                 'MR'),
@@ -2556,14 +2397,14 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self),
             ContrastBolusModule(
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self)
         ]
@@ -2576,7 +2417,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self,
                 'PET'),
@@ -2584,7 +2425,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._legacy_datasets,
                 self.ExcludedFromPerFrameTags,
                 self.ExcludedFromFunctionalGroupsTags,
-                self.PerFrameTags,
+                self._PerFrameTags,
                 self.SharedTags,
                 self)
         ]
@@ -2646,3 +2487,235 @@ class GeometryOfSlice:
                 if abs(el1 - el2) > tolerance:
                     return False
             return True
+
+
+class DicomHelper:
+    def __init__(self):
+        pass
+
+    def istag_file_meta_information_group(t: Tag) -> bool:
+        return t.group == 0x0002
+
+    def istag_repeating_group(t: Tag) -> bool:
+        g = t.group
+        return (g >= 0x5000 and g <= 0x501e) or\
+            (g >= 0x6000 and g <= 0x601e)
+
+    def istag_group_length(t: Tag) -> bool:
+        return t.element == 0
+
+    def isequal(v1: Any, v2: Any) -> bool:
+        from pydicom.valuerep import DSfloat
+        float_tolerance = 1.0e-5
+
+        def is_equal_float(x1: float, x2: float) -> bool:
+            return abs(x1 - x2) < float_tolerance
+        if type(v1) != type(v2):
+            return False
+        if type(v1) == DicomSequence:
+            for item1, item2 in zip(v1, v2):
+                DicomHelper.isequal_dicom_dataset(item1, item2)
+        if type(v1) != MultiValue:
+            v11 = [v1]
+            v22 = [v2]
+        else:
+            v11 = v1
+            v22 = v2
+        for xx, yy in zip(v11, v22):
+            if type(xx) == DSfloat or type(xx) == float:
+                if not is_equal_float(xx, yy):
+                    return False
+            else:
+                if xx != yy:
+                    return False
+        return True
+
+    def isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
+        if type(ds1) != type(ds2):
+            return False
+        if type(ds1) != Dataset:
+            return False
+        for k1, elem1 in ds1.items():
+            if k1 not in ds2:
+                return False
+            elem2 = ds2[k1]
+            if not DicomHelper.isequal(elem2.value, elem1.value):
+                return False
+        return True
+
+
+class FrameSet:
+    def __init__(self, single_frame_list: list,
+                 distinguishing_tags: list):
+        self._Frames = single_frame_list
+        self._DistinguishingAttributesTags = distinguishing_tags
+        tmp = [
+            tag_for_keyword('AcquisitionDateTime'),
+            tag_for_keyword('AcquisitionDate'),
+            tag_for_keyword('AcquisitionTime'),
+            tag_for_keyword('SpecificCharacterSet')]
+        self._ExcludedFromPerFrameTags = self.DistinguishingAttributesTags + tmp
+        self._PerFrameTags = []
+        self._SharedTags = []
+        self._find_per_frame_and_shared_tags()
+
+    @property
+    def Frames(self):
+        return self._Frames[:]
+
+    @property
+    def DistinguishingAttributesTags(self):
+        return self._DistinguishingAttributesTags[:]
+
+    @property
+    def ExcludedFromPerFrameTags(self):
+        return self._ExcludedFromPerFrameTags[:]
+
+    @property
+    def PerFrameTags(self):
+        return self._PerFrameTags[:]
+
+    @property
+    def SharedTags(self):
+        return self._SharedTags[:]
+
+    def _find_per_frame_and_shared_tags(self) -> None:
+        rough_shared: dict = {}
+        sfs = self.Frames
+        for ds in sfs:
+            for ttag, elem in ds.items():
+                if (not ttag.is_private and not
+                    DicomHelper.istag_file_meta_information_group(ttag) and not
+                        DicomHelper.istag_repeating_group(ttag) and not
+                        DicomHelper.istag_group_length(ttag) and not
+                        self._istag_excluded_from_perframe(ttag) and
+                        ttag != tag_for_keyword('PixelData')):
+                    elem = ds[ttag]
+                    self._PerFrameTags.append(ttag)
+                    if ttag in rough_shared:
+                        rough_shared[ttag].append(elem.value)
+                    else:
+                        rough_shared[ttag] = [elem.value]
+        to_be_removed_from_shared = []
+        for ttag, v in rough_shared.items():
+            v = rough_shared[ttag]
+            if len(v) < len(self.Frames):
+                to_be_removed_from_shared.append(ttag)
+            else:
+                all_values_are_equal = True
+                for v_i in v:
+                    if not DicomHelper.isequal(v_i, v[0]):
+                        all_values_are_equal = False
+                        break
+                if not all_values_are_equal:
+                    to_be_removed_from_shared.append(ttag)
+        from pydicom.datadict import keyword_for_tag
+        for t, v in rough_shared.items():
+            if keyword_for_tag(t) != 'PatientSex':
+                continue
+        for t in to_be_removed_from_shared:
+            del rough_shared[t]
+        for t, v in rough_shared.items():
+            self._SharedTags.append(t)
+            self._PerFrameTags.remove(t)
+
+    def _istag_excluded_from_perframe(self, t: Tag) -> bool:
+        return t in self.ExcludedFromPerFrameTags
+
+
+class FrameSetCollection:
+    def __init__(self, single_frame_list: list):
+        self.MixedFrames = single_frame_list
+        self.MixedFramesCopy = self.MixedFrames[:]
+        self._DistinguishingAttributeKeywords = [
+            'PatientID',
+            'PatientName',
+            'Manufacturer',
+            'InstitutionName',
+            'InstitutionAddress',
+            'StationName',
+            'InstitutionalDepartmentName',
+            'ManufacturerModelName',
+            'DeviceSerialNumber',
+            'SoftwareVersions',
+            'GantryID',
+            'PixelPaddingValue',
+            'Modality',
+            'ImageType',
+            'BurnedInAnnotation',
+            'SOPClassUID',
+            'Rows',
+            'Columns',
+            'BitsStored',
+            'BitsAllocated',
+            'HighBit',
+            'PixelRepresentation',
+            'PhotometricInterpretation',
+            'PlanarConfiguration',
+            'SamplesPerPixel',
+            'ProtocolName',
+            'ImageOrientationPatient',
+            'PixelSpacing',
+            'SliceThickness',
+            'AcquisitionContextSequence']
+        to_be_removed_from_distinguishing_attribs = set()
+        self._FrameSets = []
+        while len(self.MixedFramesCopy) != 0:
+            x = self._find_all_similar_to_first_datasets()
+            self._FrameSets.append(FrameSet(x[0], x[1]))
+        for kw in to_be_removed_from_distinguishing_attribs:
+            self.DistinguishingAttributeKeywords.remove(kw)
+        self.ExcludedFromPerFrameTags = {}
+        for i in self.DistinguishingAttributeKeywords:
+            self.ExcludedFromPerFrameTags[tag_for_keyword(i)] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionDateTime')] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionDate')] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionTime')] = False
+        self.ExcludedFromFunctionalGroupsTags = {
+            tag_for_keyword('SpecificCharacterSet'): False}
+
+    def _find_all_similar_to_first_datasets(self) -> tuple:
+        similar_ds: list = [self.MixedFramesCopy[0]]
+        distinguishing_tags_existing = []
+        distinguishing_tags_missing = []
+        self.MixedFramesCopy = self.MixedFramesCopy[1:]
+        for kw in self.DistinguishingAttributeKeywords:
+            tg = tag_for_keyword(kw)
+            if tg in similar_ds[0]:
+                distinguishing_tags_existing.append(tg)
+            else:
+                distinguishing_tags_missing.append(tg)
+        for ds in self.MixedFramesCopy:
+            all_equal = True
+            for tg in distinguishing_tags_missing:
+                if tg in ds:
+                    all_equal = False
+                    break
+            if not all_equal:
+                continue
+            for tg in distinguishing_tags_existing:
+                ref_val = similar_ds[0][tg].value
+                if tg not in ds:
+                    all_equal = False
+                    break
+                new_val = ds[tg].value
+                if not DicomHelper.isequal(ref_val, new_val):
+                    all_equal = False
+                    break
+            if all_equal:
+                similar_ds.append(ds)
+        for ds in similar_ds:
+            if ds in self.MixedFramesCopy:
+                self.MixedFramesCopy.remove(ds)
+        return (similar_ds, distinguishing_tags_existing)
+
+    @property
+    def DistinguishingAttributeKeywords(self):
+        return self._DistinguishingAttributeKeywords[:]
+
+    @property
+    def FrameSets(self):
+        return self._FrameSets
