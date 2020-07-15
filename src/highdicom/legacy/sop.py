@@ -2060,7 +2060,7 @@ class StackInformation(Abstract_MultiframeModuleAdder):
             for i in range(1, slice_count):
                 curr_slice = self._slices[i]
                 if not GeometryOfSlice.AreParallel(
-                    curr_slice, last_slice, self._tolerance):
+                        curr_slice, last_slice, self._tolerance):
                     return False
                 last_slice = curr_slice
             return True
@@ -2167,9 +2167,9 @@ class LegacyConvertedEnhanceImage(SOPClass):
             frame_set.SharedTags)
         self.ExcludedFromFunctionalGroupsTags = {
             tag_for_keyword('SpecificCharacterSet'): False}
-        # ----------------------------------------------------------------------
+        # --------------------------------------------------------------------
         self.__build_blocks: list = []
-        # == == == == == == == == == == == == == == == == == == == == == == == =
+        # == == == == == == == == == == == == == == == == == == == == == == ==
         new_ds = []
         for item in sorted(self._legacy_datasets, key=sort_key):
             new_ds.append(item)
@@ -2200,7 +2200,8 @@ class LegacyConvertedEnhanceImage(SOPClass):
             out += (x['SOPInstanceUID'].value, )
         return out
 
-    def AddNewBuildBlock(self, element: Abstract_MultiframeModuleAdder) -> None:
+    def AddNewBuildBlock(
+        self, element: Abstract_MultiframeModuleAdder) -> None:
         if not isinstance(element, Abstract_MultiframeModuleAdder):
             raise ValueError('Build block must be an instance '
                              'of Abstract_MultiframeModuleAdder')
@@ -2490,7 +2491,7 @@ class GeometryOfSlice:
 
 
 class DicomHelper:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def istag_file_meta_information_group(t: Tag) -> bool:
@@ -2554,29 +2555,30 @@ class FrameSet:
             tag_for_keyword('AcquisitionDate'),
             tag_for_keyword('AcquisitionTime'),
             tag_for_keyword('SpecificCharacterSet')]
-        self._ExcludedFromPerFrameTags = self.DistinguishingAttributesTags + tmp
-        self._PerFrameTags = []
-        self._SharedTags = []
+        self._ExcludedFromPerFrameTags =\
+            self.DistinguishingAttributesTags + tmp
+        self._PerFrameTags: list = []
+        self._SharedTags: list = []
         self._find_per_frame_and_shared_tags()
 
     @property
-    def Frames(self):
+    def Frames(self) -> List[Dataset]:
         return self._Frames[:]
 
     @property
-    def DistinguishingAttributesTags(self):
+    def DistinguishingAttributesTags(self) -> List[Tag]:
         return self._DistinguishingAttributesTags[:]
 
     @property
-    def ExcludedFromPerFrameTags(self):
+    def ExcludedFromPerFrameTags(self) -> List[Tag]:
         return self._ExcludedFromPerFrameTags[:]
 
     @property
-    def PerFrameTags(self):
+    def PerFrameTags(self) -> List[Tag]:
         return self._PerFrameTags[:]
 
     @property
-    def SharedTags(self):
+    def SharedTags(self) -> List[Tag]:
         return self._SharedTags[:]
 
     def _find_per_frame_and_shared_tags(self) -> None:
@@ -2658,8 +2660,8 @@ class FrameSetCollection:
             'PixelSpacing',
             'SliceThickness',
             'AcquisitionContextSequence']
-        to_be_removed_from_distinguishing_attribs = set()
-        self._FrameSets = []
+        to_be_removed_from_distinguishing_attribs: set = set()
+        self._FrameSets: list = []
         while len(self.MixedFramesCopy) != 0:
             x = self._find_all_similar_to_first_datasets()
             self._FrameSets.append(FrameSet(x[0], x[1]))
@@ -2713,9 +2715,9 @@ class FrameSetCollection:
         return (similar_ds, distinguishing_tags_existing)
 
     @property
-    def DistinguishingAttributeKeywords(self):
+    def DistinguishingAttributeKeywords(self) -> List[str]:
         return self._DistinguishingAttributeKeywords[:]
 
     @property
-    def FrameSets(self):
+    def FrameSets(self) -> List[FrameSet]:
         return self._FrameSets
