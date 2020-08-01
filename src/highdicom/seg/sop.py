@@ -14,8 +14,6 @@ from pydicom.uid import (
     UID,
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
-    JPEG2000Lossless,
-    JPEGLSLossless,
     RLELossless,
 )
 from pydicom.sr.codedict import codes
@@ -232,8 +230,6 @@ class Segmentation(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
             RLELossless,
-            # JPEG2000Lossless,
-            # JPEGLSLossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -757,19 +753,18 @@ class Segmentation(SOPClass):
                 # multiple of 8
                 if (self.Rows * self.Columns * self.SamplesPerPixel) % 8 == 0:
                     framewise_encoding = True
+                else:
+                    logger.warning(
+                        'pixel data needs to be re-encoded for binary '
+                        'bitpacking - consider using FRACTIONAL instead of '
+                        'BINARY segmentation type'
+                    )
 
         if framewise_encoding:
             # Before adding new pixel data, remove trailing null padding byte
             if len(self.PixelData) == get_expected_length(self) + 1:
                 self.PixelData = self.PixelData[:-1]
         else:
-            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                if not is_encaps:
-                    logger.warning(
-                        'pixel data needs to be re-encoded for binary '
-                        'bitpacking - consider using FRACTIONAL instead of '
-                        'BINARY segmentation type'
-                    )
             # In the case of encapsulated transfer syntaxes, we will accumulate
             # a list of encoded frames to re-encapsulate at the end
             if is_encaps:

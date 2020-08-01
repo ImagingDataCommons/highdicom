@@ -300,7 +300,7 @@ class SCImage(SOPClass):
         if transfer_syntax_uid == RLELossless and bits_allocated % 8 != 0:
             raise ValueError(
                 'When using run length encoding, bits allocated must be a '
-                'multiple of 16'
+                'multiple of 8'
             )
         self.BitsAllocated = bits_allocated
         self.HighBit = self.BitsAllocated - 1
