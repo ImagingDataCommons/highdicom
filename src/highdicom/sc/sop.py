@@ -7,8 +7,15 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
+from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
+from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
+from pydicom.uid import (
+    ImplicitVRLittleEndian,
+    ExplicitVRLittleEndian,
+    RLELossless,
+)
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -83,6 +90,7 @@ class SCImage(SOPClass):
             specimen_descriptions: Optional[
                 Sequence[SpecimenDescription]
             ] = None,
+            transfer_syntax_uid: str = ImplicitVRLittleEndian,
             **kwargs: Any
         ):
         """
@@ -156,11 +164,25 @@ class SCImage(SOPClass):
         specimen_descriptions: Sequence[highdicom.content.SpecimenDescriptions], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. The following lossless compressed transfer syntaxes
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``).
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
         """  # noqa
+        supported_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            RLELossless,
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported'
+            )
+
         super().__init__(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
@@ -170,7 +192,7 @@ class SCImage(SOPClass):
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='OT',
-            transfer_syntax_uid=None,  # uncompressed!
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=patient_id,
             patient_name=patient_name,
             patient_birth_date=patient_birth_date,
@@ -260,6 +282,12 @@ class SCImage(SOPClass):
         self.ImageType = ['DERIVED', 'SECONDARY', 'OTHER']
         self.Rows = pixel_array.shape[0]
         self.Columns = pixel_array.shape[1]
+        allowed_types = [np.bool, np.uint8, np.uint16]
+        if not any(pixel_array.dtype == t for t in allowed_types):
+            raise TypeError(
+                'Pixel array must be of type np.bool, np.uint8 or np.uint16. '
+                f'Found {pixel_array.dtype}.'
+            )
         wrong_bit_depth_assignment = (
             pixel_array.dtype == np.bool and bits_allocated != 1,
             pixel_array.dtype == np.uint8 and bits_allocated != 8,
@@ -269,6 +297,11 @@ class SCImage(SOPClass):
             raise ValueError('Pixel array has an unexpected bit depth.')
         if bits_allocated not in (1, 8, 12, 16):
             raise ValueError('Unexpected number of bits allocated.')
+        if transfer_syntax_uid == RLELossless and bits_allocated % 8 != 0:
+            raise ValueError(
+                'When using run length encoding, bits allocated must be a '
+                'multiple of 8'
+            )
         self.BitsAllocated = bits_allocated
         self.HighBit = self.BitsAllocated - 1
         self.BitsStored = self.BitsAllocated
@@ -318,4 +351,9 @@ class SCImage(SOPClass):
             )
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
-        self.PixelData = pixel_array.tobytes()
+
+        # Pixel compression based on transfer syntax uid
+        if self.file_meta.TransferSyntaxUID == RLELossless:
+            self.PixelData = encapsulate([rle_encode_frame(pixel_array)])
+        else:
+            self.PixelData = pixel_array.tobytes()

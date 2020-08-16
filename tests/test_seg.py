@@ -10,7 +10,13 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
-from pydicom.uid import generate_uid, UID
+from pydicom.uid import (
+    generate_uid,
+    UID,
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    RLELossless,
+)
 
 from highdicom.content import (
     AlgorithmIdentificationSequence,
@@ -877,41 +883,52 @@ class TestSegmentation(unittest.TestCase):
                     [mask, additional_mask]
                 )
 
-            # Test instance creation for different pixel types
-            for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
-                instance = Segmentation(
-                    source,
-                    mask.astype(pix_type),
-                    SegmentationTypeValues.FRACTIONAL.value,
-                    self._segment_descriptions,
-                    self._series_instance_uid,
-                    self._series_number,
-                    self._sop_instance_uid,
-                    self._instance_number,
-                    self._manufacturer,
-                    self._manufacturer_model_name,
-                    self._software_versions,
-                    self._device_serial_number,
-                    max_fractional_value=1
-                )
+            # Test instance creation for different pixel types and transfer
+            # syntaxes
+            valid_transfer_syntaxes = [
+                ExplicitVRLittleEndian,
+                ImplicitVRLittleEndian,
+                RLELossless,
+            ]
 
-                # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(
-                    self.get_array_after_writing(instance),
-                    expected_encoding
-                )
+            for transfer_syntax_uid in valid_transfer_syntaxes:
+                for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
+                    instance = Segmentation(
+                        source,
+                        mask.astype(pix_type),
+                        SegmentationTypeValues.FRACTIONAL.value,
+                        self._segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
+                    )
 
-                # Add another segment
-                instance.add_segments(
-                    additional_mask.astype(pix_type),
-                    self._additional_segment_descriptions
-                )
-                assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
-                    SegmentsOverlapValues.UNDEFINED
+                    # Ensure the recovered pixel array matches what is expected
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_encoding
+                    )
 
-                # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(self.get_array_after_writing(instance),
-                                      two_segment_expected_encoding)
+                    # Add another segment
+                    instance.add_segments(
+                        additional_mask.astype(pix_type),
+                        self._additional_segment_descriptions
+                    )
+                    assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+                        SegmentsOverlapValues.UNDEFINED
+
+                    # Ensure the recovered pixel array matches what is expected
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        two_segment_expected_encoding
+                    )
 
         for source, mask in tests:
             additional_mask = (1 - mask)
@@ -934,42 +951,50 @@ class TestSegmentation(unittest.TestCase):
                 two_segment_expected_encoding = np.stack(
                     [expected_encoding, expected_additional_encoding]
                 )
-            for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
-                instance = Segmentation(
-                    source,
-                    mask.astype(pix_type),
-                    SegmentationTypeValues.BINARY.value,
-                    self._segment_descriptions,
-                    self._series_instance_uid,
-                    self._series_number,
-                    self._sop_instance_uid,
-                    self._instance_number,
-                    self._manufacturer,
-                    self._manufacturer_model_name,
-                    self._software_versions,
-                    self._device_serial_number,
-                    max_fractional_value=1
-                )
 
-                # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(
-                    self.get_array_after_writing(instance),
-                    expected_encoding
-                )
+            valid_transfer_syntaxes = [
+                ExplicitVRLittleEndian,
+                ImplicitVRLittleEndian,
+            ]
 
-                # Add another segment
-                instance.add_segments(
-                    additional_mask.astype(pix_type),
-                    self._additional_segment_descriptions
-                )
-                assert SegmentsOverlapValues(instance.SegmentsOverlap) == \
-                    SegmentsOverlapValues.UNDEFINED
+            for transfer_syntax_uid in valid_transfer_syntaxes:
+                for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
+                    instance = Segmentation(
+                        source,
+                        mask.astype(pix_type),
+                        SegmentationTypeValues.BINARY.value,
+                        self._segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
+                    )
 
-                # Ensure the recovered pixel array matches what is expected
-                assert np.array_equal(
-                    self.get_array_after_writing(instance),
-                    two_segment_expected_encoding
-                )
+                    # Ensure the recovered pixel array matches what is expected
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_encoding
+                    )
+
+                    # Add another segment
+                    instance.add_segments(
+                        additional_mask.astype(pix_type),
+                        self._additional_segment_descriptions
+                    )
+                    assert SegmentsOverlapValues(instance.SegmentsOverlap) == \
+                        SegmentsOverlapValues.UNDEFINED
+
+                    # Ensure the recovered pixel array matches what is expected
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        two_segment_expected_encoding
+                    )
 
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded

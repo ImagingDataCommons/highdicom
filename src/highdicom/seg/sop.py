@@ -6,9 +6,16 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
+from pydicom.encaps import decode_data_sequence, encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.pixel_data_handlers.util import get_expected_length
-from pydicom.uid import UID
+from pydicom.uid import (
+    UID,
+    ImplicitVRLittleEndian,
+    ExplicitVRLittleEndian,
+    RLELossless,
+)
 from pydicom.sr.codedict import codes
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
@@ -67,7 +74,7 @@ class Segmentation(SOPClass):
             max_fractional_value: int = 255,
             content_description: Optional[str] = None,
             content_creator_name: Optional[str] = None,
-            transfer_syntax_uid: Union[str, UID] = '1.2.840.10008.1.2',
+            transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
@@ -146,7 +153,8 @@ class Segmentation(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: JPEG2000 (``"1.2.840.10008.1.2.4.90"``) and
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``),
+            JPEG2000 (``"1.2.840.10008.1.2.4.90"``), and
             JPEG-LS (``"1.2.840.10008.1.2.4.80"``). Lossy compression is not
             supported.
         pixel_measures: PixelMeasures, optional
@@ -218,12 +226,10 @@ class Segmentation(SOPClass):
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
             )
-
         supported_transfer_syntaxes = {
-            '1.2.840.10008.1.2',       # Implicit Little Endian
-            '1.2.840.10008.1.2.1',     # Explicit Little Endian
-            # '1.2.840.10008.1.2.4.90',  # JPEG2000
-            # '1.2.840.10008.1.2.4.80',  # JPEG-LS
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            RLELossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -314,6 +320,12 @@ class Segmentation(SOPClass):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
+            if self.file_meta.TransferSyntaxUID.is_encapsulated:
+                raise ValueError(
+                    'The chosen transfer syntax '
+                    f'{self.file_meta.TransferSyntaxUID} '
+                    'is not compatible with the BINARY segmentation type'
+                )
         elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
             self.BitsAllocated = 8
             self.HighBit = 7
@@ -726,29 +738,47 @@ class Segmentation(SOPClass):
             for index in range(plane_position_values.shape[1])
         ]
 
-        # When using binary segmentation type, the previous frames may have been
-        # padded to be a multiple of 8. In this case, we need to decode the
-        # pixel data, add the new pixels and then re-encode. This process
-        # should be avoided if it is not necessary in order to improve
-        # efficiency.
-        if (self.SegmentationType == SegmentationTypeValues.BINARY.value and
-                ((self.Rows * self.Columns * self.SamplesPerPixel) % 8) > 0):
-            re_encode_pixel_data = True
-            logger.warning(
-                'pixel data needs to be re-encoded for binary bitpacking - '
-                'consider using FRACTIONAL instead of BINARY segmentation type'
-            )
-            # If this is the first segment added, the pixel array is empty
-            if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
-                full_pixel_array = self.pixel_array.flatten()
-            else:
-                full_pixel_array = np.array([], np.bool)
-        else:
-            re_encode_pixel_data = False
+        # In certain circumstances, we can add new pixels without unpacking the
+        # previous ones, which is more efficient. This can be done when using
+        # non-encapsulated transfer syntaxes when there is no padding required
+        # for each frame to be a multiple of 8 bits.
+        framewise_encoding = False
+        is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
+        if not is_encaps:
+            if self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
+                framewise_encoding = True
+            elif self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                # Framewise encoding can only be used if there is no padding
+                # This requires the number of pixels in each frame to be
+                # multiple of 8
+                if (self.Rows * self.Columns * self.SamplesPerPixel) % 8 == 0:
+                    framewise_encoding = True
+                else:
+                    logger.warning(
+                        'pixel data needs to be re-encoded for binary '
+                        'bitpacking - consider using FRACTIONAL instead of '
+                        'BINARY segmentation type'
+                    )
 
+        if framewise_encoding:
             # Before adding new pixel data, remove trailing null padding byte
             if len(self.PixelData) == get_expected_length(self) + 1:
                 self.PixelData = self.PixelData[:-1]
+        else:
+            # In the case of encapsulated transfer syntaxes, we will accumulate
+            # a list of encoded frames to re-encapsulate at the end
+            if is_encaps:
+                if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
+                    # Undo the encapsulation but not the encoding within each
+                    # frame
+                    full_frames_list = decode_data_sequence(self.PixelData)
+                else:
+                    full_frames_list = []
+            else:
+                if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
+                    full_pixel_array = self.pixel_array.flatten()
+                else:
+                    full_pixel_array = np.array([], np.bool)
 
         for i, segment_number in enumerate(described_segment_numbers):
             if pixel_array.dtype == np.float:
@@ -879,15 +909,23 @@ class Segmentation(SOPClass):
                 self.PerFrameFunctionalGroupsSequence.append(pffp_item)
                 self.NumberOfFrames += 1
 
-            if re_encode_pixel_data:
-                full_pixel_array = np.concatenate([
-                    full_pixel_array,
-                    planes[contained_plane_index].flatten()
-                ])
-            else:
+            if framewise_encoding:
+                # Straightforward concatenation of the binary data
                 self.PixelData += self._encode_pixels(
                     planes[contained_plane_index]
                 )
+            else:
+                if is_encaps:
+                    # Encode this frame and add to the list for encapsulation
+                    # at the end
+                    for f in contained_plane_index:
+                        full_frames_list.append(self._encode_pixels(planes[f]))
+                else:
+                    # Concatenate the 1D array for re-encoding at the end
+                    full_pixel_array = np.concatenate([
+                        full_pixel_array,
+                        planes[contained_plane_index].flatten()
+                    ])
 
             # In case of a tiled Total Pixel Matrix pixel data for the same
             # segment may be added.
@@ -896,8 +934,11 @@ class Segmentation(SOPClass):
             self._segment_inventory.add(segment_number)
 
         # Re-encode the whole pixel array at once if necessary
-        if re_encode_pixel_data:
-            self.PixelData = self._encode_pixels(full_pixel_array)
+        if not framewise_encoding:
+            if is_encaps:
+                self.PixelData = encapsulate(full_frames_list)
+            else:
+                self.PixelData = self._encode_pixels(full_pixel_array)
 
         # Add back the null trailing byte if required
         if len(self.PixelData) % 2 == 1:
@@ -909,16 +950,42 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         planes: numpy.ndarray
-            Array representing one or more segmentation image planes
+            Array representing one or more segmentation image planes.
+            For encapsulated transfer syntaxes, only a single frame may be
+            processed. For other transfer syntaxes, multiple planes in a 3D
+            array may be processed.
 
         Returns
         -------
         bytes
             Encoded pixels
 
+        Raises
+        ------
+        ValueError
+            If multiple frames are passed when using an encapsulated
+            transfer syntax.
+
         """
-        # TODO: compress depending on transfer syntax UID
-        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-            return pack_bits(planes.flatten())
+        # Compress depending on transfer syntax UID
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            # Check that only a single plane was passed
+            if planes.ndim == 3:
+                if planes.shape[0] == 1:
+                    planes = planes[0, ...]
+                else:
+                    raise ValueError('RLE can only process a single frame')
+
+            # Compress according to transfer syntax
+            if self.file_meta.TransferSyntaxUID == RLELossless:
+                return rle_encode_frame(planes)
+            else:
+                raise NotImplementedError(
+                    'Transfer syntax not implemented: '
+                    f'{self.file_meta.TransferSyntaxUID}'
+                )
         else:
-            return planes.flatten().tobytes()
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                return pack_bits(planes.flatten())
+            else:
+                return planes.flatten().tobytes()
