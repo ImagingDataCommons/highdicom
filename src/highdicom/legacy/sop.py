@@ -646,11 +646,21 @@ class Abstract_MultiframeModuleAdder(ABC):
             a = DataElement(tg, dictionary_VR(tg), default)
         from pydicom.valuerep import DT, TM, DA
         if a.VR == 'DA' and type(a.value) == str:
-            a.value = DA(a.value)
+            try:
+                a.value = DA(a.value)
+            except:git 
+                a.value = DA(default)
         if a.VR == 'DT' and type(a.value) == str:
-            a.value = DT(a.value)
+            try:
+                a.value = DT(a.value)
+            except:
+                a.value = DT(default)
         if a.VR == 'TM' and type(a.value) == str:
-            a.value = TM(a.value)
+            try:
+                a.value = TM(a.value)
+            except:
+                a.value = TM(default)
+
         self._mark_tag_as_used(tg)
         return a
 
