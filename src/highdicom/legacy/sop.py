@@ -648,7 +648,7 @@ class Abstract_MultiframeModuleAdder(ABC):
         if a.VR == 'DA' and type(a.value) == str:
             try:
                 a.value = DA(a.value)
-            except:git 
+            except: 
                 a.value = DA(default)
         if a.VR == 'DT' and type(a.value) == str:
             try:
