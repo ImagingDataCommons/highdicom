@@ -1944,8 +1944,9 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
                 src_fg, 'AcquisitionTime', self.EarliestTime)
             d = AcquisitionDate_a.value
             t = AcquisitionTime_a.value
-            FrameAcquisitionDateTime_a.value = (DT(d.strftime('%Y%m%d') +
-                                                t.strftime('%H%M%S')))
+            # FrameAcquisitionDateTime_a.value = (DT(d.strftime('%Y%m%d') +
+            #                                     t.strftime('%H%M%S')))
+            FrameAcquisitionDateTime_a.value = DT(str(d) + str(t))
         if FrameAcquisitionDateTime_a.value > self.EarliestDateTime:
             if (FrameAcquisitionDateTime_a.value <
                     self.EarliestFrameAcquisitionDateTime):
