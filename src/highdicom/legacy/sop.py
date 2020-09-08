@@ -120,8 +120,8 @@ class Abstract_MultiframeModuleAdder(ABC):
             for i in range(0, len(self.single_frame_set)):
                 seq.append(Dataset())
             self.target_dataset[pf_tg] = DataElement(pf_tg,
-                                                    'SQ',
-                                                    DicomSequence(seq))
+                                                     'SQ',
+                                                     DicomSequence(seq))
         return self.target_dataset[pf_tg].value[index]
 
     def _get_shared_item(self) -> Dataset:
@@ -130,8 +130,8 @@ class Abstract_MultiframeModuleAdder(ABC):
         if sf_kw not in self.target_dataset:
             seq = [Dataset()]
             self.target_dataset[sf_tg] = DataElement(sf_tg,
-                                                    'SQ',
-                                                    DicomSequence(seq))
+                                                     'SQ',
+                                                     DicomSequence(seq))
         return self.target_dataset[sf_tg].value[0]
 
     def _get_or_create_attribute(
@@ -147,17 +147,17 @@ class Abstract_MultiframeModuleAdder(ABC):
         if a.VR == 'DA' and isinstance(a.value, str):
             try:
                 a.value = DA(a.value)
-            except: 
+            except BaseException:
                 a.value = DA(default)
         if a.VR == 'DT' and isinstance(a.value, str):
             try:
                 a.value = DT(a.value)
-            except:
+            except BaseException:
                 a.value = DT(default)
         if a.VR == 'TM' and isinstance(a.value, str):
             try:
                 a.value = TM(a.value)
-            except:
+            except BaseException:
                 a.value = TM(default)
 
         self._mark_tag_as_used(tg)
@@ -478,9 +478,10 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
                                                    "MONOCHROME2")
             LUT_shape_default = "INVERTED" if phmi_a.value == 'MONOCHROME1'\
                 else "IDENTITY"
-            LUT_shape_a = self._get_or_create_attribute(self.single_frame_set[0],
-                                                        'PresentationLUTShape',
-                                                        LUT_shape_default)
+            LUT_shape_a = self._get_or_create_attribute(
+                self.single_frame_set[0],
+                'PresentationLUTShape',
+                LUT_shape_default)
             if not LUT_shape_a.is_empty:
                 self.target_dataset['PresentationLUTShape'] = LUT_shape_a
         # Icon Image Sequence - always discard these
@@ -1493,7 +1494,8 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
             item = self._get_perframe_item(i)
             self._add_module_to_functional_group(
                 self.single_frame_set[i], item)
-        if self.earliest_frame_acquisition_date_time < self.farthest_future_date_time:
+        if self.earliest_frame_acquisition_date_time <\
+            self.farthest_future_date_time:
             kw = 'AcquisitionDateTime'
             self.target_dataset[kw] = DataElement(
                 tag_for_keyword(kw),
@@ -2102,10 +2104,10 @@ class GeometryOfSlice:
             dot(self.top_left_corner_position, n))
 
     def are_parallel(slice1: GeometryOfSlice,
-                    slice2: GeometryOfSlice,
-                    tolerance: float = 0.0001) -> bool:
-        if (not isinstance(slice1, GeometryOfSlice) or
-                not isinstance(slice2, GeometryOfSlice)):
+                     slice2: GeometryOfSlice,
+                     tolerance: float = 0.0001) -> bool:
+        if (isinstance(slice1, GeometryOfSlice) == False) or\
+                (isinstance(slice2, GeometryOfSlice) == False):
             print('Error')
             return False
         else:
@@ -2151,7 +2153,7 @@ class DicomHelper:
         if len(v11) != len(v22):
             return False
         for xx, yy in zip(v11, v22):
-            if isinstance(xx) == DSfloat or isinstance(xx, float):
+            if isinstance(xx, DSfloat) or isinstance(xx, float):
                 if not is_equal_float(xx, yy):
                     return False
             else:
