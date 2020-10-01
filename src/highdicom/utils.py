@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 
@@ -8,34 +8,35 @@ from highdicom.enum import CoordinateSystemNames
 
 
 def tile_pixel_matrix(
-        total_pixel_matrix_rows: int,
-        total_pixel_matrix_columns: int,
-        rows: int,
-        columns: int,
-        image_orientation: Tuple[float, float, float, float, float, float]
-    ) -> Iterator[Tuple[int, int]]:
-    """Tiles an image into smaller frames given the size of the
-    total pixel matrix, the size of each frame and the orientation of the image
-    with respect to the three-dimensional slide coordinate system.
+    total_pixel_matrix_rows: int,
+    total_pixel_matrix_columns: int,
+    rows: int,
+    columns: int,
+    image_orientation: Tuple[float, float, float, float, float, float]
+) -> Iterator[Tuple[int, int]]:
+    """Tiles an image into smaller frames (rectangular regions) given the size
+    of the total pixel matrix, the size of each frame and the orientation of
+    the image with respect to the three-dimensional slide coordinate system.
 
     Parameters
     ----------
     total_pixel_matrix_rows: int
-        Number of rows in the total pixel matrix
+        Number of rows in the Total Pixel Matrix
     total_pixel_matrix_columns: int
-        Number of columns in the total pixel matrix
+        Number of columns in the Total Pixel Matrix
     rows: int
-        Number of rows per tile
+        Number of rows per Frame (tile)
     columns: int
-        Number of columns per tile
+        Number of columns per Frame (tile)
     image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet) and column (second triplet) direction
-        for x, y and z axis of the slide coordinate system
+        Cosines of row (first triplet: horizontal, left to right) and
+        column (second triplet: vertical, top to bottom) direction
+        for X, Y, and Z axis of the slide coordinate system
 
     Returns
     -------
     Iterator
-        One-based row, column coordinates of each image tile
+        One-based row, column coordinates of each Frame (tile)
 
     """
     tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
@@ -52,20 +53,19 @@ def tile_pixel_matrix(
 
 
 def compute_plane_positions_tiled_full(
-        row_index: int,
-        column_index: int,
-        depth_index: int,
-        x_offset: float,
-        y_offset: float,
-        z_offset: float,
-        rows: int,
-        columns: int,
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
-        slice_thickness: float,
-        spacing_between_slices: float
-    ) -> PlanePositionSequence:
-    """Computes the absolute position of a plane (frame) in the
+    row_index: int,
+    column_index: int,
+    x_offset: float,
+    y_offset: float,
+    rows: int,
+    columns: int,
+    image_orientation: Tuple[float, float, float, float, float, float],
+    pixel_spacing: Tuple[float, float],
+    slice_thickness: Optional[float] = None,
+    spacing_between_slices: Optional[float] = None,
+    slice_index: Optional[float] = None
+) -> PlanePositionSequence:
+    """Computes the absolute position of a Frame (image plane) in the
     Frame of Reference defined by the three-dimensional slide coordinate system
     given their relative position in the Total Pixel Matrix.
 
@@ -76,38 +76,42 @@ def compute_plane_positions_tiled_full(
     ----------
     row_index: int
         Relative one-based index value for a given frame along the row
-        direction of the the tiled total pixel matrix, which is defined by
+        direction of the tiled Total pixel Matrix, which is defined by
         the first triplet in `image_orientation`
     column_index: int
         Relative one-based index value for a given frame along the column
-        direction of the the tiled total pixel matrix, which is defined by
+        direction of the the tiled Total Pixel Matrix, which is defined by
         the second triplet in `image_orientation`
     depth_index: int
-        Relative one-based index value for a given frame along the depth
+        Relative one-based index value for a given Frame along the depth
         direction from the glass slide to the coverslip (focal plane)
     x_offset: float
-        X offset of the total pixel matrix in the slide coordinate system
+        X offset of the Total Pixel Matrix in the slide coordinate system
         in millimeters
     y_offset: float
-        Y offset of the total pixel matrix in the slide coordinate system
+        Y offset of the Total Pixel Matrix in the slide coordinate system
         in millimeters
     z_offset: float
-        Z offset of the total pixel matrix (focal plane) in the slide
-        coordinate system in micrometers
+        Z offset of the Total Pixel Matrix in the slide coordinate system in
+        micrometers (distance of the focal plane from the slide surface)
     rows: int
-        Number of rows per tile
+        Number of rows per Frame (tile)
     columns: int
-        Number of columns per tile
+        Number of columns per Frame (tile)
     image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet) and column (second triplet) direction
-        for x, y and z axis of the slide coordinate system
+        Cosines of row (first triplet: horizontal, left to right) and
+        column (second triplet: vertical, top to bottom) direction
+        for X, Y, and Z axis of the slide coordinate system
     pixel_spacing: Tuple[float, float]
         Physical distance between the centers of neighboring pixels along
-        the row and column direction
-    slice_thickness: float
+        the row (horizontal) and column (vertical) direction in millimeters
+    slice_thickness: float, optional
         Thickness of a focal plane in micrometers
-    spacing_between_slices: float
+    spacing_between_slices: float, optional
         Distance between neighboring focal planes in micrometers
+    slice_index: int, optional
+        Relative zero-based index of the slice in the array of slices within
+        the volume
 
     Returns
     -------
@@ -118,9 +122,13 @@ def compute_plane_positions_tiled_full(
     row_offset_frame = ((row_index - 1) * rows) + 1
     column_offset_frame = ((column_index - 1) * columns) + 1
 
+    z_offset = (
+        slice_index * slice_thickness +
+        slice_index * spacing_between_slices
+    )
     # We should only be dealing with planar rotations.
-    x, y, z = map_pixel_to_physical_coordinate(
-        pixel_offset=(column_offset_frame, row_offset_frame),
+    x, y, z = map_pixel_into_coordinate_system(
+        coordinate=(column_offset_frame, row_offset_frame),
         image_position=(x_offset, y_offset, z_offset),
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
@@ -134,12 +142,12 @@ def compute_plane_positions_tiled_full(
     )
 
 
-def map_pixel_to_physical_coordinate(
+def map_pixel_into_coordinate_system(
     coordinate: Tuple[float, float],
     image_position: Tuple[float, float, float],
     image_orientation: Tuple[float, float, float, float, float, float],
     pixel_spacing: Tuple[float, float],
-    spacing_between_slices: float
+    spacing_between_slices: float = 0.0
 ) -> Tuple[float, float, float]:
     """Maps a coordinate in the Total Pixel Matrix into the physical coordinate
     system (e.g., Slide or Patient) defined by the Frame of Reference.
@@ -150,20 +158,14 @@ def map_pixel_to_physical_coordinate(
         (Column, Row) coordinate of a point relative to the Total Pixel Matrix
         in pixel unit
     image_position: Tuple[float, float, float]
-        Position of the Total Pixel Matrix in the Frame of Reference, i.e.,
-        the offset of the top left pixel in the Total Pixel Matrix from the
-        origin of the reference coordinate system along the X, Y and Z axis
-        in the unit of this coordinate system (e.g., millimeter)
+        Position of the slice (image or frame) in the Frame of Reference, i.e.,
+        the offset of the top left pixel in the pixel matrix from the
+        origin of the reference coordinate system along the X, Y, and Z axis
     image_orientation: Tuple[float, float, float, float, float, float]
-        Orientation of the Total Pixel Matrix relative to the Frame of
-        Reference, i.e., the direction cosines of the first row and column of
-        the Total Pixel Matrix with respect to the three axes (X, Y, Z) of the
-        referenced coordinate system
-    pixel_spacing: Tuple[float, float]
-        Spacing between neighboring pixels in the Frame of Reference along the
-        Column and Row dimension of the Total Pixel Matrix in the unit of the
-        referenced coordinate system
-    spacing_between_slices: float
+        Cosines of row (first triplet: horizontal, left to right) and
+        column (second triplet: vertical, top to bottom) direction
+        for X, Y, and Z axis of the slide coordinate system
+    spacing_between_slices: float, optional
         Spacing between two neighboring image slices (planes) in the Frame
         of Reference in the unit of the referenced coordinate system
 
@@ -177,34 +179,57 @@ def map_pixel_to_physical_coordinate(
     # Read the below article for further information about the mapping
     # between coordinates in the Total Pixel Matrix and the Frame of Reference:
     # https://nipy.org/nibabel/dicom/dicom_orientation.html
-    x_offset = image_position[0]
-    y_offset = image_position[1]
-    z_offset = image_position[2]
+    x_offset = float(image_position[0])
+    y_offset = float(image_position[1])
+    z_offset = float(image_position[2])
     image_offset = np.array([x_offset, y_offset, z_offset])
-    row_direction_cosines = np.array(image_orientation[:3])
-    column_direction_cosines = np.array(image_orientation[3:])
+    row_cosines = np.array(image_orientation[:3])
+    column_cosines = np.array(image_orientation[3:])
+    row_spacing = float(pixel_spacing[0])
+    column_spacing = float(pixel_spacing[1])
 
-    # TODO: slice number
-    n = np.cross(column_direction_cosines.T, row_direction_cosines.T)
+    n = np.cross(column_cosines.T, row_cosines.T)
+    k = n * spacing_between_slices
 
-    # Affine transformation matrix
-    mapping = np.concatenate(
+    f_row = row_cosines * row_spacing
+    f_col = column_cosines * column_spacing
+
+    # 4x4 affine transformation matrix
+    affine = np.concatenate(
         [
-            row_direction_cosines[..., None].T * pixel_spacing[1],
-            column_direction_cosines[..., None].T * pixel_spacing[0],
-            n[..., None].T * spacing_between_slices,
-            image_offset[..., None].T,
-        ]
-    ).T
-    mapping = np.concatenate([mapping, np.array([[0.0, 0.0, 0.0, 1.0]])])
+            f_row[..., None],
+            f_col[..., None],
+            k[..., None],
+            image_offset[..., None],
+        ],
+        axis=1
+    )
+    affine = np.concatenate(
+        [
+            affine,
+            np.array([[0.0, 0.0, 0.0, 1.0]])
+        ],
+        axis=0
+    )
 
     column_offset = float(coordinate[0])
     row_offset = float(coordinate[1])
-    pixel_matrix_coordinate = np.array([[column_offset, row_offset, 0.0, 1.0]])
+    pixel_matrix_coordinate = np.array([
+        [row_offset, column_offset, 0.0, 1.0]
+    ])
 
-    physical_coordinate = np.dot(mapping, pixel_matrix_coordinate.T)
+    physical_coordinate = np.dot(affine, pixel_matrix_coordinate.T)
+
     x = physical_coordinate[0][0]
+    if (x < 0.0):
+        raise ValueError('X offset in coordinate system cannot be negative.')
+
     y = physical_coordinate[1][0]
-    z = physical_coordinate[2][0]
+    if (y < 0.0):
+        raise ValueError('Y offset in coordinate system cannot be negative.')
+
+    z = np.sum([n[0] * x_offset, n[1] * y_offset, n[2] * z_offset])
+    if (z < 0.0):
+        raise ValueError('Z offset in coordinate system cannot be negative.')
 
     return (x, y, z)
