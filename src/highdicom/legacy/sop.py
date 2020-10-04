@@ -647,19 +647,20 @@ class Abstract_MultiframeModuleAdder(ABC):
         from pydicom.valuerep import DT, TM, DA
         if a.VR == 'DA' and type(a.value) == str:
             try:
-                dtmp = DA(a.value)
-                a.value = DA(default) if dtmp is None else dtmp
+                d_tmp = DA(a.value)
+                a.value = DA(default) if d_tmp is None else d_tmp
             except: 
                 a.value = DA(default)
         if a.VR == 'DT' and type(a.value) == str:
             try:
-                ttmp =  DT(a.value)
-                a.value = DT(default) if ttmp is None else ttmp
+                dt_tmp = DT(a.value)
+                a.value = DT(default) if dt_tmp is None else dt_tmp
             except:
                 a.value = DT(default)
         if a.VR == 'TM' and type(a.value) == str:
             try:
-                a.value = TM(a.value)
+                t_tmp = TM(a.value)
+                a.value = TM(default) if t_tmp is None else t_tmp
             except:
                 a.value = TM(default)
 
