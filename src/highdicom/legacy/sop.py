@@ -647,12 +647,14 @@ class Abstract_MultiframeModuleAdder(ABC):
         from pydicom.valuerep import DT, TM, DA
         if a.VR == 'DA' and type(a.value) == str:
             try:
-                a.value = DA(a.value)
+                dtmp = DA(a.value)
+                a.value = DA(default) if dtmp is None else dtmp
             except: 
                 a.value = DA(default)
         if a.VR == 'DT' and type(a.value) == str:
             try:
-                a.value = DT(a.value)
+                ttmp =  DT(a.value)
+                a.value = DT(default) if ttmp is None else ttmp
             except:
                 a.value = DT(default)
         if a.VR == 'TM' and type(a.value) == str:
@@ -2105,9 +2107,13 @@ class ContentDateTime(Abstract_MultiframeModuleAdder):
         for i in range(0, len(self.SingleFrameSet)):
             src = self.SingleFrameSet[i]
             kw = 'ContentDate'
-            d = DA(self.FarthestFutureDate if kw not in src else src[kw].value)
+            d_a = self._get_or_create_attribute(
+                src, kw, self.FarthestFutureDate)
+            d = d_a.value
             kw = 'ContentTime'
-            t = TM(self.FarthestFutureTime if kw not in src else src[kw].value)
+            t_a = self._get_or_create_attribute(
+                src, kw, self.FarthestFutureTime)
+            t = t_a.value
             value = DT(d.strftime('%Y%m%d') + t.strftime('%H%M%S.%f'))
             if self.EarliestContentDateTime > value:
                 self.EarliestContentDateTime = value
@@ -2708,6 +2714,15 @@ class FrameSet:
     @property
     def SharedTags(self) -> List[Tag]:
         return self._SharedTags[:]
+    
+    @property
+    def SeriesInstanceUID(self) -> UID:
+        return self._Frames[0].SeriesInstanceUID
+    
+    @property
+    def StudyInstanceUID(self) -> UID:
+        return self._Frames[0].StudyInstanceUID
+
 
     def GetSOPInstanceUIDList(self) -> list:
         OutputList: list = []
