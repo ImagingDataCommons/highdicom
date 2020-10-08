@@ -641,7 +641,6 @@ class Segmentation(SOPClass):
                     compute_plane_positions_tiled_full(
                         row_index=r,
                         column_index=c,
-                        depth_index=d,
                         x_offset=image_origin.XOffsetInSlideCoordinateSystem,
                         y_offset=image_origin.YOffsetInSlideCoordinateSystem,
                         z_offset=1.0,  # TODO
@@ -650,9 +649,10 @@ class Segmentation(SOPClass):
                         image_orientation=orientation,
                         pixel_spacing=pixel_spacing,
                         slice_thickness=slice_thickness,
-                        spacing_between_slices=spacing_between_slices
+                        spacing_between_slices=spacing_between_slices,
+                        slice_index=s,
                     )
-                    for r, c, d in itertools.product(
+                    for r, c, s in itertools.product(
                         row_range,
                         column_range,
                         depth_range
