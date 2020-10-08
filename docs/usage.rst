@@ -210,6 +210,7 @@ image:
         FindingSite,
         ImageRegion3D,
     )
+    from highdicom.sr.enum import GraphicTypeValues3D
     from highdicom.sr.sop import Comprehensive3DSR
     from highdicom.sr.templates import (
         DeviceObserverIdentifyingAttributes,
@@ -223,7 +224,6 @@ image:
         TrackingIdentifier,
     )
     from highdicom.sr.value_types import CodedConcept
-    from highdicom.sr.enum import 3D
 
     # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -253,7 +253,7 @@ image:
     # Describe the image region for which observations were made
     # (in physical space based on the frame of reference)
     referenced_region = ImageRegion3D(
-        graphic_type=3D.POLYGON,
+        graphic_type=GraphicTypeValues3D.POLYGON,
         graphic_data=np.array([
             (165.0, 200.0, 134.0),
             (170.0, 200.0, 134.0),
