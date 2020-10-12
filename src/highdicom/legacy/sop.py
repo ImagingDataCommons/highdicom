@@ -4,9 +4,9 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union, Callable
 from numpy import log10, array, ceil, cross, dot, ndarray
-from pydicom.datadict import tag_for_keyword, dictionary_VR
+from pydicom.datadict import tag_for_keyword, dictionary_VR, keyword_for_tag
 from pydicom.dataset import Dataset
-from pydicom.tag import Tag
+from pydicom.tag import Tag, BaseTag
 from pydicom.dataelem import DataElement
 from pydicom.sequence import Sequence as DicomSequence
 from pydicom.multival import MultiValue
@@ -18,7 +18,7 @@ from highdicom.base import SOPClass
 from highdicom.legacy import SOP_CLASS_UIDS
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     # CT Image Storage
     '1.2.840.10008.5.1.4.1.1.2': '1.2.840.10008.5.1.4.1.1.2.2',
@@ -573,7 +573,7 @@ class Abstract_MultiframeModuleAdder(ABC):
                         return False
         return False
 
-    def _mark_tag_as_used(self, tg: Tag) -> None:
+    def _mark_tag_as_used(self, tg: BaseTag) -> None:
         if tg in self._SharedTags:
             self._SharedTags[tg] = True
         elif tg in self.ExcludedFromPerFrameTags:
@@ -972,6 +972,27 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
                 ref_dataset, self.TargetDataset, kw,
                 check_not_to_be_perframe=True,
                 check_not_to_be_empty=False)
+        sum_compression_ratio = 0
+        c_ratio_tag = tag_for_keyword('LossyImageCompressionRatio')
+        if  tag_for_keyword('LossyImageCompression') in self._SharedTags and \
+                tag_for_keyword(
+                    'LossyImageCompressionMethod') in self._SharedTags and \
+                c_ratio_tag in self._PerFrameTags:
+            for fr_ds in self.SingleFrameSet:
+                if c_ratio_tag in fr_ds:
+                    ratio = fr_ds[c_ratio_tag].value
+                    try:
+                        sum_compression_ratio += float(ratio)
+                    except:
+                        sum_compression_ratio += 1 #  supposing uncompressed
+                else:
+                    supe_compression_ratio += 1
+            avg_compression_ratio = sum_compression_ratio /\
+                len(self.SingleFrameSet)
+            avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
+            self.TargetDataset[c_ratio_tag] = \
+                DataElement(c_ratio_tag, 'DS', avg_ratio_str)
+
         if tag_for_keyword('PresentationLUTShape') not in self._PerFrameTags:
             # actually should really invert the pixel data if MONOCHROME1,
             #           since only MONOCHROME2 is permitted : (
@@ -1477,28 +1498,39 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      'RescaleType',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=True)
-        if "RescaleType" not in item:
-            value = ''
-            modality = '' if 'Modality' not in src_fg\
-                else src_fg["Modality"].value
-            if haveValuesSoAddType:
+        
+        value = ''
+        modality = '' if 'Modality' not in src_fg\
+            else src_fg["Modality"].value
+        if haveValuesSoAddType:
+            value = 'US'
+            if modality == 'CT':
+                containes_localizer = False
+                ImageType_v = [] if 'ImageType' not in src_fg\
+                    else src_fg['ImageType'].value
+                for i in ImageType_v:
+                    if i == 'LOCALIZER':
+                        containes_localizer = True
+                        break
+                if not containes_localizer:
+                    value = "HU"
+            # elif modality == 'PT':
+                # value = 'US' if 'Units' not in src_fg\
+                #     else src_fg['Units'].value
+            else:
                 value = 'US'
-                if modality == 'CT':
-                    containes_localizer = False
-                    ImageType_v = [] if 'ImageType' not in src_fg\
-                        else src_fg['ImageType'].value
-                    for i in ImageType_v:
-                        if i == 'LOCALIZER':
-                            containes_localizer = True
-                            break
-                    if not containes_localizer:
-                        value = "HU"
-                elif modality == 'PT':
-                    value = 'US' if 'Units' not in src_fg\
-                        else src_fg['Units'].value
-            if value != '':
-                tg = tag_for_keyword('RescaleType')
-                item[tg] = DataElement(tg, dictionary_VR(tg), value)
+            tg = tag_for_keyword('RescaleType')
+            if "RescaleType" not in item:
+                    item[tg] = DataElement(tg, dictionary_VR(tg), value)
+            elif item[tg].value != value:
+                # keep the copied value as LUT explanation
+                voi_exp_tg = tag_for_keyword('LUTExplanation')
+                item[voi_exp_tg] = DataElement(
+                    voi_exp_tg, dictionary_VR(voi_exp_tg), item[tg].value)
+                item[tg].value = value
+
+                
+
         kw = 'PixelValueTransformationSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), [item])
@@ -1741,7 +1773,7 @@ class EmptyType2Attributes(Abstract_MultiframeModuleAdder):
             shared_tags,
             multi_frame_output)
 
-    def CreateEmptyElement(self, tg: Tag) -> DataElement:
+    def CreateEmptyElement(self, tg: BaseTag) -> DataElement:
         return DataElement(tg, dictionary_VR(tg), None)
 
     def AddModule(self) -> None:
@@ -1827,6 +1859,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
         self._slice_location_map: dict = {}
 
     def _build_slices_geometry(self) -> None:
+        logger = logging.getLogger(__name__)
         frame_count = len(self.SingleFrameSet)
         for i in range(0, frame_count):
             curr_frame = self.SingleFrameSet[i]
@@ -1864,7 +1897,14 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
                 self._slices.append(GeometryOfSlice(row, col,
                                     tpl, voxel_spaceing, dim))
             else:
-                print("Error in geometri ...")
+                logger.error(
+                    "Error in geometry. One or more required "
+                    "attributes are not available")
+                logger.error("\tImageOrientationPatient = {}".format(
+                    ImageOrientationPatient_v))
+                logger.error("\tImagePositionPatient = {}".format(
+                    ImagePositionPatient_v))
+                logger.error("\tPixelSpacing = {}".format(PixelSpacing_v))
                 self._slices = []  # clear the slices
                 break
 
@@ -1885,12 +1925,18 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
             return False
 
     def _add_stack_info(self) -> None:
+        logger = logging.getLogger(__name__)
         self._build_slices_geometry()
         round_digits = int(ceil(-log10(self._tolerance)))
         if self._are_all_slices_parallel():
             self._slice_location_map = {}
             for idx, s in enumerate(self._slices):
-                dist = round(s.GetDistanceAlongOrigin(), round_digits)
+                not_round_dist = s.GetDistanceAlongOrigin()
+                dist = round(not_round_dist, round_digits)
+                logger.debug(
+                    'Slice locaation {} rounded by {} digits to {}'.format(
+                        not_round_dist, round_digits, dist
+                    ))
                 if dist in self._slice_location_map:
                     self._slice_location_map[dist].append(idx)
                 else:
@@ -1899,7 +1945,10 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
             frame_content_tg = tag_for_keyword("FrameContentSequence")
             for loc, idxs in sorted(self._slice_location_map.items()):
                 if len(idxs) != 1:
-                    print('Error')
+                    logger.warning(
+                        'There are {} slices in one location {}'.format(
+                            len(idx), loc)
+                        )
                 for frame_index in idxs:
                     frame = self._get_perframe_item(frame_index)
                     new_item = frame[frame_content_tg].value[0]
@@ -2105,15 +2154,32 @@ class ContentDateTime(Abstract_MultiframeModuleAdder):
         self.EarliestContentDateTime = self.FarthestFutureDateTime
 
     def AddModule(self) -> None:
+        default_atrs = ["Acquisition", "Series", "Study"]
         for i in range(0, len(self.SingleFrameSet)):
             src = self.SingleFrameSet[i]
+            default_date = self.FarthestFutureDate
+            for def_atr in default_atrs:
+                at_tg = tag_for_keyword(def_atr + "Date")
+                if at_tg in src:
+                    val = src[at_tg].value
+                    if isinstance(val, DA):
+                        default_date = val
+                        break
             kw = 'ContentDate'
             d_a = self._get_or_create_attribute(
-                src, kw, self.FarthestFutureDate)
+                src, kw, default_date)
             d = d_a.value
+            default_time = self.FarthestFutureTime
+            for def_atr in default_atrs:
+                at_tg = tag_for_keyword(def_atr + "Time")
+                if at_tg in src:
+                    val = src[at_tg].value
+                    if isinstance(val, TM):
+                        default_time = val
+                        break
             kw = 'ContentTime'
             t_a = self._get_or_create_attribute(
-                src, kw, self.FarthestFutureTime)
+                src, kw, default_time)
             t = t_a.value
             value = DT(d.strftime('%Y%m%d') + t.strftime('%H%M%S.%f'))
             if self.EarliestContentDateTime > value:
@@ -2262,23 +2328,35 @@ class LegacyConvertedEnhanceImage(SOPClass):
         if sort_key is None:
             sort_key = LegacyConvertedEnhanceImage.default_sort_key
         super().__init__(
-            study_instance_uid=ref_ds.StudyInstanceUID,
+            study_instance_uid= None if 'StudyInstanceUID' not in ref_ds \
+                else ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=sop_class_uid,
             instance_number=instance_number,
-            manufacturer=ref_ds.Manufacturer,
-            modality=ref_ds.Modality,
-            patient_id=ref_ds.PatientID,
-            patient_name=ref_ds.PatientName,
-            patient_birth_date=ref_ds.PatientBirthDate,
-            patient_sex=ref_ds.PatientSex,
-            accession_number=ref_ds.AccessionNumber,
-            study_id=ref_ds.StudyID,
-            study_date=ref_ds.StudyDate,
-            study_time=ref_ds.StudyTime,
-            referring_physician_name=ref_ds.ReferringPhysicianName,
+            manufacturer= None if 'Manufacturer' not in ref_ds \
+                else ref_ds.Manufacturer,
+            modality= None if 'Modality' not in ref_ds \
+                else ref_ds.Modality,
+            patient_id= None if 'PatientID' not in ref_ds \
+                else ref_ds.PatientID,
+            patient_name= None if 'PatientName' not in ref_ds \
+                else ref_ds.PatientName,
+            patient_birth_date= None if 'PatientBirthDate' not in ref_ds \
+                else ref_ds.PatientBirthDate,
+            patient_sex= None if 'PatientSex' not in ref_ds \
+                else ref_ds.PatientSex,
+            accession_number= None if 'AccessionNumber' not in ref_ds \
+                else ref_ds.AccessionNumber,
+            study_id= None if 'StudyID' not in ref_ds \
+                else ref_ds.StudyID,
+            study_date= None if 'StudyDate' not in ref_ds \
+                else ref_ds.StudyDate,
+            study_time= None if 'StudyTime' not in ref_ds \
+                else ref_ds.StudyTime,
+            referring_physician_name= None if 'ReferringPhysicianName' not in ref_ds \
+                else ref_ds.ReferringPhysicianName,
             **kwargs)
         self._legacy_datasets = legacy_datasets
         self.DistinguishingAttributesTags = self._get_tag_used_dictionary(
@@ -2580,8 +2658,11 @@ class LegacyConvertedEnhanceImage(SOPClass):
         self.AddPETSpecificBuildBlocks()
 
     def BuildMultiFrame(self) -> None:
+        logger = logging.getLogger(__name__)
+        logger.debug('Strt singleframe to multiframe conversion')
         for builder in self.__build_blocks:
             builder.AddModule()
+        logger.debug('Conversion succeeded')
 
 
 class GeometryOfSlice:
@@ -2610,9 +2691,14 @@ class GeometryOfSlice:
     def AreParallel(slice1: GeometryOfSlice,
                     slice2: GeometryOfSlice,
                     tolerance: float = 0.0001) -> bool:
+        logger = logging.getLogger(__name__)
         if (type(slice1) != GeometryOfSlice or
                 type(slice2) != GeometryOfSlice):
-            print('Error')
+            logger.warning(
+                'slice1 and slice2 are not of the same '
+                'type: type(slice1) = {} and type(slice2) = {}'.format(
+                    type(slice1), type(slice2)
+                ))
             return False
         else:
             n1: ndarray = slice1.GetNormalVector()
@@ -2627,15 +2713,15 @@ class DicomHelper:
     def __init__(self) -> None:
         pass
 
-    def istag_file_meta_information_group(t: Tag) -> bool:
+    def istag_file_meta_information_group(t: BaseTag) -> bool:
         return t.group == 0x0002
 
-    def istag_repeating_group(t: Tag) -> bool:
+    def istag_repeating_group(t: BaseTag) -> bool:
         g = t.group
         return (g >= 0x5000 and g <= 0x501e) or\
             (g >= 0x6000 and g <= 0x601e)
 
-    def istag_group_length(t: Tag) -> bool:
+    def istag_group_length(t: BaseTag) -> bool:
         return t.element == 0
 
     def isequal(v1: Any, v2: Any) -> bool:
@@ -2678,6 +2764,15 @@ class DicomHelper:
             if not DicomHelper.isequal(elem2.value, elem1.value):
                 return False
         return True
+
+    def tag2str(tg: BaseTag) -> str:
+        if not isinstance(tg, BaseTag):
+            tg = Tag(tg)
+        return '(0x{:0>4x}, 0x{:0>4x})'.format(tg.group, tg.element)
+
+    def tag2kwstr(tg: BaseTag) -> str:
+        return '{}-{:32.32s}'.format(
+            DicomHelper.tag2str(tg), keyword_for_tag(tg))
 
 
 class FrameSet:
@@ -2735,6 +2830,7 @@ class FrameSet:
         return self._Frames[0].SOPClassUID
 
     def _find_per_frame_and_shared_tags(self) -> None:
+        logger = logging.getLogger(__name__)
         rough_shared: dict = {}
         sfs = self.Frames
         for ds in sfs:
@@ -2775,12 +2871,13 @@ class FrameSet:
             self._SharedTags.append(t)
             self._PerFrameTags.remove(t)
 
-    def _istag_excluded_from_perframe(self, t: Tag) -> bool:
+    def _istag_excluded_from_perframe(self, t: BaseTag) -> bool:
         return t in self.ExcludedFromPerFrameTags
 
 
 class FrameSetCollection:
     def __init__(self, single_frame_list: list):
+        logger = logging.getLogger(__name__)
         self.MixedFrames = single_frame_list
         self.MixedFramesCopy = self.MixedFrames[:]
         self._DistinguishingAttributeKeywords = [
@@ -2816,9 +2913,25 @@ class FrameSetCollection:
             'AcquisitionContextSequence']
         to_be_removed_from_distinguishing_attribs: set = set()
         self._FrameSets: list = []
+        frameset_counter = 0
         while len(self.MixedFramesCopy) != 0:
+            frameset_counter += 1
             x = self._find_all_similar_to_first_datasets()
             self._FrameSets.append(FrameSet(x[0], x[1]))
+            # log information
+            logger.debug("Frameset({:02d}) including {:03d} frames".format(
+                frameset_counter, len(x[0])))
+            logger.debug('\t Distinguishing tags:')
+            for dg_i, dg_tg in enumerate(x[1], 1):
+                logger.debug('\t\t{:02d}/{})\t{}-{:32.32s} = {:32.32s}'.format(
+                    dg_i, len(x[1]), DicomHelper.tag2str(dg_tg),
+                    keyword_for_tag(dg_tg),
+                    str(x[0][0][dg_tg].value)))
+            logger.debug('\t dicom datasets in this frame set:')
+            for dicom_i, dicom_ds in enumerate(x[0], 1):
+                logger.debug('\t\t{}/{})\t {}'.format(
+                    dicom_i, len(x[0]), dicom_ds['SOPInstanceUID']))
+                
         for kw in to_be_removed_from_distinguishing_attribs:
             self.DistinguishingAttributeKeywords.remove(kw)
         self.ExcludedFromPerFrameTags = {}
@@ -2834,6 +2947,7 @@ class FrameSetCollection:
             tag_for_keyword('SpecificCharacterSet'): False}
 
     def _find_all_similar_to_first_datasets(self) -> tuple:
+        logger = logging.getLogger(__name__)
         similar_ds: list = [self.MixedFramesCopy[0]]
         distinguishing_tags_existing = []
         distinguishing_tags_missing = []
@@ -2848,6 +2962,8 @@ class FrameSetCollection:
             all_equal = True
             for tg in distinguishing_tags_missing:
                 if tg in ds:
+                    logger.info('{} is missing in all but {}'.format(
+                        DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
                     all_equal = False
                     break
             if not all_equal:
@@ -2859,6 +2975,9 @@ class FrameSetCollection:
                     break
                 new_val = ds[tg].value
                 if not DicomHelper.isequal(ref_val, new_val):
+                    logger.info(
+                        'Inequality on distinguishing attribute{} -> {} != {}'.format(
+                        DicomHelper.tag2kwstr(tg), ref_val, new_val))
                     all_equal = False
                     break
             if all_equal:
