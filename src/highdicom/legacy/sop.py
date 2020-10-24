@@ -56,6 +56,7 @@ def _convert_legacy_to_enhanced(
     Frames will be included into the Pixel Data element in the order in
     which instances are provided via `sf_datasets`.
     """
+    logger = logging.getLogger(__name__)
     try:
         ref_ds = sf_datasets[0]
     except IndexError:
@@ -1947,7 +1948,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
                 if len(idxs) != 1:
                     logger.warning(
                         'There are {} slices in one location {}'.format(
-                            len(idx), loc)
+                            len(idxs), loc)
                         )
                 for frame_index in idxs:
                     frame = self._get_perframe_item(frame_index)
@@ -2328,35 +2329,35 @@ class LegacyConvertedEnhanceImage(SOPClass):
         if sort_key is None:
             sort_key = LegacyConvertedEnhanceImage.default_sort_key
         super().__init__(
-            study_instance_uid= None if 'StudyInstanceUID' not in ref_ds \
-                else ref_ds.StudyInstanceUID,
+            study_instance_uid=None if 'StudyInstanceUID' not in ref_ds
+            else ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=sop_class_uid,
             instance_number=instance_number,
-            manufacturer= None if 'Manufacturer' not in ref_ds \
-                else ref_ds.Manufacturer,
-            modality= None if 'Modality' not in ref_ds \
-                else ref_ds.Modality,
-            patient_id= None if 'PatientID' not in ref_ds \
-                else ref_ds.PatientID,
-            patient_name= None if 'PatientName' not in ref_ds \
-                else ref_ds.PatientName,
-            patient_birth_date= None if 'PatientBirthDate' not in ref_ds \
-                else ref_ds.PatientBirthDate,
-            patient_sex= None if 'PatientSex' not in ref_ds \
-                else ref_ds.PatientSex,
-            accession_number= None if 'AccessionNumber' not in ref_ds \
-                else ref_ds.AccessionNumber,
-            study_id= None if 'StudyID' not in ref_ds \
-                else ref_ds.StudyID,
-            study_date= None if 'StudyDate' not in ref_ds \
-                else ref_ds.StudyDate,
-            study_time= None if 'StudyTime' not in ref_ds \
-                else ref_ds.StudyTime,
-            referring_physician_name= None if 'ReferringPhysicianName' not in ref_ds \
-                else ref_ds.ReferringPhysicianName,
+            manufacturer=None if 'Manufacturer' not in ref_ds
+            else ref_ds.Manufacturer,
+            modality=None if 'Modality' not in ref_ds
+            else ref_ds.Modality,
+            patient_id=None if 'PatientID' not in ref_ds
+            else ref_ds.PatientID,
+            patient_name=None if 'PatientName' not in ref_ds
+            else ref_ds.PatientName,
+            patient_birth_date=None if 'PatientBirthDate' not in ref_ds
+            else ref_ds.PatientBirthDate,
+            patient_sex=None if 'PatientSex' not in ref_ds
+            else ref_ds.PatientSex,
+            accession_number=None if 'AccessionNumber' not in ref_ds
+            else ref_ds.AccessionNumber,
+            study_id=None if 'StudyID' not in ref_ds
+            else ref_ds.StudyID,
+            study_date=None if 'StudyDate' not in ref_ds
+            else ref_ds.StudyDate,
+            study_time=None if 'StudyTime' not in ref_ds
+            else ref_ds.StudyTime,
+            referring_physician_name=None if 'ReferringPhysicianName' not in
+            ref_ds else ref_ds.ReferringPhysicianName,
             **kwargs)
         self._legacy_datasets = legacy_datasets
         self.DistinguishingAttributesTags = self._get_tag_used_dictionary(
@@ -2913,11 +2914,13 @@ class FrameSetCollection:
             'AcquisitionContextSequence']
         to_be_removed_from_distinguishing_attribs: set = set()
         self._FrameSets: list = []
+        frame_counts = []
         frameset_counter = 0
         while len(self.MixedFramesCopy) != 0:
             frameset_counter += 1
             x = self._find_all_similar_to_first_datasets()
             self._FrameSets.append(FrameSet(x[0], x[1]))
+            frame_counts.append(len(x[0]))
             # log information
             logger.debug("Frameset({:02d}) including {:03d} frames".format(
                 frameset_counter, len(x[0])))
@@ -2931,7 +2934,12 @@ class FrameSetCollection:
             for dicom_i, dicom_ds in enumerate(x[0], 1):
                 logger.debug('\t\t{}/{})\t {}'.format(
                     dicom_i, len(x[0]), dicom_ds['SOPInstanceUID']))
-                
+        frames = ''
+        for i, f_count in enumerate(frame_counts, 1):
+            frames += '{: 2d}){:03d}\t'.format(i, f_count)
+        frames = '{: 2d} frameset(s) out of all {: 3d} instances:'.format(
+            len(frame_counts), len(self.MixedFrames)) + frames
+        logger.info(frames)        
         for kw in to_be_removed_from_distinguishing_attribs:
             self.DistinguishingAttributeKeywords.remove(kw)
         self.ExcludedFromPerFrameTags = {}
@@ -2958,12 +2966,15 @@ class FrameSetCollection:
                 distinguishing_tags_existing.append(tg)
             else:
                 distinguishing_tags_missing.append(tg)
+        logger_msg = set()
         for ds in self.MixedFramesCopy:
             all_equal = True
             for tg in distinguishing_tags_missing:
                 if tg in ds:
-                    logger.info('{} is missing in all but {}'.format(
-                        DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
+                    logger.info()
+                    logger_msg.add(
+                        '{} is missing in all but {}'.format(
+                            DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
                     all_equal = False
                     break
             if not all_equal:
@@ -2975,13 +2986,17 @@ class FrameSetCollection:
                     break
                 new_val = ds[tg].value
                 if not DicomHelper.isequal(ref_val, new_val):
-                    logger.info(
-                        'Inequality on distinguishing attribute{} -> {} != {}'.format(
-                        DicomHelper.tag2kwstr(tg), ref_val, new_val))
+                    logger_msg.add(
+                        'Inequality on distinguishing '
+                        'attribute{} -> {} != {} \n series uid = {}'.format(
+                            DicomHelper.tag2kwstr(tg), ref_val, new_val,
+                            ds.SeriesInstanceUID))
                     all_equal = False
                     break
             if all_equal:
                 similar_ds.append(ds)
+        for msg_ in logger_msg:
+            logger.info(msg_)
         for ds in similar_ds:
             if ds in self.MixedFramesCopy:
                 self.MixedFramesCopy.remove(ds)
