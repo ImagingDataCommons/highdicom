@@ -1,12 +1,12 @@
 """Utilities for working with SEG image instances."""
-from typing import Generator, Optional, Union
+from typing import Iterator, Optional, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 
 
-def iter_segments(dataset: Dataset) -> Generator:
+def iter_segments(dataset: Dataset) -> Iterator:
     """Iterates over segments of a Segmentation image instance.
 
     Parameters
@@ -16,9 +16,11 @@ def iter_segments(dataset: Dataset) -> Generator:
 
     Returns
     -------
-    Generator[Tuple[numpy.ndarray, Tuple[pydicom.dataset.Dataset], pydicom.dataset.Dataset]]
-        Pixel pata frames and description (items of the Per-Frame Functional
-        Groups Sequence and item of the Segment Sequence) of each segment
+    Iterator[Tuple[numpy.ndarray, Tuple[pydicom.dataset.Dataset, ...], pydicom.dataset.Dataset]]
+        For each segment in the Segmentation image instance, provides the
+        Pixel Data frames representing the segment, items of the Per-Frame
+        Functional Groups Sequence describing the individual frames, and
+        the item of the Segment Sequence describing the segment
 
     Raises
     ------

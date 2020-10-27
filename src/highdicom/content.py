@@ -117,11 +117,11 @@ class PlanePositionSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames],
-            image_position: Tuple[float, float, float],
-            pixel_matrix_position: Optional[Tuple[int, int]] = None
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames],
+        image_position: Tuple[float, float, float],
+        pixel_matrix_position: Optional[Tuple[int, int]] = None
+    ) -> None:
         """
         Parameters
         ----------

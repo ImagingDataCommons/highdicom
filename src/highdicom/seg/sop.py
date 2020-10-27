@@ -40,7 +40,7 @@ from highdicom.seg.enum import (
     SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
-from highdicom.utils import compute_plane_positions_tiled_full
+from highdicom.utils import compute_plane_position_slide_per_frame
 
 
 logger = logging.getLogger(__name__)
@@ -446,20 +446,21 @@ class Segmentation(SOPClass):
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
-            values ``True`` and ``False`` or ``0`` and ``1``), the segment number
-            used to encode the segment is taken from segment_descriptions.
-            Otherwise, if pixel_array contains multiple integer values, each value
-            is treated as a different segment whose segment number is that integer
-            value. In this case, all segments found in the array must be described
-            in `segment_descriptions`. Note that this is valid for both ``"BINARY"``
-            and ``"FRACTIONAL"`` segmentations.
-            For ``"FRACTIONAL"`` segmentations, values either encode the probability
-            of a given pixel belonging to a segment
+            values ``True`` and ``False`` or ``0`` and ``1``), the segment
+            number used to encode the segment is taken from
+            `segment_descriptions`.
+            Otherwise, if `pixel_array` contains multiple integer values, each
+            value is treated as a different segment whose segment number is
+            that integer value. In this case, all segments found in the array
+            must be described in `segment_descriptions`. Note that this is
+            valid for both ``"BINARY"`` and ``"FRACTIONAL"`` segmentations.
+            For ``"FRACTIONAL"`` segmentations, values either encode the
+            probability of a given pixel belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
-            When `pixel_array` has a floating point data type, only one segment can be
-            encoded. Additional segments can be subsequently
+            When `pixel_array` has a floating point data type, only one segment
+            can be encoded. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
             If `pixel_array` represents a 3D image, the first dimension
@@ -591,73 +592,9 @@ class Segmentation(SOPClass):
             else:
                 # If Dimension Organization Type is TILED_FULL, plane
                 # positions are implicit and need to be computed.
-                image_origin = src_img.TotalPixelMatrixOriginSequence[0]
-                orientation = (
-                    float(src_img.ImageOrientationSlide[0]),
-                    float(src_img.ImageOrientationSlide[1]),
-                    float(src_img.ImageOrientationSlide[2]),
-                    float(src_img.ImageOrientationSlide[3]),
-                    float(src_img.ImageOrientationSlide[4]),
-                    float(src_img.ImageOrientationSlide[5]),
+                source_plane_positions = compute_plane_position_slide_per_frame(
+                    src_img
                 )
-                tiles_per_column = int(
-                    np.ceil(
-                        src_img.TotalPixelMatrixRows /
-                        src_img.Rows
-                    )
-                )
-                tiles_per_row = int(
-                    np.ceil(
-                        src_img.TotalPixelMatrixColumns /
-                        src_img.Columns
-                    )
-                )
-                num_focal_planes = getattr(
-                    src_img,
-                    'NumberOfFocalPlanes',
-                    1
-                )
-                row_range = range(1, tiles_per_column + 1)
-                column_range = range(1, tiles_per_row + 1)
-                depth_range = range(1, num_focal_planes + 1)
-
-                shared_fg = self.SharedFunctionalGroupsSequence[0]
-                pixel_measures = shared_fg.PixelMeasuresSequence[0]
-                pixel_spacing = (
-                    float(pixel_measures.PixelSpacing[0]),
-                    float(pixel_measures.PixelSpacing[1]),
-                )
-                slice_thickness = getattr(
-                    pixel_measures,
-                    'SliceThickness',
-                    1.0
-                )
-                spacing_between_slices = getattr(
-                    pixel_measures,
-                    'SpacingBetweenSlices',
-                    1.0
-                )
-                source_plane_positions = [
-                    compute_plane_positions_tiled_full(
-                        row_index=r,
-                        column_index=c,
-                        x_offset=image_origin.XOffsetInSlideCoordinateSystem,
-                        y_offset=image_origin.YOffsetInSlideCoordinateSystem,
-                        z_offset=1.0,  # TODO
-                        rows=self.Rows,
-                        columns=self.Columns,
-                        image_orientation=orientation,
-                        pixel_spacing=pixel_spacing,
-                        slice_thickness=slice_thickness,
-                        spacing_between_slices=spacing_between_slices,
-                        slice_index=s,
-                    )
-                    for r, c, s in itertools.product(
-                        row_range,
-                        column_range,
-                        depth_range
-                    )
-                ]
         else:
             if is_multiframe:
                 source_plane_positions = [

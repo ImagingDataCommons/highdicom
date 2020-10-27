@@ -435,15 +435,15 @@ class TestDimensionIndexSequence(unittest.TestCase):
         assert len(seq) == 6
         assert seq[0].DimensionIndexPointer == 0x0062000B
         assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0040072A
+        assert seq[1].DimensionIndexPointer == 0x0048021E
         assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0040073A
+        assert seq[2].DimensionIndexPointer == 0x0048021F
         assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040074A
+        assert seq[3].DimensionIndexPointer == 0x0040072A
         assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0048021E
+        assert seq[4].DimensionIndexPointer == 0x0040073A
         assert seq[4].FunctionalGroupPointer == 0x0048021A
-        assert seq[5].DimensionIndexPointer == 0x0048021F
+        assert seq[5].DimensionIndexPointer == 0x0040074A
         assert seq[5].FunctionalGroupPointer == 0x0048021A
 
 
@@ -511,7 +511,6 @@ class TestSegmentation(unittest.TestCase):
         )
         # Override te existing ImageOrientationSlide to make the frame ordering
         # simpler for the tests
-        self._sm_image.ImageOrientationSlide = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
         self._sm_pixel_array = np.zeros(
             self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
             dtype=np.bool
@@ -875,8 +874,6 @@ class TestSegmentation(unittest.TestCase):
                     axis=0
                 )
                 expected_encoding = expected_encoding.squeeze()
-                expected_additional_encoding = \
-                    expected_additional_encoding.squeeze()
             else:
                 expected_encoding = mask
                 two_segment_expected_encoding = np.stack(
@@ -911,10 +908,19 @@ class TestSegmentation(unittest.TestCase):
                     )
 
                     # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(
-                        self.get_array_after_writing(instance),
-                        expected_encoding
-                    )
+                    try:
+                        assert np.array_equal(
+                            self.get_array_after_writing(instance),
+                            expected_encoding
+                        )
+                    except:
+                        print('===')
+                        print(self.get_array_after_writing(instance).shape)
+                        print(self.get_array_after_writing(instance))
+                        print('---')
+                        print(expected_encoding.shape)
+                        print(expected_encoding.astype(int))
+                        assert False
 
                     # Add another segment
                     instance.add_segments(
@@ -941,8 +947,6 @@ class TestSegmentation(unittest.TestCase):
                     axis=0
                 )
                 expected_encoding = expected_encoding.squeeze()
-                expected_additional_encoding = \
-                    expected_additional_encoding.squeeze()
             else:
                 expected_encoding = (mask > 0).astype(mask.dtype)
                 expected_additional_encoding = (additional_mask > 0).astype(

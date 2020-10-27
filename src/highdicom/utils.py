@@ -1,7 +1,8 @@
 import itertools
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import numpy as np
+from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
@@ -52,7 +53,7 @@ def tile_pixel_matrix(
     return itertools.product(tile_row_indices, tile_col_indices)
 
 
-def compute_plane_positions_tiled_full(
+def compute_plane_position_tiled_full(
     row_index: int,
     column_index: int,
     x_offset: float,
@@ -66,8 +67,8 @@ def compute_plane_positions_tiled_full(
     slice_index: Optional[float] = None
 ) -> PlanePositionSequence:
     """Computes the absolute position of a Frame (image plane) in the
-    Frame of Reference defined by the three-dimensional slide coordinate system
-    given their relative position in the Total Pixel Matrix.
+    Frame of Reference defined by the three-dimensional slide coordinate
+    system given their relative position in the Total Pixel Matrix.
 
     This information is not provided in image instances with Dimension
     Orientation Type TILED_FULL and therefore needs to be computed.
@@ -91,9 +92,6 @@ def compute_plane_positions_tiled_full(
     y_offset: float
         Y offset of the Total Pixel Matrix in the slide coordinate system
         in millimeters
-    z_offset: float
-        Z offset of the Total Pixel Matrix in the slide coordinate system in
-        micrometers (distance of the focal plane from the slide surface)
     rows: int
         Number of rows per Frame (tile)
     columns: int
@@ -110,8 +108,8 @@ def compute_plane_positions_tiled_full(
     spacing_between_slices: float, optional
         Distance between neighboring focal planes in micrometers
     slice_index: int, optional
-        Relative zero-based index of the slice in the array of slices within
-        the volume
+        Relative zero-based index of the slice in the array of slices
+        within the volume
 
     Returns
     -------
@@ -119,6 +117,8 @@ def compute_plane_positions_tiled_full(
         Positon of the plane in the slide coordinate system
 
     """
+    # Offset values are one-based, i.e., the top left pixel in the Total Pixel
+    # Matrix has offset (1, 1) rather than (0, 0)
     row_offset_frame = ((row_index - 1) * rows) + 1
     column_offset_frame = ((column_index - 1) * columns) + 1
 
@@ -142,6 +142,94 @@ def compute_plane_positions_tiled_full(
     )
 
 
+def compute_plane_position_slide_per_frame(
+    dataset: Dataset
+) -> List[PlanePositionSequence]:
+    """Computes the plane position for each frame in given dataset with
+    respect to the slide coordinate system.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        VL Whole Slide Microscopy Image
+
+    Returns
+    -------
+    List[highdicom.content.PlanePositionSequence]
+        Plane Position Sequence per frame
+
+    Raises
+    ------
+    ValueError
+        When `dataset` does not represent a VL Whole Slide Microscopy Image
+
+    """
+    if not dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.77.1.6':
+        raise ValueError('Expected a VL Whole Slide Microscopy Image')
+
+    image_origin = dataset.TotalPixelMatrixOriginSequence[0]
+    image_orientation = (
+        float(dataset.ImageOrientationSlide[0]),
+        float(dataset.ImageOrientationSlide[1]),
+        float(dataset.ImageOrientationSlide[2]),
+        float(dataset.ImageOrientationSlide[3]),
+        float(dataset.ImageOrientationSlide[4]),
+        float(dataset.ImageOrientationSlide[5]),
+    )
+    tiles_per_column = int(
+        np.ceil(dataset.TotalPixelMatrixRows / dataset.Rows)
+    )
+    tiles_per_row = int(
+        np.ceil(dataset.TotalPixelMatrixColumns / dataset.Columns)
+    )
+    num_focal_planes = getattr(
+        dataset,
+        'NumberOfFocalPlanes',
+        1
+    )
+    row_direction = range(1, tiles_per_row + 1)
+    column_direction = range(1, tiles_per_column + 1)
+    depth_direction = range(1, num_focal_planes + 1)
+
+    shared_fg = dataset.SharedFunctionalGroupsSequence[0]
+    pixel_measures = shared_fg.PixelMeasuresSequence[0]
+    pixel_spacing = (
+        float(pixel_measures.PixelSpacing[0]),
+        float(pixel_measures.PixelSpacing[1]),
+    )
+    slice_thickness = getattr(
+        pixel_measures,
+        'SliceThickness',
+        1.0
+    )
+    spacing_between_slices = getattr(
+        pixel_measures,
+        'SpacingBetweenSlices',
+        1.0
+    )
+
+    return [
+        compute_plane_position_tiled_full(
+            row_index=r,
+            column_index=c,
+            x_offset=image_origin.XOffsetInSlideCoordinateSystem,
+            y_offset=image_origin.YOffsetInSlideCoordinateSystem,
+            rows=dataset.Rows,
+            columns=dataset.Columns,
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            slice_thickness=slice_thickness,
+            spacing_between_slices=spacing_between_slices,
+            slice_index=s,
+        )
+        for c, r, s in itertools.product(
+            row_direction,  # left to right
+            column_direction,  # top to bottom
+            depth_direction
+        )
+    ]
+
+
 def map_pixel_into_coordinate_system(
     coordinate: Tuple[float, float],
     image_position: Tuple[float, float, float],
@@ -149,8 +237,8 @@ def map_pixel_into_coordinate_system(
     pixel_spacing: Tuple[float, float],
     spacing_between_slices: float = 0.0
 ) -> Tuple[float, float, float]:
-    """Maps a coordinate in the Total Pixel Matrix into the physical coordinate
-    system (e.g., Slide or Patient) defined by the Frame of Reference.
+    """Maps a coordinate in the pixel matrix into the physical coordinate
+    system (e.g., Slide or Patient) defined by a frame of reference.
 
     Parameters
     ----------
@@ -172,12 +260,17 @@ def map_pixel_into_coordinate_system(
     Returns
     -------
     Tuple[float, float, float]
-        (X, Y, Z) coordinate in the coordinage system defined by the
+        (X, Y, Z) coordinate in the coordinate system defined by the
         Frame of Reference
+
+    Raises
+    ------
+    ValueError
+        When the X, Y or Z coordinate has a negative value
 
     """
     # Read the below article for further information about the mapping
-    # between coordinates in the Total Pixel Matrix and the Frame of Reference:
+    # between coordinates in the pixel matrix and the frame of reference:
     # https://nipy.org/nibabel/dicom/dicom_orientation.html
     x_offset = float(image_position[0])
     y_offset = float(image_position[1])
