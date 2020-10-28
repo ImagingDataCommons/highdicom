@@ -1188,27 +1188,28 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
         self._copy_attrib_if_present(src_fg, item, 'AnatomicRegionSequence',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        self._copy_attrib_if_present(src_fg, item, 'FrameLaterality',
-                                     check_not_to_be_perframe=False,
-                                     check_not_to_be_empty=True)
-        if 'FrameLaterality' not in item:
-            self._copy_attrib_if_present(src_fg, item, 'ImageLaterality',
-                                         'FrameLaterality',
-                                         check_not_to_be_perframe=False,
-                                         check_not_to_be_empty=True)
-        if 'FrameLaterality' not in item:
-            self._copy_attrib_if_present(src_fg, item, 'Laterality',
-                                         'FrameLaterality',
-                                         check_not_to_be_perframe=False,
-                                         check_not_to_be_empty=True)
-        if 'FrameLaterality' not in item:
-            FrameLaterality_a = self._get_or_create_attribute(
-                src_fg, 'FrameLaterality', "U")
-            item['FrameLaterality'] = FrameLaterality_a
-        FrameAnatomy_a = DataElement(fa_seq_tg,
-                                     dictionary_VR(fa_seq_tg),
-                                     [item])
-        dest_fg['FrameAnatomySequence'] = FrameAnatomy_a
+        if len(item) != 0:
+            self._copy_attrib_if_present(src_fg, item, 'FrameLaterality',
+                                        check_not_to_be_perframe=False,
+                                        check_not_to_be_empty=True)
+            if 'FrameLaterality' not in item:
+                self._copy_attrib_if_present(src_fg, item, 'ImageLaterality',
+                                            'FrameLaterality',
+                                            check_not_to_be_perframe=False,
+                                            check_not_to_be_empty=True)
+            if 'FrameLaterality' not in item:
+                self._copy_attrib_if_present(src_fg, item, 'Laterality',
+                                            'FrameLaterality',
+                                            check_not_to_be_perframe=False,
+                                            check_not_to_be_empty=True)
+            if 'FrameLaterality' not in item:
+                FrameLaterality_a = self._get_or_create_attribute(
+                    src_fg, 'FrameLaterality', "U")
+                item['FrameLaterality'] = FrameLaterality_a
+            FrameAnatomy_a = DataElement(fa_seq_tg,
+                                        dictionary_VR(fa_seq_tg),
+                                        [item])
+            dest_fg['FrameAnatomySequence'] = FrameAnatomy_a
 
     def _contains_right_attributes(self, tags: dict) -> bool:
         laterality_tg = tag_for_keyword('Laterality')
