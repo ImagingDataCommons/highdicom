@@ -7,14 +7,13 @@ from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
-from pydicom.pixel_data_handlers.numpy_handler import pack_bits
-from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import (
-    UID,
-    ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    JPEG2000Lossless,
     RLELossless,
+    UID,
 )
 from pydicom.sr.codedict import codes
 from pydicom._storage_sopclass_uids import (
@@ -30,6 +29,7 @@ from highdicom.content import (
     PixelMeasuresSequence
 )
 from highdicom.enum import CoordinateSystemNames
+from highdicom.frame import encode_frame
 from highdicom.seg.content import (
     DimensionIndexSequence,
     SegmentDescription,
@@ -153,10 +153,10 @@ class Segmentation(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``),
-            JPEG2000 (``"1.2.840.10008.1.2.4.90"``), and
-            JPEG-LS (``"1.2.840.10008.1.2.4.80"``). Lossy compression is not
-            supported.
+            are supported for encapsulated format encoding in case of
+            FRACTIONAL segmentation type:
+            RLE Lossless (``"1.2.840.10008.1.2.5"``) and
+            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
         pixel_measures: PixelMeasures, optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
@@ -229,6 +229,7 @@ class Segmentation(SOPClass):
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
+            JPEG2000Lossless,
             RLELossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
@@ -904,25 +905,15 @@ class Segmentation(SOPClass):
             transfer syntax.
 
         """
-        # Compress depending on transfer syntax UID
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             # Check that only a single plane was passed
             if planes.ndim == 3:
                 if planes.shape[0] == 1:
                     planes = planes[0, ...]
                 else:
-                    raise ValueError('RLE can only process a single frame')
+                    raise ValueError(
+                        'Only single frame can be encoded at at time '
+                        'in case of encapsulated format encoding.'
+                    )
 
-            # Compress according to transfer syntax
-            if self.file_meta.TransferSyntaxUID == RLELossless:
-                return rle_encode_frame(planes)
-            else:
-                raise NotImplementedError(
-                    'Transfer syntax not implemented: '
-                    f'{self.file_meta.TransferSyntaxUID}'
-                )
-        else:
-            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                return pack_bits(planes.flatten())
-            else:
-                return planes.flatten().tobytes()
+        return encode_frame(planes, self)
