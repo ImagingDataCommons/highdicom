@@ -37,7 +37,7 @@ def tile_pixel_matrix(
     Returns
     -------
     Iterator
-        One-based row, column coordinates of each Frame (tile)
+        One-based Column, Row index of each Frame (tile)
 
     """
     tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
