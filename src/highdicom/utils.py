@@ -76,16 +76,13 @@ def compute_plane_position_tiled_full(
     Parameters
     ----------
     row_index: int
-        Relative one-based index value for a given frame along the row
+        One-based Row index value for a given frame along the column
         direction of the tiled Total pixel Matrix, which is defined by
-        the first triplet in `image_orientation`
-    column_index: int
-        Relative one-based index value for a given frame along the column
-        direction of the the tiled Total Pixel Matrix, which is defined by
         the second triplet in `image_orientation`
-    depth_index: int
-        Relative one-based index value for a given Frame along the depth
-        direction from the glass slide to the coverslip (focal plane)
+    column_index: int
+        One-based Column index value for a given frame along the row
+        direction of the the tiled Total Pixel Matrix, which is defined by
+        the first triplet in `image_orientation`
     x_offset: float
         X offset of the Total Pixel Matrix in the slide coordinate system
         in millimeters
@@ -97,12 +94,14 @@ def compute_plane_position_tiled_full(
     columns: int
         Number of columns per Frame (tile)
     image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet: horizontal, left to right) and
-        column (second triplet: vertical, top to bottom) direction
-        for X, Y, and Z axis of the slide coordinate system
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction for X, Y, and
+        Z axis of the slide coordinate system defined by the Frame of Reference
     pixel_spacing: Tuple[float, float]
-        Physical distance between the centers of neighboring pixels along
-        the row (horizontal) and column (vertical) direction in millimeters
+        Spacing between pixels in millimeter unit along the row direction
+        (horizontal, left to right, increasing Column index) and the column
+        direction (vertical, top to bottom, increasing Row index)
     slice_thickness: float, optional
         Thickness of a focal plane in micrometers
     spacing_between_slices: float, optional
@@ -122,10 +121,29 @@ def compute_plane_position_tiled_full(
     row_offset_frame = ((row_index - 1) * rows) + 1
     column_offset_frame = ((column_index - 1) * columns) + 1
 
-    z_offset = (
-        slice_index * slice_thickness +
-        slice_index * spacing_between_slices
+    provided_3d_parameters = (
+        slice_thickness is not None,
+        slice_index is not None,
+        spacing_between_slices is not None,
     )
+    if not(
+        sum(provided_3d_parameters) == 0 or sum(provided_3d_parameters) == 3
+    ):
+        raise TypeError(
+            'None or all of the following parameters need to be provided: '
+            '"slice_index", "slice_thickness", "spacing_between_slices"'
+        )
+    # These checks are needed for mypy to be able to determine the correct type
+    if (slice_index is not None and
+            slice_thickness is not None and
+            spacing_between_slices is not None):
+        z_offset = (
+            slice_index * slice_thickness +
+            slice_index * spacing_between_slices
+        )
+    else:
+        z_offset = 0.0
+
     # We should only be dealing with planar rotations.
     x, y, z = map_pixel_into_coordinate_system(
         coordinate=(column_offset_frame, row_offset_frame),
@@ -222,8 +240,8 @@ def compute_plane_position_slide_per_frame(
             slice_index=s,
         )
         for c, r, s in itertools.product(
-            row_direction,  # left to right
-            column_direction,  # top to bottom
+            row_direction,  # left to right, increasing Column index
+            column_direction,  # top to bottom, increasing Row index
             depth_direction
         )
     ]
@@ -241,9 +259,10 @@ def map_pixel_into_coordinate_system(
     Parameters
     ----------
     coordinate: Tuple[float, float]
-        (Column, Row) coordinate in the Total Pixel Matrix in pixel unit.
-        Note that the first entry is the Column index and the second entry the
-        Row index, which is different from the way NumPy indexes arrays!
+        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
+        Note that these values are one-based and in column-major order, which
+        is different from the way NumPy indexes arrays (zero-based and
+        row-major order)
     image_position: Tuple[float, float, float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the pixel matrix from the
@@ -252,7 +271,7 @@ def map_pixel_into_coordinate_system(
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction for X, Y, and
-        Z axis of the patient- or slide-based coordinate system defined by the
+        Z axis of the patient or slide coordinate system defined by the
         Frame of Reference
     pixel_spacing: Tuple[float, float]
         Spacing between pixels in millimeter unit along the row direction
