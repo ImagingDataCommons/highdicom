@@ -908,19 +908,10 @@ class TestSegmentation(unittest.TestCase):
                     )
 
                     # Ensure the recovered pixel array matches what is expected
-                    try:
-                        assert np.array_equal(
-                            self.get_array_after_writing(instance),
-                            expected_encoding
-                        )
-                    except:
-                        print('===')
-                        print(self.get_array_after_writing(instance).shape)
-                        print(self.get_array_after_writing(instance))
-                        print('---')
-                        print(expected_encoding.shape)
-                        print(expected_encoding.astype(int))
-                        assert False
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_encoding
+                    )
 
                     # Add another segment
                     instance.add_segments(
