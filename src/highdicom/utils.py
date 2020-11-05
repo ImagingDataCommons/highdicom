@@ -131,8 +131,7 @@ def compute_plane_position_tiled_full(
         coordinate=(column_offset_frame, row_offset_frame),
         image_position=(x_offset, y_offset, z_offset),
         image_orientation=image_orientation,
-        pixel_spacing=pixel_spacing,
-        spacing_between_slices=spacing_between_slices
+        pixel_spacing=pixel_spacing
     )
 
     return PlanePositionSequence(
@@ -234,8 +233,7 @@ def map_pixel_into_coordinate_system(
     coordinate: Tuple[float, float],
     image_position: Tuple[float, float, float],
     image_orientation: Tuple[float, float, float, float, float, float],
-    pixel_spacing: Tuple[float, float],
-    spacing_between_slices: float = 0.0
+    pixel_spacing: Tuple[float, float]
 ) -> Tuple[float, float, float]:
     """Maps a coordinate in the pixel matrix into the physical coordinate
     system (e.g., Slide or Patient) defined by a frame of reference.
@@ -243,19 +241,23 @@ def map_pixel_into_coordinate_system(
     Parameters
     ----------
     coordinate: Tuple[float, float]
-        (Column, Row) coordinate of a point relative to the Total Pixel Matrix
-        in pixel unit
+        (Column, Row) coordinate in the Total Pixel Matrix in pixel unit.
+        Note that the first entry is the Column index and the second entry the
+        Row index, which is different from the way NumPy indexes arrays!
     image_position: Tuple[float, float, float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the pixel matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
     image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet: horizontal, left to right) and
-        column (second triplet: vertical, top to bottom) direction
-        for X, Y, and Z axis of the slide coordinate system
-    spacing_between_slices: float, optional
-        Spacing between two neighboring image slices (planes) in the Frame
-        of Reference in the unit of the referenced coordinate system
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction for X, Y, and
+        Z axis of the patient- or slide-based coordinate system defined by the
+        Frame of Reference
+    pixel_spacing: Tuple[float, float]
+        Spacing between pixels in millimeter unit along the row direction
+        (horizontal, left to right, increasing Column index) and the column
+        direction (vertical, top to bottom, increasing Row index)
 
     Returns
     -------
@@ -282,7 +284,7 @@ def map_pixel_into_coordinate_system(
     column_spacing = float(pixel_spacing[1])
 
     n = np.cross(column_cosines.T, row_cosines.T)
-    k = n * spacing_between_slices
+    k = np.array([0.0, 0.0, 0.0])
 
     f_row = row_cosines * row_spacing
     f_col = column_cosines * column_spacing
@@ -307,9 +309,7 @@ def map_pixel_into_coordinate_system(
 
     column_offset = float(coordinate[0])
     row_offset = float(coordinate[1])
-    pixel_matrix_coordinate = np.array([
-        [row_offset, column_offset, 0.0, 1.0]
-    ])
+    pixel_matrix_coordinate = np.array([[row_offset, column_offset, 0.0, 1.0]])
 
     physical_coordinate = np.dot(affine, pixel_matrix_coordinate.T)
 
