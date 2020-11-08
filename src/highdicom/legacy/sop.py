@@ -1932,6 +1932,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
         logger = logging.getLogger(__name__)
         self._build_slices_geometry()
         round_digits = int(ceil(-log10(self._tolerance)))
+        source_series_uid = ''
         if self._are_all_slices_parallel():
             self._slice_location_map = {}
             for idx, s in enumerate(self._slices):
@@ -1949,9 +1950,13 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
             frame_content_tg = tag_for_keyword("FrameContentSequence")
             for loc, idxs in sorted(self._slice_location_map.items()):
                 if len(idxs) != 1:
+                    if source_series_uid == '':
+                        source_series_uid = \
+                            self.SingleFrameSet[0].SeriesInstanceUID
                     logger.warning(
-                        'There are {} slices in one location {}'.format(
-                            len(idxs), loc)
+                        'There are {} slices in one location {} on '
+                        'series = {}'.format(
+                            len(idxs), loc, source_series_uid)
                         )
                 for frame_index in idxs:
                     frame = self._get_perframe_item(frame_index)
@@ -2975,7 +2980,6 @@ class FrameSetCollection:
             all_equal = True
             for tg in distinguishing_tags_missing:
                 if tg in ds:
-                    logger.info()
                     logger_msg.add(
                         '{} is missing in all but {}'.format(
                             DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
