@@ -910,14 +910,16 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
             inner_item = Dataset()
             self._add_module_to_functional_group(self.SingleFrameSet[0],
                                                  inner_item, 1)
-            item[seq_tg] = DataElement(seq_tg, 'SQ', [inner_item])
+            item[seq_tg] = DataElement(
+                seq_tg, 'SQ', DicomSequence([inner_item]))
         else:
             for i in range(0, len(self.SingleFrameSet)):
                 item = self._get_perframe_item(i)
                 inner_item = Dataset()
                 self._add_module_to_functional_group(self.SingleFrameSet[i],
                                                      inner_item, 1)
-                item[seq_tg] = DataElement(seq_tg, 'SQ', [inner_item])
+                item[seq_tg] = DataElement(
+                    seq_tg, 'SQ', DicomSequence([inner_item]))
 
 
 class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
@@ -1208,7 +1210,7 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
                 item['FrameLaterality'] = FrameLaterality_a
             FrameAnatomy_a = DataElement(fa_seq_tg,
                                         dictionary_VR(fa_seq_tg),
-                                        [item])
+                                        DicomSequence([item]))
             dest_fg['FrameAnatomySequence'] = FrameAnatomy_a
 
     def _contains_right_attributes(self, tags: dict) -> bool:
@@ -1281,7 +1283,7 @@ class PixelMeasuresFunctionalGroup(Abstract_MultiframeModuleAdder):
         pixel_measures_tg = tag_for_keyword(pixel_measures_kw)
         seq = DataElement(pixel_measures_tg,
                           dictionary_VR(pixel_measures_tg),
-                          [item])
+                          DicomSequence([item]))
         dest_fg[pixel_measures_tg] = seq
 
     def AddModule(self) -> None:
@@ -1330,7 +1332,7 @@ class PlanePositionFunctionalGroup(Abstract_MultiframeModuleAdder):
         PlanePositionSequence_tg = tag_for_keyword(PlanePositionSequence_kw)
         seq = DataElement(PlanePositionSequence_tg,
                           dictionary_VR(PlanePositionSequence_tg),
-                          [item])
+                          DicomSequence([item]))
         dest_fg[PlanePositionSequence_tg] = seq
 
     def AddModule(self) -> None:
@@ -1377,7 +1379,7 @@ class PlaneOrientationFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_empty=False)
         kw = 'PlaneOrientationSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -1439,7 +1441,7 @@ class FrameVOILUTFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_empty=False)
         kw = 'FrameVOILUTSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -1535,7 +1537,7 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
 
         kw = 'PixelValueTransformationSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -1632,7 +1634,7 @@ class DerivationImageFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_empty=False)
         kw = 'DerivationImageSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -1676,7 +1678,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
                                          check_not_to_be_empty=False)
         kw = 'UnassignedPerFrameConvertedAttributesSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg),DicomSequence([item]))
         dest_fg[tg] = seq
 
     def _add_largest_smallest_pixle_value(self) -> None:
@@ -1751,7 +1753,7 @@ class UnassignedShared(Abstract_MultiframeModuleAdder):
                                              check_not_to_be_empty=False)
         kw = 'UnassignedSharedConvertedAttributesSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -1830,7 +1832,7 @@ class ConversionSourceFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_empty=True)
         kw = 'ConversionSourceAttributesSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg), [item])
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def AddModule(self) -> None:
@@ -2041,7 +2043,8 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
             check_not_to_be_empty=True)
         # -----------------------------------
         seq_tg = tag_for_keyword('FrameContentSequence')
-        dest_fg[seq_tg] = DataElement(seq_tg, dictionary_VR(seq_tg), [item])
+        dest_fg[seq_tg] = DataElement(
+            seq_tg, dictionary_VR(seq_tg), DicomSequence([item]))
     # Also we want to add the earliest frame acq date time to the multiframe:
 
     def _add_acquisition_info(self) -> None:
@@ -2265,7 +2268,7 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
             'DCM')
         PurposeOfReferenceCode_seq = DataElement(
             tag_for_keyword('PurposeOfReferenceCodeSequence'),
-            'SQ', [PurposeOfReferenceCode_item])
+            'SQ', DicomSequence([PurposeOfReferenceCode_item]))
         item: Dataset = Dataset()
         item[
             'PurposeOfReferenceCodeSequence'] = PurposeOfReferenceCode_seq
@@ -2288,7 +2291,7 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
             "ContributionDescription",
             'Legacy Enhanced Image created from Classic Images')
         tg = tag_for_keyword('ContributingEquipmentSequence')
-        self.TargetDataset[tg] = DataElement(tg, 'SQ', [item])
+        self.TargetDataset[tg] = DataElement(tg, 'SQ', DicomSequence([item]))
 
 
 class LegacyConvertedEnhanceImage(SOPClass):
