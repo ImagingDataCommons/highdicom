@@ -1,9 +1,5 @@
 """ Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
-import sys
-expect_major = 3
-expect_minor = 7
-if sys.version_info[:2] != (expect_major, expect_minor):
-    from __future__ import annotations
+from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union, Callable
@@ -2304,6 +2300,239 @@ class ContributingEquipmentSequence(Abstract_MultiframeModuleAdder):
         self.TargetDataset[tg] = DataElement(tg, 'SQ', DicomSequence([item]))
 
 
+class FrameSet:
+    def __init__(self, single_frame_list: list,
+                 distinguishing_tags: list):
+        self._Frames = single_frame_list
+        self._DistinguishingAttributesTags = distinguishing_tags
+        tmp = [
+            tag_for_keyword('AcquisitionDateTime'),
+            tag_for_keyword('AcquisitionDate'),
+            tag_for_keyword('AcquisitionTime'),
+            tag_for_keyword('SpecificCharacterSet')]
+        self._ExcludedFromPerFrameTags =\
+            self.DistinguishingAttributesTags + tmp
+        self._PerFrameTags: list = []
+        self._SharedTags: list = []
+        self._find_per_frame_and_shared_tags()
+
+    @property
+    def Frames(self) -> List[Dataset]:
+        return self._Frames[:]
+
+    @property
+    def DistinguishingAttributesTags(self) -> List[Tag]:
+        return self._DistinguishingAttributesTags[:]
+
+    @property
+    def ExcludedFromPerFrameTags(self) -> List[Tag]:
+        return self._ExcludedFromPerFrameTags[:]
+
+    @property
+    def PerFrameTags(self) -> List[Tag]:
+        return self._PerFrameTags[:]
+
+    @property
+    def SharedTags(self) -> List[Tag]:
+        return self._SharedTags[:]
+
+    @property
+    def SeriesInstanceUID(self) -> UID:
+        return self._Frames[0].SeriesInstanceUID
+
+    @property
+    def StudyInstanceUID(self) -> UID:
+        return self._Frames[0].StudyInstanceUID
+
+    def GetSOPInstanceUIDList(self) -> list:
+        OutputList: list = []
+        for f in self._Frames:
+            OutputList.append(f.SOPInstanceUID)
+        return OutputList
+
+    def GetSOPClassUID(self) -> UID:
+        return self._Frames[0].SOPClassUID
+
+    def _find_per_frame_and_shared_tags(self) -> None:
+        # logger = logging.getLogger(__name__)
+        rough_shared: dict = {}
+        sfs = self.Frames
+        for ds in sfs:
+            for ttag, elem in ds.items():
+                if (not ttag.is_private and not
+                    DicomHelper.istag_file_meta_information_group(ttag) and not
+                        DicomHelper.istag_repeating_group(ttag) and not
+                        DicomHelper.istag_group_length(ttag) and not
+                        self._istag_excluded_from_perframe(ttag) and
+                        ttag != tag_for_keyword('PixelData')):
+                    elem = ds[ttag]
+                    if ttag not in self._PerFrameTags:
+                        self._PerFrameTags.append(ttag)
+                    if ttag in rough_shared:
+                        rough_shared[ttag].append(elem.value)
+                    else:
+                        rough_shared[ttag] = [elem.value]
+        to_be_removed_from_shared = []
+        for ttag, v in rough_shared.items():
+            v = rough_shared[ttag]
+            if len(v) < len(self.Frames):
+                to_be_removed_from_shared.append(ttag)
+            else:
+                all_values_are_equal = True
+                for v_i in v:
+                    if not DicomHelper.isequal(v_i, v[0]):
+                        all_values_are_equal = False
+                        break
+                if not all_values_are_equal:
+                    to_be_removed_from_shared.append(ttag)
+        from pydicom.datadict import keyword_for_tag
+        for t, v in rough_shared.items():
+            if keyword_for_tag(t) != 'PatientSex':
+                continue
+        for t in to_be_removed_from_shared:
+            del rough_shared[t]
+        for t, v in rough_shared.items():
+            self._SharedTags.append(t)
+            self._PerFrameTags.remove(t)
+
+    def _istag_excluded_from_perframe(self, t: BaseTag) -> bool:
+        return t in self.ExcludedFromPerFrameTags
+
+
+class FrameSetCollection:
+    def __init__(self, single_frame_list: list):
+        logger = logging.getLogger(__name__)
+        self.MixedFrames = single_frame_list
+        self.MixedFramesCopy = self.MixedFrames[:]
+        self._DistinguishingAttributeKeywords = [
+            'PatientID',
+            'PatientName',
+            'Manufacturer',
+            'InstitutionName',
+            'InstitutionAddress',
+            'StationName',
+            'InstitutionalDepartmentName',
+            'ManufacturerModelName',
+            'DeviceSerialNumber',
+            'SoftwareVersions',
+            'GantryID',
+            'PixelPaddingValue',
+            'Modality',
+            'ImageType',
+            'BurnedInAnnotation',
+            'SOPClassUID',
+            'Rows',
+            'Columns',
+            'BitsStored',
+            'BitsAllocated',
+            'HighBit',
+            'PixelRepresentation',
+            'PhotometricInterpretation',
+            'PlanarConfiguration',
+            'SamplesPerPixel',
+            'ProtocolName',
+            'ImageOrientationPatient',
+            'PixelSpacing',
+            'SliceThickness',
+            'AcquisitionContextSequence']
+        to_be_removed_from_distinguishing_attribs: set = set()
+        self._FrameSets: list = []
+        frame_counts = []
+        frameset_counter = 0
+        while len(self.MixedFramesCopy) != 0:
+            frameset_counter += 1
+            x = self._find_all_similar_to_first_datasets()
+            self._FrameSets.append(FrameSet(x[0], x[1]))
+            frame_counts.append(len(x[0]))
+            # log information
+            logger.debug("Frameset({:02d}) including {:03d} frames".format(
+                frameset_counter, len(x[0])))
+            logger.debug('\t Distinguishing tags:')
+            for dg_i, dg_tg in enumerate(x[1], 1):
+                logger.debug('\t\t{:02d}/{})\t{}-{:32.32s} = {:32.32s}'.format(
+                    dg_i, len(x[1]), DicomHelper.tag2str(dg_tg),
+                    keyword_for_tag(dg_tg),
+                    str(x[0][0][dg_tg].value)))
+            logger.debug('\t dicom datasets in this frame set:')
+            for dicom_i, dicom_ds in enumerate(x[0], 1):
+                logger.debug('\t\t{}/{})\t {}'.format(
+                    dicom_i, len(x[0]), dicom_ds['SOPInstanceUID']))
+        frames = ''
+        for i, f_count in enumerate(frame_counts, 1):
+            frames += '{: 2d}){:03d}\t'.format(i, f_count)
+        frames = '{: 2d} frameset(s) out of all {: 3d} instances:'.format(
+            len(frame_counts), len(self.MixedFrames)) + frames
+        logger.info(frames)
+        for kw in to_be_removed_from_distinguishing_attribs:
+            self.DistinguishingAttributeKeywords.remove(kw)
+        self.ExcludedFromPerFrameTags = {}
+        for kwkw in self.DistinguishingAttributeKeywords:
+            self.ExcludedFromPerFrameTags[tag_for_keyword(kwkw)] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionDateTime')] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionDate')] = False
+        self.ExcludedFromPerFrameTags[
+            tag_for_keyword('AcquisitionTime')] = False
+        self.ExcludedFromFunctionalGroupsTags = {
+            tag_for_keyword('SpecificCharacterSet'): False}
+
+    def _find_all_similar_to_first_datasets(self) -> tuple:
+        logger = logging.getLogger(__name__)
+        similar_ds: list = [self.MixedFramesCopy[0]]
+        distinguishing_tags_existing = []
+        distinguishing_tags_missing = []
+        self.MixedFramesCopy = self.MixedFramesCopy[1:]
+        for kw in self.DistinguishingAttributeKeywords:
+            tg = tag_for_keyword(kw)
+            if tg in similar_ds[0]:
+                distinguishing_tags_existing.append(tg)
+            else:
+                distinguishing_tags_missing.append(tg)
+        logger_msg = set()
+        for ds in self.MixedFramesCopy:
+            all_equal = True
+            for tg in distinguishing_tags_missing:
+                if tg in ds:
+                    logger_msg.add(
+                        '{} is missing in all but {}'.format(
+                            DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
+                    all_equal = False
+                    break
+            if not all_equal:
+                continue
+            for tg in distinguishing_tags_existing:
+                ref_val = similar_ds[0][tg].value
+                if tg not in ds:
+                    all_equal = False
+                    break
+                new_val = ds[tg].value
+                if not DicomHelper.isequal(ref_val, new_val):
+                    logger_msg.add(
+                        'Inequality on distinguishing '
+                        'attribute{} -> {} != {} \n series uid = {}'.format(
+                            DicomHelper.tag2kwstr(tg), ref_val, new_val,
+                            ds.SeriesInstanceUID))
+                    all_equal = False
+                    break
+            if all_equal:
+                similar_ds.append(ds)
+        for msg_ in logger_msg:
+            logger.info(msg_)
+        for ds in similar_ds:
+            if ds in self.MixedFramesCopy:
+                self.MixedFramesCopy.remove(ds)
+        return (similar_ds, distinguishing_tags_existing)
+
+    @property
+    def DistinguishingAttributeKeywords(self) -> List[str]:
+        return self._DistinguishingAttributeKeywords[:]
+
+    @property
+    def FrameSets(self) -> List[FrameSet]:
+        return self._FrameSets
+
+
 class LegacyConvertedEnhanceImage(SOPClass):
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
@@ -2788,236 +3017,3 @@ class DicomHelper:
     def tag2kwstr(tg: BaseTag) -> str:
         return '{}-{:32.32s}'.format(
             DicomHelper.tag2str(tg), keyword_for_tag(tg))
-
-
-class FrameSet:
-    def __init__(self, single_frame_list: list,
-                 distinguishing_tags: list):
-        self._Frames = single_frame_list
-        self._DistinguishingAttributesTags = distinguishing_tags
-        tmp = [
-            tag_for_keyword('AcquisitionDateTime'),
-            tag_for_keyword('AcquisitionDate'),
-            tag_for_keyword('AcquisitionTime'),
-            tag_for_keyword('SpecificCharacterSet')]
-        self._ExcludedFromPerFrameTags =\
-            self.DistinguishingAttributesTags + tmp
-        self._PerFrameTags: list = []
-        self._SharedTags: list = []
-        self._find_per_frame_and_shared_tags()
-
-    @property
-    def Frames(self) -> List[Dataset]:
-        return self._Frames[:]
-
-    @property
-    def DistinguishingAttributesTags(self) -> List[Tag]:
-        return self._DistinguishingAttributesTags[:]
-
-    @property
-    def ExcludedFromPerFrameTags(self) -> List[Tag]:
-        return self._ExcludedFromPerFrameTags[:]
-
-    @property
-    def PerFrameTags(self) -> List[Tag]:
-        return self._PerFrameTags[:]
-
-    @property
-    def SharedTags(self) -> List[Tag]:
-        return self._SharedTags[:]
-
-    @property
-    def SeriesInstanceUID(self) -> UID:
-        return self._Frames[0].SeriesInstanceUID
-
-    @property
-    def StudyInstanceUID(self) -> UID:
-        return self._Frames[0].StudyInstanceUID
-
-    def GetSOPInstanceUIDList(self) -> list:
-        OutputList: list = []
-        for f in self._Frames:
-            OutputList.append(f.SOPInstanceUID)
-        return OutputList
-
-    def GetSOPClassUID(self) -> UID:
-        return self._Frames[0].SOPClassUID
-
-    def _find_per_frame_and_shared_tags(self) -> None:
-        # logger = logging.getLogger(__name__)
-        rough_shared: dict = {}
-        sfs = self.Frames
-        for ds in sfs:
-            for ttag, elem in ds.items():
-                if (not ttag.is_private and not
-                    DicomHelper.istag_file_meta_information_group(ttag) and not
-                        DicomHelper.istag_repeating_group(ttag) and not
-                        DicomHelper.istag_group_length(ttag) and not
-                        self._istag_excluded_from_perframe(ttag) and
-                        ttag != tag_for_keyword('PixelData')):
-                    elem = ds[ttag]
-                    if ttag not in self._PerFrameTags:
-                        self._PerFrameTags.append(ttag)
-                    if ttag in rough_shared:
-                        rough_shared[ttag].append(elem.value)
-                    else:
-                        rough_shared[ttag] = [elem.value]
-        to_be_removed_from_shared = []
-        for ttag, v in rough_shared.items():
-            v = rough_shared[ttag]
-            if len(v) < len(self.Frames):
-                to_be_removed_from_shared.append(ttag)
-            else:
-                all_values_are_equal = True
-                for v_i in v:
-                    if not DicomHelper.isequal(v_i, v[0]):
-                        all_values_are_equal = False
-                        break
-                if not all_values_are_equal:
-                    to_be_removed_from_shared.append(ttag)
-        from pydicom.datadict import keyword_for_tag
-        for t, v in rough_shared.items():
-            if keyword_for_tag(t) != 'PatientSex':
-                continue
-        for t in to_be_removed_from_shared:
-            del rough_shared[t]
-        for t, v in rough_shared.items():
-            self._SharedTags.append(t)
-            self._PerFrameTags.remove(t)
-
-    def _istag_excluded_from_perframe(self, t: BaseTag) -> bool:
-        return t in self.ExcludedFromPerFrameTags
-
-
-class FrameSetCollection:
-    def __init__(self, single_frame_list: list):
-        logger = logging.getLogger(__name__)
-        self.MixedFrames = single_frame_list
-        self.MixedFramesCopy = self.MixedFrames[:]
-        self._DistinguishingAttributeKeywords = [
-            'PatientID',
-            'PatientName',
-            'Manufacturer',
-            'InstitutionName',
-            'InstitutionAddress',
-            'StationName',
-            'InstitutionalDepartmentName',
-            'ManufacturerModelName',
-            'DeviceSerialNumber',
-            'SoftwareVersions',
-            'GantryID',
-            'PixelPaddingValue',
-            'Modality',
-            'ImageType',
-            'BurnedInAnnotation',
-            'SOPClassUID',
-            'Rows',
-            'Columns',
-            'BitsStored',
-            'BitsAllocated',
-            'HighBit',
-            'PixelRepresentation',
-            'PhotometricInterpretation',
-            'PlanarConfiguration',
-            'SamplesPerPixel',
-            'ProtocolName',
-            'ImageOrientationPatient',
-            'PixelSpacing',
-            'SliceThickness',
-            'AcquisitionContextSequence']
-        to_be_removed_from_distinguishing_attribs: set = set()
-        self._FrameSets: list = []
-        frame_counts = []
-        frameset_counter = 0
-        while len(self.MixedFramesCopy) != 0:
-            frameset_counter += 1
-            x = self._find_all_similar_to_first_datasets()
-            self._FrameSets.append(FrameSet(x[0], x[1]))
-            frame_counts.append(len(x[0]))
-            # log information
-            logger.debug("Frameset({:02d}) including {:03d} frames".format(
-                frameset_counter, len(x[0])))
-            logger.debug('\t Distinguishing tags:')
-            for dg_i, dg_tg in enumerate(x[1], 1):
-                logger.debug('\t\t{:02d}/{})\t{}-{:32.32s} = {:32.32s}'.format(
-                    dg_i, len(x[1]), DicomHelper.tag2str(dg_tg),
-                    keyword_for_tag(dg_tg),
-                    str(x[0][0][dg_tg].value)))
-            logger.debug('\t dicom datasets in this frame set:')
-            for dicom_i, dicom_ds in enumerate(x[0], 1):
-                logger.debug('\t\t{}/{})\t {}'.format(
-                    dicom_i, len(x[0]), dicom_ds['SOPInstanceUID']))
-        frames = ''
-        for i, f_count in enumerate(frame_counts, 1):
-            frames += '{: 2d}){:03d}\t'.format(i, f_count)
-        frames = '{: 2d} frameset(s) out of all {: 3d} instances:'.format(
-            len(frame_counts), len(self.MixedFrames)) + frames
-        logger.info(frames)
-        for kw in to_be_removed_from_distinguishing_attribs:
-            self.DistinguishingAttributeKeywords.remove(kw)
-        self.ExcludedFromPerFrameTags = {}
-        for kwkw in self.DistinguishingAttributeKeywords:
-            self.ExcludedFromPerFrameTags[tag_for_keyword(kwkw)] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionDateTime')] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionDate')] = False
-        self.ExcludedFromPerFrameTags[
-            tag_for_keyword('AcquisitionTime')] = False
-        self.ExcludedFromFunctionalGroupsTags = {
-            tag_for_keyword('SpecificCharacterSet'): False}
-
-    def _find_all_similar_to_first_datasets(self) -> tuple:
-        logger = logging.getLogger(__name__)
-        similar_ds: list = [self.MixedFramesCopy[0]]
-        distinguishing_tags_existing = []
-        distinguishing_tags_missing = []
-        self.MixedFramesCopy = self.MixedFramesCopy[1:]
-        for kw in self.DistinguishingAttributeKeywords:
-            tg = tag_for_keyword(kw)
-            if tg in similar_ds[0]:
-                distinguishing_tags_existing.append(tg)
-            else:
-                distinguishing_tags_missing.append(tg)
-        logger_msg = set()
-        for ds in self.MixedFramesCopy:
-            all_equal = True
-            for tg in distinguishing_tags_missing:
-                if tg in ds:
-                    logger_msg.add(
-                        '{} is missing in all but {}'.format(
-                            DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
-                    all_equal = False
-                    break
-            if not all_equal:
-                continue
-            for tg in distinguishing_tags_existing:
-                ref_val = similar_ds[0][tg].value
-                if tg not in ds:
-                    all_equal = False
-                    break
-                new_val = ds[tg].value
-                if not DicomHelper.isequal(ref_val, new_val):
-                    logger_msg.add(
-                        'Inequality on distinguishing '
-                        'attribute{} -> {} != {} \n series uid = {}'.format(
-                            DicomHelper.tag2kwstr(tg), ref_val, new_val,
-                            ds.SeriesInstanceUID))
-                    all_equal = False
-                    break
-            if all_equal:
-                similar_ds.append(ds)
-        for msg_ in logger_msg:
-            logger.info(msg_)
-        for ds in similar_ds:
-            if ds in self.MixedFramesCopy:
-                self.MixedFramesCopy.remove(ds)
-        return (similar_ds, distinguishing_tags_existing)
-
-    @property
-    def DistinguishingAttributeKeywords(self) -> List[str]:
-        return self._DistinguishingAttributeKeywords[:]
-
-    @property
-    def FrameSets(self) -> List[FrameSet]:
-        return self._FrameSets
