@@ -1,5 +1,9 @@
 """ Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
-from __future__ import annotations
+import sys
+expect_major = 3
+expect_minor = 7
+if sys.version_info[:2] != (expect_major, expect_minor):
+    from __future__ import annotations
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union, Callable
@@ -650,19 +654,19 @@ class Abstract_MultiframeModuleAdder(ABC):
             try:
                 d_tmp = DA(a.value)
                 a.value = DA(default) if d_tmp is None else d_tmp
-            except: 
+            except BaseException:
                 a.value = DA(default)
         if a.VR == 'DT' and type(a.value) == str:
             try:
                 dt_tmp = DT(a.value)
                 a.value = DT(default) if dt_tmp is None else dt_tmp
-            except:
+            except BaseException:
                 a.value = DT(default)
         if a.VR == 'TM' and type(a.value) == str:
             try:
                 t_tmp = TM(a.value)
                 a.value = TM(default) if t_tmp is None else t_tmp
-            except:
+            except BaseException:
                 a.value = TM(default)
 
         self._mark_tag_as_used(tg)
@@ -975,9 +979,9 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
                 ref_dataset, self.TargetDataset, kw,
                 check_not_to_be_perframe=True,
                 check_not_to_be_empty=False)
-        sum_compression_ratio = 0
+        sum_compression_ratio: float = 0
         c_ratio_tag = tag_for_keyword('LossyImageCompressionRatio')
-        if  tag_for_keyword('LossyImageCompression') in self._SharedTags and \
+        if tag_for_keyword('LossyImageCompression') in self._SharedTags and \
                 tag_for_keyword(
                     'LossyImageCompressionMethod') in self._SharedTags and \
                 c_ratio_tag in self._PerFrameTags:
@@ -986,10 +990,10 @@ class EnhancedCommonImageModule(Abstract_MultiframeModuleAdder):
                     ratio = fr_ds[c_ratio_tag].value
                     try:
                         sum_compression_ratio += float(ratio)
-                    except:
-                        sum_compression_ratio += 1 #  supposing uncompressed
+                    except BaseException:
+                        sum_compression_ratio += 1  # supposing uncompressed
                 else:
-                    supe_compression_ratio += 1
+                    sum_compression_ratio += 1
             avg_compression_ratio = sum_compression_ratio /\
                 len(self.SingleFrameSet)
             avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
@@ -1191,26 +1195,30 @@ class FrameAnatomyFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
         if len(item) != 0:
-            self._copy_attrib_if_present(src_fg, item, 'FrameLaterality',
-                                        check_not_to_be_perframe=False,
-                                        check_not_to_be_empty=True)
+            self._copy_attrib_if_present(
+                src_fg, item, 'FrameLaterality',
+                check_not_to_be_perframe=False,
+                check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
-                self._copy_attrib_if_present(src_fg, item, 'ImageLaterality',
-                                            'FrameLaterality',
-                                            check_not_to_be_perframe=False,
-                                            check_not_to_be_empty=True)
+                self._copy_attrib_if_present(
+                    src_fg, item, 'ImageLaterality',
+                    'FrameLaterality',
+                    check_not_to_be_perframe=False,
+                    check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
-                self._copy_attrib_if_present(src_fg, item, 'Laterality',
-                                            'FrameLaterality',
-                                            check_not_to_be_perframe=False,
-                                            check_not_to_be_empty=True)
+                self._copy_attrib_if_present(
+                    src_fg, item, 'Laterality',
+                    'FrameLaterality',
+                    check_not_to_be_perframe=False,
+                    check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
                 FrameLaterality_a = self._get_or_create_attribute(
                     src_fg, 'FrameLaterality', "U")
                 item['FrameLaterality'] = FrameLaterality_a
-            FrameAnatomy_a = DataElement(fa_seq_tg,
-                                        dictionary_VR(fa_seq_tg),
-                                        DicomSequence([item]))
+            FrameAnatomy_a = DataElement(
+                fa_seq_tg,
+                dictionary_VR(fa_seq_tg),
+                DicomSequence([item]))
             dest_fg['FrameAnatomySequence'] = FrameAnatomy_a
 
     def _contains_right_attributes(self, tags: dict) -> bool:
@@ -1502,7 +1510,6 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
                                      'RescaleType',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=True)
-        
         value = ''
         modality = '' if 'Modality' not in src_fg\
             else src_fg["Modality"].value
@@ -1525,16 +1532,13 @@ class PixelValueTransformationFunctionalGroup(Abstract_MultiframeModuleAdder):
                 value = 'US'
             tg = tag_for_keyword('RescaleType')
             if "RescaleType" not in item:
-                    item[tg] = DataElement(tg, dictionary_VR(tg), value)
+                item[tg] = DataElement(tg, dictionary_VR(tg), value)
             elif item[tg].value != value:
                 # keep the copied value as LUT explanation
                 voi_exp_tg = tag_for_keyword('LUTExplanation')
                 item[voi_exp_tg] = DataElement(
                     voi_exp_tg, dictionary_VR(voi_exp_tg), item[tg].value)
                 item[tg].value = value
-
-                
-
         kw = 'PixelValueTransformationSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
@@ -1678,7 +1682,7 @@ class UnassignedPerFrame(Abstract_MultiframeModuleAdder):
                                          check_not_to_be_empty=False)
         kw = 'UnassignedPerFrameConvertedAttributesSequence'
         tg = tag_for_keyword(kw)
-        seq = DataElement(tg, dictionary_VR(tg),DicomSequence([item]))
+        seq = DataElement(tg, dictionary_VR(tg), DicomSequence([item]))
         dest_fg[tg] = seq
 
     def _add_largest_smallest_pixle_value(self) -> None:
@@ -1956,8 +1960,7 @@ class FrameContentFunctionalGroup(Abstract_MultiframeModuleAdder):
                     logger.warning(
                         'There are {} slices in one location {} on '
                         'series = {}'.format(
-                            len(idxs), loc, source_series_uid)
-                        )
+                            len(idxs), loc, source_series_uid))
                 for frame_index in idxs:
                     frame = self._get_perframe_item(frame_index)
                     new_item = frame[frame_content_tg].value[0]
@@ -2121,6 +2124,8 @@ class PixelData(Abstract_MultiframeModuleAdder):
         self._number_of_pixels = row * col * self._frame_count
         kw = "PixelData"
         for i in range(0, len(self.SingleFrameSet)):
+            if kw not in self.SingleFrameSet[i]:
+                continue
             PixelData_a = self.SingleFrameSet[i][kw]
             if self._is_other_byte_vr(PixelData_a.VR):
                 if len(self._word_data) != 0:
@@ -2338,16 +2343,16 @@ class LegacyConvertedEnhanceImage(SOPClass):
         if sort_key is None:
             sort_key = LegacyConvertedEnhanceImage.default_sort_key
         super().__init__(
-            study_instance_uid=None if 'StudyInstanceUID' not in ref_ds
+            study_instance_uid="" if 'StudyInstanceUID' not in ref_ds
             else ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=sop_class_uid,
             instance_number=instance_number,
-            manufacturer=None if 'Manufacturer' not in ref_ds
+            manufacturer="" if 'Manufacturer' not in ref_ds
             else ref_ds.Manufacturer,
-            modality=None if 'Modality' not in ref_ds
+            modality="" if 'Modality' not in ref_ds
             else ref_ds.Modality,
             patient_id=None if 'PatientID' not in ref_ds
             else ref_ds.PatientID,
@@ -2820,15 +2825,14 @@ class FrameSet:
     @property
     def SharedTags(self) -> List[Tag]:
         return self._SharedTags[:]
-    
+
     @property
     def SeriesInstanceUID(self) -> UID:
         return self._Frames[0].SeriesInstanceUID
-    
+
     @property
     def StudyInstanceUID(self) -> UID:
         return self._Frames[0].StudyInstanceUID
-
 
     def GetSOPInstanceUIDList(self) -> list:
         OutputList: list = []
@@ -2840,7 +2844,7 @@ class FrameSet:
         return self._Frames[0].SOPClassUID
 
     def _find_per_frame_and_shared_tags(self) -> None:
-        logger = logging.getLogger(__name__)
+        # logger = logging.getLogger(__name__)
         rough_shared: dict = {}
         sfs = self.Frames
         for ds in sfs:
@@ -2948,12 +2952,12 @@ class FrameSetCollection:
             frames += '{: 2d}){:03d}\t'.format(i, f_count)
         frames = '{: 2d} frameset(s) out of all {: 3d} instances:'.format(
             len(frame_counts), len(self.MixedFrames)) + frames
-        logger.info(frames)        
+        logger.info(frames)
         for kw in to_be_removed_from_distinguishing_attribs:
             self.DistinguishingAttributeKeywords.remove(kw)
         self.ExcludedFromPerFrameTags = {}
-        for i in self.DistinguishingAttributeKeywords:
-            self.ExcludedFromPerFrameTags[tag_for_keyword(i)] = False
+        for kwkw in self.DistinguishingAttributeKeywords:
+            self.ExcludedFromPerFrameTags[tag_for_keyword(kwkw)] = False
         self.ExcludedFromPerFrameTags[
             tag_for_keyword('AcquisitionDateTime')] = False
         self.ExcludedFromPerFrameTags[
