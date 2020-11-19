@@ -375,7 +375,7 @@ class ImageFileReader(object):
         file_meta = read_file_meta_info(self.filename)
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         try:
-            self._fp = DicomFile(str(self.filename), mode='r+b')
+            self._fp = DicomFile(str(self.filename), mode='rb')
             self._fp.is_little_endian = transfer_syntax_uid.is_little_endian
             self._fp.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
         except FileNotFoundError:
