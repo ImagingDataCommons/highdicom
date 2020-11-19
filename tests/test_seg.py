@@ -307,7 +307,7 @@ class TestPlanePositionSequence(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._image_position = (1.0, 2.0, 3.0)
-        self._pixel_matrix_position = (10, 20)
+        self._pixel_matrix_position = (20, 10)
 
     def test_construction_1(self):
         seq = PlanePositionSequence(
@@ -332,9 +332,9 @@ class TestPlanePositionSequence(unittest.TestCase):
         assert item.YOffsetInSlideCoordinateSystem == self._image_position[1]
         assert item.ZOffsetInSlideCoordinateSystem == self._image_position[2]
         assert item.RowPositionInTotalImagePixelMatrix == \
-            self._pixel_matrix_position[0]
-        assert item.ColumnPositionInTotalImagePixelMatrix == \
             self._pixel_matrix_position[1]
+        assert item.ColumnPositionInTotalImagePixelMatrix == \
+            self._pixel_matrix_position[0]
         with pytest.raises(AttributeError):
             item.ImagePositionPatient
 

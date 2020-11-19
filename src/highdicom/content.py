@@ -130,23 +130,28 @@ class PlanePositionSequence(DataElementSequence):
             millimeter along the x, y, and z axis of the three-dimensional
             patient or slide coordinate system
         pixel_matrix_position: Tuple[int, int], optional
-            Offset of the first row and first column of the plane (frame) in
+            Offset of the first column and first row of the plane (frame) in
             pixels along the row and column direction of the total pixel matrix
             (only required if `coordinate_system` is ``"SLIDE"``)
 
         """
         super().__init__()
         item = Dataset()
+
+        def ds(num: float) -> float:
+            return float(str(num)[:16])
+
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
                 raise TypeError(
                     'Position in Pixel Matrix must be specified for '
                     'slide coordinate system.'
                 )
-            row_position, col_position = pixel_matrix_position
-            item.XOffsetInSlideCoordinateSystem = image_position[0]
-            item.YOffsetInSlideCoordinateSystem = image_position[1]
-            item.ZOffsetInSlideCoordinateSystem = image_position[2]
+            col_position, row_position = pixel_matrix_position
+            x, y, z = image_position
+            item.XOffsetInSlideCoordinateSystem = ds(x)
+            item.YOffsetInSlideCoordinateSystem = ds(y)
+            item.ZOffsetInSlideCoordinateSystem = ds(z)
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
@@ -183,11 +188,15 @@ class PlanePositionSequence(DataElementSequence):
                     other[0].XOffsetInSlideCoordinateSystem,
                     other[0].YOffsetInSlideCoordinateSystem,
                     other[0].ZOffsetInSlideCoordinateSystem,
+                    other[0].RowPositionInTotalImagePixelMatrix,
+                    other[0].ColumnPositionInTotalImagePixelMatrix,
                 ]),
                 np.array([
                     self[0].XOffsetInSlideCoordinateSystem,
                     self[0].YOffsetInSlideCoordinateSystem,
                     self[0].ZOffsetInSlideCoordinateSystem,
+                    self[0].RowPositionInTotalImagePixelMatrix,
+                    self[0].ColumnPositionInTotalImagePixelMatrix,
                 ]),
             )
 
