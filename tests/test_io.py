@@ -4,6 +4,7 @@ from random import shuffle
 
 import numpy as np
 from pydicom import dcmread
+from pydicom.data import get_testdata_file
 import pytest
 
 from highdicom.io import ImageFileReader
@@ -39,6 +40,23 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_multi_frame_ct_image_native(self):
+        filename = str(get_testdata_file('eCT_Supplemental.dcm'))
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(filename) as reader:
+            assert reader.number_of_frames == 2
+            frame_index = 0
+            frame = reader.read_frame(frame_index)
+            assert isinstance(frame, np.ndarray)
+            assert frame.ndim == 2
+            assert frame.dtype == np.uint16
+            assert frame.shape == (
+                reader.metadata.Rows,
+                reader.metadata.Columns,
+            )
+            np.testing.assert_array_equal(frame, pixel_array[frame_index])
 
     def test_read_multi_frame_sm_image_native(self):
         filename = str(self._test_dir.joinpath('sm_image.dcm'))
