@@ -17,9 +17,9 @@ from pydicom.uid import (
 
 
 def encode_frame(
-    array: np.ndarray,
-    metadata: Dataset,
-) -> bytes:
+        array: np.ndarray,
+        metadata: Dataset,
+    ) -> bytes:
     """Encodes pixel data of an individual frame.
 
     Parameters

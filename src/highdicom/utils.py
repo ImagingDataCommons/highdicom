@@ -9,14 +9,12 @@ from highdicom.enum import CoordinateSystemNames
 
 
 def tile_pixel_matrix(
-    total_pixel_matrix_rows: int,
-    total_pixel_matrix_columns: int,
-    rows: int,
-    columns: int,
-) -> Iterator[Tuple[int, int]]:
-    """Tiles an image into smaller frames (rectangular regions) given the size
-    of the total pixel matrix, the size of each frame and the orientation of
-    the image with respect to the three-dimensional slide coordinate system.
+        total_pixel_matrix_rows: int,
+        total_pixel_matrix_columns: int,
+        rows: int,
+        columns: int,
+    ) -> Iterator[Tuple[int, int]]:
+    """Tiles an image into smaller frames (rectangular regions).
 
     Parameters
     ----------
@@ -35,26 +33,26 @@ def tile_pixel_matrix(
         One-based Column, Row index of each Frame (tile)
 
     """
-    tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
-    tiles_per_col = int(np.ceil(total_pixel_matrix_columns / columns))
-    tile_row_indices = iter(range(1, tiles_per_row + 1))
-    tile_col_indices = iter(range(1, tiles_per_col + 1))
+    tiles_per_col = int(np.ceil(total_pixel_matrix_rows / rows))
+    tiles_per_row = int(np.ceil(total_pixel_matrix_columns / columns))
+    tile_row_indices = iter(range(1, tiles_per_col + 1))
+    tile_col_indices = iter(range(1, tiles_per_row + 1))
     return itertools.product(tile_col_indices, tile_row_indices)
 
 
 def compute_plane_position_tiled_full(
-    row_index: int,
-    column_index: int,
-    x_offset: float,
-    y_offset: float,
-    rows: int,
-    columns: int,
-    image_orientation: Tuple[float, float, float, float, float, float],
-    pixel_spacing: Tuple[float, float],
-    slice_thickness: Optional[float] = None,
-    spacing_between_slices: Optional[float] = None,
-    slice_index: Optional[float] = None
-) -> PlanePositionSequence:
+        row_index: int,
+        column_index: int,
+        x_offset: float,
+        y_offset: float,
+        rows: int,
+        columns: int,
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+        slice_thickness: Optional[float] = None,
+        spacing_between_slices: Optional[float] = None,
+        slice_index: Optional[float] = None
+    ) -> PlanePositionSequence:
     """Computes the absolute position of a Frame (image plane) in the
     Frame of Reference defined by the three-dimensional slide coordinate
     system given their relative position in the Total Pixel Matrix.
@@ -151,8 +149,8 @@ def compute_plane_position_tiled_full(
 
 
 def compute_plane_position_slide_per_frame(
-    dataset: Dataset
-) -> List[PlanePositionSequence]:
+        dataset: Dataset
+    ) -> List[PlanePositionSequence]:
     """Computes the plane position for each frame in given dataset with
     respect to the slide coordinate system.
 
@@ -239,11 +237,11 @@ def compute_plane_position_slide_per_frame(
 
 
 def map_pixel_into_coordinate_system(
-    coordinate: Tuple[float, float],
-    image_position: Tuple[float, float, float],
-    image_orientation: Tuple[float, float, float, float, float, float],
-    pixel_spacing: Tuple[float, float],
-) -> Tuple[float, float, float]:
+        coordinate: Tuple[float, float],
+        image_position: Tuple[float, float, float],
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+    ) -> Tuple[float, float, float]:
     """Maps a coordinate in the pixel matrix into the physical coordinate
     system (e.g., Slide or Patient) defined by a frame of reference.
 

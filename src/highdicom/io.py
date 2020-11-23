@@ -286,9 +286,9 @@ def _build_icc_transform(metadata: Dataset) -> Union[ImageCmsTransform, None]:
 
 
 def _apply_icc_transform(
-    image: Image.Image,
-    transform: ImageCmsTransform
-) -> np.ndarray:
+        image: Image.Image,
+        transform: ImageCmsTransform
+    ) -> np.ndarray:
     """Applies an ICC transformation to correct the color of an image.
 
     Parameters
