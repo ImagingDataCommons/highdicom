@@ -384,8 +384,8 @@ class ImageFileReader(object):
             raise OSError(
                 f'Could not open file for reading: "{self.filename}"'
             )
+        logger.info('read metadata elements')
         try:
-            logger.info('read metadata elements')
             self._metadata = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
             raise IOError(
