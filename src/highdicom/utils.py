@@ -270,11 +270,6 @@ def map_pixel_into_coordinate_system(
         (X, Y, Z) coordinate in the coordinate system defined by the
         Frame of Reference
 
-    Raises
-    ------
-    ValueError
-        When the X, Y or Z coordinate has a negative value
-
     """
     # Read the below article for further information about the mapping
     # between coordinates in the pixel matrix and the frame of reference:
@@ -287,47 +282,23 @@ def map_pixel_into_coordinate_system(
     column_cosines = np.array(image_orientation[3:])
     row_spacing = float(pixel_spacing[0])
     column_spacing = float(pixel_spacing[1])
-
-    n = np.cross(column_cosines.T, row_cosines.T)
-    k = np.array([0.0, 0.0, 0.0])
+    row_offset = float(coordinate[1])
+    column_offset = float(coordinate[0])
 
     f_row = row_cosines * row_spacing
     f_col = column_cosines * column_spacing
 
-    # 4x4 affine transformation matrix
+    # 3x3 transformation matrix
     affine = np.concatenate(
         [
-            f_row[..., None],
-            f_col[..., None],
-            k[..., None],
-            image_offset[..., None],
+            f_row[..., np.newaxis],
+            f_col[..., np.newaxis],
+            image_offset[..., np.newaxis],
         ],
         axis=1
     )
-    affine = np.concatenate(
-        [
-            affine,
-            np.array([[0.0, 0.0, 0.0, 1.0]])
-        ],
-        axis=0
-    )
 
-    column_offset = float(coordinate[0])
-    row_offset = float(coordinate[1])
-    pixel_matrix_coordinate = np.array([[column_offset, row_offset, 0.0, 1.0]])
-
+    pixel_matrix_coordinate = np.array([[column_offset, row_offset, 1.0]])
     physical_coordinate = np.dot(affine, pixel_matrix_coordinate.T)
 
-    x = physical_coordinate[0][0]
-    if (x < 0.0):
-        raise ValueError('X offset in coordinate system cannot be negative.')
-
-    y = physical_coordinate[1][0]
-    if (y < 0.0):
-        raise ValueError('Y offset in coordinate system cannot be negative.')
-
-    z = np.sum([n[0] * x_offset, n[1] * y_offset, n[2] * z_offset])
-    if (z < 0.0):
-        raise ValueError('Z offset in coordinate system cannot be negative.')
-
-    return (x, y, z)
+    return tuple(physical_coordinate.flatten().tolist())
