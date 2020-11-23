@@ -137,6 +137,15 @@ params_1 = [
         ),
         (12.5, 68.0, 0.0),
     ),
+    pytest.param(
+        dict(
+            coordinate=(15.0, 87.0),
+            image_position=(-45.0, 35.0, -90.0),
+            image_orientation=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0),
+            pixel_spacing=(0.5, 0.25),
+        ),
+        (-45.0, 42.5, -111.75),
+    ),
 ]
 
 
