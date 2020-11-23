@@ -259,8 +259,8 @@ def map_pixel_into_coordinate_system(
     image_orientation: Tuple[float, float, float, float, float, float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
-        vertical, top to bottom, increasing Row index) direction for X, Y, and
-        Z axis of the patient or slide coordinate system defined by the
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
     pixel_spacing: Tuple[float, float]
         Spacing between pixels in millimeter unit along the row direction
