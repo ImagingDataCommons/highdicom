@@ -69,7 +69,7 @@ def compute_plane_position_tiled_full(
         range [1, *n*], where *n* is the number of tiles per column)
     column_index: int
         One-based Column index value for a given frame (tile) along the row
-        direction of the the tiled Total Pixel Matrix, which is defined by
+        direction of the tiled Total Pixel Matrix, which is defined by
         the first triplet in `image_orientation` (values should be in the
         range [1, *n*], where *n* is the number of tiles per row)
     x_offset: float
