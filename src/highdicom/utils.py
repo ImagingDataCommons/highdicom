@@ -104,32 +104,29 @@ def compute_plane_position_tiled_full(
     highdicom.content.PlanePositionSequence
         Positon of the plane in the slide coordinate system
 
+    Raises
+    ------
+    TypeError
+        When only one of `slice_index` and `spacing_between_slices` is provided
+
     """
     # Offset values are one-based, i.e., the top left pixel in the Total Pixel
     # Matrix has offset (1, 1) rather than (0, 0)
     row_offset_frame = ((row_index - 1) * rows) + 1
     column_offset_frame = ((column_index - 1) * columns) + 1
 
-    provided_3d_parameters = (
-        slice_thickness is not None,
+    provided_3d_params = (
         slice_index is not None,
         spacing_between_slices is not None,
     )
-    if not(
-        sum(provided_3d_parameters) == 0 or sum(provided_3d_parameters) == 3
-    ):
+    if not(sum(provided_3d_params) == 0 or sum(provided_3d_params) == 2):
         raise TypeError(
-            'None or all of the following parameters need to be provided: '
-            '"slice_index", "slice_thickness", "spacing_between_slices"'
+            'None or both of the following parameters need to be provided: '
+            '"slice_index", "spacing_between_slices"'
         )
     # These checks are needed for mypy to be able to determine the correct type
-    if (slice_index is not None and
-            slice_thickness is not None and
-            spacing_between_slices is not None):
-        z_offset = (
-            float(slice_index - 1) * slice_thickness +
-            float(slice_index - 1) * spacing_between_slices
-        )
+    if (slice_index is not None and spacing_between_slices is not None):
+        z_offset = float(slice_index - 1) * spacing_between_slices
     else:
         z_offset = 0.0
 
