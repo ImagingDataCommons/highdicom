@@ -3,7 +3,7 @@ import logging
 import sys
 import traceback
 from io import BytesIO
-from typing import Iterator, List, Optional, Sequence, Tuple, Union
+from typing import List, Union
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -16,7 +16,7 @@ from PIL.ImageCms import (
     isIntentSupported,
 )
 from pydicom.dataset import Dataset
-from pydicom.encaps import get_frame_offsets, read_item, defragment_data
+from pydicom.encaps import encapsulate, get_frame_offsets
 from pydicom.filebase import DicomFile
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -24,17 +24,8 @@ from pydicom.filereader import (
     read_file_meta_info,
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
-from pydicom.pixel_data_handlers.pillow_handler import (
-    PillowSupportedTransferSyntaxes
-)
-from pydicom.pixel_data_handlers.util import pixel_dtype, get_expected_length
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
-from pydicom.uid import (
-    JPEGBaseline,
-    JPEG2000Lossless,
-    UID,
-    UncompressedPixelTransferSyntaxes,
-)
+from pydicom.uid import JPEGBaseline, UID
 
 logger = logging.getLogger(__name__)
 
@@ -395,12 +386,15 @@ class ImageFileReader(object):
         self._pixel_data_offset = self._fp.tell()
         # Determine whether dataset contains a Pixel Data element
         tag = TupleTag(self._fp.read_tag())
-        self._fp.seek(self._pixel_data_offset, 0)
         if int(tag) not in _PIXEL_DATA_TAGS:
             raise ValueError('Dataset does not represent an image')
         self._as_float = False
         if int(tag) in _FLOAT_PIXEL_DATA_TAGS:
             self._as_float = True
+
+        # Reset the file pointer to the beginning of the Pixel Data element
+        self._fp.seek(self._pixel_data_offset, 0)
+
         # Build the ICC Transformation object. This takes some time and should
         # be done only once to speedup subsequent color corrections.
         self._icc_transform = _build_icc_transform(self._metadata)
@@ -497,6 +491,7 @@ class ImageFileReader(object):
         if index > self.number_of_frames:
             raise ValueError('Frame index exceeds number of frames in image.')
         logger.info(f'read frame #{index}')
+
         frame_offset = self._basic_offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
         if self.metadata.file_meta.TransferSyntaxUID.is_encapsulated:
@@ -568,13 +563,10 @@ class ImageFileReader(object):
         ------
         ValueError
             When transfer syntax is not supported.
-        AttributeError
-            When `metadata` does not have any of the following attributes:
-            ``Rows``, ``Columns``, ``BitsAllocated``, ``SamplesPerPixel``,
-            ``PhotometricInterpretation``, ``PixelRepresentation``,
-            ``PlanarConfiguration``
 
         """
+        ds = Dataset()
+        ds.file_meta = self.metadata.file_meta
         required_attributes = {
             'Rows',
             'Columns',
@@ -584,197 +576,50 @@ class ImageFileReader(object):
             'PixelRepresentation',
         }
         for attr in required_attributes:
-            if not hasattr(self.metadata, attr):
+            try:
+                setattr(ds, attr, getattr(self.metadata, attr))
+            except AttributeError:
                 raise AttributeError(
+                    'Cannot decode frame. '
                     f'Image is missing required attribute "{attr}".'
                 )
+
         if self.metadata.SamplesPerPixel > 1:
-            if not hasattr(self.metadata, 'PlanarConfiguration'):
+            attr = 'PlanarConfiguration'
+            try:
+                setattr(ds, attr, getattr(self.metadata, attr))
+            except AttributeError:
                 raise AttributeError(
-                    f'Color image is missing required attribute "{attr}".'
+                    'Cannot decode frame. '
+                    f'Image is missing required attribute "{attr}".'
                 )
 
-        transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID
-        if transfer_syntax_uid in UncompressedPixelTransferSyntaxes:
-            return self._decode_frame_native(value)
-        elif transfer_syntax_uid == JPEGBaseline:
-            return self._decode_frame_JPEG_baseline(value)
-        elif transfer_syntax_uid == JPEG2000Lossless:
-            return self._decode_frame_JPEG2000_lossless(value)
-        else:
-            raise ValueError(
-                f'Transfer Syntax "{transfer_syntax_uid}" is not supported '
-                'for decoding of frames.'
-            )
-
-    def _decode_frame_JPEG_baseline(self, value: bytes) -> np.ndarray:
-        """Decodes pixel data of an individual frame with transfer syntax
-        ``"1.2.840.10008.1.2.4.50"`` (JPEG Baseline).
-
-        Parameters
-        ----------
-        value: bytes
-            Pixel data of a frame
-
-        Returns
-        -------
-        numpy.ndarray
-            Decoded pixel data
-
-        Raises
-        ------
-        ValueError
-            When EOI or SOI marker segments are not found in byte stream
-
-        Note
-        ----
-        Will apply ICC Profile if present in `metadata.`
-
-        """
-        if not value.startswith(_JPEG_SOI_MARKER):
-            raise ValueError('Not valid JPEG. Missing SOI marker segment.')
-        if _JPEG_EOI_MARKER not in value[-6:]:  # may be zero-padded
-            raise ValueError('Not valid JPEG. Missing EOI marker segment.')
-
-        n_bytes = self._bytes_per_frame_uncompressed
-        image = Image.open(BytesIO(value[:n_bytes]))
-        if self.metadata.PhotometricInterpretation == 'RGB':
-            # RGB color images, which were not transformed into YCbCr color
-            # space upon JPEG compression, need to be handled separately.
-            # Pillow assumes that images were transformed into YCbCr color
-            # space prior to JPEG compression. However, with photometric
-            # interpretation RGB, no color transformation was performed.
-            # Setting the value of "mode" to YCbCr signals Pillow to not
-            # apply any color transformation upon decompression.
-            color_mode = 'YCbCr'
-            image.tile = [(
-                'jpeg',
-                image.tile[0][1],
-                image.tile[0][2],
-                (color_mode, ''),
-            )]
-            image.mode = color_mode
-            image.rawmode = color_mode
-
-        return np.asarray(image)
-
-    def _decode_frame_JPEG2000_lossless(self, value: bytes) -> np.ndarray:
-        """Decodes pixel data of an individual frame with transfer syntax
-        ``"1.2.840.10008.1.2.4.90"`` (JPEG 2000 Lossless).
-
-        Parameters
-        ----------
-        value: bytes
-            Compressed pixel data of a frame
-
-        Returns
-        -------
-        numpy.ndarray
-            Decoded pixel data
-
-        Raises
-        ------
-        ValueError
-            When EOC or SOC marker segments are not found in byte stream
-
-        Note
-        ----
-        Will apply ICC Profile if present in the `metadata.`
-
-        """
-        if not value.startswith(_JPEG2000_SOC_MARKER):
-            raise ValueError('Not valid JPEG 2000. Missing SOC marker segment.')
-        if _JPEG2000_EOC_MARKER not in value[-6:]:  # may be zero-padded
-            raise ValueError('Not valid JPEG 2000. Missing EOC marker segment.')
-
-        n_bytes = self._bytes_per_frame_uncompressed
-        image = Image.open(BytesIO(value[:n_bytes]))
-        return np.asarray(image)
-
-    def _decode_frame_bitpacked(
-        self,
-        value: bytes,
-        ignore_bits: int
-    ) -> np.ndarray:
-        """Decodes bitpacked pixel data of an individual frame with one of the
-        following transfer syntaxes:
-
-            - ``"1.2.840.10008.1.2"`` (Implicit VR Little Endian)
-            - ``"1.2.840.10008.1.2.1"`` (Explicit VR Little Endian)
-            - ``"1.2.840.10008.1.2.2"`` (Explicit VR Big Endian)
-
-        Parameters
-        ----------
-        value: bytes
-            Bitpacked pixel data of a frame
-
-        Returns
-        -------
-        numpy.ndarray
-            Decoded pixel data
-
-        """
-        rows = self.metadata.Rows
-        columns = self.metadata.Columns
-        bits_allocated = self.metadata.BitsAllocated
-        if bits_allocated != 1:
-            raise ValueError('Expected image with 1 bit allocated per pixel.')
-        # Skip any trailing padding bits
-        n_pixels = self._pixels_per_frame
-        pixel_array = unpack_bits(value)[:n_pixels]
-        return pixel_array.reshape(rows, columns)
-
-    def _decode_frame_native(self, value: bytes) -> np.ndarray:
-        """Decodes pixel data of an individual frame with one of the following
-        transfer syntaxes:
-
-            - ``"1.2.840.10008.1.2"`` (Implicit VR Little Endian)
-            - ``"1.2.840.10008.1.2.1"`` (Explicit VR Little Endian)
-            - ``"1.2.840.10008.1.2.2"`` (Explicit VR Big Endian)
-
-        Parameters
-        ----------
-        value: bytes
-            Uncompressed pixel data of a frame
-
-        Returns
-        -------
-        numpy.ndarray
-            Decoded pixel data
-
-        """
-        rows = self.metadata.Rows
-        columns = self.metadata.Columns
-        samples_per_pixel = self.metadata.SamplesPerPixel
-        photometric_interpretation = self.metadata.PhotometricInterpretation
-
-        dtype = pixel_dtype(self.metadata, as_float=self._as_float)
-        n_pixels = self._pixels_per_frame
-        # Skip the trailing padding byte(s) if present
-        n_bytes = self._bytes_per_frame_uncompressed
-        pixel_array = np.frombuffer(value[:n_bytes], dtype=dtype)
-        if photometric_interpretation == 'YBR_FULL_422':
-            # YBR_FULL_422 data needs to be resampled
-            # Y1 Y2 B1 R1 -> Y1 B1 R1 Y2 B1 R1
-            out = np.zeros(n_pixels // 2 * 3, dtype=dtype)
-            out[::6] = pixel_array[::4]  # Y1
-            out[3::6] = pixel_array[1::4]  # Y2
-            out[1::6], out[4::6] = pixel_array[2::4], pixel_array[2::4]  # B
-            out[2::6], out[5::6] = pixel_array[3::4], pixel_array[3::4]  # R
-            pixel_array = out
-
-        if samples_per_pixel > 1:
-            planar_configuration = self.metadata.PlanarConfiguration
-            if planar_configuration == 0:
-                return pixel_array.reshape(rows, columns, samples_per_pixel)
-            elif planar_configuration == 1:
-                pixel_array = pixel_array.reshape(
-                    samples_per_pixel, rows, columns
-                )
-                return pixel_array.transpose(1, 2, 0)
+        if self.metadata.file_meta.TransferSyntaxUID.is_encapsulated:
+            if (self.metadata.file_meta.TransferSyntaxUID == JPEGBaseline and
+                    self.metadata.PhotometricInterpretation == 'RGB'):
+                # RGB color images, which were not transformed into YCbCr color
+                # space upon JPEG compression, need to be handled separately.
+                # Pillow assumes that images were transformed into YCbCr color
+                # space prior to JPEG compression. However, with photometric
+                # interpretation RGB, no color transformation was performed.
+                # Setting the value of "mode" to YCbCr signals Pillow to not
+                # apply any color transformation upon decompression.
+                n_bytes = self._bytes_per_frame_uncompressed
+                compressed_pixels = value[:n_bytes]
+                image = Image.open(BytesIO(compressed_pixels))
+                color_mode = 'YCbCr'
+                image.tile = [(
+                    'jpeg',
+                    image.tile[0][1],
+                    image.tile[0][2],
+                    (color_mode, ''),
+                )]
+                image.mode = color_mode
+                image.rawmode = color_mode
+                return np.asarray(image)
             else:
-                raise ValueError(
-                    f'Unexpected Planar Configuration "{planar_configuration}"'
-                )
+                ds.PixelData = encapsulate(frames=[value])
         else:
-            return pixel_array.reshape(rows, columns)
+            ds.PixelData = value
+
+        return ds.pixel_array
