@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
 from typing import Optional, Sequence, Union
 
-from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 

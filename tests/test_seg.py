@@ -1,18 +1,15 @@
 from io import BytesIO
 import unittest
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from pydicom.data import get_testdata_file, get_testdata_files
-from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import (
     generate_uid,
-    UID,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,

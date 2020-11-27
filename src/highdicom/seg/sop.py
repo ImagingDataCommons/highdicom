@@ -1,5 +1,4 @@
 """Module for the SOP class of the Segmentation IOD."""
-import itertools
 import logging
 import numpy as np
 from collections import defaultdict
@@ -18,7 +17,6 @@ from pydicom.uid import (
 from pydicom.sr.codedict import codes
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
-    VLSlideCoordinatesMicroscopicImageStorage,
     VLWholeSlideMicroscopyImageStorage,
 )
 

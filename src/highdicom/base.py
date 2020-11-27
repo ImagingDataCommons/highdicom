@@ -3,17 +3,15 @@ import datetime
 from io import BytesIO
 from typing import List, Optional, Sequence, Union
 
-from pydicom.datadict import keyword_for_tag, tag_for_keyword
+from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.filewriter import write_file_meta_info
 from pydicom.uid import (
-    DeflatedExplicitVRLittleEndian,
     ExplicitVRBigEndian,
-    ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     UID_dictionary,
 )
-from pydicom.valuerep import DA, DT, TM
+from pydicom.valuerep import DA, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues

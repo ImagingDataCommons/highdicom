@@ -1,7 +1,6 @@
 """Data Elements that are specific to the Segmentation IOD."""
 from typing import Optional, Sequence, Union
 
-import numpy as np
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence

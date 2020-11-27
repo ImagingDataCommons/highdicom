@@ -1,6 +1,5 @@
 """Utilities for working with SR document instances."""
-from enum import Enum
-from typing import List, Optional, Union
+from typing import Iterator, List, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code

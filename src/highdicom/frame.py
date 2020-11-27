@@ -7,13 +7,14 @@ from pydicom.dataset import Dataset
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.uid import (
-    ExplicitVRBigEndian,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEGBaseline,
     JPEG2000Lossless,
     RLELossless,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def encode_frame(

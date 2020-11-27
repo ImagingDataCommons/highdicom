@@ -1,6 +1,5 @@
 """DICOM structured reporting content item value types."""
 import datetime
-from collections import namedtuple
 from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np

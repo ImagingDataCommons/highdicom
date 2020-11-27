@@ -5,7 +5,6 @@ from random import shuffle
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
-import pytest
 
 from highdicom.io import ImageFileReader
 

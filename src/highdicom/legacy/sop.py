@@ -2,16 +2,12 @@
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
-from pydicom.tag import Tag
-from pydicom.uid import UID
 
 from highdicom.base import SOPClass
-from highdicom.legacy import SOP_CLASS_UIDS
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
@@ -30,8 +26,8 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
 
 
 _SOP_CLASS_UID_IOD_KEY_MAP = {
-    '1.2.840.10008.5.1.4.1.1.2.2':   'legacy-converted-enhanced-ct-image',
-    '1.2.840.10008.5.1.4.1.1.4.4':   'legacy-converted-enhanced-mr-image',
+    '1.2.840.10008.5.1.4.1.1.2.2': 'legacy-converted-enhanced-ct-image',
+    '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
     '1.2.840.10008.5.1.4.1.1.128.1': 'legacy-converted-enhanced-pet-image',
 }
 
