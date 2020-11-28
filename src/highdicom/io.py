@@ -385,9 +385,16 @@ class ImageFileReader(object):
             )
         self._pixel_data_offset = self._fp.tell()
         # Determine whether dataset contains a Pixel Data element
-        tag = TupleTag(self._fp.read_tag())
+        try:
+            tag = TupleTag(self._fp.read_tag())
+        except EOFError:
+            raise ValueError(
+                'Dataset does not represent an image information entity.'
+            )
         if int(tag) not in _PIXEL_DATA_TAGS:
-            raise ValueError('Dataset does not represent an image')
+            raise ValueError(
+                'Dataset does not represent an image information entity.'
+            )
         self._as_float = False
         if int(tag) in _FLOAT_PIXEL_DATA_TAGS:
             self._as_float = True
@@ -516,10 +523,12 @@ class ImageFileReader(object):
         else:
             frame_data = self._fp.read(self._bytes_per_frame_uncompressed)
 
+        if len(frame_data) == 0:
+            raise OSError(f'Failed to read frame #{index}.')
+
         logger.info(f'decode frame #{index}')
 
-        bits_allocated = self.metadata.BitsAllocated
-        if bits_allocated == 1:
+        if self.metadata.BitsAllocated == 1:
             unpacked_frame = unpack_bits(frame_data)
             rows, columns = self.metadata.Rows, self.metadata.Columns
             n_pixels = self._pixels_per_frame
