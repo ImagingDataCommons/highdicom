@@ -7,10 +7,8 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
-from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
-from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
@@ -30,6 +28,7 @@ from highdicom.enum import (
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
 )
+from highdicom.frame import encode_frame
 from highdicom.sc.enum import ConversionTypeValues
 from highdicom.sr.coding import CodedConcept
 
@@ -352,8 +351,4 @@ class SCImage(SOPClass):
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
 
-        # Pixel compression based on transfer syntax uid
-        if self.file_meta.TransferSyntaxUID == RLELossless:
-            self.PixelData = encapsulate([rle_encode_frame(pixel_array)])
-        else:
-            self.PixelData = pixel_array.tobytes()
+        self.PixelData = encode_frame(pixel_array)
