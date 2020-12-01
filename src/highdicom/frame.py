@@ -46,6 +46,9 @@ def encode_frame(
     """
     transfer_syntax_uid = metadata.file_meta.TransferSyntaxUID
     bits_allocated = metadata.BitsAllocated
+    rows = metadata.Rows
+    cols = metadata.Columns
+    samples_per_pixel = metadata.SamplesPerPixel
 
     uncompressed_transfer_syntaxes = {
         ExplicitVRLittleEndian,
@@ -68,6 +71,11 @@ def encode_frame(
         )
     if transfer_syntax_uid in uncompressed_transfer_syntaxes:
         if bits_allocated == 1:
+            if (rows * cols * samples_per_pixel) % 8 != 0:
+                raise ValueError(
+                    'Frame cannot be bit packed because its size is not a '
+                    'multiple of 8.'
+                )
             return pack_bits(array.flatten())
         else:
             return array.flatten().tobytes()
