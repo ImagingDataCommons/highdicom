@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
+from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -913,5 +914,10 @@ class Segmentation(SOPClass):
                         'Only single frame can be encoded at at time '
                         'in case of encapsulated format encoding.'
                     )
-
-        return encode_frame(planes, self)
+            return encode_frame(planes, self)
+        else:
+            # The array may represent more than one frame item.
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                return pack_bits(planes.flatten())
+            else:
+                return planes.flatten().tobytes()
