@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
+from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DA, TM
 from pydicom.uid import (
@@ -351,4 +352,8 @@ class SCImage(SOPClass):
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
 
-        self.PixelData = encode_frame(pixel_array)
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            encoded_frame = encode_frame(pixel_array, self)
+            self.PixelData = encapsulate([encoded_frame])
+        else:
+            self.PixelData = encode_frame(pixel_array, self)
