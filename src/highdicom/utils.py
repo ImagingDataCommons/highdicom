@@ -88,9 +88,10 @@ def compute_plane_position_tiled_full(
         vertical, top to bottom, increasing Row index) direction for X, Y, and
         Z axis of the slide coordinate system defined by the Frame of Reference
     pixel_spacing: Tuple[float, float]
-        Spacing between pixels in millimeter unit along the row direction
-        (horizontal, left to right, increasing Column index) and the column
-        direction (vertical, top to bottom, increasing Row index)
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the row direction (second value: spacing
+        between columns, horizontal, left to right, increasing Column index)
     slice_thickness: float, optional
         Thickness of a focal plane in micrometers
     spacing_between_slices: float, optional
@@ -260,9 +261,10 @@ def map_pixel_into_coordinate_system(
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
     pixel_spacing: Tuple[float, float]
-        Spacing between pixels in millimeter unit along the row direction
-        (horizontal, left to right, increasing Column index) and the column
-        direction (vertical, top to bottom, increasing Row index)
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the rows direction (second value: spacing
+        between columns: horizontal, left to right, increasing Column index)
 
     Returns
     -------
@@ -280,10 +282,10 @@ def map_pixel_into_coordinate_system(
     image_offset = np.array([x_offset, y_offset, z_offset])
     row_cosines = np.array(image_orientation[:3])
     column_cosines = np.array(image_orientation[3:])
-    row_spacing = float(pixel_spacing[0])
-    column_spacing = float(pixel_spacing[1])
-    row_offset = float(coordinate[1])
+    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
+    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
     column_offset = float(coordinate[0])
+    row_offset = float(coordinate[1])
 
     f_row = row_cosines * row_spacing
     f_col = column_cosines * column_spacing
