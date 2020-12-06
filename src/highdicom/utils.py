@@ -191,9 +191,6 @@ def compute_plane_position_slide_per_frame(
         'NumberOfFocalPlanes',
         1
     )
-    row_direction = range(1, tiles_per_row + 1)
-    column_direction = range(1, tiles_per_column + 1)
-    depth_direction = range(1, num_focal_planes + 1)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -226,10 +223,10 @@ def compute_plane_position_slide_per_frame(
             spacing_between_slices=spacing_between_slices,
             slice_index=s,
         )
-        for c, r, s in itertools.product(
-            row_direction,  # left to right, increasing Column index
-            column_direction,  # top to bottom, increasing Row index
-            depth_direction
+        for s, r, c in itertools.product(
+            range(1, num_focal_planes + 1),
+            range(1, tiles_per_column + 1),  # column direction, top to bottom
+            range(1, tiles_per_row + 1),  # row direction, left to right
         )
     ]
 
