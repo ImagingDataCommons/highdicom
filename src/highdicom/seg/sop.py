@@ -89,20 +89,21 @@ class Segmentation(SOPClass):
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
-            values ``True`` and ``False`` or ``0`` and ``1``), the segment number
-            used to encode the segment is taken from segment_descriptions.
-            Otherwise, if pixel_array contains multiple integer values, each value
-            is treated as a different segment whose segment number is that integer
-            value. In this case, all segments found in the array must be described
-            in `segment_descriptions`. Note that this is valid for both ``"BINARY"``
-            and ``"FRACTIONAL"`` segmentations.
-            For ``"FRACTIONAL"`` segmentations, values either encode the probability
-            of a given pixel belonging to a segment
+            values ``True`` and ``False`` or ``0`` and ``1``), the segment
+            number used to encode the segment is taken from
+            `segment_descriptions`. Otherwise, if `pixel_array` contains
+            multiple integer values, each value is treated as a different
+            segment whose segment number is that integer value. In this case,
+            all segments found in the array must be described
+            in `segment_descriptions`. Note that this is valid for both
+            ``"BINARY"`` and ``"FRACTIONAL"`` segmentations.
+            For ``"FRACTIONAL"`` segmentations, values either encode the
+            probability of a given pixel belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
-            When `pixel_array` has a floating point data type, only one segment can be
-            encoded. Additional segments can be subsequently
+            When `pixel_array` has a floating point data type, only one
+            segment can be encoded. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
             If `pixel_array` represents a 3D image, the first dimension
