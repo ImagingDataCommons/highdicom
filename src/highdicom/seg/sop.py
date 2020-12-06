@@ -378,9 +378,7 @@ class Segmentation(SOPClass):
             # same physical dimensions
             # seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
             # seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
-            # src_row_dim = src_img.Rows
-            # Do we need to take ImageOrientationPatient/ImageOrientationPatient
-            # into account?
+            # src_row_dim = src_img.Rows 
 
         if is_multiframe:
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -388,10 +386,6 @@ class Segmentation(SOPClass):
                     coordinate_system=self._coordinate_system,
                     image_orientation=src_img.ImageOrientationSlide
                 )
-                if src_img.SOPClassUID == VLWholeSlideMicroscopyImageStorage:
-                    self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
-                    self.TotalPixelMatrixColumns = \
-                        src_img.TotalPixelMatrixColumns
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
                 source_plane_orientation = src_sfg.PlaneOrientationSequence
@@ -403,7 +397,7 @@ class Segmentation(SOPClass):
         if plane_orientation is None:
             plane_orientation = source_plane_orientation
         self._plane_orientation = plane_orientation
-        self._source_plane_orientation = plane_orientation
+        self._source_plane_orientation = source_plane_orientation
 
         self.DimensionIndexSequence = DimensionIndexSequence(
             coordinate_system=self._coordinate_system
