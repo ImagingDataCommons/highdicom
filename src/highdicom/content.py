@@ -91,7 +91,9 @@ class PixelMeasuresSequence(DataElementSequence):
         ----------
         pixel_spacing: Tuple[float, float]
             Distance in physical space between neighboring pixels in
-            millimeters along the row and column dimension of the image
+            millimeters along the row and column dimension of the image. First
+            value represents the spacing between rows (vertical) and second
+            value represents the spacing between columns (horizontal).
         slice_thickness: float
             Depth of physical space volume the image represents in millimeter
         spacing_between_slices: float, optional
@@ -133,6 +135,11 @@ class PlanePositionSequence(DataElementSequence):
             Offset of the first column and first row of the plane (frame) in
             pixels along the row and column direction of the total pixel matrix
             (only required if `coordinate_system` is ``"SLIDE"``)
+
+        Note
+        ----
+        The values of both `image_position` and `pixel_matrix_position` are
+        one-based.
 
         """
         super().__init__()
