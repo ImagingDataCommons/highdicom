@@ -231,6 +231,213 @@ def compute_plane_position_slide_per_frame(
     ]
 
 
+def create_rotation_matrix(
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+    ) -> np.ndarray:
+    """Builds a rotation matrix.
+
+    Parameters
+    ----------
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
+        Frame of Reference
+    pixel_spacing: Tuple[float, float]
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the rows direction (second value: spacing
+        between columns: horizontal, left to right, increasing Column index)
+
+    Returns
+    -------
+    numpy.ndarray
+        3 x 3 rotation matrix
+
+    """
+    row_cosines = np.array(image_orientation[:3])
+    column_cosines = np.array(image_orientation[3:])
+    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
+    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
+    f_row = row_cosines * row_spacing
+    f_col = column_cosines * column_spacing
+    n = np.cross(column_cosines.T, row_cosines.T)
+    return np.column_stack([
+        f_row,
+        f_col,
+        n
+    ])
+
+
+def build_transform(
+        image_position: Tuple[float, float, float],
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+    ) -> np.ndarray:
+    """Builds an affine transformation matrix for mapping coordinates in the
+    two dimensional pixel matrix into the three dimensional frame of reference.
+
+    Parameters
+    ----------
+    image_position: Tuple[float, float, float]
+        Position of the slice (image or frame) in the Frame of Reference, i.e.,
+        the offset of the top left pixel in the pixel matrix from the
+        origin of the reference coordinate system along the X, Y, and Z axis
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
+        Frame of Reference
+    pixel_spacing: Tuple[float, float]
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the rows direction (second value: spacing
+        between columns: horizontal, left to right, increasing Column index)
+
+    Returns
+    -------
+    numpy.ndarray
+        4 x 4 affine transformation matrix
+
+    """
+    x_offset = float(image_position[0])
+    y_offset = float(image_position[1])
+    z_offset = float(image_position[2])
+    translation = np.array([x_offset, y_offset, z_offset])
+    rotation = create_rotation_matrix(image_orientation, pixel_spacing)
+    # 4x4 transformation matrix
+    return np.row_stack(
+        [
+            np.column_stack([
+                rotation,
+                translation,
+            ]),
+            [0.0, 0.0, 0.0, 1.0]
+        ]
+
+    )
+
+
+def build_inverse_transform(
+        image_position: Tuple[float, float, float],
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+    ) -> np.ndarray:
+    """Builds an inverse of an affine transformation matrix for mapping
+    coordinates from the three dimensional frame of reference into the two
+    dimensional pixel matrix.
+
+    Parameters
+    ----------
+    image_position: Tuple[float, float, float]
+        Position of the slice (image or frame) in the Frame of Reference, i.e.,
+        the offset of the top left pixel in the pixel matrix from the
+        origin of the reference coordinate system along the X, Y, and Z axis
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
+        Frame of Reference
+    pixel_spacing: Tuple[float, float]
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the rows direction (second value: spacing
+        between columns: horizontal, left to right, increasing Column index)
+
+    Returns
+    -------
+    numpy.ndarray
+        4 x 4 affine transformation matrix
+
+    """
+    x_offset = float(image_position[0])
+    y_offset = float(image_position[1])
+    z_offset = float(image_position[2])
+    translation = np.array([x_offset, y_offset, z_offset])
+
+    rotation = create_rotation_matrix(image_orientation, pixel_spacing)
+    inv_rotation = np.linalg.inv(rotation)
+    # 4x4 transformation matrix
+    return np.row_stack(
+        [
+            np.column_stack([
+                inv_rotation,
+                -np.dot(inv_rotation, translation)
+            ]),
+            [0.0, 0.0, 0.0, 1.0]
+        ]
+
+    )
+
+
+def apply_transform(
+        coordinate: Tuple[float, float],
+        affine: np.ndarray
+    ) -> Tuple[float, float, float]:
+    """Applies an affine transformation matrix to a pixel matrix coordinate
+    to obtain a coordinate in the three-dimensional frame of reference.
+
+    Parameters
+    ----------
+    coordinate: Tuple[float, float]
+        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
+        Note that these values are one-based and in column-major order, which
+        is different from the way NumPy indexes arrays (zero-based and
+        row-major order)
+    affine: numpy.ndarray
+        4 x 4 affine transformation matrix
+
+    Returns
+    -------
+    Tuple[float, float, float]
+        (X, Y, Z) coordinate in the coordinate system defined by the
+        Frame of Reference
+
+    """
+    column_offset = float(coordinate[0])
+    row_offset = float(coordinate[1])
+    pixel_matrix_coordinate = np.array([[column_offset, row_offset, 0.0, 1.0]])
+    physical_coordinate = np.dot(affine, pixel_matrix_coordinate.T)
+    return tuple(physical_coordinate[:3].flatten().tolist())
+
+
+def apply_inverse_transform(
+        coordinate: Tuple[float, float, float],
+        affine: np.ndarray
+    ) -> Tuple[float, float]:
+    """Applies the inverse of an affine transformation matrix to a
+    coordinate in the three-dimensional frame of reference to obtain a pixel
+    matrix coordinate.
+
+    Parameters
+    ----------
+    coordinate: Tuple[float, float, float]
+        (X, Y, Z) coordinate in the coordinate system defined by the
+        Frame of Reference
+    affine: numpy.ndarray
+        4 x 4 affine transformation matrix
+
+    Returns
+    -------
+    Tuple[float, float]
+        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
+        Note that these values are one-based and in column-major order, which
+        is different from the way NumPy indexes arrays (zero-based and
+        row-major order)
+
+    """
+    x = float(coordinate[0])
+    y = float(coordinate[1])
+    z = float(coordinate[2])
+    pysical_coordinate = np.array([[x, y, z, 1.0]])
+    pixel_matrix_coordinate = np.dot(affine, pysical_coordinate.T)
+    return tuple(pixel_matrix_coordinate[:2].flatten().tolist())
+
+
 def map_pixel_into_coordinate_system(
         coordinate: Tuple[float, float],
         image_position: Tuple[float, float, float],
@@ -269,35 +476,65 @@ def map_pixel_into_coordinate_system(
         (X, Y, Z) coordinate in the coordinate system defined by the
         Frame of Reference
 
+    Note
+    ----
+    This function is a convenient wrapper around ``build_transform()`` and
+    ``apply_transform()``. When mapping a large number of coordinates,
+    consider using the underlying functions directly for speedup.
+
     """
-    # Read the below article for further information about the mapping
-    # between coordinates in the pixel matrix and the frame of reference:
-    # https://nipy.org/nibabel/dicom/dicom_orientation.html
-    x_offset = float(image_position[0])
-    y_offset = float(image_position[1])
-    z_offset = float(image_position[2])
-    image_offset = np.array([x_offset, y_offset, z_offset])
-    row_cosines = np.array(image_orientation[:3])
-    column_cosines = np.array(image_orientation[3:])
-    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
-    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
-    column_offset = float(coordinate[0])
-    row_offset = float(coordinate[1])
-
-    f_row = row_cosines * row_spacing
-    f_col = column_cosines * column_spacing
-
-    # 3x3 transformation matrix
-    affine = np.concatenate(
-        [
-            f_row[..., np.newaxis],
-            f_col[..., np.newaxis],
-            image_offset[..., np.newaxis],
-        ],
-        axis=1
+    affine = build_transform(
+        image_position=image_position,
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing
     )
+    return apply_transform(coordinate, affine=affine)
 
-    pixel_matrix_coordinate = np.array([[column_offset, row_offset, 1.0]])
-    physical_coordinate = np.dot(affine, pixel_matrix_coordinate.T)
 
-    return tuple(physical_coordinate.flatten().tolist())
+def map_coordinate_into_pixel_matrix(
+        coordinate: Tuple[float, float, float],
+        image_position: Tuple[float, float, float],
+        image_orientation: Tuple[float, float, float, float, float, float],
+        pixel_spacing: Tuple[float, float],
+    ) -> Tuple[float, float, float]:
+    """Maps a coordinate in the physical coordinate system (e.g., Slide or
+    Patient) into the pixel matrix.
+
+    Parameters
+    ----------
+    coordinate: Tuple[float, float, float]
+        (X, Y, Z) coordinate in the coordinate system in millimeter unit.
+    image_position: Tuple[float, float, float]
+        Position of the slice (image or frame) in the Frame of Reference, i.e.,
+        the offset of the top left pixel in the pixel matrix from the
+        origin of the reference coordinate system along the X, Y, and Z axis
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
+        Frame of Reference
+    pixel_spacing: Tuple[float, float]
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the rows direction (second value: spacing
+        between columns: horizontal, left to right, increasing Column index)
+
+    Returns
+    -------
+    Tuple[float, float]
+        (Column, Row) coordinate in the Total Pixel Matrix
+
+    Note
+    ----
+    This function is a convenient wrapper around ``build_inverse_transform()``
+    and ``apply_inverse_transform()``. When mapping a large number of
+    coordinates, consider using the underlying functions directly for speedup.
+
+    """
+    affine = build_inverse_transform(
+        image_position=image_position,
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing
+    )
+    return apply_inverse_transform(coordinate, affine=affine)
