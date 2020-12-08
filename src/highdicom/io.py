@@ -497,7 +497,7 @@ class ImageFileReader(object):
         """
         if index > self.number_of_frames:
             raise ValueError('Frame index exceeds number of frames in image.')
-        logger.info(f'read frame #{index}')
+        logger.debug(f'read frame #{index}')
 
         frame_offset = self._basic_offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
@@ -526,7 +526,7 @@ class ImageFileReader(object):
         if len(frame_data) == 0:
             raise OSError(f'Failed to read frame #{index}.')
 
-        logger.info(f'decode frame #{index}')
+        logger.debug(f'decode frame #{index}')
 
         if self.metadata.BitsAllocated == 1:
             unpacked_frame = unpack_bits(frame_data)
@@ -539,7 +539,7 @@ class ImageFileReader(object):
         frame_array = self._decode_frame(frame_data)
 
         if correct_color and self._icc_transform is not None:
-            logger.info(f'correct color of frame #{index}')
+            logger.debug(f'correct color of frame #{index}')
             image = Image.fromarray(frame_array)
             _apply_icc_transform(image, self._icc_transform)
             return np.asarray(image)
