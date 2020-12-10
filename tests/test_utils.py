@@ -4,6 +4,7 @@ from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.utils import (
     compute_plane_position_tiled_full,
+    compute_rotation,
     map_coordinate_into_pixel_matrix,
     map_pixel_into_coordinate_system,
 )
@@ -149,6 +150,37 @@ params_pixel_to_physical = [
     ),
 ]
 
+
+params_rotation = [
+    pytest.param(
+        dict(
+            image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
+            in_degrees=True
+        ),
+        -90.0,
+    ),
+    pytest.param(
+        dict(
+            image_orientation=(0.0, -1.0, 0.0, -1.0, 0.0, 0.0),
+            in_degrees=True
+        ),
+        90.0,
+    ),
+    pytest.param(
+        dict(
+            image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+            in_degrees=True
+        ),
+        -0.0,
+    ),
+    pytest.param(
+        dict(
+            image_orientation=(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            in_degrees=True
+        ),
+        -180.0,
+    ),
+]
 
 params_physical_to_pixel = [
     # Slide
@@ -384,6 +416,12 @@ params_plane_positions = [
 @pytest.mark.parametrize('inputs,expected_output', params_pixel_to_physical)
 def test_map_pixel_into_coordinate_system(inputs, expected_output):
     output = map_pixel_into_coordinate_system(**inputs)
+    assert output == expected_output
+
+
+@pytest.mark.parametrize('inputs,expected_output', params_rotation)
+def test_compute_rotation(inputs, expected_output):
+    output = compute_rotation(**inputs)
     assert output == expected_output
 
 

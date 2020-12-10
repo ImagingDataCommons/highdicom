@@ -233,7 +233,6 @@ def compute_plane_position_slide_per_frame(
 
 def create_rotation_matrix(
         image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
     ) -> np.ndarray:
     """Builds a rotation matrix.
 
@@ -245,11 +244,6 @@ def create_rotation_matrix(
         vertical, top to bottom, increasing Row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
-    pixel_spacing: Tuple[float, float]
-        Spacing between pixels in millimeter unit along the column direction
-        (first value: spacing between rows, vertical, top to bottom,
-        increasing Row index) and the rows direction (second value: spacing
-        between columns: horizontal, left to right, increasing Column index)
 
     Returns
     -------
@@ -259,16 +253,45 @@ def create_rotation_matrix(
     """
     row_cosines = np.array(image_orientation[:3])
     column_cosines = np.array(image_orientation[3:])
-    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
-    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
-    f_row = row_cosines * row_spacing
-    f_col = column_cosines * column_spacing
     n = np.cross(column_cosines.T, row_cosines.T)
     return np.column_stack([
-        f_row,
-        f_col,
+        row_cosines,
+        column_cosines,
         n
     ])
+
+
+def compute_rotation(
+        image_orientation: Tuple[float, float, float, float, float, float],
+        in_degrees: bool = False
+    ) -> float:
+    """Computes the rotation of the image with respect to the frame of
+    reference (patient or slide coordinate system).
+
+    Parameters
+    ----------
+    image_orientation: Tuple[float, float, float, float, float, float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction expressed in
+        the three-dimensional patient or slide coordinate system defined by the
+        Frame of Reference
+    in_degrees: bool, optional
+        Whether angle should be returned in degrees rather than radians
+
+    Returns
+    -------
+    float
+        Angle (in radians or degrees, depending on whether `in_degrees`
+        is ``False`` or ``True``, respectively)
+
+    """
+    rotation = create_rotation_matrix(image_orientation)
+    angle = np.arctan2(-rotation[0, 1], rotation[0, 0])
+    if in_degrees:
+        return np.degrees(angle)
+    else:
+        return angle
 
 
 def build_transform(
@@ -307,7 +330,11 @@ def build_transform(
     y_offset = float(image_position[1])
     z_offset = float(image_position[2])
     translation = np.array([x_offset, y_offset, z_offset])
-    rotation = create_rotation_matrix(image_orientation, pixel_spacing)
+    rotation = create_rotation_matrix(image_orientation)
+    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
+    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
+    rotation[:, 0] *= row_spacing
+    rotation[:, 1] *= column_spacing
     # 4x4 transformation matrix
     return np.row_stack(
         [
@@ -318,7 +345,7 @@ def build_transform(
             [0.0, 0.0, 0.0, 1.0]
         ]
 
-    )
+    ) 
 
 
 def build_inverse_transform(
@@ -359,7 +386,11 @@ def build_inverse_transform(
     z_offset = float(image_position[2])
     translation = np.array([x_offset, y_offset, z_offset])
 
-    rotation = create_rotation_matrix(image_orientation, pixel_spacing)
+    rotation = create_rotation_matrix(image_orientation)
+    column_spacing = float(pixel_spacing[0])  # column direction (between rows)
+    row_spacing = float(pixel_spacing[1])  # row direction (between columns)
+    rotation[:, 0] *= row_spacing
+    rotation[:, 1] *= column_spacing
     inv_rotation = np.linalg.inv(rotation)
     # 4x4 transformation matrix
     return np.row_stack(
