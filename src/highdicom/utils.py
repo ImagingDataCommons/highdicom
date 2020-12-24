@@ -301,6 +301,12 @@ def compute_rotation(
             "reference coordinate system by a simple planar rotation"
         )
     rotation = create_rotation_matrix(image_orientation)
+    if rotation[2, 2] < 0.0:
+        raise ValueError(
+            "The provided image orientation indicates that the image "
+            "coordinate system is flipped relative to the frame of "
+            "reference coordinate system"
+        )
     angle = np.arctan2(-rotation[0, 1], rotation[0, 0])
     if in_degrees:
         return np.degrees(angle)

@@ -154,28 +154,28 @@ params_pixel_to_physical = [
 params_rotation = [
     pytest.param(
         dict(
-            image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
+            image_orientation=(0.0, -1.0, 0.0, 1.0, 0.0, 0.0),
             in_degrees=True
         ),
         -90.0,
     ),
     pytest.param(
         dict(
-            image_orientation=(0.0, -1.0, 0.0, -1.0, 0.0, 0.0),
+            image_orientation=(0.0, 1.0, 0.0, -1.0, 0.0, 0.0),
             in_degrees=True
         ),
         90.0,
     ),
     pytest.param(
         dict(
-            image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+            image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             in_degrees=True
         ),
-        -0.0,
+        0.0,
     ),
     pytest.param(
         dict(
-            image_orientation=(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            image_orientation=(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
             in_degrees=True
         ),
         -180.0,
@@ -457,7 +457,6 @@ def test_compute_rotation_out_of_plane():
     orientation = (0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
     with pytest.raises(ValueError):
         compute_rotation(orientation)
-
 
 
 @pytest.mark.parametrize('inputs,expected_output', params_physical_to_pixel)
