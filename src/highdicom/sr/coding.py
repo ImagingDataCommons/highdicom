@@ -12,11 +12,11 @@ class CodedConcept(Dataset):
     """Coded concept of a DICOM SR document content module attribute."""
 
     def __init__(
-            self,
-            value: str,
-            scheme_designator: str,
-            meaning: str,
-            scheme_version: Optional[str] = None
+        self,
+        value: str,
+        scheme_designator: str,
+        meaning: str,
+        scheme_version: Optional[str] = None
     ) -> None:
         """
         Parameters
@@ -135,15 +135,15 @@ class CodingSchemeIdentificationItem(Dataset):
     """Class for items of the Coding Scheme Identification Sequence."""
 
     def __init__(
-            self,
-            designator: str,
-            name: Optional[str] = None,
-            version: Optional[str] = None,
-            registry: Optional[str] = None,
-            uid: Optional[str] = None,
-            external_id: Optional[str] = None,
-            responsible_organization: Optional[str] = None,
-            resources: Optional[Sequence[CodingSchemeResourceItem]] = None
+        self,
+        designator: str,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        registry: Optional[str] = None,
+        uid: Optional[str] = None,
+        external_id: Optional[str] = None,
+        responsible_organization: Optional[str] = None,
+        resources: Optional[Sequence[CodingSchemeResourceItem]] = None
     ) -> None:
         """
         Parameters

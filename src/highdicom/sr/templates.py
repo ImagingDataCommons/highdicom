@@ -1330,7 +1330,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'type Measurement.'
                     )
                 group_item.ContentSequence.extend(measurement)
-            group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
                 if not isinstance(evaluation, CodeContentItem):

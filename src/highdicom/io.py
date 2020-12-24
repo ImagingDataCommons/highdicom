@@ -25,7 +25,19 @@ from pydicom.filereader import (
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
-from pydicom.uid import JPEGBaseline, UID
+from pydicom.uid import (
+    JPEGBaseline,
+    JPEGExtended,
+    JPEGLosslessP14,
+    JPEGLossless,
+    JPEGLSLossless,
+    JPEGLSLossy,
+    JPEG2000,
+    JPEG2000Lossless,
+    JPEG2000MultiComponentLossless,
+    JPEG2000MultiComponent,
+    UID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -475,24 +487,23 @@ class ImageFileReader(object):
         """Closes file."""
         self._fp.close()
 
-    def read_frame(self, index: int, correct_color: bool = True) -> np.ndarray:
-        """Reads an individual frame.
+    def read_frame_raw(self, index: int) -> bytes:
+        """Reads the raw pixel data of an individual frame item.
 
         Parameters
         ----------
         index: int
             Zero-based frame index
-        correct_color: bool, optional
-            Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
-            ICC Profile.
 
         Returns
         -------
-        numpy.ndarray
-            Array of decoded pixels of the frame with shape (Rows x Columns)
-            in case of a monochrome image or (Rows x Columns x SamplesPerPixel)
-            in case of a color image.
+        bytes
+            Pixel data of a given frame item encoded in the transfer syntax.
+
+        Raises
+        ------
+        IOError
+            When frame could not be read
 
         """
         if index > self.number_of_frames:
@@ -524,7 +535,36 @@ class ImageFileReader(object):
             frame_data = self._fp.read(self._bytes_per_frame_uncompressed)
 
         if len(frame_data) == 0:
-            raise OSError(f'Failed to read frame #{index}.')
+            raise IOError(f'Failed to read frame #{index}.')
+
+        return frame_data
+
+    def read_frame(self, index: int, correct_color: bool = True) -> np.ndarray:
+        """Reads an individual frame.
+
+        Parameters
+        ----------
+        index: int
+            Zero-based frame index
+        correct_color: bool, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. Will only be performed if metadata contain an
+            ICC Profile.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of decoded pixels of the frame with shape (Rows x Columns)
+            in case of a monochrome image or (Rows x Columns x SamplesPerPixel)
+            in case of a color image.
+
+        Raises
+        ------
+        IOError
+            When frame could not be read
+
+        """
+        frame_data = self.read_frame_raw(index)
 
         logger.debug(f'decode frame #{index}')
 
@@ -603,8 +643,36 @@ class ImageFileReader(object):
                     f'Image is missing required attribute "{attr}".'
                 )
 
-        if self.metadata.file_meta.TransferSyntaxUID.is_encapsulated:
-            if (self.metadata.file_meta.TransferSyntaxUID == JPEGBaseline and
+        transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID
+        jpeg_transfer_syntaxes = (
+            JPEGBaseline,
+            JPEGExtended,
+            JPEGLosslessP14,
+            JPEGLossless,
+            JPEGLSLossless,
+            JPEGLSLossy,
+        )
+        jpeg2000_transfer_syntaxes = (
+            JPEG2000Lossless,
+            JPEG2000,
+            JPEG2000MultiComponentLossless,
+            JPEG2000MultiComponent,
+        )
+        if transfer_syntax_uid in jpeg_transfer_syntaxes:
+            if not(value.startswith(_JPEG_SOI_MARKER) and
+                    value.strip(b'\x00').endswith(_JPEG_EOI_MARKER)):
+                raise ValueError(
+                    'Frame does not represent a valid JPEG bitstream.'
+                )
+        elif transfer_syntax_uid == jpeg2000_transfer_syntaxes:
+            if not(value.startswith(_JPEG2000_SOC_MARKER) and
+                    value.strip(b'\x00').endswith(_JPEG2000_EOC_MARKER)):
+                raise ValueError(
+                    'Frame does not represent a valid JPEG 2000 bitstream.'
+                )
+
+        if transfer_syntax_uid.is_encapsulated:
+            if (transfer_syntax_uid == JPEGBaseline and
                     self.metadata.PhotometricInterpretation == 'RGB'):
                 # RGB color images, which were not transformed into YCbCr color
                 # space upon JPEG compression, need to be handled separately.

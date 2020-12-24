@@ -344,8 +344,7 @@ def build_transform(
             ]),
             [0.0, 0.0, 0.0, 1.0]
         ]
-
-    ) 
+    )
 
 
 def build_inverse_transform(

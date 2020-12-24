@@ -188,7 +188,7 @@ class TestContentItem(unittest.TestCase):
 
     def test_time_item_construction_from_string(self):
         name = codes.DCM.StudyTime
-        value = '15:30'
+        value = '1530'
         i = TimeContentItem(
             name=name,
             value=value
