@@ -453,6 +453,13 @@ def test_compute_rotation(inputs, expected_output):
     assert output == expected_output
 
 
+def test_compute_rotation_out_of_plane():
+    orientation = (0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
+    with pytest.raises(ValueError):
+        compute_rotation(orientation)
+
+
+
 @pytest.mark.parametrize('inputs,expected_output', params_physical_to_pixel)
 def test_map_coordinate_into_pixel_matrix(inputs, expected_output):
     output = map_coordinate_into_pixel_matrix(**inputs)

@@ -268,6 +268,9 @@ def compute_rotation(
     """Computes the rotation of the image with respect to the frame of
     reference (patient or slide coordinate system).
 
+    This is only valid if the two coordinate systems are related via a planar
+    rotation. Otherwise, an exception is raised.
+
     Parameters
     ----------
     image_orientation: Tuple[float, float, float, float, float, float]
@@ -285,7 +288,18 @@ def compute_rotation(
         Angle (in radians or degrees, depending on whether `in_degrees`
         is ``False`` or ``True``, respectively)
 
+    Raises
+    ------
+    ValueError
+        If the provided image orientation is not related to the frame of
+        reference coordinate system by a rotation within the image plane.
+
     """
+    if (image_orientation[2] != 0.0) or (image_orientation[5] != 0.0):
+        raise ValueError(
+            "The provided image orientation is not related to the frame of "
+            "reference coordinate system by a simple planar rotation"
+        )
     rotation = create_rotation_matrix(image_orientation)
     angle = np.arctan2(-rotation[0, 1], rotation[0, 0])
     if in_degrees:
