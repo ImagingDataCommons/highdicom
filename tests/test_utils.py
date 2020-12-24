@@ -191,7 +191,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(1.0, 1.0),
         ),
-        (0.0, 0.0),
+        (0.0, 0.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -200,7 +200,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(1.0, 1.0),
         ),
-        (0.0, 0.0),
+        (0.0, 0.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -209,7 +209,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(1.0, 1.0),
         ),
-        (0.0, 0.0),
+        (0.0, 0.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -218,7 +218,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(1.0, 1.0),
         ),
-        (0.0, 0.0),
+        (0.0, 0.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -227,7 +227,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(1.0, 1.0),
         ),
-        (1.0, 1.0),
+        (1.0, 1.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -236,7 +236,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(0.5, 0.5),
         ),
-        (1.0, 1.0),
+        (1.0, 1.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -245,7 +245,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 1.0, 0.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 2.0),
+        (5.0, 2.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -254,7 +254,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, -1.0, 0.0, -1.0, 0.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 2.0),
+        (5.0, 2.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -263,7 +263,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, -1.0, 0.0, -1.0, 0.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (2.0, 2.0),
+        (2.0, 2.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -272,7 +272,7 @@ params_physical_to_pixel = [
             image_orientation=(0.0, -1.0, 0.0, -1.0, 0.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (2.0, 4.0),
+        (2.0, 4.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -281,7 +281,7 @@ params_physical_to_pixel = [
             image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 2.0),
+        (5.0, 2.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -290,7 +290,7 @@ params_physical_to_pixel = [
             image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 4.0),
+        (5.0, 4.0, 0.0),
     ),
     pytest.param(
         dict(
@@ -299,7 +299,7 @@ params_physical_to_pixel = [
             image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 4.0),
+        (5.0, 4.0, 0.0),
     ),
     # Patient
     pytest.param(
@@ -309,7 +309,16 @@ params_physical_to_pixel = [
             image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
             pixel_spacing=(2.0, 0.5),
         ),
-        (5.0, 4.0),
+        (5.0, 4.0, 0.0),
+    ),
+    pytest.param(
+        dict(
+            coordinate=(89.0, 47.0, -10.0),
+            image_position=(10.0, 60.0, 0.0),
+            image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            pixel_spacing=(2.0, 0.5),
+        ),
+        (158.0, -6.5, -10.0),
     ),
     pytest.param(
         dict(
@@ -318,7 +327,26 @@ params_physical_to_pixel = [
             image_orientation=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0),
             pixel_spacing=(0.25, 0.5),
         ),
-        (15.0, 87.0),
+        (15.0, 87.0, 0.0),
+    ),
+    pytest.param(
+        dict(
+            coordinate=(-35.0, 32.5, -60.5),
+            image_position=(-45.0, 35.0, -90.0),
+            image_orientation=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0),
+            pixel_spacing=(0.25, 0.5),
+        ),
+        (-5.0, -118.0, -10.0),
+    ),
+    pytest.param(
+        dict(
+            coordinate=(-35.0, 32.5, -60.5),
+            image_position=(-45.0, 35.0, -90.0),
+            image_orientation=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0),
+            pixel_spacing=(0.25, 0.5),
+            slice_spacing=0.25
+        ),
+        (-5.0, -118.0, -40.0),
     ),
 ]
 

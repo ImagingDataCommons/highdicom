@@ -253,7 +253,7 @@ def create_rotation_matrix(
     """
     row_cosines = np.array(image_orientation[:3])
     column_cosines = np.array(image_orientation[3:])
-    n = np.cross(column_cosines.T, row_cosines.T)
+    n = np.cross(row_cosines.T, column_cosines.T)
     return np.column_stack([
         row_cosines,
         column_cosines,
@@ -442,7 +442,7 @@ def apply_transform(
 def apply_inverse_transform(
         coordinate: Tuple[float, float, float],
         affine: np.ndarray
-    ) -> Tuple[float, float]:
+    ) -> Tuple[float, float, float]:
     """Applies the inverse of an affine transformation matrix to a
     coordinate in the three-dimensional frame of reference to obtain a pixel
     matrix coordinate.
@@ -457,11 +457,13 @@ def apply_inverse_transform(
 
     Returns
     -------
-    Tuple[float, float]
-        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
+    Tuple[float, float, float]
+        One-based (Column, Row, Slice) index of the Total Pixel Matrix in pixel unit.
         Note that these values are one-based and in column-major order, which
         is different from the way NumPy indexes arrays (zero-based and
-        row-major order)
+        row-major order). Note that in general, the resulting coordinate may not
+        lie within the imaging plane, and consequently the slice index value may be
+        non-zero.
 
     """
     x = float(coordinate[0])
@@ -469,7 +471,7 @@ def apply_inverse_transform(
     z = float(coordinate[2])
     physical_coordinate = np.array([[x, y, z, 1.0]])
     pixel_matrix_coordinate = np.dot(affine, physical_coordinate.T)
-    return tuple(pixel_matrix_coordinate[:2].flatten().tolist())
+    return tuple(pixel_matrix_coordinate[:3].flatten().tolist())
 
 
 def map_pixel_into_coordinate_system(
@@ -560,8 +562,8 @@ def map_coordinate_into_pixel_matrix(
 
     Returns
     -------
-    Tuple[float, float]
-        (Column, Row) coordinate in the Total Pixel Matrix
+    Tuple[float, float, float]
+        (Column, Row, Slice) coordinate in the Total Pixel Matrix
 
     Note
     ----
