@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -232,13 +232,13 @@ def compute_plane_position_slide_per_frame(
 
 
 def create_rotation_matrix(
-        image_orientation: Tuple[float, float, float, float, float, float],
+        image_orientation: Sequence[float],
     ) -> np.ndarray:
     """Builds a rotation matrix.
 
     Parameters
     ----------
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
@@ -262,7 +262,7 @@ def create_rotation_matrix(
 
 
 def compute_rotation(
-        image_orientation: Tuple[float, float, float, float, float, float],
+        image_orientation: Sequence[float],
         in_degrees: bool = False
     ) -> float:
     """Computes the rotation of the image with respect to the frame of
@@ -273,7 +273,7 @@ def compute_rotation(
 
     Parameters
     ----------
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
@@ -315,26 +315,26 @@ def compute_rotation(
 
 
 def build_transform(
-        image_position: Tuple[float, float, float],
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
+        image_position: Sequence[float],
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
     ) -> np.ndarray:
     """Builds an affine transformation matrix for mapping coordinates in the
     two dimensional pixel matrix into the three dimensional frame of reference.
 
     Parameters
     ----------
-    image_position: Tuple[float, float, float]
+    image_position: Sequence[float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the pixel matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
-    pixel_spacing: Tuple[float, float]
+    pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
@@ -368,9 +368,9 @@ def build_transform(
 
 
 def build_inverse_transform(
-        image_position: Tuple[float, float, float],
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
+        image_position: Sequence[float],
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
         spacing_between_slices: float = 1.0
     ) -> np.ndarray:
     """Builds an inverse of an affine transformation matrix for mapping
@@ -379,17 +379,17 @@ def build_inverse_transform(
 
     Parameters
     ----------
-    image_position: Tuple[float, float, float]
+    image_position: Sequence[float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the pixel matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
-    pixel_spacing: Tuple[float, float]
+    pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
@@ -429,7 +429,7 @@ def build_inverse_transform(
 
 
 def apply_transform(
-        coordinate: Tuple[float, float],
+        coordinate: Sequence[float],
         affine: np.ndarray
     ) -> Tuple[float, float, float]:
     """Applies an affine transformation matrix to a pixel matrix coordinate
@@ -437,7 +437,7 @@ def apply_transform(
 
     Parameters
     ----------
-    coordinate: Tuple[float, float]
+    coordinate: Sequence[float]
         (Column, Row) coordinate in the Total Pixel Matrix in pixel unit at
         sub-pixel resolution.
     affine: numpy.ndarray
@@ -458,7 +458,7 @@ def apply_transform(
 
 
 def apply_inverse_transform(
-        coordinate: Tuple[float, float, float],
+        coordinate: Sequence[float],
         affine: np.ndarray
     ) -> Tuple[float, float, float]:
     """Applies the inverse of an affine transformation matrix to a
@@ -467,7 +467,7 @@ def apply_inverse_transform(
 
     Parameters
     ----------
-    coordinate: Tuple[float, float, float]
+    coordinate: Sequence[float]
         (X, Y, Z) coordinate in the coordinate system defined by the
         Frame of Reference
     affine: numpy.ndarray
@@ -496,30 +496,30 @@ def apply_inverse_transform(
 
 
 def map_pixel_into_coordinate_system(
-        coordinate: Tuple[float, float],
-        image_position: Tuple[float, float, float],
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
+        coordinate: Sequence[float],
+        image_position: Sequence[float],
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
     ) -> Tuple[float, float, float]:
     """Maps a coordinate in the pixel matrix into the physical coordinate
     system (e.g., Slide or Patient) defined by a frame of reference.
 
     Parameters
     ----------
-    coordinate: Tuple[float, float]
+    coordinate: Sequence[float]
         (Column, Row) coordinate in the Total Pixel Matrix in pixel unit at
         sub-pixel resolution.
-    image_position: Tuple[float, float, float]
+    image_position: Sequence[float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the Total Pixel Matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
-    pixel_spacing: Tuple[float, float]
+    pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the row direction (second value: spacing
@@ -547,10 +547,10 @@ def map_pixel_into_coordinate_system(
 
 
 def map_coordinate_into_pixel_matrix(
-        coordinate: Tuple[float, float, float],
-        image_position: Tuple[float, float, float],
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
+        coordinate: Sequence[float],
+        image_position: Sequence[float],
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
         spacing_between_slices: float = 1.0,
     ) -> Tuple[float, float, float]:
     """Maps a coordinate in the physical coordinate system (e.g., Slide or
@@ -558,19 +558,19 @@ def map_coordinate_into_pixel_matrix(
 
     Parameters
     ----------
-    coordinate: Tuple[float, float, float]
+    coordinate: Sequence[float]
         (X, Y, Z) coordinate in the coordinate system in millimeter unit.
-    image_position: Tuple[float, float, float]
+    image_position: Sequence[float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
         the offset of the top left pixel in the Total Pixel matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         Frame of Reference
-    pixel_spacing: Tuple[float, float]
+    pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing

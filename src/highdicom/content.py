@@ -82,14 +82,14 @@ class PixelMeasuresSequence(DataElementSequence):
 
     def __init__(
             self,
-            pixel_spacing: Tuple[float, float],
+            pixel_spacing: Sequence[float],
             slice_thickness: float,
             spacing_between_slices: Optional[float] = None,
         ) -> None:
         """
         Parameters
         ----------
-        pixel_spacing: Tuple[float, float]
+        pixel_spacing: Sequence[float]
             Distance in physical space between neighboring pixels in
             millimeters along the row and column dimension of the image. First
             value represents the spacing between rows (vertical) and second
@@ -121,13 +121,13 @@ class PlanePositionSequence(DataElementSequence):
     def __init__(
         self,
         coordinate_system: Union[str, CoordinateSystemNames],
-        image_position: Tuple[float, float, float],
+        image_position: Sequence[float],
         pixel_matrix_position: Optional[Tuple[int, int]] = None
     ) -> None:
         """
         Parameters
         ----------
-        image_position: Tuple[float, float, float]
+        image_position: Sequence[float]
             Offset of the first row and first column of the plane (frame) in
             millimeter along the x, y, and z axis of the three-dimensional
             patient or slide coordinate system
@@ -218,7 +218,7 @@ class PlaneOrientationSequence(DataElementSequence):
     def __init__(
             self,
             coordinate_system: Union[str, CoordinateSystemNames],
-            image_orientation: Tuple[float, float, float, float, float, float]
+            image_orientation: Sequence[float]
         ) -> None:
         """
         Parameters
@@ -226,9 +226,9 @@ class PlaneOrientationSequence(DataElementSequence):
         coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
-        image_orientation: Tuple[float, float, float, float, float, float]
+        image_orientation: Sequence[float]
             Direction cosines for the first row (first triplet) and the first
-            column (second triplet) of an image with respect to the x, y, and z
+            column (second triplet) of an image with respect to the X, Y, and Z
             axis of the three-dimensional coordinate system
 
         """
