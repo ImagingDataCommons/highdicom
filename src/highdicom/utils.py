@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -30,7 +30,7 @@ def tile_pixel_matrix(
     Returns
     -------
     Iterator
-        One-based Column, Row index of each Frame (tile)
+        One-based (Column, Row) index of each Frame (tile)
 
     """
     tiles_per_col = int(np.ceil(total_pixel_matrix_rows / rows))
@@ -47,8 +47,8 @@ def compute_plane_position_tiled_full(
         y_offset: float,
         rows: int,
         columns: int,
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
         slice_thickness: Optional[float] = None,
         spacing_between_slices: Optional[float] = None,
         slice_index: Optional[float] = None
@@ -82,12 +82,12 @@ def compute_plane_position_tiled_full(
         Number of rows per Frame (tile)
     columns: int
         Number of columns per Frame (tile)
-    image_orientation: Tuple[float, float, float, float, float, float]
+    image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing Column index) and the column direction (second triplet:
         vertical, top to bottom, increasing Row index) direction for X, Y, and
         Z axis of the slide coordinate system defined by the Frame of Reference
-    pixel_spacing: Tuple[float, float]
+    pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the row direction (second value: spacing
@@ -438,10 +438,8 @@ def apply_transform(
     Parameters
     ----------
     coordinate: Tuple[float, float]
-        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
-        Note that these values are one-based and in column-major order, which
-        is different from the way NumPy indexes arrays (zero-based and
-        row-major order)
+        (Column, Row) coordinate in the Total Pixel Matrix in pixel unit at
+        sub-pixel resolution.
     affine: numpy.ndarray
         4 x 4 affine transformation matrix
 
@@ -478,15 +476,15 @@ def apply_inverse_transform(
     Returns
     -------
     Tuple[float, float, float]
-        One-based (Column, Row, Slice) pixel index. The ``Row`` and ``Column``
-        indices relate to the Total Pixel Matrix in pixel units. ``Slice``
-        represents the signed distance of the input coordinate in the direction
-        normal to the plane of the Total Pixel Matrix represented in units of
-        the given spacing between slices. Note that these values are one-based
-        and in column-major order, which is different from the way NumPy
-        indexes arrays (zero-based and row-major order). Note that in general,
-        the resulting coordinate may not lie within the imaging plane, and
-        consequently the slice index value may be non-zero.
+        (Column, Row, Slice) coordinate, where the `Column` and `Row` values
+        relate to the Total Pixel Matrix in pixel units at sub-pixel resolution
+        and the `Slice` value represents the signed distance of the input
+        coordinate in the direction normal to the plane of the Total Pixel
+        Matrix represented in units of the given spacing between slices.
+        The `Row` and `Column` values are constrained by the dimension of the
+        Total Pixel Matrix. Note, however, that in general, the resulting
+        coordinate may not lie within the imaging plane, and consequently the
+        `Slice` value may be non-zero.
 
     """
     x = float(coordinate[0])
@@ -509,13 +507,11 @@ def map_pixel_into_coordinate_system(
     Parameters
     ----------
     coordinate: Tuple[float, float]
-        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
-        Note that these values are one-based and in column-major order, which
-        is different from the way NumPy indexes arrays (zero-based and
-        row-major order)
+        (Column, Row) coordinate in the Total Pixel Matrix in pixel unit at
+        sub-pixel resolution.
     image_position: Tuple[float, float, float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
-        the offset of the top left pixel in the pixel matrix from the
+        the offset of the top left pixel in the Total Pixel Matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
     image_orientation: Tuple[float, float, float, float, float, float]
         Cosines of the row direction (first triplet: horizontal, left to right,
@@ -526,7 +522,7 @@ def map_pixel_into_coordinate_system(
     pixel_spacing: Tuple[float, float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
-        increasing Row index) and the rows direction (second value: spacing
+        increasing Row index) and the row direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
 
     Returns
@@ -566,7 +562,7 @@ def map_coordinate_into_pixel_matrix(
         (X, Y, Z) coordinate in the coordinate system in millimeter unit.
     image_position: Tuple[float, float, float]
         Position of the slice (image or frame) in the Frame of Reference, i.e.,
-        the offset of the top left pixel in the pixel matrix from the
+        the offset of the top left pixel in the Total Pixel matrix from the
         origin of the reference coordinate system along the X, Y, and Z axis
     image_orientation: Tuple[float, float, float, float, float, float]
         Cosines of the row direction (first triplet: horizontal, left to right,
@@ -579,9 +575,9 @@ def map_coordinate_into_pixel_matrix(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
-    spacing_between_slices: float
+    spacing_between_slices: float, optional
         Distance (in the coordinate defined by the Frame of Reference) between
-        neighboring slices. Default: 1
+        neighboring slices. Default: ``1.0``
 
     Returns
     -------
