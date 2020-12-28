@@ -253,7 +253,7 @@ def create_rotation_matrix(
     """
     row_cosines = np.array(image_orientation[:3])
     column_cosines = np.array(image_orientation[3:])
-    n = np.cross(column_cosines.T, row_cosines.T)
+    n = np.cross(row_cosines.T, column_cosines.T)
     return np.column_stack([
         row_cosines,
         column_cosines,
@@ -267,6 +267,9 @@ def compute_rotation(
     ) -> float:
     """Computes the rotation of the image with respect to the frame of
     reference (patient or slide coordinate system).
+
+    This is only valid if the two coordinate systems are related via a planar
+    rotation. Otherwise, an exception is raised.
 
     Parameters
     ----------
@@ -285,8 +288,25 @@ def compute_rotation(
         Angle (in radians or degrees, depending on whether `in_degrees`
         is ``False`` or ``True``, respectively)
 
+    Raises
+    ------
+    ValueError
+        If the provided image orientation is not related to the frame of
+        reference coordinate system by a rotation within the image plane.
+
     """
+    if (image_orientation[2] != 0.0) or (image_orientation[5] != 0.0):
+        raise ValueError(
+            "The provided image orientation is not related to the frame of "
+            "reference coordinate system by a simple planar rotation"
+        )
     rotation = create_rotation_matrix(image_orientation)
+    if rotation[2, 2] < 0.0:
+        raise ValueError(
+            "The provided image orientation indicates that the image "
+            "coordinate system is flipped relative to the frame of "
+            "reference coordinate system"
+        )
     angle = np.arctan2(-rotation[0, 1], rotation[0, 0])
     if in_degrees:
         return np.degrees(angle)
@@ -351,6 +371,7 @@ def build_inverse_transform(
         image_position: Tuple[float, float, float],
         image_orientation: Tuple[float, float, float, float, float, float],
         pixel_spacing: Tuple[float, float],
+        spacing_between_slices: float = 1.0
     ) -> np.ndarray:
     """Builds an inverse of an affine transformation matrix for mapping
     coordinates from the three dimensional frame of reference into the two
@@ -373,6 +394,9 @@ def build_inverse_transform(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
+    spacing_between_slices: float
+        Distance (in the coordinate defined by the Frame of Reference) between
+        neighboring slices. Default: 1
 
     Returns
     -------
@@ -390,6 +414,7 @@ def build_inverse_transform(
     row_spacing = float(pixel_spacing[1])  # row direction (between columns)
     rotation[:, 0] *= row_spacing
     rotation[:, 1] *= column_spacing
+    rotation[:, 2] *= spacing_between_slices
     inv_rotation = np.linalg.inv(rotation)
     # 4x4 transformation matrix
     return np.row_stack(
@@ -400,7 +425,6 @@ def build_inverse_transform(
             ]),
             [0.0, 0.0, 0.0, 1.0]
         ]
-
     )
 
 
@@ -438,7 +462,7 @@ def apply_transform(
 def apply_inverse_transform(
         coordinate: Tuple[float, float, float],
         affine: np.ndarray
-    ) -> Tuple[float, float]:
+    ) -> Tuple[float, float, float]:
     """Applies the inverse of an affine transformation matrix to a
     coordinate in the three-dimensional frame of reference to obtain a pixel
     matrix coordinate.
@@ -453,19 +477,24 @@ def apply_inverse_transform(
 
     Returns
     -------
-    Tuple[float, float]
-        One-based (Column, Row) index of the Total Pixel Matrix in pixel unit.
-        Note that these values are one-based and in column-major order, which
-        is different from the way NumPy indexes arrays (zero-based and
-        row-major order)
+    Tuple[float, float, float]
+        One-based (Column, Row, Slice) pixel index. The ``Row`` and ``Column``
+        indices relate to the Total Pixel Matrix in pixel units. ``Slice``
+        represents the signed distance of the input coordinate in the direction
+        normal to the plane of the Total Pixel Matrix represented in units of
+        the given spacing between slices. Note that these values are one-based
+        and in column-major order, which is different from the way NumPy
+        indexes arrays (zero-based and row-major order). Note that in general,
+        the resulting coordinate may not lie within the imaging plane, and
+        consequently the slice index value may be non-zero.
 
     """
     x = float(coordinate[0])
     y = float(coordinate[1])
     z = float(coordinate[2])
-    pysical_coordinate = np.array([[x, y, z, 1.0]])
-    pixel_matrix_coordinate = np.dot(affine, pysical_coordinate.T)
-    return tuple(pixel_matrix_coordinate[:2].flatten().tolist())
+    physical_coordinate = np.array([[x, y, z, 1.0]])
+    pixel_matrix_coordinate = np.dot(affine, physical_coordinate.T)
+    return tuple(pixel_matrix_coordinate[:3].flatten().tolist())
 
 
 def map_pixel_into_coordinate_system(
@@ -526,6 +555,7 @@ def map_coordinate_into_pixel_matrix(
         image_position: Tuple[float, float, float],
         image_orientation: Tuple[float, float, float, float, float, float],
         pixel_spacing: Tuple[float, float],
+        spacing_between_slices: float = 1.0,
     ) -> Tuple[float, float, float]:
     """Maps a coordinate in the physical coordinate system (e.g., Slide or
     Patient) into the pixel matrix.
@@ -549,11 +579,21 @@ def map_coordinate_into_pixel_matrix(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
+    spacing_between_slices: float
+        Distance (in the coordinate defined by the Frame of Reference) between
+        neighboring slices. Default: 1
 
     Returns
     -------
-    Tuple[float, float]
-        (Column, Row) coordinate in the Total Pixel Matrix
+    Tuple[float, float, float]
+        (Column, Row, Slice) coordinate. ``Column`` and ``Row`` are pixel
+        coordinates in the Total Pixel Matrix, ``Slice`` represents the signed
+        distance of the input coordinate in the direction normal to the plane
+        of the Total Pixel Matrix represented in units of the given spacing
+        between slices. If the ``Slice`` coordinate is 0.0, then the input
+        coordinate lies in the imaging plane, otherwise it lies off the plane
+        of the Total Pixel Matrix and ``Column`` and ``Row`` may be interpreted
+        as the projections of the input coordinate onto the imaging plane.
 
     Note
     ----
@@ -565,6 +605,7 @@ def map_coordinate_into_pixel_matrix(
     affine = build_inverse_transform(
         image_position=image_position,
         image_orientation=image_orientation,
-        pixel_spacing=pixel_spacing
+        pixel_spacing=pixel_spacing,
+        spacing_between_slices=spacing_between_slices
     )
     return apply_inverse_transform(coordinate, affine=affine)
