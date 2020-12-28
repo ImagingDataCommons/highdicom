@@ -344,7 +344,7 @@ params_physical_to_pixel = [
             image_position=(-45.0, 35.0, -90.0),
             image_orientation=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0),
             pixel_spacing=(0.25, 0.5),
-            slice_spacing=0.25
+            spacing_between_slices=0.25
         ),
         (-5.0, -118.0, -40.0),
     ),

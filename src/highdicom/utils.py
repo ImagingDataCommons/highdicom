@@ -371,7 +371,7 @@ def build_inverse_transform(
         image_position: Tuple[float, float, float],
         image_orientation: Tuple[float, float, float, float, float, float],
         pixel_spacing: Tuple[float, float],
-        slice_spacing: float = 1.0
+        spacing_between_slices: float = 1.0
     ) -> np.ndarray:
     """Builds an inverse of an affine transformation matrix for mapping
     coordinates from the three dimensional frame of reference into the two
@@ -394,7 +394,7 @@ def build_inverse_transform(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
-    slice_spacing: float
+    spacing_between_slices: float
         Distance (in the coordinate defined by the Frame of Reference) between
         neighboring slices. Default: 1
 
@@ -414,7 +414,7 @@ def build_inverse_transform(
     row_spacing = float(pixel_spacing[1])  # row direction (between columns)
     rotation[:, 0] *= row_spacing
     rotation[:, 1] *= column_spacing
-    rotation[:, 2] *= slice_spacing
+    rotation[:, 2] *= spacing_between_slices
     inv_rotation = np.linalg.inv(rotation)
     # 4x4 transformation matrix
     return np.row_stack(
@@ -552,7 +552,7 @@ def map_coordinate_into_pixel_matrix(
         image_position: Tuple[float, float, float],
         image_orientation: Tuple[float, float, float, float, float, float],
         pixel_spacing: Tuple[float, float],
-        slice_spacing: float = 1.0,
+        spacing_between_slices: float = 1.0,
     ) -> Tuple[float, float, float]:
     """Maps a coordinate in the physical coordinate system (e.g., Slide or
     Patient) into the pixel matrix.
@@ -576,7 +576,7 @@ def map_coordinate_into_pixel_matrix(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing Column index)
-    slice_spacing: float
+    spacing_between_slices: float
         Distance (in the coordinate defined by the Frame of Reference) between
         neighboring slices. Default: 1
 
@@ -596,6 +596,6 @@ def map_coordinate_into_pixel_matrix(
         image_position=image_position,
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
-        slice_spacing=slice_spacing
+        spacing_between_slices=spacing_between_slices
     )
     return apply_inverse_transform(coordinate, affine=affine)
