@@ -478,12 +478,15 @@ def apply_inverse_transform(
     Returns
     -------
     Tuple[float, float, float]
-        One-based (Column, Row, Slice) index of the Total Pixel Matrix in pixel unit.
-        Note that these values are one-based and in column-major order, which
-        is different from the way NumPy indexes arrays (zero-based and
-        row-major order). Note that in general, the resulting coordinate may not
-        lie within the imaging plane, and consequently the slice index value may be
-        non-zero.
+        One-based (Column, Row, Slice) pixel index. The ``Row`` and ``Column``
+        indices relate to the Total Pixel Matrix in pixel units. ``Slice``
+        represents the signed distance of the input coordinate in the direction
+        normal to the plane of the Total Pixel Matrix represented in units of
+        the given spacing between slices. Note that these values are one-based
+        and in column-major order, which is different from the way NumPy
+        indexes arrays (zero-based and row-major order). Note that in general,
+        the resulting coordinate may not lie within the imaging plane, and
+        consequently the slice index value may be non-zero.
 
     """
     x = float(coordinate[0])
@@ -583,7 +586,14 @@ def map_coordinate_into_pixel_matrix(
     Returns
     -------
     Tuple[float, float, float]
-        (Column, Row, Slice) coordinate in the Total Pixel Matrix
+        (Column, Row, Slice) coordinate. ``Column`` and ``Row`` are pixel
+        coordinates in the Total Pixel Matrix, ``Slice`` represents the signed
+        distance of the input coordinate in the direction normal to the plane
+        of the Total Pixel Matrix represented in units of the given spacing
+        between slices. If the ``Slice`` coordinate is 0.0, then the input
+        coordinate lies in the imaging plane, otherwise it lies off the plane
+        of the Total Pixel Matrix and ``Column`` and ``Row`` may be interpreted
+        as the projections of the input coordinate onto the imaging plane.
 
     Note
     ----
