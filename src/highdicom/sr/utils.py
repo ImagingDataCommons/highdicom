@@ -1,5 +1,5 @@
 """Utilities for working with SR document instances."""
-from typing import Iterator, List, Optional, Union
+from typing import List, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -10,12 +10,12 @@ from highdicom.sr.value_types import ContentItem
 
 
 def find_content_items(
-        dataset: Dataset,
-        name: Optional[Union[CodedConcept, Code]] = None,
-        value_type: Optional[Union[ValueTypeValues, str]] = None,
-        relationship_type: Optional[Union[RelationshipTypeValues, str]] = None,
-        recursive: bool = False
-    ) -> List[Dataset]:
+    dataset: Dataset,
+    name: Optional[Union[CodedConcept, Code]] = None,
+    value_type: Optional[Union[ValueTypeValues, str]] = None,
+    relationship_type: Optional[Union[RelationshipTypeValues, str]] = None,
+    recursive: bool = False
+) -> List[Dataset]:
     """Finds content items in a Structured Report document that match a given
     query.
 
@@ -115,4 +115,62 @@ def find_content_items(
         value_type=value_type,
         relationship_type=relationship_type,
         recursive=recursive
+    )
+
+
+def get_coded_name(item: Dataset) -> CodedConcept:
+    """Gets the concept name of a SR Content Item.
+
+    Parameter
+    ---------
+    item: pydicom.dataset.Dataset
+        Content Item
+
+    Returns
+    -------
+    highdicom.sr.coding.CodedConcept
+        Concept name
+
+    """
+    try:
+        name = item.ConceptNameCodeSequence[0]
+    except AttributeError:
+        raise AttributeError(
+            'Dataset does not contain attribute "ConceptNameCodeSequence" and '
+            'thus doesn\'t represent a SR Content Item.'
+        )
+    return CodedConcept(
+        value=name.CodeValue,
+        scheme_designator=name.CodingSchemeDesignator,
+        meaning=name.CodeMeaning,
+        scheme_version=name.get('CodingSchemeVersion', None)
+    )
+
+
+def get_coded_value(item: Dataset) -> CodedConcept:
+    """Gets the value of a SR Content Item with Value Type CODE.
+
+    Parameter
+    ---------
+    item: pydicom.dataset.Dataset
+        Content Item
+
+    Returns
+    -------
+    highdicom.sr.coding.CodedConcept
+        Value
+
+    """
+    try:
+        value = item.ConceptCodeSequence[0]
+    except AttributeError:
+        raise AttributeError(
+            'Dataset does not contain attribute "ConceptCodeSequence" and '
+            'thus doesn\'t represent a SR Content Item of Value Type CODE.'
+        )
+    return CodedConcept(
+        value=value.CodeValue,
+        scheme_designator=value.CodingSchemeDesignator,
+        meaning=value.CodeMeaning,
+        scheme_version=value.get('CodingSchemeVersion', None)
     )
