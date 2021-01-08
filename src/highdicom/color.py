@@ -36,12 +36,12 @@ class ColorManager(object):
             When attributes ICCProfile or SamplesPerPixels are not found in
             `metadata`
         ValueError
-            When values of attribute SamplesPerPixels is not ``3``.
+            When value of attribute SamplesPerPixels is not ``3`` or when
+            value of attribute ICCProfile cannot be read.
 
         """
-        self.metadata = metadata
         try:
-            if self.metadata.SamplesPerPixel != 3:
+            if metadata.SamplesPerPixel != 3:
                 raise ValueError(
                     'Metadata indicates that instance does not represent '
                     'a color image.'
@@ -50,7 +50,20 @@ class ColorManager(object):
             raise AttributeError(
                 'Metadata indicates that instance does not represent an image.'
             )
-        self._icc_transform = self._build_icc_transform(metadata)
+        try:
+            icc_profile = metadata.ICCProfile
+        except AttributeError:
+            try:
+                if len(metadata.OpticalPathSequence) > 1:
+                    # This should not happen in case of a color image, but
+                    # better safe than sorry.
+                    logger.warning(
+                        'metadata describes more than one optical path'
+                    )
+                icc_profile = metadata.OpticalPathSequence[0].ICCProfile
+            except (IndexError, AttributeError):
+                raise AttributeError('No ICC Profile found in image metadata.')
+        self._icc_transform = self._build_icc_transform(icc_profile)
 
     def transform_frame(self, array: np.ndarray) -> np.ndarray:
         """Transforms a frame by applying the ICC profile.
@@ -79,46 +92,25 @@ class ColorManager(object):
                 'Array has incorrect dimensions for a color image frame.'
             )
         image = Image.fromarray(array)
-        self._apply_icc_transform(image, self._icc_transform)
+        applyTransform(image, self._icc_transform, inPlace=True)
         return np.asarray(image)
 
     @staticmethod
-    def _build_icc_transform(metadata: Dataset) -> ImageCmsTransform:
+    def _build_icc_transform(icc_profile: bytes) -> ImageCmsTransform:
         """Builds an ICC Transformation object.
 
         Parameters
         ----------
-        metadata: pydicom.dataset.Dataset
-            DICOM metadata of an image instance
+        icc_profile: bytes
+            ICC Profile
 
         Returns
         -------
         PIL.ImageCms.ImageCmsTransform
             ICC Transformation object
 
-        Raises
-        ------
-        AttributeError
-            When no ICC Profile is found in `metadata`
-        ValueError
-            When ICC Profile cannot be read
-
         """
-        profile: Union[bytes, None]
-        try:
-            icc_profile = metadata.ICCProfile
-        except AttributeError:
-            try:
-                if len(metadata.OpticalPathSequence) > 1:
-                    # This should not happen in case of a color image, but
-                    # better safe than sorry.
-                    logger.warning(
-                        'metadata describes more than one optical path'
-                    )
-                icc_profile = metadata.OpticalPathSequence[0].ICCProfile
-            except (IndexError, AttributeError):
-                raise AttributeError('No ICC Profile found image metadata.')
-
+        profile: bytes
         try:
             profile = ImageCmsProfile(BytesIO(icc_profile))
         except OSError:
@@ -144,24 +136,3 @@ class ColorManager(object):
             inMode='RGB',  # according to PS3.3 C.11.15.1.1
             outMode='RGB'
         )
-
-    @staticmethod
-    def _apply_icc_transform(
-        image: Image.Image,
-        transform: ImageCmsTransform
-    ) -> np.ndarray:
-        """Applies an ICC transformation to correct the color of an image.
-
-        Parameters
-        ----------
-        image: PIL.Image.Image
-            Image
-        transform: PIL.ImageCms.ImageCmsTransform
-            ICC transformation object
-
-        Note
-        ----
-        Updates the image in place.
-
-        """
-        applyTransform(image, transform, inPlace=True)
