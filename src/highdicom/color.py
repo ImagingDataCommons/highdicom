@@ -20,9 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ColorManager(object):
 
-    """Class for converting the color of Frame items of the Pixel Data
-    element of a color image instance using an ICC profile.
-    """
+    """Class for color management using ICC profiles."""
 
     def __init__(self, metadata: Dataset):
         """Construct color manager object.
