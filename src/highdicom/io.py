@@ -2,21 +2,12 @@
 import logging
 import sys
 import traceback
-from io import BytesIO
-from typing import List, Union
+from typing import List
 
 import numpy as np
-from PIL import Image, ImageCms
-from PIL.ImageCms import (
-    applyTransform,
-    getProfileDescription,
-    getProfileName,
-    ImageCmsProfile,
-    ImageCmsTransform,
-    isIntentSupported,
-)
+from PIL import Image
 from pydicom.dataset import Dataset
-from pydicom.encaps import encapsulate, get_frame_offsets
+from pydicom.encaps import get_frame_offsets
 from pydicom.filebase import DicomFile
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -25,19 +16,10 @@ from pydicom.filereader import (
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
-from pydicom.uid import (
-    JPEGBaseline,
-    JPEGExtended,
-    JPEGLosslessP14,
-    JPEGLossless,
-    JPEGLSLossless,
-    JPEGLSLossy,
-    JPEG2000,
-    JPEG2000Lossless,
-    JPEG2000MultiComponentLossless,
-    JPEG2000MultiComponent,
-    UID,
-)
+from pydicom.uid import UID
+
+from highdicom.frame import decode_frame
+from highdicom.color import ColorManager
 
 logger = logging.getLogger(__name__)
 
@@ -229,82 +211,6 @@ def _build_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
-def _build_icc_transform(metadata: Dataset) -> Union[ImageCmsTransform, None]:
-    """Builds an ICC Transformation object.
-
-    Parameters
-    ----------
-    metadata: pydicom.dataset.Dataset
-        DICOM metadata of an image instance
-
-    Returns
-    -------
-    Union[PIL.ImageCms.ImageCmsTransform, None]
-        ICC Transformation object
-
-    """
-    profile: Union[bytes, None]
-    try:
-        icc_profile = metadata.ICCProfile
-    except AttributeError:
-        try:
-            if len(metadata.OpticalPathSequence) > 1:
-                # This should not happen in case of a color image, but
-                # better safe than sorry.
-                logger.warning(
-                    'metadata describes more than one optical path'
-                )
-            icc_profile = metadata.OpticalPathSequence[0].ICCProfile
-        except (IndexError, AttributeError):
-            message = 'no ICC Profile found'
-            if metadata.SamplesPerPixel > 1:
-                logger.warning(message)
-            else:
-                logger.debug(message)
-            icc_profile = None
-
-    if icc_profile is not None:
-        profile = ImageCmsProfile(BytesIO(icc_profile))
-        name = getProfileName(profile).strip()
-        description = getProfileDescription(profile).strip()
-        logger.info(f'found ICC Profile "{name}": "{description}"')
-
-        logger.debug('build ICC Transform')
-        intent = ImageCms.INTENT_RELATIVE_COLORIMETRIC
-        if not isIntentSupported(
-            profile,
-            intent=intent,
-            direction=ImageCms.DIRECTION_INPUT
-        ):
-            raise ValueError(
-                'ICC Profile does not support desired '
-                'color transformation intent.'
-            )
-        return ImageCms.buildTransform(
-            inputProfile=profile,
-            outputProfile=ImageCms.createProfile('sRGB'),
-            inMode='RGB',  # according to PS3.3 C.11.15.1.1
-            outMode='RGB'
-        )
-
-
-def _apply_icc_transform(
-        image: Image.Image,
-        transform: ImageCmsTransform
-    ) -> np.ndarray:
-    """Applies an ICC transformation to correct the color of an image.
-
-    Parameters
-    ----------
-    image: PIL.Image.Image
-        Image
-    transform: PIL.ImageCms.ImageCmsTransform
-        ICC transformation object
-
-    """
-    applyTransform(image, transform, inPlace=True)
-
-
 class ImageFileReader(object):
 
     """Reader for DICOM datasets representing Image Information Entities.
@@ -353,7 +259,7 @@ class ImageFileReader(object):
             )
             for tb in traceback.format_tb(except_trace):
                 sys.stdout.write(tb)
-            sys.exit(1)
+            raise
 
     def open(self):
         """Opens file and reads metadata from it.
@@ -416,7 +322,10 @@ class ImageFileReader(object):
 
         # Build the ICC Transformation object. This takes some time and should
         # be done only once to speedup subsequent color corrections.
-        self._icc_transform = _build_icc_transform(self._metadata)
+        try:
+            self._color_manager = ColorManager(self._metadata)
+        except (AttributeError, ValueError):
+            self._color_manager = None
 
         logger.info('build Basic Offset Table')
         transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID
@@ -540,7 +449,7 @@ class ImageFileReader(object):
         return frame_data
 
     def read_frame(self, index: int, correct_color: bool = True) -> np.ndarray:
-        """Reads an individual frame.
+        """Reads and decodes the pixel data of an individual frame item.
 
         Parameters
         ----------
@@ -576,13 +485,13 @@ class ImageFileReader(object):
             pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
             return pixel_array.reshape(rows, columns)
 
-        frame_array = self._decode_frame(frame_data)
+        frame_array = decode_frame(frame_data, self.metadata)
 
-        if correct_color and self._icc_transform is not None:
+        # We don't use the color_correct_frame() function here, since we cache
+        # the ICC transform on the reader instance for improved performance.
+        if correct_color and self._color_manager is not None:
             logger.debug(f'correct color of frame #{index}')
-            image = Image.fromarray(frame_array)
-            _apply_icc_transform(image, self._icc_transform)
-            return np.asarray(image)
+            return self._color_manager.transform_frame(frame_array)
 
         return frame_array
 
@@ -593,110 +502,3 @@ class ImageFileReader(object):
             return int(self.metadata.NumberOfFrames)
         except AttributeError:
             return 1
-
-    def _decode_frame(self, value: bytes) -> np.ndarray:
-        """Decodes pixel data of an individual frame.
-
-        Parameters
-        ----------
-        value: bytes
-            Pixel data of a frame (potentially compressed in case
-            of encapsulated format encoding, depending on the transfer syntax)
-
-        Returns
-        -------
-        numpy.ndarray
-            Decoded pixel data
-
-        Raises
-        ------
-        ValueError
-            When transfer syntax is not supported.
-
-        """
-        ds = Dataset()
-        ds.file_meta = self.metadata.file_meta
-        required_attributes = {
-            'Rows',
-            'Columns',
-            'BitsAllocated',
-            'SamplesPerPixel',
-            'PhotometricInterpretation',
-            'PixelRepresentation',
-        }
-        for attr in required_attributes:
-            try:
-                setattr(ds, attr, getattr(self.metadata, attr))
-            except AttributeError:
-                raise AttributeError(
-                    'Cannot decode frame. '
-                    f'Image is missing required attribute "{attr}".'
-                )
-
-        if self.metadata.SamplesPerPixel > 1:
-            attr = 'PlanarConfiguration'
-            try:
-                setattr(ds, attr, getattr(self.metadata, attr))
-            except AttributeError:
-                raise AttributeError(
-                    'Cannot decode frame. '
-                    f'Image is missing required attribute "{attr}".'
-                )
-
-        transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID
-        jpeg_transfer_syntaxes = (
-            JPEGBaseline,
-            JPEGExtended,
-            JPEGLosslessP14,
-            JPEGLossless,
-            JPEGLSLossless,
-            JPEGLSLossy,
-        )
-        jpeg2000_transfer_syntaxes = (
-            JPEG2000Lossless,
-            JPEG2000,
-            JPEG2000MultiComponentLossless,
-            JPEG2000MultiComponent,
-        )
-        if transfer_syntax_uid in jpeg_transfer_syntaxes:
-            if not(value.startswith(_JPEG_SOI_MARKER) and
-                    value.strip(b'\x00').endswith(_JPEG_EOI_MARKER)):
-                raise ValueError(
-                    'Frame does not represent a valid JPEG bitstream.'
-                )
-        elif transfer_syntax_uid == jpeg2000_transfer_syntaxes:
-            if not(value.startswith(_JPEG2000_SOC_MARKER) and
-                    value.strip(b'\x00').endswith(_JPEG2000_EOC_MARKER)):
-                raise ValueError(
-                    'Frame does not represent a valid JPEG 2000 bitstream.'
-                )
-
-        if transfer_syntax_uid.is_encapsulated:
-            if (transfer_syntax_uid == JPEGBaseline and
-                    self.metadata.PhotometricInterpretation == 'RGB'):
-                # RGB color images, which were not transformed into YCbCr color
-                # space upon JPEG compression, need to be handled separately.
-                # Pillow assumes that images were transformed into YCbCr color
-                # space prior to JPEG compression. However, with photometric
-                # interpretation RGB, no color transformation was performed.
-                # Setting the value of "mode" to YCbCr signals Pillow to not
-                # apply any color transformation upon decompression.
-                n_bytes = self._bytes_per_frame_uncompressed
-                compressed_pixels = value[:n_bytes]
-                image = Image.open(BytesIO(compressed_pixels))
-                color_mode = 'YCbCr'
-                image.tile = [(
-                    'jpeg',
-                    image.tile[0][1],
-                    image.tile[0][2],
-                    (color_mode, ''),
-                )]
-                image.mode = color_mode
-                image.rawmode = color_mode
-                return np.asarray(image)
-            else:
-                ds.PixelData = encapsulate(frames=[value])
-        else:
-            ds.PixelData = value
-
-        return ds.pixel_array
