@@ -6,6 +6,7 @@ from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
+from highdicom.spatial import map_pixel_into_coordinate_system
 
 
 def tile_pixel_matrix(
