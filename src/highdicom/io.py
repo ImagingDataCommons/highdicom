@@ -5,7 +5,6 @@ import traceback
 from typing import List
 
 import numpy as np
-from PIL import Image
 from pydicom.dataset import Dataset
 from pydicom.encaps import get_frame_offsets
 from pydicom.filebase import DicomFile
@@ -280,7 +279,7 @@ class ImageFileReader(object):
         Builds a Basic Offset Table to speed up subsequent frame-level access.
 
         """
-        logger.info('read File Meta Information')
+        logger.debug('read File Meta Information')
         file_meta = read_file_meta_info(self.filename)
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         try:
@@ -293,7 +292,7 @@ class ImageFileReader(object):
             raise OSError(
                 f'Could not open file for reading: "{self.filename}"'
             )
-        logger.info('read metadata elements')
+        logger.debug('read metadata elements')
         try:
             self._metadata = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
@@ -327,7 +326,7 @@ class ImageFileReader(object):
         except (AttributeError, ValueError):
             self._color_manager = None
 
-        logger.info('build Basic Offset Table')
+        logger.debug('build Basic Offset Table')
         transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID
         if transfer_syntax_uid.is_encapsulated:
             try:
