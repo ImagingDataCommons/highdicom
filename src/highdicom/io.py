@@ -321,10 +321,30 @@ class ImageFileReader(object):
 
         # Build the ICC Transformation object. This takes some time and should
         # be done only once to speedup subsequent color corrections.
-        try:
-            self._color_manager = ColorManager(self._metadata)
-        except (AttributeError, ValueError):
+
+        if self.metadata.SamplesPerPixel == 1:
             self._color_manager = None
+        else:
+            try:
+                icc_profile = self.metadata.ICCProfile
+            except AttributeError:
+                try:
+                    if len(self.metadata.OpticalPathSequence) > 1:
+                        # This should not happen in case of a color image.
+                        logger.warning(
+                            'color image contains more than one optical path'
+                        )
+                    optical_path_item = self.metadata.OpticalPathSequence[0]
+                    icc_profile = optical_path_item.ICCProfile
+                except (IndexError, AttributeError):
+                    raise AttributeError(
+                        'No ICC Profile found in image metadata.'
+                    )
+            try:
+                self._color_manager = ColorManager(icc_profile)
+            except ValueError:
+                logger.warning('could not read ICC Profile')
+                self._color_manager = None
 
         logger.debug('build Basic Offset Table')
         transfer_syntax_uid = self.metadata.file_meta.TransferSyntaxUID

@@ -22,48 +22,24 @@ class ColorManager(object):
 
     """Class for color management using ICC profiles."""
 
-    def __init__(self, metadata: Dataset):
-        """Construct color manager object.
+    def __init__(self, icc_profile: bytes):
+        """
 
         Parameters
         ----------
-        metadata: Dataset
-            Metadata of a color image
+        icc_profile: bytes
+            ICC profile
 
         Raises
         ------
-        AttributeError
-            When attributes ICCProfile or SamplesPerPixels are not found in
-            `metadata`
         ValueError
-            When value of attribute SamplesPerPixels is not ``3`` or when
-            value of attribute ICCProfile cannot be read.
+            When ICC Profile cannot be read.
 
         """
         try:
-            if metadata.SamplesPerPixel != 3:
-                raise ValueError(
-                    'Metadata indicates that instance does not represent '
-                    'a color image.'
-                )
-        except AttributeError:
-            raise AttributeError(
-                'Metadata indicates that instance does not represent an image.'
-            )
-        try:
-            icc_profile = metadata.ICCProfile
-        except AttributeError:
-            try:
-                if len(metadata.OpticalPathSequence) > 1:
-                    # This should not happen in case of a color image, but
-                    # better safe than sorry.
-                    logger.warning(
-                        'metadata describes more than one optical path'
-                    )
-                icc_profile = metadata.OpticalPathSequence[0].ICCProfile
-            except (IndexError, AttributeError):
-                raise AttributeError('No ICC Profile found in image metadata.')
-        self._icc_transform = self._build_icc_transform(icc_profile)
+            self._icc_transform = self._build_icc_transform(icc_profile)
+        except OSError:
+            raise ValueError('Could not read ICC Profile.')
 
     def transform_frame(self, array: np.ndarray) -> np.ndarray:
         """Transforms a frame by applying the ICC profile.
