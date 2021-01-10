@@ -16,10 +16,6 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.sr.codedict import codes
-from pydicom._storage_sopclass_uids import (
-    SegmentationStorage,
-    VLWholeSlideMicroscopyImageStorage,
-)
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -248,7 +244,7 @@ class Segmentation(SOPClass):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sop_class_uid=SegmentationStorage,
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
             manufacturer=manufacturer,
             modality='SEG',
             transfer_syntax_uid=transfer_syntax_uid,
@@ -535,7 +531,7 @@ class Segmentation(SOPClass):
                         'Pixel array contains segments that lack descriptions.'
                     )
 
-        elif (pixel_array.dtype == np.float):
+        elif (pixel_array.dtype in (np.float, np.float32, np.float64)):
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
@@ -713,7 +709,7 @@ class Segmentation(SOPClass):
                     full_pixel_array = np.array([], np.bool)
 
         for i, segment_number in enumerate(described_segment_numbers):
-            if pixel_array.dtype == np.float:
+            if pixel_array.dtype in (np.float, np.float32, np.float64):
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 planes = np.around(
@@ -726,6 +722,8 @@ class Segmentation(SOPClass):
                 planes[pixel_array == segment_number] = True
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
+            else:
+                raise TypeError('Pixel array has an invalid data type.')
 
             contained_plane_index = []
             for j in plane_sort_index:
