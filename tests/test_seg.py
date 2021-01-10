@@ -513,11 +513,12 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
-        self._sm_pixel_array[6:9, 2:8, 1:4] = True
+        # self._sm_pixel_array[6:9, 2:8, 1:4] = True
 
         # A series of single frame CT images
         ct_series = [
-            dcmread(f) for f in get_testdata_files('77654033/CT2')
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         # Ensure the frames are in the right spatial order
         # (only 3rd dimension changes)
@@ -538,6 +539,21 @@ class TestSegmentation(unittest.TestCase):
             dtype=np.bool
         )
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
+
+    @ staticmethod
+    def sort_frames(dataset, mask):
+        if hasattr(dataset, 'ContainerIdentifier'):
+            dimension_index_sequence = DimensionIndexSequence(
+                CoordinateSystemNames.SLIDE
+            )
+        else:
+            dimension_index_sequence = DimensionIndexSequence(
+                CoordinateSystemNames.PATIENT
+            )
+        sorting_indices = dimension_index_sequence.get_frame_order(
+            dataset.PerFrameFunctionalGroupsSequence
+        )
+        return mask[sorting_indices]
 
     @staticmethod
     def remove_empty_frames(mask):
@@ -652,15 +668,15 @@ class TestSegmentation(unittest.TestCase):
         )
         assert instance.PatientID == self._sm_image.PatientID
         assert instance.AccessionNumber == self._sm_image.AccessionNumber
+        assert instance.ContainerIdentifier == \
+            self._sm_image.ContainerIdentifier
+        assert instance.SpecimenDescriptionSequence[0].SpecimenUID == \
+            self._sm_image.SpecimenDescriptionSequence[0].SpecimenUID
         assert len(instance.SegmentSequence) == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
             self._sm_image.SOPInstanceUID
-        assert instance.TotalPixelMatrixRows == \
-            self._sm_image.TotalPixelMatrixRows
-        assert instance.TotalPixelMatrixColumns == \
-            self._sm_image.TotalPixelMatrixColumns
         assert instance.Rows == self._sm_image.pixel_array.shape[1]
         assert instance.Columns == self._sm_image.pixel_array.shape[2]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
@@ -908,7 +924,7 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         expected_encoding
-                    )
+                    ), f'{source[0].Modality}, {transfer_syntax_uid}'
 
                     # Add another segment
                     instance.add_segments(
@@ -922,7 +938,7 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         two_segment_expected_encoding
-                    )
+                    ), f'{source[0].Modality}, {transfer_syntax_uid}'
 
         for source, mask in tests:
             additional_mask = (1 - mask)
