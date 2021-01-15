@@ -189,10 +189,6 @@ def decode_frame(
             )
 
     transfer_syntax_uid = metadata.file_meta.TransferSyntaxUID
-    rows = metadata.Rows
-    columns = metadata.Columns
-    samples_per_pixel = metadata.SamplesPerPixel
-    bits_allocated = metadata.BitsAllocated
 
     if transfer_syntax_uid.is_encapsulated:
         if (transfer_syntax_uid == JPEGBaseline and
@@ -204,10 +200,7 @@ def decode_frame(
             # interpretation RGB, no color transformation was performed.
             # Setting the value of "mode" to YCbCr signals Pillow to not
             # apply any color transformation upon decompression.
-            n_pixels = rows * columns * samples_per_pixel
-            n_bytes = n_pixels * bits_allocated // 8
-            compressed_pixels = value[:n_bytes]
-            image = Image.open(BytesIO(compressed_pixels))
+            image = Image.open(BytesIO(value))
             color_mode = 'YCbCr'
             image.tile = [(
                 'jpeg',
