@@ -18,7 +18,7 @@ from pydicom.valuerep import DA, DT, TM
 from highdicom.sr.coding import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues
 from highdicom.version import __version__
-from highdicom._iods import IOD_MODULE_MAP
+from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
 
@@ -236,16 +236,7 @@ class SOPClass(Dataset):
                 ie, dataset.SOPInstanceUID
             )
         )
-        try:
-            sop_class_name = UID_dictionary[dataset.SOPClassUID][0]
-        except KeyError:
-            raise ValueError(
-                'Could not determine IOD for SOP Class UID "{}".'.format(
-                    dataset.SOPClassUID
-                )
-            )
-        iod_key = sop_class_name.replace(' Storage', '').replace(' ', '-')
-        iod_key = iod_key.lower()
+        iod_key = SOP_CLASS_UID_IOD_KEY_MAP[dataset.SOPClassUID]
         for module_item in IOD_MODULE_MAP[iod_key]:
             module_key = module_item['key']
             if module_item['ie'] != ie:
