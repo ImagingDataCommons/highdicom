@@ -10,11 +10,11 @@ from highdicom.spatial import map_pixel_into_coordinate_system
 
 
 def tile_pixel_matrix(
-        total_pixel_matrix_rows: int,
-        total_pixel_matrix_columns: int,
-        rows: int,
-        columns: int,
-    ) -> Iterator[Tuple[int, int]]:
+    total_pixel_matrix_rows: int,
+    total_pixel_matrix_columns: int,
+    rows: int,
+    columns: int,
+) -> Iterator[Tuple[int, int]]:
     """Tiles an image into smaller frames (rectangular regions).
 
     Parameters
@@ -42,18 +42,18 @@ def tile_pixel_matrix(
 
 
 def compute_plane_position_tiled_full(
-        row_index: int,
-        column_index: int,
-        x_offset: float,
-        y_offset: float,
-        rows: int,
-        columns: int,
-        image_orientation: Sequence[float],
-        pixel_spacing: Sequence[float],
-        slice_thickness: Optional[float] = None,
-        spacing_between_slices: Optional[float] = None,
-        slice_index: Optional[float] = None
-    ) -> PlanePositionSequence:
+    row_index: int,
+    column_index: int,
+    x_offset: float,
+    y_offset: float,
+    rows: int,
+    columns: int,
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+    slice_thickness: Optional[float] = None,
+    spacing_between_slices: Optional[float] = None,
+    slice_index: Optional[float] = None
+) -> PlanePositionSequence:
     """Computes the absolute position of a Frame (image plane) in the
     Frame of Reference defined by the three-dimensional slide coordinate
     system given their relative position in the Total Pixel Matrix.
