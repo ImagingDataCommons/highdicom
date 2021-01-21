@@ -8,7 +8,8 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 
 from highdicom.base import SOPClass
-from highdicom._iods import IOD_MODULE_MAP
+from highdicom.legacy import SOP_CLASS_UIDS
+from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
 
@@ -22,13 +23,6 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     '1.2.840.10008.5.1.4.1.1.4': '1.2.840.10008.5.1.4.1.1.4.4',
     # PET Image Storage
     '1.2.840.10008.5.1.4.1.1.128': '1.2.840.10008.5.1.4.1.1.128.1',
-}
-
-
-_SOP_CLASS_UID_IOD_KEY_MAP = {
-    '1.2.840.10008.5.1.4.1.1.2.2': 'legacy-converted-enhanced-ct-image',
-    '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
-    '1.2.840.10008.5.1.4.1.1.128.1': 'legacy-converted-enhanced-pet-image',
 }
 
 
@@ -108,7 +102,7 @@ def _convert_legacy_to_enhanced(
     }
 
     mf_attributes = []
-    iod_key = _SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
+    iod_key = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
     for module_item in IOD_MODULE_MAP[iod_key]:
         module_key = module_item['key']
         for attr_item in MODULE_ATTRIBUTE_MAP[module_key]:
