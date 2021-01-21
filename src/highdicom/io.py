@@ -504,7 +504,20 @@ class ImageFileReader(object):
             pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
             return pixel_array.reshape(rows, columns)
 
-        frame_array = decode_frame(frame_data, self.metadata)
+        frame_array = decode_frame(
+            frame_data,
+            rows=self.metadata.Rows,
+            columns=self.metadata.Columns,
+            samples_per_pixel=self.metadata.SamplesPerPixel,
+            transfer_syntax_uid=self.metadata.file_meta.TransferSyntaxUID,
+            bits_allocated=self.metadata.BitsAllocated,
+            bits_stored=self.metadata.BitsStored,
+            photometric_interpretation=self.metadata.PhotometricInterpretation,
+            pixel_representation=self.metadata.PixelRepresentation,
+            planar_configuration=getattr(
+                self.metadata, 'PlanarConfiguration', None
+            )
+        )
 
         # We don't use the color_correct_frame() function here, since we cache
         # the ICC transform on the reader instance for improved performance.

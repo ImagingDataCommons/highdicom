@@ -352,8 +352,16 @@ class SCImage(SOPClass):
         if pixel_spacing is not None:
             self.PixelSpacing = pixel_spacing
 
+        encoded_frame = encode_frame(
+            pixel_array,
+            transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+            bits_allocated=self.BitsAllocated,
+            bits_stored=self.BitsStored,
+            photometric_interpretation=self.PhotometricInterpretation,
+            pixel_representation=self.PixelRepresentation,
+            planar_configuration=getattr(self, 'PlanarConfiguration', None)
+        )
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            encoded_frame = encode_frame(pixel_array, self)
             self.PixelData = encapsulate([encoded_frame])
         else:
-            self.PixelData = encode_frame(pixel_array, self)
+            self.PixelData = encoded_frame

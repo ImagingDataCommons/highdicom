@@ -1,6 +1,7 @@
 """Data Elements that are specific to the Segmentation IOD."""
-from typing import Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
+import numpy as np
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
@@ -259,3 +260,35 @@ class DimensionIndexSequence(DataElementSequence):
                 segment_number_index,
                 image_position_index,
             ])
+
+    def get_frame_order(
+        self,
+        per_frame_functional_groups: Sequence[Dataset]
+    ) -> List[int]:
+        """Computes the order of Frame items in the Pixel Data element of the
+        Segmentation image.
+
+        Parameters
+        ----------
+        per_frame_functional_groups: Sequence[pydicom.dataset.Dataset]
+            Functional groups for each Frame item
+
+        Returns
+        -------
+        List[int]
+            Index position of each Frame item in the Pixel Data element of the
+            Segmentation image
+
+        """
+        values = np.array(
+            (len(per_frame_functional_groups), len(self)),
+            dtype=np.unit16
+        )
+        for i, frame_item in enumerate(per_frame_functional_groups):
+            for j, dimension_index_item in enumerate(self):
+                group_pointer = dimension_index_item.FunctionalGroupPointer
+                pointer = dimension_index_item.DimensionIndexPointer
+                values[i, j] = frame_item[group_pointer][0][pointer]
+
+        _, sort_index = np.unique(values, axis=0, return_index=True)
+        return sort_index.tolist()

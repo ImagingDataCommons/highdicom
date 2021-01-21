@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+from typing import Optional, Union
 
 import numpy as np
 from PIL import Image
@@ -15,13 +16,24 @@ from pydicom.uid import (
     RLELossless,
 )
 
+from highdicom.enum import (
+    PhotometricInterpretationValues,
+    PixelRepresentationValues,
+    PlanarConfigurationValues,
+)
+
 
 logger = logging.getLogger(__name__)
 
 
 def encode_frame(
     array: np.ndarray,
-    metadata: Dataset,
+    transfer_syntax_uid: str,
+    bits_allocated: int,
+    bits_stored: int,
+    photometric_interpretation: Union[PhotometricInterpretationValues, str],
+    pixel_representation: Union[PixelRepresentationValues, int] = 0,
+    planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
 ) -> bytes:
     """Encodes pixel data of an individual frame.
 
@@ -31,8 +43,20 @@ def encode_frame(
         Pixel data in form of an array with dimensions
         (Rows x Columns x SamplesPerPixel) in case of a color image and
         (Rows x Columns) in case of a monochrome image
-    metadata: pydicom.dataset.Dataset
-        Metadata of the corresponding image dataset
+    transfer_syntax_uid: int
+        Transfer Syntax UID
+    bits_allocated: int
+        Number of bits that need to be allocated per pixel sample
+    bits_stored: int
+        Number of bits that are required to store a pixel sample
+    photometric_interpretation: int
+        Photometric interpretation
+    pixel_representation: int, optional
+        Whether pixel samples are represented as unsigned integers or
+        2's complements
+    planar_configuration: int, optional
+        Whether color samples are conded by pixel (`R1G1B1R2G2B2...`) or
+        by plane (`R1R2...G1G2...B1B2...`).
 
     Returns
     -------
@@ -42,30 +66,32 @@ def encode_frame(
 
     Raises
     ------
-    AttributeError
-        When required attribute is missing in `metadata`.
     ValueError
-        When transfer syntax is not supported.
+        When `transfer_syntax_uid` is not supported or when
+        `planar_configuration` is missing in case of a color image frame.
 
     """
-    transfer_syntax_uid = metadata.file_meta.TransferSyntaxUID
-    required_attributes = {
-        'Rows',
-        'Columns',
-        'BitsAllocated',
-        'BitsStored',
-        'SamplesPerPixel',
-    }
-    for attr in required_attributes:
-        if not hasattr(metadata, attr):
-            raise AttributeError(
-                'Cannot encode frame. '
-                f'Image metadata is missing required attribute "{attr}".'
+    rows = array.shape[0]
+    cols = array.shape[1]
+    if array.ndim > 2:
+        if planar_configuration is None:
+            raise ValueError(
+                'Planar configuration needs to be specified for encoding of '
+                'color image frames.'
             )
-    bits_allocated = metadata.BitsAllocated
-    rows = metadata.Rows
-    cols = metadata.Columns
-    samples_per_pixel = metadata.SamplesPerPixel
+        planar_configuration = PlanarConfigurationValues(
+            planar_configuration
+        ).value
+        samples_per_pixel = array.shape[2]
+    else:
+        samples_per_pixel = 1
+
+    pixel_representation = PixelRepresentationValues(
+        pixel_representation
+    ).value
+    photometric_interpretation = PhotometricInterpretationValues(
+        photometric_interpretation
+    ).value
 
     uncompressed_transfer_syntaxes = {
         ExplicitVRLittleEndian,
@@ -130,7 +156,15 @@ def encode_frame(
 
 def decode_frame(
     value: bytes,
-    metadata: Dataset,
+    transfer_syntax_uid: str,
+    rows: int,
+    columns: int,
+    samples_per_pixel: int,
+    bits_allocated: int,
+    bits_stored: int,
+    photometric_interpretation: Union[PhotometricInterpretationValues, str],
+    pixel_representation: Union[PixelRepresentationValues, int] = 0,
+    planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
 ) -> np.ndarray:
     """Decodes pixel data of an individual frame.
 
@@ -139,8 +173,26 @@ def decode_frame(
     value: bytes
         Pixel data of a frame (potentially compressed in case
         of encapsulated format encoding, depending on the transfer syntax)
-    metadata: pydicom.dataset.Dataset
-        Metadata of the corresponding image dataset
+    transfer_syntax_uid: str
+        Transfer Syntax UID
+    rows: int
+        Number of pixel rows in the frame
+    columns: int
+        Number of pixel columns in the frame
+    samples_per_pixel: int
+        Number of (color) samples per pixel
+    bits_allocated: int
+        Number of bits that need to be allocated per pixel sample
+    bits_stored: int
+        Number of bits that are required to store a pixel sample
+    photometric_interpretation: int
+        Photometric interpretation
+    pixel_representation: int, optional
+        Whether pixel samples are represented as unsigned integers or
+        2's complements
+    planar_configuration: int, optional
+        Whether color samples are conded by pixel (`R1G1B1R2G2B2...`) or
+        by plane (`R1R2...G1G2...B1B2...`).
 
     Returns
     -------
@@ -149,50 +201,46 @@ def decode_frame(
 
     Raises
     ------
-    AttributeError
-        When required attribute is missing in `metadata`.
     ValueError
         When transfer syntax is not supported.
 
     """
+    pixel_representation = PixelRepresentationValues(
+        pixel_representation
+    ).value
+    photometric_interpretation = PhotometricInterpretationValues(
+        photometric_interpretation
+    ).value
+    if samples_per_pixel > 1:
+        if planar_configuration is None:
+            raise ValueError(
+                'Planar configuration needs to be specified for decoding of '
+                'color image frames.'
+            )
+        planar_configuration = PlanarConfigurationValues(
+            planar_configuration
+        ).value
+
     # The pydicom library does currently not support reading individual frames.
     # This hack creates a small dataset containing only a single frame, which
     # can then be decoded using the pydicom API.
+    file_meta = Dataset()
+    file_meta.TransferSyntaxUID = transfer_syntax_uid
     ds = Dataset()
-    ds.file_meta = metadata.file_meta
-    required_attributes = {
-        'Rows',
-        'Columns',
-        'BitsAllocated',
-        'BitsStored',
-        'SamplesPerPixel',
-        'PhotometricInterpretation',
-        'PixelRepresentation',
-    }
-    for attr in required_attributes:
-        try:
-            setattr(ds, attr, getattr(metadata, attr))
-        except AttributeError:
-            raise AttributeError(
-                'Cannot decode frame. '
-                f'Image metadata is missing required attribute "{attr}".'
-            )
-
-    if metadata.SamplesPerPixel > 1:
-        attr = 'PlanarConfiguration'
-        try:
-            setattr(ds, attr, getattr(metadata, attr))
-        except AttributeError:
-            raise AttributeError(
-                'Cannot decode frame. '
-                f'Image metadata is missing required attribute "{attr}".'
-            )
-
-    transfer_syntax_uid = metadata.file_meta.TransferSyntaxUID
+    ds.file_meta = file_meta
+    ds.Rows = rows
+    ds.Columns = columns
+    ds.SamplesPerPixel = samples_per_pixel
+    ds.PhotometricInterpretation = photometric_interpretation
+    ds.PixelRepresentation = pixel_representation
+    ds.PlanarConfiguration = planar_configuration
+    ds.BitsAllocated = bits_allocated
+    ds.BitsStored = bits_stored
+    ds.HighBit = bits_stored - 1
 
     if transfer_syntax_uid.is_encapsulated:
         if (transfer_syntax_uid == JPEGBaseline and
-                metadata.PhotometricInterpretation == 'RGB'):
+                photometric_interpretation == 'RGB'):
             # RGB color images, which were not transformed into YCbCr color
             # space upon JPEG compression, need to be handled separately.
             # Pillow assumes that images were transformed into YCbCr color

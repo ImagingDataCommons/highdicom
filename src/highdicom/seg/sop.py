@@ -907,7 +907,14 @@ class Segmentation(SOPClass):
                         'Only single frame can be encoded at at time '
                         'in case of encapsulated format encoding.'
                     )
-            return encode_frame(planes, self)
+            return encode_frame(
+                planes,
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
         else:
             # The array may represent more than one frame item.
             if self.SegmentationType == SegmentationTypeValues.BINARY.value:
