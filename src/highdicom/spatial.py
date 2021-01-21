@@ -4,8 +4,8 @@ import numpy as np
 
 
 def create_rotation_matrix(
-        image_orientation: Sequence[float],
-    ) -> np.ndarray:
+    image_orientation: Sequence[float],
+) -> np.ndarray:
     """Builds a rotation matrix.
 
     Parameters
@@ -35,66 +35,11 @@ def create_rotation_matrix(
     ])
 
 
-def compute_rotation(
-        image_orientation: Sequence[float],
-        in_degrees: bool = False
-    ) -> float:
-    """Computes the rotation of the image with respect to the frame of
-    reference (patient or slide coordinate system).
-
-    This is only valid if the two coordinate systems are related via a planar
-    rotation. Otherwise, an exception is raised.
-
-    Parameters
-    ----------
-    image_orientation: Sequence[float]
-        Cosines of the row direction (first triplet: horizontal, left to right,
-        increasing Column index) and the column direction (second triplet:
-        vertical, top to bottom, increasing Row index) direction expressed in
-        the three-dimensional patient or slide coordinate system defined by the
-        Frame of Reference
-    in_degrees: bool, optional
-        Whether angle should be returned in degrees rather than radians
-
-    Returns
-    -------
-    float
-        Angle (in radians or degrees, depending on whether `in_degrees`
-        is ``False`` or ``True``, respectively)
-
-    Raises
-    ------
-    ValueError
-        If the provided image orientation is not related to the frame of
-        reference coordinate system by a rotation within the image plane.
-
-    """
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
-    if (image_orientation[2] != 0.0) or (image_orientation[5] != 0.0):
-        raise ValueError(
-            "The provided image orientation is not related to the frame of "
-            "reference coordinate system by a simple planar rotation"
-        )
-    rotation = create_rotation_matrix(image_orientation)
-    if rotation[2, 2] < 0.0:
-        raise ValueError(
-            "The provided image orientation indicates that the image "
-            "coordinate system is flipped relative to the frame of "
-            "reference coordinate system"
-        )
-    angle = np.arctan2(-rotation[0, 1], rotation[0, 0])
-    if in_degrees:
-        return np.degrees(angle)
-    else:
-        return angle
-
-
 def build_transform(
-        image_position: Sequence[float],
-        image_orientation: Sequence[float],
-        pixel_spacing: Sequence[float],
-    ) -> np.ndarray:
+    image_position: Sequence[float],
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+) -> np.ndarray:
     """Builds an affine transformation matrix for mapping coordinates in the
     two dimensional pixel matrix into the three dimensional frame of reference.
 
@@ -166,11 +111,11 @@ def build_transform(
 
 
 def build_inverse_transform(
-        image_position: Sequence[float],
-        image_orientation: Sequence[float],
-        pixel_spacing: Sequence[float],
-        spacing_between_slices: float = 1.0
-    ) -> np.ndarray:
+    image_position: Sequence[float],
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+    spacing_between_slices: float = 1.0
+) -> np.ndarray:
     """Builds an inverse of an affine transformation matrix for mapping
     coordinates from the three dimensional frame of reference into the two
     dimensional pixel matrix.
@@ -249,9 +194,9 @@ def build_inverse_transform(
 
 
 def apply_transform(
-        coordinates: np.ndarray,
-        affine: np.ndarray
-    ) -> np.ndarray:
+    coordinates: np.ndarray,
+    affine: np.ndarray
+) -> np.ndarray:
     """Applies an affine transformation matrix to a batch of pixel matrix
     coordinates to obtain the corresponding coordinates in the
     three-dimensional frame of reference.
@@ -296,9 +241,9 @@ def apply_transform(
 
 
 def apply_inverse_transform(
-        coordinates: np.array,
-        affine: np.ndarray
-    ) -> np.array:
+    coordinates: np.array,
+    affine: np.ndarray
+) -> np.array:
     """Applies the inverse of an affine transformation matrix to a batch of
     coordinates in the three-dimensional frame of reference to obtain the
     corresponding pixel matrix coordinates.
@@ -312,7 +257,8 @@ def apply_inverse_transform(
         offsets, the second column represents the *Y* offsets and the third
         column represents the *Z* offsets
     affine: numpy.ndarray
-        4 x 4 affine transformation matrix
+        Invserse of a 4 x 4 affine transformation matrix (e.g., as returned by
+        ``highdicom.spatial.build_inverse_transform()``)
 
     Returns
     -------
@@ -348,11 +294,11 @@ def apply_inverse_transform(
 
 
 def map_pixel_into_coordinate_system(
-        coordinate: Sequence[float],
-        image_position: Sequence[float],
-        image_orientation: Sequence[float],
-        pixel_spacing: Sequence[float],
-    ) -> Tuple[float, float, float]:
+    coordinate: Sequence[float],
+    image_position: Sequence[float],
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+) -> Tuple[float, float, float]:
     """Maps a coordinate in the pixel matrix into the physical coordinate
     system (e.g., Slide or Patient) defined by a frame of reference.
 
@@ -412,12 +358,12 @@ def map_pixel_into_coordinate_system(
 
 
 def map_coordinate_into_pixel_matrix(
-        coordinate: Sequence[float],
-        image_position: Sequence[float],
-        image_orientation: Sequence[float],
-        pixel_spacing: Sequence[float],
-        spacing_between_slices: float = 1.0,
-    ) -> Tuple[float, float, float]:
+    coordinate: Sequence[float],
+    image_position: Sequence[float],
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+    spacing_between_slices: float = 1.0,
+) -> Tuple[float, float, float]:
     """Maps a coordinate in the physical coordinate system (e.g., Slide or
     Patient) into the pixel matrix.
 
