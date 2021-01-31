@@ -7,8 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
-from pydicom.uid import PYDICOM_IMPLEMENTATION_UID, ExplicitVRLittleEndian
-from pydicom.valuerep import DA, DT, TM
+from pydicom.valuerep import DT
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
     Comprehensive3DSRStorage,

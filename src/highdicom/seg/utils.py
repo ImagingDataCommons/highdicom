@@ -1,9 +1,8 @@
 """Utilities for working with SEG image instances."""
-from typing import Iterator, Optional, Union
+from typing import Iterator
 
 import numpy as np
 from pydicom.dataset import Dataset
-from pydicom.sr.coding import Code
 
 
 def iter_segments(dataset: Dataset) -> Iterator:

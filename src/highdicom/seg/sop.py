@@ -1,5 +1,4 @@
 """Module for the SOP class of the Segmentation IOD."""
-import itertools
 import logging
 import numpy as np
 from collections import defaultdict
@@ -8,20 +7,15 @@ from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
-from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
 from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import (
-    UID,
-    ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    JPEG2000Lossless,
     RLELossless,
+    UID,
 )
 from pydicom.sr.codedict import codes
-from pydicom._storage_sopclass_uids import (
-    SegmentationStorage,
-    VLSlideCoordinatesMicroscopicImageStorage,
-    VLWholeSlideMicroscopyImageStorage,
-)
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -30,6 +24,7 @@ from highdicom.content import (
     PixelMeasuresSequence
 )
 from highdicom.enum import CoordinateSystemNames
+from highdicom.frame import encode_frame
 from highdicom.seg.content import (
     DimensionIndexSequence,
     SegmentDescription,
@@ -40,7 +35,6 @@ from highdicom.seg.enum import (
     SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
-from highdicom.utils import compute_plane_position_slide_per_frame
 
 
 logger = logging.getLogger(__name__)
@@ -90,20 +84,21 @@ class Segmentation(SOPClass):
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
-            values ``True`` and ``False`` or ``0`` and ``1``), the segment number
-            used to encode the segment is taken from segment_descriptions.
-            Otherwise, if pixel_array contains multiple integer values, each value
-            is treated as a different segment whose segment number is that integer
-            value. In this case, all segments found in the array must be described
-            in `segment_descriptions`. Note that this is valid for both ``"BINARY"``
-            and ``"FRACTIONAL"`` segmentations.
-            For ``"FRACTIONAL"`` segmentations, values either encode the probability
-            of a given pixel belonging to a segment
+            values ``True`` and ``False`` or ``0`` and ``1``), the segment
+            number used to encode the segment is taken from
+            `segment_descriptions`. Otherwise, if `pixel_array` contains
+            multiple integer values, each value is treated as a different
+            segment whose segment number is that integer value. In this case,
+            all segments found in the array must be described
+            in `segment_descriptions`. Note that this is valid for both
+            ``"BINARY"`` and ``"FRACTIONAL"`` segmentations.
+            For ``"FRACTIONAL"`` segmentations, values either encode the
+            probability of a given pixel belonging to a segment
             (if `fractional_type` is ``"PROBABILITY"``)
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
-            When `pixel_array` has a floating point data type, only one segment can be
-            encoded. Additional segments can be subsequently
+            When `pixel_array` has a floating point data type, only one
+            segment can be encoded. Additional segments can be subsequently
             added to the `Segmentation` instance using the ``add_segments()``
             method.
             If `pixel_array` represents a 3D image, the first dimension
@@ -153,10 +148,10 @@ class Segmentation(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``),
-            JPEG2000 (``"1.2.840.10008.1.2.4.90"``), and
-            JPEG-LS (``"1.2.840.10008.1.2.4.80"``). Lossy compression is not
-            supported.
+            are supported for encapsulated format encoding in case of
+            FRACTIONAL segmentation type:
+            RLE Lossless (``"1.2.840.10008.1.2.5"``) and
+            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
         pixel_measures: PixelMeasures, optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
@@ -229,6 +224,7 @@ class Segmentation(SOPClass):
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
+            JPEG2000Lossless,
             RLELossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
@@ -247,7 +243,7 @@ class Segmentation(SOPClass):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sop_class_uid=SegmentationStorage,
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
             manufacturer=manufacturer,
             modality='SEG',
             transfer_syntax_uid=transfer_syntax_uid,
@@ -377,9 +373,7 @@ class Segmentation(SOPClass):
             # same physical dimensions
             # seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
             # seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
-            # src_row_dim = src_img.Rows
-            # Do we need to take ImageOrientationPatient/ImageOrientationPatient
-            # into account?
+            # src_row_dim = src_img.Rows 
 
         if is_multiframe:
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -387,10 +381,6 @@ class Segmentation(SOPClass):
                     coordinate_system=self._coordinate_system,
                     image_orientation=src_img.ImageOrientationSlide
                 )
-                if src_img.SOPClassUID == VLWholeSlideMicroscopyImageStorage:
-                    self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
-                    self.TotalPixelMatrixColumns = \
-                        src_img.TotalPixelMatrixColumns
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
                 source_plane_orientation = src_sfg.PlaneOrientationSequence
@@ -402,7 +392,7 @@ class Segmentation(SOPClass):
         if plane_orientation is None:
             plane_orientation = source_plane_orientation
         self._plane_orientation = plane_orientation
-        self._source_plane_orientation = plane_orientation
+        self._source_plane_orientation = source_plane_orientation
 
         self.DimensionIndexSequence = DimensionIndexSequence(
             coordinate_system=self._coordinate_system
@@ -433,11 +423,11 @@ class Segmentation(SOPClass):
         self.copy_patient_and_study_information(src_img)
 
     def add_segments(
-            self,
-            pixel_array: np.ndarray,
-            segment_descriptions: Sequence[SegmentDescription],
-            plane_positions: Optional[Sequence[PlanePositionSequence]] = None
-        ) -> Dataset:
+        self,
+        pixel_array: np.ndarray,
+        segment_descriptions: Sequence[SegmentDescription],
+        plane_positions: Optional[Sequence[PlanePositionSequence]] = None
+    ) -> Dataset:
         """Adds one or more segments to the segmentation image.
 
         Parameters
@@ -540,7 +530,7 @@ class Segmentation(SOPClass):
                         'Pixel array contains segments that lack descriptions.'
                     )
 
-        elif (pixel_array.dtype == np.float):
+        elif (pixel_array.dtype in (np.float, np.float32, np.float64)):
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
@@ -581,34 +571,18 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
-        src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
-                source_plane_positions = [
-                    item.PlanePositionSlideSequence
-                    for item in src_img.PerFrameFunctionalGroupsSequence
-                ]
-            else:
-                # If Dimension Organization Type is TILED_FULL, plane
-                # positions are implicit and need to be computed.
-                source_plane_positions = compute_plane_position_slide_per_frame(
-                    src_img
+        src_image = self._source_images[0]
+        is_multiframe = hasattr(src_image, 'NumberOfFrames')
+        if is_multiframe:
+            source_plane_positions, plane_position_values, plane_sort_index = \
+                self.DimensionIndexSequence.get_plane_positions_of_image(
+                    src_image
                 )
         else:
-            if is_multiframe:
-                source_plane_positions = [
-                    item.PlanePositionSequence
-                    for item in src_img.PerFrameFunctionalGroupsSequence
-                ]
-            else:
-                source_plane_positions = [
-                    PlanePositionSequence(
-                        coordinate_system=CoordinateSystemNames.PATIENT,
-                        image_position=img.ImagePositionPatient
-                    )
-                    for img in self._source_images
-                ]
+            source_plane_positions, plane_position_values, plane_sort_index = \
+                self.DimensionIndexSequence.get_plane_positions_of_series(
+                    self._source_images
+                )
 
         if plane_positions is None:
             if pixel_array.shape[0] != len(source_plane_positions):
@@ -636,33 +610,6 @@ class Segmentation(SOPClass):
                 for i in range(len(plane_positions))
             ) and
             self._plane_orientation == self._source_plane_orientation
-        )
-
-        # For each dimension other than the Referenced Segment Number,
-        # obtain the value of the attribute that the Dimension Index Pointer
-        # points to in the element of the Plane Position Sequence or
-        # Plane Position Slide Sequence.
-        # Per definition, this is the Image Position Patient attribute
-        # in case of the patient coordinate system, or the
-        # X/Y/Z Offset In Slide Coordinate System and the Column/Row
-        # Position in Total Image Pixel Matrix attributes in case of the
-        # the slide coordinate system.
-        plane_position_values = np.array([
-            [
-                np.array(p[0][indexer.DimensionIndexPointer].value)
-                for indexer in self.DimensionIndexSequence[1:]
-            ]
-            for p in plane_positions
-        ])
-
-        # Planes need to be sorted according to the Dimension Index Value
-        # based on the order of the items in the Dimension Index Sequence.
-        # Here we construct an index vector that we can subsequently use to
-        # sort planes before adding them to the Pixel Data element.
-        _, plane_sort_index = np.unique(
-            plane_position_values,
-            axis=0,
-            return_index=True
         )
 
         # Get unique values of attributes in the Plane Position Sequence or
@@ -718,7 +665,7 @@ class Segmentation(SOPClass):
                     full_pixel_array = np.array([], np.bool)
 
         for i, segment_number in enumerate(described_segment_numbers):
-            if pixel_array.dtype == np.float:
+            if pixel_array.dtype in (np.float, np.float32, np.float64):
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 planes = np.around(
@@ -731,6 +678,8 @@ class Segmentation(SOPClass):
                 planes[pixel_array == segment_number] = True
             elif pixel_array.dtype == np.bool:
                 planes = pixel_array
+            else:
+                raise TypeError('Pixel array has an invalid data type.')
 
             contained_plane_index = []
             for j in plane_sort_index:
@@ -904,24 +853,26 @@ class Segmentation(SOPClass):
             transfer syntax.
 
         """
-        # Compress depending on transfer syntax UID
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             # Check that only a single plane was passed
             if planes.ndim == 3:
                 if planes.shape[0] == 1:
                     planes = planes[0, ...]
                 else:
-                    raise ValueError('RLE can only process a single frame')
-
-            # Compress according to transfer syntax
-            if self.file_meta.TransferSyntaxUID == RLELossless:
-                return rle_encode_frame(planes)
-            else:
-                raise NotImplementedError(
-                    'Transfer syntax not implemented: '
-                    f'{self.file_meta.TransferSyntaxUID}'
-                )
+                    raise ValueError(
+                        'Only single frame can be encoded at at time '
+                        'in case of encapsulated format encoding.'
+                    )
+            return encode_frame(
+                planes,
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
         else:
+            # The array may represent more than one frame item.
             if self.SegmentationType == SegmentationTypeValues.BINARY.value:
                 return pack_bits(planes.flatten())
             else:

@@ -2,13 +2,10 @@
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
-from pydicom.tag import Tag
-from pydicom.uid import UID
 
 from highdicom.base import SOPClass
 from highdicom.legacy import SOP_CLASS_UIDS

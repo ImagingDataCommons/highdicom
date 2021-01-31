@@ -44,6 +44,22 @@ class PhotometricInterpretationValues(Enum):
     YBR_RCT = 'YBR_RCT'
 
 
+class PlanarConfigurationValues(Enum):
+
+    """Enumerated values for Planar Representation attribute."""
+
+    COLOR_BY_PIXEL = 0
+    COLOR_BY_PLANE = 1
+
+
+class PixelRepresentationValues(Enum):
+
+    """Enumerated values for Planar Representation attribute."""
+
+    UNSIGNED_INTEGER = 0
+    COMPLEMENT = 1
+
+
 class LateralityValues(Enum):
 
     """Enumerated values for Laterality attribute."""

@@ -7,7 +7,6 @@ from pydicom import dcmread
 from pydicom.uid import generate_uid, RLELossless
 
 from highdicom.content import SpecimenDescription
-from highdicom.enum import CoordinateSystemNames
 from highdicom.sc.sop import SCImage
 
 

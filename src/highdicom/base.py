@@ -3,17 +3,15 @@ import datetime
 from io import BytesIO
 from typing import List, Optional, Sequence, Union
 
-from pydicom.datadict import keyword_for_tag, tag_for_keyword
+from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.filewriter import write_file_meta_info
 from pydicom.uid import (
-    DeflatedExplicitVRLittleEndian,
     ExplicitVRBigEndian,
-    ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     UID_dictionary,
 )
-from pydicom.valuerep import DA, DT, TM
+from pydicom.valuerep import DA, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues
@@ -216,9 +214,10 @@ class SOPClass(Dataset):
         self.add(data_element)
 
     def _copy_root_attributes_of_module(
-            self,
-            dataset: Dataset,
-            ie: str
+        self,
+        dataset: Dataset,
+        ie: str,
+        module: Optional[str] = None
     ) -> None:
         """Copies all attributes at the root level of a given module from
         `dataset` to `self`.
@@ -228,7 +227,9 @@ class SOPClass(Dataset):
         dataset: pydicom.dataset.Dataset
             DICOM Data Set from which attribute should be copied
         ie: str
-            DICOM Information Entity (IE)
+            DICOM Information Entity (e.g., ``"Patient"`` or ``"Study"``)
+        module: str, optional
+            DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
         logger.info(
@@ -241,6 +242,10 @@ class SOPClass(Dataset):
             module_key = module_item['key']
             if module_item['ie'] != ie:
                 continue
+            if module is not None:
+                module_key = module.replace(' ', '-').lower()
+                if module_item['key'] != module_key:
+                    continue
             logger.info(
                 'copy attributes of module "{}"'.format(
                     ' '.join([
@@ -277,7 +282,7 @@ class SOPClass(Dataset):
             DICOM Data Set from which attributes should be copied
 
         """
-        self._copy_root_attributes_of_module(dataset, 'Specimen')
+        self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'SOPClass':

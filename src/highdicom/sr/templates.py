@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
 from typing import Optional, Sequence, Union
 
-from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 
@@ -43,6 +42,7 @@ class Template(ContentSequence):
 
     def __init__(self, items: Optional[Sequence[ContentItem]] = None) -> None:
         """
+
         Parameters
         ----------
         items: Sequence[ContentItem], optional
@@ -63,6 +63,7 @@ class AlgorithmIdentification(Template):
             parameters: Optional[Sequence[str]] = None
         ) -> None:
         """
+
         Parameters
         ----------
         name: str
@@ -118,6 +119,7 @@ class TrackingIdentifier(Template):
             identifier: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         uid: Union[pydicom.uid.UID, str], optional
@@ -171,6 +173,7 @@ class TimePointContext(Template):
             temporal_event_type: Optional[Union[CodedConcept, Code]] = None
         ):
         """
+
         Parameters
         ----------
         time_point: str
@@ -273,6 +276,7 @@ class MeasurementStatisticalProperties(Template):
             authority: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         values: Sequence[highdicom.sr.value_types.NumContentItem]
@@ -332,6 +336,7 @@ class NormalRangeProperties(Template):
             authority: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         values: Sequence[highdicom.sr.value_types.NumContentItem]
@@ -387,6 +392,7 @@ class MeasurementProperties(Template):
             lower_measurement_uncertainty: Optional[Union[int, float]] = None
         ):
         """
+
         Parameters
         ----------
         normality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
@@ -498,6 +504,7 @@ class PersonObserverIdentifyingAttributes(Template):
             role_in_procedure: Optional[Union[CodedConcept, Code]] = None
         ):
         """
+
         Parameters
         ----------
         name: str
@@ -584,6 +591,7 @@ class DeviceObserverIdentifyingAttributes(Template):
             role_in_procedure: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         uid: str
@@ -675,6 +683,7 @@ class ObserverContext(Template):
             ]
         ):
         """
+
         Parameters
         ----------
         observer_type: highdicom.sr.coding.CodedConcept
@@ -728,6 +737,7 @@ class SubjectContextFetus(Template):
 
     def __init__(self, subject_id: str):
         """
+
         Parameters
         ----------
         subject_id: str
@@ -759,6 +769,7 @@ class SubjectContextSpecimen(Template):
             specimen_type: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         uid: str
@@ -834,6 +845,7 @@ class SubjectContextDevice(Template):
             physical_location: Optional[str] = None
         ):
         """
+
         Parameters
         ----------
         name: str
@@ -922,6 +934,7 @@ class SubjectContext(Template):
             ] = None
         ):
         """
+
         Parameters
         ----------
         subject_class: highdicom.sr.coding.CodedConcept
@@ -957,6 +970,7 @@ class ObservationContext(Template):
             subject_context: Optional[SubjectContext] = None
         ):
         """
+
         Parameters
         ----------
         observer_person_context: [highdicom.sr.templates.ObserverContext, None], optional
@@ -1006,6 +1020,7 @@ class LanguageOfContentItemAndDescendants(Template):
 
     def __init__(self, language: CodedConcept):
         """
+
         Parameters
         ----------
         language: highdicom.sr.coding.CodedConcept
@@ -1047,43 +1062,44 @@ class Measurement(Template):
             referenced_real_world_value_map: Optional[RealWorldValueMap] = None
         ):
         """
+
         Parameters
         ----------
         name: highdicom.sr.coding.CodedConcept
-            name of the measurement
+            Name of the measurement
             (see CID 7469 "Generic Intensity and Size Measurements" and
             CID 7468 "Texture Measurements" for options)
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier, optional
-            identifier for tracking measurements
+            Identifier for tracking measurements
         value: Union[int, float], optional
-            numeric measurement value
+            Numeric measurement value
         unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            unit of the numeric measurement value
+            Unit of the numeric measurement value
             (see CID 7181 "Abstract Multi-dimensional Image Model Component
             Units" for options)
         qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            qualification of numeric measurement value or as an alternative
+            Qualification of numeric measurement value or as an alternative
             qualitative description
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            how the value was computed
+            How the value was computed
             (see CID 7464 "General Region of Interest Measurement Modifiers"
             for options)
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            measurement method
+            Measurement method
             (see CID 6147 "Response Criteria" for options)
         properties: highdicom.sr.templates.MeasurementProperties, optional
-            measurement properties, including evaluations of its normality
+            Measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
         referenced_images: Sequence[highdicom.sr.content.SourceImageForMeasurement], optional
-            referenced images which were used as sources for the measurement
+            Referenced images which were used as sources for the measurement
         referenced_real_world_value_map: highdicom.sr.content.RealWorldValueMap, optional
-            referenced real world value map for referenced source images
+            Referenced real world value map for referenced source images
 
         """  # noqa
         super().__init__()
@@ -1188,6 +1204,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
             qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
         ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1313,7 +1330,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'type Measurement.'
                     )
                 group_item.ContentSequence.extend(measurement)
-            group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
                 if not isinstance(evaluation, CodeContentItem):
@@ -1349,9 +1365,11 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
+            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
         ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1383,6 +1401,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest
+            (see CID 219 "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1421,6 +1442,17 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                 '"referenced_regions", "referenced_volume_surface", or '
                 '"referenced_segment".'
             )
+        if geometric_purpose is not None:
+            geometric_purpose_item = CodeContentItem(
+                name=CodedConcept(
+                    value='130400',
+                    meaning='Geometric purpose of region',
+                    scheme_designator='DCM',
+                ),
+                value=geometric_purpose,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            group_item.ContentSequence.append(geometric_purpose_item)
         if referenced_regions is not None:
             if len(referenced_regions) == 0:
                 raise ValueError(
@@ -1476,9 +1508,11 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
+            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
         ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1508,6 +1542,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a region of interest
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest
+            (see CID 219 "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1547,7 +1584,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             finding_sites=finding_sites,
             session=session,
             measurements=measurements,
-            qualitative_evaluations=qualitative_evaluations
+            qualitative_evaluations=qualitative_evaluations,
+            geometric_purpose=geometric_purpose
         )
 
 
@@ -1574,9 +1612,11 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             finding_sites: Optional[Sequence[FindingSite]] = None,
             session: Optional[str] = None,
             measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
+            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
         ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1608,6 +1648,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a volume of interest
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest
+            (see CID 219 "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1628,7 +1671,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             algorithm_id=algorithm_id,
             finding_sites=finding_sites,
             session=session,
-            qualitative_evaluations=qualitative_evaluations
+            qualitative_evaluations=qualitative_evaluations,
+            geometric_purpose=geometric_purpose
         )
 
 
@@ -1646,6 +1690,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
             measurement_properties: Optional[MeasurementProperties] = None
         ):
         """
+
         Parameters
         ----------
         derivation: Sequence[highdicom.sr.coding.CodedConcept]
@@ -1717,6 +1762,7 @@ class MeasurementReport(Template):
             ] = None
         ):
         """
+
         Parameters
         ----------
         observation_context: highdicom.sr.templates.ObservationContext
