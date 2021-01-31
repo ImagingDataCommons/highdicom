@@ -1,5 +1,5 @@
 """Data Elements that are specific to the Segmentation IOD."""
-from typing import List, Optional, Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -7,10 +7,14 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 
-from highdicom.content import AlgorithmIdentificationSequence
+from highdicom.content import (
+    AlgorithmIdentificationSequence,
+    PlanePositionSequence,
+)
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.utils import compute_plane_position_slide_per_frame
 
 
 class SegmentDescription(Dataset):
@@ -138,9 +142,9 @@ class DimensionIndexSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames]
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames]
+    ) -> None:
         """
         Parameters
         ----------
@@ -150,8 +154,8 @@ class DimensionIndexSequence(DataElementSequence):
 
         """
         super().__init__()
-        coordinate_system = CoordinateSystemNames(coordinate_system)
-        if coordinate_system == CoordinateSystemNames.SLIDE:
+        self._coordinate_system = CoordinateSystemNames(coordinate_system)
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
 
             segment_number_index = Dataset()
@@ -232,7 +236,7 @@ class DimensionIndexSequence(DataElementSequence):
                 z_axis_index,
             ])
 
-        elif coordinate_system == CoordinateSystemNames.PATIENT:
+        elif self._coordinate_system == CoordinateSystemNames.PATIENT:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
 
             segment_number_index = Dataset()
@@ -261,34 +265,133 @@ class DimensionIndexSequence(DataElementSequence):
                 image_position_index,
             ])
 
-    def get_frame_order(
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{self._coordinat_system}"'
+            )
+
+    def get_plane_positions_of_image(
         self,
-        per_frame_functional_groups: Sequence[Dataset]
-    ) -> List[int]:
-        """Computes the order of Frame items in the Pixel Data element of the
-        Segmentation image.
+        image
+    ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
+        """Extract or compute plane positions of frames in multi-frame image.
 
         Parameters
         ----------
-        per_frame_functional_groups: Sequence[pydicom.dataset.Dataset]
-            Functional groups for each Frame item
+        image: Dataset
+            Multi-frame image
 
         Returns
         -------
-        List[int]
-            Index position of each Frame item in the Pixel Data element of the
-            Segmentation image
+        Tuple[Sequence[PlanePositionSequence], np.array, np.array]
+            Plane Position Sequence for each frame in the image; 2D array of
+            values of attributes contained in the dimension index, array has
+            shape (n, d), where `n` is the number of frames and `d` is the
+            number of indexed attributes; and 1D array of plane indices
+            for sorting planes (frames in the image) along the defined
+            dimensions, array has shape (n, ), where `n` is the number of
+            frames
 
         """
-        values = np.array(
-            (len(per_frame_functional_groups), len(self)),
-            dtype=np.unit16
-        )
-        for i, frame_item in enumerate(per_frame_functional_groups):
-            for j, dimension_index_item in enumerate(self):
-                group_pointer = dimension_index_item.FunctionalGroupPointer
-                pointer = dimension_index_item.DimensionIndexPointer
-                values[i, j] = frame_item[group_pointer][0][pointer]
+        is_multiframe = hasattr(image, 'NumberOfFrames')
+        if not is_multiframe:
+            raise ValueError('Argument "image" must be a multi-frame image.')
 
-        _, sort_index = np.unique(values, axis=0, return_index=True)
-        return sort_index.tolist()
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
+                plane_positions = [
+                    item.PlanePositionSlideSequence
+                    for item in image.PerFrameFunctionalGroupsSequence
+                ]
+            else:
+                # If Dimension Organization Type is TILED_FULL, plane
+                # positions are implicit and need to be computed.
+                plane_positions = compute_plane_position_slide_per_frame(
+                    image
+                )
+        else:
+            plane_positions = [
+                item.PlanePositionSequence
+                for item in image.PerFrameFunctionalGroupsSequence
+            ]
+
+        position_values, indices = self._get_plane_position_values(
+            plane_positions
+        )
+
+        return (plane_positions, position_values, indices)
+
+    def get_plane_positions_of_series(
+        self,
+        images: Sequence[Dataset]
+    ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
+        """Extract or compute plane positions of single-frame images.
+
+        Parameters
+        ----------
+        images: Sequence[Dataset]
+            Series of single-frame images
+
+        Returns
+        -------
+        Tuple[Sequence[PlanePositionSequence], np.array, np.array]
+            Plane Position Sequence for each single-frame image; 2D array of
+            values of attributes contained in the dimension index, array has
+            shape (n, d), where `n` is the number of single-frame images and
+            `d` is the number of indexed attributes; and 1D array of plane
+            indices for sorting planes (single-frame images in the series)
+            along the defined dimensions, array has shape (n, ), where `n` is
+            the number single-frame images
+
+        """
+        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        if is_multiframe:
+            raise ValueError(
+                'Argument "images" must be a series of single-frame images.'
+            )
+
+        plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT,
+                image_position=img.ImagePositionPatient
+            )
+            for img in images
+        ]
+
+        position_values, indices = self._get_plane_position_values(
+            plane_positions
+        )
+
+        return (plane_positions, position_values, indices)
+
+    def _get_plane_position_values(
+        self,
+        plane_positions: Sequence[PlanePositionSequence]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        # For each dimension other than the Referenced Segment Number,
+        # obtain the value of the attribute that the Dimension Index Pointer
+        # points to in the element of the Plane Position Sequence or
+        # Plane Position Slide Sequence.
+        # Per definition, this is the Image Position Patient attribute
+        # in case of the patient coordinate system, or the
+        # X/Y/Z Offset In Slide Coordinate System and the Column/Row
+        # Position in Total Image Pixel Matrix attributes in case of the
+        # the slide coordinate system.
+        plane_position_values = np.array([
+            [
+                np.array(p[0][indexer.DimensionIndexPointer].value)
+                for indexer in self[1:]
+            ]
+            for p in plane_positions
+        ])
+
+        # Build an array that can be used to sort planes according to the
+        # Dimension Index Value based on the order of the items in the
+        # Dimension Index Sequence.
+        _, plane_sort_indices = np.unique(
+            plane_position_values,
+            axis=0,
+            return_index=True
+        )
+
+        return (plane_position_values, plane_sort_indices)

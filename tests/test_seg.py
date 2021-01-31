@@ -541,19 +541,18 @@ class TestSegmentation(unittest.TestCase):
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
 
     @ staticmethod
-    def sort_frames(dataset, mask):
-        if hasattr(dataset, 'ContainerIdentifier'):
-            dimension_index_sequence = DimensionIndexSequence(
-                CoordinateSystemNames.SLIDE
-            )
+    def sort_frames(sources, mask):
+        src = sources[0]
+        if hasattr(src, 'ImageOrientationSlide'):
+            coordinate_system = CoordinateSystemNames.SLIDE
         else:
-            dimension_index_sequence = DimensionIndexSequence(
-                CoordinateSystemNames.PATIENT
-            )
-        sorting_indices = dimension_index_sequence.get_frame_order(
-            dataset.PerFrameFunctionalGroupsSequence
-        )
-        return mask[sorting_indices]
+            coordinate_system = CoordinateSystemNames.PATIENT
+        dim_index = DimensionIndexSequence(coordinate_system)
+        if hasattr(src, 'NumberOfFrames'):
+            _, _, index = dim_index.get_plane_positions_of_image(src)
+        else:
+            _, _, index = dim_index.get_plane_positions_of_series(sources)
+        return mask[index, ...]
 
     @staticmethod
     def remove_empty_frames(mask):
@@ -870,7 +869,7 @@ class TestSegmentation(unittest.TestCase):
             ([self._ct_multiframe], self._ct_multiframe_mask_array),
         ]
 
-        for source, mask in tests:
+        for sources, mask in tests:
 
             # Create a mask for an additional segment as the complement of the
             # original mask
@@ -878,19 +877,31 @@ class TestSegmentation(unittest.TestCase):
 
             # Find the expected encodings for the masks
             if mask.ndim > 2:
-                expected_encoding = self.remove_empty_frames(mask)
-                expected_additional_encoding = self.remove_empty_frames(
+                expected_encoding = self.sort_frames(
+                    sources,
+                    mask
+                )
+                expected_additional_encoding = self.sort_frames(
+                    sources,
                     additional_mask
+                )
+                expected_encoding = self.remove_empty_frames(
+                    expected_encoding
+                )
+                expected_additional_encoding = self.remove_empty_frames(
+                    expected_additional_encoding
                 )
                 two_segment_expected_encoding = np.concatenate(
                     [expected_encoding, expected_additional_encoding],
                     axis=0
-                )
+                ).squeeze()
                 expected_encoding = expected_encoding.squeeze()
             else:
                 expected_encoding = mask
+                expected_additional_encoding = additional_mask
                 two_segment_expected_encoding = np.stack(
-                    [mask, additional_mask]
+                    [expected_encoding, expected_additional_encoding],
+                    axis=0
                 )
 
             # Test instance creation for different pixel types and transfer
@@ -904,7 +915,7 @@ class TestSegmentation(unittest.TestCase):
             for transfer_syntax_uid in valid_transfer_syntaxes:
                 for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                     instance = Segmentation(
-                        source,
+                        sources,
                         mask.astype(pix_type),
                         SegmentationTypeValues.FRACTIONAL.value,
                         self._segment_descriptions,
@@ -924,7 +935,7 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         expected_encoding
-                    ), f'{source[0].Modality}, {transfer_syntax_uid}'
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
                     # Add another segment
                     instance.add_segments(
@@ -938,26 +949,36 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         two_segment_expected_encoding
-                    ), f'{source[0].Modality}, {transfer_syntax_uid}'
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
-        for source, mask in tests:
+        for sources, mask in tests:
             additional_mask = (1 - mask)
             if mask.ndim > 2:
-                expected_encoding = self.remove_empty_frames(mask)
-                expected_additional_encoding = \
-                    self.remove_empty_frames(additional_mask)
+                expected_encoding = self.sort_frames(
+                    sources,
+                    mask
+                )
+                expected_additional_encoding = self.sort_frames(
+                    sources,
+                    additional_mask
+                )
+                expected_encoding = self.remove_empty_frames(
+                    expected_encoding
+                )
+                expected_additional_encoding = self.remove_empty_frames(
+                    expected_additional_encoding
+                )
                 two_segment_expected_encoding = np.concatenate(
                     [expected_encoding, expected_additional_encoding],
                     axis=0
-                )
+                ).squeeze()
                 expected_encoding = expected_encoding.squeeze()
             else:
-                expected_encoding = (mask > 0).astype(mask.dtype)
-                expected_additional_encoding = (additional_mask > 0).astype(
-                    mask.dtype
-                )
+                expected_encoding = mask
+                expected_additional_encoding = additional_mask
                 two_segment_expected_encoding = np.stack(
-                    [expected_encoding, expected_additional_encoding]
+                    [expected_encoding, expected_additional_encoding],
+                    axis=0
                 )
 
             valid_transfer_syntaxes = [
@@ -968,7 +989,7 @@ class TestSegmentation(unittest.TestCase):
             for transfer_syntax_uid in valid_transfer_syntaxes:
                 for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
                     instance = Segmentation(
-                        source,
+                        sources,
                         mask.astype(pix_type),
                         SegmentationTypeValues.BINARY.value,
                         self._segment_descriptions,
@@ -988,7 +1009,7 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         expected_encoding
-                    )
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
                     # Add another segment
                     instance.add_segments(
@@ -1002,7 +1023,7 @@ class TestSegmentation(unittest.TestCase):
                     assert np.array_equal(
                         self.get_array_after_writing(instance),
                         two_segment_expected_encoding
-                    )
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded

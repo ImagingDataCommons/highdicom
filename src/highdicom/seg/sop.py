@@ -35,7 +35,6 @@ from highdicom.seg.enum import (
     SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
-from highdicom.utils import compute_plane_position_slide_per_frame
 
 
 logger = logging.getLogger(__name__)
@@ -424,11 +423,11 @@ class Segmentation(SOPClass):
         self.copy_patient_and_study_information(src_img)
 
     def add_segments(
-            self,
-            pixel_array: np.ndarray,
-            segment_descriptions: Sequence[SegmentDescription],
-            plane_positions: Optional[Sequence[PlanePositionSequence]] = None
-        ) -> Dataset:
+        self,
+        pixel_array: np.ndarray,
+        segment_descriptions: Sequence[SegmentDescription],
+        plane_positions: Optional[Sequence[PlanePositionSequence]] = None
+    ) -> Dataset:
         """Adds one or more segments to the segmentation image.
 
         Parameters
@@ -572,34 +571,18 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
-        src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            if hasattr(src_img, 'PerFrameFunctionalGroupsSequence'):
-                source_plane_positions = [
-                    item.PlanePositionSlideSequence
-                    for item in src_img.PerFrameFunctionalGroupsSequence
-                ]
-            else:
-                # If Dimension Organization Type is TILED_FULL, plane
-                # positions are implicit and need to be computed.
-                source_plane_positions = compute_plane_position_slide_per_frame(
-                    src_img
+        src_image = self._source_images[0]
+        is_multiframe = hasattr(src_image, 'NumberOfFrames')
+        if is_multiframe:
+            source_plane_positions, plane_position_values, plane_sort_index = \
+                self.DimensionIndexSequence.get_plane_positions_of_image(
+                    src_image
                 )
         else:
-            if is_multiframe:
-                source_plane_positions = [
-                    item.PlanePositionSequence
-                    for item in src_img.PerFrameFunctionalGroupsSequence
-                ]
-            else:
-                source_plane_positions = [
-                    PlanePositionSequence(
-                        coordinate_system=CoordinateSystemNames.PATIENT,
-                        image_position=img.ImagePositionPatient
-                    )
-                    for img in self._source_images
-                ]
+            source_plane_positions, plane_position_values, plane_sort_index = \
+                self.DimensionIndexSequence.get_plane_positions_of_series(
+                    self._source_images
+                )
 
         if plane_positions is None:
             if pixel_array.shape[0] != len(source_plane_positions):
@@ -627,33 +610,6 @@ class Segmentation(SOPClass):
                 for i in range(len(plane_positions))
             ) and
             self._plane_orientation == self._source_plane_orientation
-        )
-
-        # For each dimension other than the Referenced Segment Number,
-        # obtain the value of the attribute that the Dimension Index Pointer
-        # points to in the element of the Plane Position Sequence or
-        # Plane Position Slide Sequence.
-        # Per definition, this is the Image Position Patient attribute
-        # in case of the patient coordinate system, or the
-        # X/Y/Z Offset In Slide Coordinate System and the Column/Row
-        # Position in Total Image Pixel Matrix attributes in case of the
-        # the slide coordinate system.
-        plane_position_values = np.array([
-            [
-                np.array(p[0][indexer.DimensionIndexPointer].value)
-                for indexer in self.DimensionIndexSequence[1:]
-            ]
-            for p in plane_positions
-        ])
-
-        # Planes need to be sorted according to the Dimension Index Value
-        # based on the order of the items in the Dimension Index Sequence.
-        # Here we construct an index vector that we can subsequently use to
-        # sort planes before adding them to the Pixel Data element.
-        _, plane_sort_index = np.unique(
-            plane_position_values,
-            axis=0,
-            return_index=True
         )
 
         # Get unique values of attributes in the Plane Position Sequence or
