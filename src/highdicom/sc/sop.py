@@ -282,14 +282,14 @@ class SCImage(SOPClass):
         self.ImageType = ['DERIVED', 'SECONDARY', 'OTHER']
         self.Rows = pixel_array.shape[0]
         self.Columns = pixel_array.shape[1]
-        allowed_types = [np.bool, np.uint8, np.uint16]
+        allowed_types = [np.bool_, np.uint8, np.uint16]
         if not any(pixel_array.dtype == t for t in allowed_types):
             raise TypeError(
-                'Pixel array must be of type np.bool, np.uint8 or np.uint16. '
+                'Pixel array must be of type np.bool_, np.uint8 or np.uint16. '
                 f'Found {pixel_array.dtype}.'
             )
         wrong_bit_depth_assignment = (
-            pixel_array.dtype == np.bool and bits_allocated != 1,
+            pixel_array.dtype == np.bool_ and bits_allocated != 1,
             pixel_array.dtype == np.uint8 and bits_allocated != 8,
             pixel_array.dtype == np.uint16 and bits_allocated not in (12, 16),
         )

@@ -266,7 +266,7 @@ class ReferenceToImageTransformer(object):
         """numpy.ndarray: 4 x 4 affine transformation matrix"""
         return self._affine
 
-    def __call__(self, coordinates: np.array) -> np.array:
+    def __call__(self, coordinates: np.ndarray) -> np.ndarray:
         """Applies the inverse of an affine transformation matrix to a batch of
         coordinates in the frame of reference to obtain the corresponding pixel
         matrix coordinates.
@@ -372,7 +372,12 @@ def map_pixel_into_coordinate_system(
         pixel_spacing=pixel_spacing
     )
     transformed_coordinates = transformer(np.array([coordinate], dtype=float))
-    return tuple(transformed_coordinates[0, :].tolist())
+    physical_coordinates = transformed_coordinates[0, :].tolist()
+    return (
+        physical_coordinates[0],
+        physical_coordinates[1],
+        physical_coordinates[2],
+    )
 
 
 def map_coordinate_into_pixel_matrix(
@@ -445,4 +450,9 @@ def map_coordinate_into_pixel_matrix(
         spacing_between_slices=spacing_between_slices
     )
     transformed_coordinates = transformer(np.array([coordinate], dtype=float))
-    return tuple(transformed_coordinates[0, :].tolist())
+    pixel_matrix_coordinates = transformed_coordinates[0, :].tolist()
+    return (
+        pixel_matrix_coordinates[0],
+        pixel_matrix_coordinates[1],
+        pixel_matrix_coordinates[2],
+    )

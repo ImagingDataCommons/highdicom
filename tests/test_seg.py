@@ -498,7 +498,7 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_pixel_array = np.zeros(
             self._ct_image.pixel_array.shape,
-            dtype=np.bool
+            dtype=bool
         )
         self._ct_pixel_array[1:5, 10:15] = True
 
@@ -510,7 +510,7 @@ class TestSegmentation(unittest.TestCase):
         # simpler for the tests
         self._sm_pixel_array = np.zeros(
             self._sm_image.pixel_array.shape[:3],  # remove colour channel axis
-            dtype=np.bool
+            dtype=bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
         # self._sm_pixel_array[6:9, 2:8, 1:4] = True
@@ -528,7 +528,7 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_series_mask_array = np.zeros(
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
-            dtype=np.bool
+            dtype=bool
         )
         self._ct_series_mask_array[1:2, 1:5, 7:9] = True
 
@@ -536,7 +536,7 @@ class TestSegmentation(unittest.TestCase):
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
         self._ct_multiframe_mask_array = np.zeros(
             self._ct_multiframe.pixel_array.shape,
-            dtype=np.bool
+            dtype=bool
         )
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
 
@@ -914,7 +914,7 @@ class TestSegmentation(unittest.TestCase):
             ]
 
             for transfer_syntax_uid in valid_transfer_syntaxes:
-                for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
+                for pix_type in [np.bool_, np.uint8, np.uint16, np.float_]:
                     instance = Segmentation(
                         sources,
                         mask.astype(pix_type),
@@ -988,7 +988,7 @@ class TestSegmentation(unittest.TestCase):
             ]
 
             for transfer_syntax_uid in valid_transfer_syntaxes:
-                for pix_type in [np.bool, np.uint8, np.uint16, np.float]:
+                for pix_type in [np.bool_, np.uint8, np.uint16, np.float_]:
                     instance = Segmentation(
                         sources,
                         mask.astype(pix_type),
@@ -1048,12 +1048,12 @@ class TestSegmentation(unittest.TestCase):
         odd_mask = np.random.randint(
             2,
             size=odd_pixels.shape,
-            dtype=np.bool
+            dtype=bool
         )
         addtional_odd_mask = np.random.randint(
             2,
             size=odd_pixels.shape,
-            dtype=np.bool
+            dtype=bool
         )
 
         instance = Segmentation(

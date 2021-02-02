@@ -507,7 +507,7 @@ class Segmentation(SOPClass):
                 'Segment descriptions must be sorted by segment number.'
             )
 
-        if pixel_array.dtype in (np.bool, np.uint8, np.uint16):
+        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
             segments_present = np.unique(
                 pixel_array[pixel_array > 0].astype(np.uint16)
             )
@@ -530,7 +530,7 @@ class Segmentation(SOPClass):
                         'Pixel array contains segments that lack descriptions.'
                     )
 
-        elif (pixel_array.dtype in (np.float, np.float32, np.float64)):
+        elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
@@ -552,7 +552,7 @@ class Segmentation(SOPClass):
                         'Floating point pixel array values must be either '
                         '0.0 or 1.0 in case of BINARY segmentation type.'
                     )
-                pixel_array = pixel_array.astype(np.bool)
+                pixel_array = pixel_array.astype(np.bool_)
         else:
             raise TypeError('Pixel array has an invalid data type.')
 
@@ -665,10 +665,10 @@ class Segmentation(SOPClass):
                 if hasattr(self, 'PixelData') and len(self.PixelData) > 0:
                     full_pixel_array = self.pixel_array.flatten()
                 else:
-                    full_pixel_array = np.array([], np.bool)
+                    full_pixel_array = np.array([], np.bool_)
 
         for i, segment_number in enumerate(described_segment_numbers):
-            if pixel_array.dtype in (np.float, np.float32, np.float64):
+            if pixel_array.dtype in (np.float_, np.float32, np.float64):
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 planes = np.around(
@@ -677,9 +677,9 @@ class Segmentation(SOPClass):
                 planes = planes.astype(np.uint8)
             elif pixel_array.dtype in (np.uint8, np.uint16):
                 # Labeled masks must be converted to binary masks.
-                planes = np.zeros(pixel_array.shape, dtype=np.bool)
+                planes = np.zeros(pixel_array.shape, dtype=np.bool_)
                 planes[pixel_array == segment_number] = True
-            elif pixel_array.dtype == np.bool:
+            elif pixel_array.dtype == np.bool_:
                 planes = pixel_array
             else:
                 raise TypeError('Pixel array has an invalid data type.')

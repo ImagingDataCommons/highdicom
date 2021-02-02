@@ -244,11 +244,11 @@ class ImageFileReader(object):
         """
         self.filename = filename
 
-    def __enter__(self):
+    def __enter__(self) -> 'ImageFileReader':
         self.open()
         return self
 
-    def __exit__(self, except_type, except_value, except_trace):
+    def __exit__(self, except_type, except_value, except_trace) -> None:
         self._fp.close()
         if except_value:
             sys.stdout.write(
@@ -260,7 +260,7 @@ class ImageFileReader(object):
                 sys.stdout.write(tb)
             raise
 
-    def open(self):
+    def open(self) -> None:
         """Opens file and reads metadata from it.
 
         Raises
@@ -392,11 +392,11 @@ class ImageFileReader(object):
     @property
     def _pixels_per_frame(self) -> int:
         """int: Number of pixels per frame"""
-        return np.prod([
+        return int(np.prod([
             self.metadata.Rows,
             self.metadata.Columns,
             self.metadata.SamplesPerPixel
-        ])
+        ]))
 
     @property
     def _bytes_per_frame_uncompressed(self) -> int:
@@ -411,7 +411,7 @@ class ImageFileReader(object):
         else:
             return n_pixels * bits_allocated // 8
 
-    def close(self):
+    def close(self) -> None:
         """Closes file."""
         self._fp.close()
 

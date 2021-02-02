@@ -1,5 +1,5 @@
 """Data Elements that are specific to the Segmentation IOD."""
-from typing import Optional, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -272,8 +272,8 @@ class DimensionIndexSequence(DataElementSequence):
 
     def get_plane_positions_of_image(
         self,
-        image
-    ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
+        image: Dataset
+    ) -> List[PlanePositionSequence]:
         """Gets plane positions of frames in multi-frame image.
 
         Parameters
@@ -283,7 +283,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Sequence[PlanePositionSequence]
+        List[PlanePositionSequence]
             Plane position of each frame in the image
 
         """
@@ -314,7 +314,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_plane_positions_of_series(
         self,
         images: Sequence[Dataset]
-    ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
+    ) -> List[PlanePositionSequence]:
         """Gets plane positions for series of single-frame images.
 
         Parameters
@@ -324,7 +324,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Sequence[PlanePositionSequence]
+        List[PlanePositionSequence]
             Plane position of each frame in the image
 
         """

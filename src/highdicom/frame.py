@@ -13,6 +13,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
     JPEGBaseline,
+    UID,
     RLELossless,
 )
 
@@ -321,7 +322,7 @@ def decode_frame(
     ds.BitsStored = bits_stored
     ds.HighBit = bits_stored - 1
 
-    if file_meta.TransferSyntaxUID.is_encapsulated:
+    if UID(file_meta.TransferSyntaxUID).is_encapsulated:
         if (transfer_syntax_uid == JPEGBaseline and
                 photometric_interpretation == 'RGB'):
             # RGB color images, which were not transformed into YCbCr color
