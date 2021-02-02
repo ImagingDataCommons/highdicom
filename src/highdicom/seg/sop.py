@@ -574,12 +574,12 @@ class Segmentation(SOPClass):
         src_image = self._source_images[0]
         is_multiframe = hasattr(src_image, 'NumberOfFrames')
         if is_multiframe:
-            source_plane_positions, plane_position_values, plane_sort_index = \
+            source_plane_positions = \
                 self.DimensionIndexSequence.get_plane_positions_of_image(
                     src_image
                 )
         else:
-            source_plane_positions, plane_position_values, plane_sort_index = \
+            source_plane_positions = \
                 self.DimensionIndexSequence.get_plane_positions_of_series(
                     self._source_images
                 )
@@ -603,6 +603,9 @@ class Segmentation(SOPClass):
                     'Number of pixel array planes does not match number of '
                     'provided plane positions.'
                 )
+
+        plane_position_values, plane_sort_index = \
+            self.DimensionIndexSequence.get_index_values(plane_positions)
 
         are_spatial_locations_preserved = (
             all(

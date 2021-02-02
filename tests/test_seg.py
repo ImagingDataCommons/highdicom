@@ -549,9 +549,10 @@ class TestSegmentation(unittest.TestCase):
             coordinate_system = CoordinateSystemNames.PATIENT
         dim_index = DimensionIndexSequence(coordinate_system)
         if hasattr(src, 'NumberOfFrames'):
-            _, _, index = dim_index.get_plane_positions_of_image(src)
+            plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
-            _, _, index = dim_index.get_plane_positions_of_series(sources)
+            plane_positions = dim_index.get_plane_positions_of_series(sources)
+        _, index = dim_index.get_index_values(plane_positions)
         return mask[index, ...]
 
     @staticmethod

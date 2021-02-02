@@ -274,7 +274,7 @@ class DimensionIndexSequence(DataElementSequence):
         self,
         image
     ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
-        """Extract or compute plane positions of frames in multi-frame image.
+        """Gets plane positions of frames in multi-frame image.
 
         Parameters
         ----------
@@ -283,14 +283,8 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Tuple[Sequence[PlanePositionSequence], np.array, np.array]
-            Plane Position Sequence for each frame in the image; 2D array of
-            values of attributes contained in the dimension index, array has
-            shape (n, d), where `n` is the number of frames and `d` is the
-            number of indexed attributes; and 1D array of plane indices
-            for sorting planes (frames in the image) along the defined
-            dimensions, array has shape (n, ), where `n` is the number of
-            frames
+        Sequence[PlanePositionSequence]
+            Plane position of each frame in the image
 
         """
         is_multiframe = hasattr(image, 'NumberOfFrames')
@@ -315,17 +309,13 @@ class DimensionIndexSequence(DataElementSequence):
                 for item in image.PerFrameFunctionalGroupsSequence
             ]
 
-        position_values, indices = self._get_plane_position_values(
-            plane_positions
-        )
-
-        return (plane_positions, position_values, indices)
+        return plane_positions
 
     def get_plane_positions_of_series(
         self,
         images: Sequence[Dataset]
     ) -> Tuple[Sequence[PlanePositionSequence], np.array, np.array]:
-        """Extract or compute plane positions of single-frame images.
+        """Gets plane positions for series of single-frame images.
 
         Parameters
         ----------
@@ -334,14 +324,8 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Tuple[Sequence[PlanePositionSequence], np.array, np.array]
-            Plane Position Sequence for each single-frame image; 2D array of
-            values of attributes contained in the dimension index, array has
-            shape (n, d), where `n` is the number of single-frame images and
-            `d` is the number of indexed attributes; and 1D array of plane
-            indices for sorting planes (single-frame images in the series)
-            along the defined dimensions, array has shape (n, ), where `n` is
-            the number single-frame images
+        Sequence[PlanePositionSequence]
+            Plane position of each frame in the image
 
         """
         is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
@@ -358,16 +342,28 @@ class DimensionIndexSequence(DataElementSequence):
             for img in images
         ]
 
-        position_values, indices = self._get_plane_position_values(
-            plane_positions
-        )
+        return plane_positions
 
-        return (plane_positions, position_values, indices)
-
-    def _get_plane_position_values(
+    def get_index_values(
         self,
         plane_positions: Sequence[PlanePositionSequence]
     ) -> Tuple[np.ndarray, np.ndarray]:
+        """Get the values of indexed attributes.
+
+        Parameters
+        ----------
+        plane_positions: Sequence[PlanePositionSequence]
+            Plane position of frames in a multi-frame image or in a series of
+            single-frame images
+
+        Returns
+        -------
+        Tuple[numpy.ndarray, numpy.ndarray]
+            2D array of dimension index values and 1D array of planes indices
+            for sorting frames according to their spatial position specified
+            by the dimension index.
+
+        """
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
         # points to in the element of the Plane Position Sequence or
