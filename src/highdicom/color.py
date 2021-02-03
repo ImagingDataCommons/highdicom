@@ -1,6 +1,5 @@
 import logging
 from io import BytesIO
-from typing import Union
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -12,7 +11,6 @@ from PIL.ImageCms import (
     ImageCmsTransform,
     isIntentSupported,
 )
-from pydicom.dataset import Dataset
 
 
 logger = logging.getLogger(__name__)

@@ -37,7 +37,7 @@ _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
 
 def _get_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
     """Tries to read the value of the Basic Offset Table (BOT) item and builds
-    it case it is not found.
+    it in case it is empty.
 
     Parameters
     ----------

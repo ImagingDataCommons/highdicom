@@ -29,13 +29,13 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            name: str,
-            family: Union[Code, CodedConcept],
-            version: str,
-            source: Optional[str] = None,
-            parameters: Optional[Dict[str, str]] = None
-        ):
+        self,
+        name: str,
+        family: Union[Code, CodedConcept],
+        version: str,
+        source: Optional[str] = None,
+        parameters: Optional[Dict[str, str]] = None
+    ):
         """
         Parameters
         ----------
@@ -81,11 +81,11 @@ class PixelMeasuresSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            pixel_spacing: Sequence[float],
-            slice_thickness: float,
-            spacing_between_slices: Optional[float] = None,
-        ) -> None:
+        self,
+        pixel_spacing: Sequence[float],
+        slice_thickness: float,
+        spacing_between_slices: Optional[float] = None,
+    ) -> None:
         """
         Parameters
         ----------
@@ -148,6 +148,7 @@ class PlanePositionSequence(DataElementSequence):
         def ds(num: float) -> float:
             return float(str(num)[:16])
 
+        coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
                 raise TypeError(
@@ -163,6 +164,10 @@ class PlanePositionSequence(DataElementSequence):
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImagePositionPatient = list(image_position)
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{coordinate_system.value}".'
+            )
         self.append(item)
 
     def __eq__(self, other: Any) -> bool:
@@ -216,10 +221,10 @@ class PlaneOrientationSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames],
-            image_orientation: Sequence[float]
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames],
+        image_orientation: Sequence[float]
+    ) -> None:
         """
         Parameters
         ----------
@@ -233,12 +238,16 @@ class PlaneOrientationSequence(DataElementSequence):
 
         """
         super().__init__()
-        coordinate_system = CoordinateSystemNames(coordinate_system)
         item = Dataset()
+        coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             item.ImageOrientationSlide = list(image_orientation)
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImageOrientationPatient = list(image_orientation)
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{coordinate_system.value}".'
+            )
         self.append(item)
 
     def __eq__(self, other: Any) -> bool:

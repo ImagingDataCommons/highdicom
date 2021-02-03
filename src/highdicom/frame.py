@@ -158,9 +158,9 @@ def encode_frame(
                         'frames with JPEG Baseline codec.'
                     )
             elif samples_per_pixel == 3:
-                if photometric_interpretation != 'YBR_FULL':
+                if photometric_interpretation != 'YBR_FULL_422':
                     raise ValueError(
-                        'Photometric intpretation must be "YBR_FULL" for '
+                        'Photometric intpretation must be "YBR_FULL_422" for '
                         'encoding of color image frames with '
                         'JPEG Baseline codec.'
                     )
