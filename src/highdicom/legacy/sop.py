@@ -564,7 +564,7 @@ class Abstract_MultiframeModuleAdder(ABC):
     def _is_empty_or_empty_items(self, attribute: DataElement) -> bool:
         if attribute.is_empty:
             return True
-        if type(attribute.value) == Sequence:
+        if isinstance(attribute.value, DicomSequence):
             if len(attribute.value) == 0:
                 return True
             for item in attribute.value:
@@ -586,11 +586,11 @@ class Abstract_MultiframeModuleAdder(ABC):
                                 src_kw_or_tg: str, dest_kw_or_tg: str = None,
                                 check_not_to_be_perframe: bool = True,
                                 check_not_to_be_empty: bool = False) -> None:
-        if type(src_kw_or_tg) == str:
+        if isinstance(src_kw_or_tg, str):
             src_kw_or_tg = tag_for_keyword(src_kw_or_tg)
         if dest_kw_or_tg is None:
             dest_kw_or_tg = src_kw_or_tg
-        elif type(dest_kw_or_tg) == str:
+        elif isinstance(dest_kw_or_tg, str):
             dest_kw_or_tg = tag_for_keyword(dest_kw_or_tg)
         if check_not_to_be_perframe:
             if src_kw_or_tg in self._PerFrameTags:
@@ -646,19 +646,19 @@ class Abstract_MultiframeModuleAdder(ABC):
         else:
             a = DataElement(tg, dictionary_VR(tg), default)
         from pydicom.valuerep import DT, TM, DA
-        if a.VR == 'DA' and type(a.value) == str:
+        if a.VR == 'DA' and isinstance(a.value, str):
             try:
                 d_tmp = DA(a.value)
                 a.value = DA(default) if d_tmp is None else d_tmp
             except BaseException:
                 a.value = DA(default)
-        if a.VR == 'DT' and type(a.value) == str:
+        if a.VR == 'DT' and isinstance(a.value, str):
             try:
                 dt_tmp = DT(a.value)
                 a.value = DT(default) if dt_tmp is None else dt_tmp
             except BaseException:
                 a.value = DT(default)
-        if a.VR == 'TM' and type(a.value) == str:
+        if a.VR == 'TM' and isinstance(a.value, str):
             try:
                 t_tmp = TM(a.value)
                 a.value = TM(default) if t_tmp is None else t_tmp
@@ -858,7 +858,7 @@ class CommonCTMRPETImageDescriptionMacro(Abstract_MultiframeModuleAdder):
 
     def _get_value_for_frame_type(self,
                                   attrib: DataElement) -> Union[list, None]:
-        if type(attrib) != DataElement:
+        if not isinstance(attrib, DataElement):
             return None
         output = ['', '', '', '']
         v = attrib.value
@@ -2936,8 +2936,8 @@ class GeometryOfSlice:
                     slice2: GeometryOfSlice,
                     tolerance: float = 0.0001) -> bool:
         logger = logging.getLogger(__name__)
-        if (type(slice1) != GeometryOfSlice or
-                type(slice2) != GeometryOfSlice):
+        if (not isinstance(slice1, GeometryOfSlice) or
+                not isinstance(slice2, GeometryOfSlice)):
             logger.warning(
                 'slice1 and slice2 are not of the same '
                 'type: type(slice1) = {} and type(slice2) = {}'.format(
@@ -2976,10 +2976,10 @@ class DicomHelper:
             return abs(x1 - x2) < float_tolerance
         if type(v1) != type(v2):
             return False
-        if type(v1) == DicomSequence:
+        if isinstance(v1, DicomSequence):
             for item1, item2 in zip(v1, v2):
                 DicomHelper.isequal_dicom_dataset(item1, item2)
-        if type(v1) != MultiValue:
+        if not isinstance(v1, MultiValue):
             v11 = [v1]
             v22 = [v2]
         else:
@@ -2988,7 +2988,7 @@ class DicomHelper:
         if len(v11) != len(v22):
             return False
         for xx, yy in zip(v11, v22):
-            if type(xx) == DSfloat or type(xx) == float:
+            if isinstance(xx, DSfloat) or isinstance(xx, float):
                 if not is_equal_float(xx, yy):
                     return False
             else:
@@ -2999,7 +2999,7 @@ class DicomHelper:
     def isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
         if type(ds1) != type(ds2):
             return False
-        if type(ds1) != Dataset:
+        if not isinstance(ds1, Dataset):
             return False
         for k1, elem1 in ds1.items():
             if k1 not in ds2:
