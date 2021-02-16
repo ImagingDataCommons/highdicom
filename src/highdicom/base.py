@@ -6,11 +6,7 @@ from typing import List, Optional, Sequence, Union
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.filewriter import write_file_meta_info
-from pydicom.uid import (
-    ExplicitVRBigEndian,
-    ImplicitVRLittleEndian,
-    UID_dictionary,
-)
+from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian
 from pydicom.valuerep import DA, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
@@ -28,33 +24,33 @@ class SOPClass(Dataset):
     """Base class for DICOM SOP Instances."""
 
     def __init__(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            sop_class_uid: str,
-            instance_number: int,
-            modality: str,
-            manufacturer: Optional[str] = None,
-            transfer_syntax_uid: Optional[str] = None,
-            patient_id: Optional[str] = None,
-            patient_name: Optional[str] = None,
-            patient_birth_date: Optional[str] = None,
-            patient_sex: Optional[str] = None,
-            accession_number: Optional[str] = None,
-            study_id: str = None,
-            study_date: Optional[Union[str, datetime.date]] = None,
-            study_time: Optional[Union[str, datetime.time]] = None,
-            referring_physician_name: Optional[str] = None,
-            content_qualification: Optional[
-                Union[str, ContentQualificationValues]
-            ] = None,
-            coding_schemes: Optional[
-                Sequence[CodingSchemeIdentificationItem]
-            ] = None,
-            series_description: Optional[str] = None
-        ):
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        sop_class_uid: str,
+        instance_number: int,
+        modality: str,
+        manufacturer: Optional[str] = None,
+        transfer_syntax_uid: Optional[str] = None,
+        patient_id: Optional[str] = None,
+        patient_name: Optional[str] = None,
+        patient_birth_date: Optional[str] = None,
+        patient_sex: Optional[str] = None,
+        accession_number: Optional[str] = None,
+        study_id: str = None,
+        study_date: Optional[Union[str, datetime.date]] = None,
+        study_time: Optional[Union[str, datetime.time]] = None,
+        referring_physician_name: Optional[str] = None,
+        content_qualification: Optional[
+            Union[str, ContentQualificationValues]
+        ] = None,
+        coding_schemes: Optional[
+            Sequence[CodingSchemeIdentificationItem]
+        ] = None,
+        series_description: Optional[str] = None
+    ):
         """
         Parameters
         ----------

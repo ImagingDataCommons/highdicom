@@ -8,7 +8,6 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 
 from highdicom.base import SOPClass
-from highdicom.legacy import SOP_CLASS_UIDS
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 

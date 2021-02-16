@@ -26,13 +26,13 @@ class ContentItem(Dataset):
     DICOM SR Document Content Module."""
 
     def __init__(
-            self,
-            value_type: Union[str, ValueTypeValues],
-            name: Union[Code, CodedConcept],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        value_type: Union[str, ValueTypeValues],
+        name: Union[Code, CodedConcept],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -239,13 +239,13 @@ class TextContentItem(ContentItem):
     """DICOM SR document content item for value type TEXT."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: str,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: str,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -268,13 +268,13 @@ class TimeContentItem(ContentItem):
     """DICOM SR document content item for value type TIME."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[str, datetime.time, TM],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[str, datetime.time, TM],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -297,13 +297,13 @@ class DateContentItem(ContentItem):
     """DICOM SR document content item for value type DATE."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[str, datetime.date, DA],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[str, datetime.date, DA],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -326,13 +326,13 @@ class DateTimeContentItem(ContentItem):
     """DICOM SR document content item for value type DATETIME."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[str, datetime.datetime, DT],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[str, datetime.datetime, DT],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -355,13 +355,13 @@ class UIDRefContentItem(ContentItem):
     """DICOM SR document content item for value type UIDREF."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Union[str, UID],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[str, UID],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -384,15 +384,15 @@ class NumContentItem(ContentItem):
     """DICOM SR document content item for value type NUM."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            value: Optional[Union[int, float]] = None,
-            unit: Optional[Union[Code, CodedConcept]] = None,
-            qualifier: Optional[Union[Code, CodedConcept]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        value: Optional[Union[int, float]] = None,
+        unit: Optional[Union[Code, CodedConcept]] = None,
+        qualifier: Optional[Union[Code, CodedConcept]] = None,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -457,14 +457,14 @@ class ContainerContentItem(ContentItem):
     """DICOM SR document content item for value type CONTAINER."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            is_content_continuous: bool = True,
-            template_id: Optional[str] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        is_content_continuous: bool = True,
+        template_id: Optional[str] = None,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -498,14 +498,14 @@ class CompositeContentItem(ContentItem):
     """DICOM SR document content item for value type COMPOSITE."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            referenced_sop_class_uid: Union[str, UID],
-            referenced_sop_instance_uid: Union[str, UID],
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ):
+        self,
+        name: Union[Code, CodedConcept],
+        referenced_sop_class_uid: Union[str, UID],
+        referenced_sop_instance_uid: Union[str, UID],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ):
         """
         Parameters
         ----------
@@ -533,20 +533,20 @@ class ImageContentItem(ContentItem):
     """DICOM SR document content item for value type IMAGE."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            referenced_sop_class_uid: Union[str, UID],
-            referenced_sop_instance_uid: Union[str, UID],
-            referenced_frame_numbers: Optional[
-                Union[int, Sequence[int]]
-            ] = None,
-            referenced_segment_numbers: Optional[
-                Union[int, Sequence[int]]
-            ] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        referenced_sop_class_uid: Union[str, UID],
+        referenced_sop_instance_uid: Union[str, UID],
+        referenced_frame_numbers: Optional[
+            Union[int, Sequence[int]]
+        ] = None,
+        referenced_segment_numbers: Optional[
+            Union[int, Sequence[int]]
+        ] = None,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -590,19 +590,19 @@ class ScoordContentItem(ContentItem):
     """
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            graphic_type: Union[str, GraphicTypeValues],
-            graphic_data: np.ndarray,
-            pixel_origin_interpretation: Union[
-                str,
-                PixelOriginInterpretationValues
-            ],
-            fiducial_uid: Optional[Union[str, UID]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        graphic_type: Union[str, GraphicTypeValues],
+        graphic_data: np.ndarray,
+        pixel_origin_interpretation: Union[
+            str,
+            PixelOriginInterpretationValues
+        ],
+        fiducial_uid: Optional[Union[str, UID]] = None,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -688,16 +688,16 @@ class Scoord3DContentItem(ContentItem):
     """
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            graphic_type: Union[GraphicTypeValues3D, str],
-            graphic_data: np.ndarray,
-            frame_of_reference_uid: Union[str, UID],
-            fiducial_uid: Optional[Union[str, UID]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_data: np.ndarray,
+        frame_of_reference_uid: Union[str, UID],
+        fiducial_uid: Optional[Union[str, UID]] = None,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -763,16 +763,14 @@ class TcoordContentItem(ContentItem):
     """DICOM SR document content item for value type TCOORD."""
 
     def __init__(
-            self,
-            name: Union[Code, CodedConcept],
-            temporal_range_type: Union[str, TemporalRangeTypeValues],
-            referenced_sample_positions: Optional[Sequence[int]] = None,
-            referenced_time_offsets: Optional[Sequence[float]] = None,
-            referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
-            relationship_type: Optional[
-                Union[str, RelationshipTypeValues]
-            ] = None
-        ) -> None:
+        self,
+        name: Union[Code, CodedConcept],
+        temporal_range_type: Union[str, TemporalRangeTypeValues],
+        referenced_sample_positions: Optional[Sequence[int]] = None,
+        referenced_time_offsets: Optional[Sequence[float]] = None,
+        referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
+        relationship_type: Optional[Union[str, RelationshipTypeValues]] = None
+    ) -> None:
         """
         Parameters
         ----------

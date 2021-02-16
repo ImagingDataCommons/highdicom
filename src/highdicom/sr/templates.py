@@ -57,11 +57,11 @@ class AlgorithmIdentification(Template):
     """TID 4019 Algorithm Identification"""
 
     def __init__(
-            self,
-            name: str,
-            version: str,
-            parameters: Optional[Sequence[str]] = None
-        ) -> None:
+        self,
+        name: str,
+        version: str,
+        parameters: Optional[Sequence[str]] = None
+    ) -> None:
         """
 
         Parameters
@@ -114,10 +114,10 @@ class TrackingIdentifier(Template):
     """TID 4108 Tracking Identifier"""
 
     def __init__(
-            self,
-            uid: Optional[str] = None,
-            identifier: Optional[str] = None
-        ):
+        self,
+        uid: Optional[str] = None,
+        identifier: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -159,19 +159,19 @@ class TimePointContext(Template):
     """TID 1502 Time Point Context"""
 
     def __init__(
-            self,
-            time_point: str,
-            time_point_type: Optional[Union[CodedConcept, Code]] = None,
-            time_point_order: Optional[int] = None,
-            subject_time_point_identifier: Optional[
-                LongitudinalTemporalOffsetFromEvent
-            ] = None,
-            protocol_time_point_identifier: Optional[str] = None,
-            temporal_offset_from_event: Optional[
-                LongitudinalTemporalOffsetFromEvent
-            ] = None,
-            temporal_event_type: Optional[Union[CodedConcept, Code]] = None
-        ):
+        self,
+        time_point: str,
+        time_point_type: Optional[Union[CodedConcept, Code]] = None,
+        time_point_order: Optional[int] = None,
+        subject_time_point_identifier: Optional[
+            LongitudinalTemporalOffsetFromEvent
+        ] = None,
+        protocol_time_point_identifier: Optional[str] = None,
+        temporal_offset_from_event: Optional[
+            LongitudinalTemporalOffsetFromEvent
+        ] = None,
+        temporal_event_type: Optional[Union[CodedConcept, Code]] = None
+    ):
         """
 
         Parameters
@@ -270,11 +270,11 @@ class MeasurementStatisticalProperties(Template):
     """TID 311 Measurement Statistical Properties"""
 
     def __init__(
-            self,
-            values: Sequence[NumContentItem],
-            description: Optional[str] = None,
-            authority: Optional[str] = None
-        ):
+        self,
+        values: Sequence[NumContentItem],
+        description: Optional[str] = None,
+        authority: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -330,11 +330,11 @@ class NormalRangeProperties(Template):
     """TID 312 Normal Range Properties"""
 
     def __init__(
-            self,
-            values: Sequence[NumContentItem],
-            description: Optional[str] = None,
-            authority: Optional[str] = None
-        ):
+        self,
+        values: Sequence[NumContentItem],
+        description: Optional[str] = None,
+        authority: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -380,17 +380,17 @@ class MeasurementProperties(Template):
     """TID 310 Measurement Properties"""
 
     def __init__(
-            self,
-            normality: Optional[Union[CodedConcept, Code]] = None,
-            level_of_significance: Optional[Union[CodedConcept, Code]] = None,
-            selection_status: Optional[Union[CodedConcept, Code]] = None,
-            measurement_statistical_properties: Optional[
-                MeasurementStatisticalProperties
-            ] = None,
-            normal_range_properties: Optional[NormalRangeProperties] = None,
-            upper_measurement_uncertainty: Optional[Union[int, float]] = None,
-            lower_measurement_uncertainty: Optional[Union[int, float]] = None
-        ):
+        self,
+        normality: Optional[Union[CodedConcept, Code]] = None,
+        level_of_significance: Optional[Union[CodedConcept, Code]] = None,
+        selection_status: Optional[Union[CodedConcept, Code]] = None,
+        measurement_statistical_properties: Optional[
+            MeasurementStatisticalProperties
+        ] = None,
+        normal_range_properties: Optional[NormalRangeProperties] = None,
+        upper_measurement_uncertainty: Optional[Union[int, float]] = None,
+        lower_measurement_uncertainty: Optional[Union[int, float]] = None
+    ):
         """
 
         Parameters
@@ -581,15 +581,15 @@ class DeviceObserverIdentifyingAttributes(Template):
     """TID 1004 Device Observer Identifying Attributes"""
 
     def __init__(
-            self,
-            uid: str,
-            name: Optional[str] = None,
-            manufacturer_name: Optional[str] = None,
-            model_name: Optional[str] = None,
-            serial_number: Optional[str] = None,
-            physical_location: Optional[str] = None,
-            role_in_procedure: Optional[str] = None
-        ):
+        self,
+        uid: str,
+        name: Optional[str] = None,
+        manufacturer_name: Optional[str] = None,
+        model_name: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        physical_location: Optional[str] = None,
+        role_in_procedure: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -675,13 +675,13 @@ class ObserverContext(Template):
     """TID 1002 Observer Context"""
 
     def __init__(
-            self,
-            observer_type: CodedConcept,
-            observer_identifying_attributes: Union[
-                PersonObserverIdentifyingAttributes,
-                DeviceObserverIdentifyingAttributes
-            ]
-        ):
+        self,
+        observer_type: CodedConcept,
+        observer_identifying_attributes: Union[
+            PersonObserverIdentifyingAttributes,
+            DeviceObserverIdentifyingAttributes
+        ]
+    ):
         """
 
         Parameters
@@ -762,12 +762,12 @@ class SubjectContextSpecimen(Template):
     """TID 1009 Subject Context Specimen"""
 
     def __init__(
-            self,
-            uid: str,
-            identifier: Optional[str] = None,
-            container_identifier: Optional[str] = None,
-            specimen_type: Optional[str] = None
-        ):
+        self,
+        uid: str,
+        identifier: Optional[str] = None,
+        container_identifier: Optional[str] = None,
+        specimen_type: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -836,14 +836,14 @@ class SubjectContextDevice(Template):
     """TID 1010 Subject Context Device"""
 
     def __init__(
-            self,
-            name: str,
-            uid: Optional[str] = None,
-            manufacturer_name: Optional[str] = None,
-            model_name: Optional[str] = None,
-            serial_number: Optional[str] = None,
-            physical_location: Optional[str] = None
-        ):
+        self,
+        name: str,
+        uid: Optional[str] = None,
+        manufacturer_name: Optional[str] = None,
+        model_name: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        physical_location: Optional[str] = None
+    ):
         """
 
         Parameters
@@ -923,16 +923,16 @@ class SubjectContext(Template):
     """TID 1006 Subject Context"""
 
     def __init__(
-            self,
-            subject_class: CodedConcept,
-            subject_class_specific_context: Optional[
-                Union[
-                    SubjectContextFetus,
-                    SubjectContextSpecimen,
-                    SubjectContextDevice
-                ]
-            ] = None
-        ):
+        self,
+        subject_class: CodedConcept,
+        subject_class_specific_context: Optional[
+            Union[
+                SubjectContextFetus,
+                SubjectContextSpecimen,
+                SubjectContextDevice
+            ]
+        ] = None
+    ):
         """
 
         Parameters
@@ -964,11 +964,11 @@ class ObservationContext(Template):
     """TID 1001 Observation Context"""
 
     def __init__(
-            self,
-            observer_person_context: Optional[ObserverContext] = None,
-            observer_device_context: Optional[ObserverContext] = None,
-            subject_context: Optional[SubjectContext] = None
-        ):
+        self,
+        observer_person_context: Optional[ObserverContext] = None,
+        observer_device_context: Optional[ObserverContext] = None,
+        subject_context: Optional[SubjectContext] = None
+    ):
         """
 
         Parameters
@@ -1045,22 +1045,20 @@ class Measurement(Template):
     """TID 300 Measurement"""
 
     def __init__(
-            self,
-            name: Union[CodedConcept, Code],
-            tracking_identifier: Optional[TrackingIdentifier] = None,
-            value: Optional[Union[int, float]] = None,
-            unit: Optional[Union[CodedConcept, Code]] = None,
-            qualifier: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            derivation: Optional[Union[CodedConcept, Code]] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            properties: Optional[MeasurementProperties] = None,
-            referenced_images: Optional[
-                Sequence[SourceImageForMeasurement]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None
-        ):
+        self,
+        name: Union[CodedConcept, Code],
+        tracking_identifier: Optional[TrackingIdentifier] = None,
+        value: Optional[Union[int, float]] = None,
+        unit: Optional[Union[CodedConcept, Code]] = None,
+        qualifier: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        derivation: Optional[Union[CodedConcept, Code]] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        properties: Optional[MeasurementProperties] = None,
+        referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None
+    ):
         """
 
         Parameters
@@ -1191,18 +1189,18 @@ class MeasurementsAndQualitativeEvaluations(Template):
     """TID 1501 Measurement and Qualitative Evaluation Group"""
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
+    ):
         """
 
         Parameters
@@ -1348,26 +1346,26 @@ class _ROIMeasurementsAndQualitativeEvaluations(
     templates."""
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_regions: Optional[
-                Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
-            ] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_volume_surface: Optional[VolumeSurface] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
-            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_regions: Optional[
+            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
+        ] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_volume_surface: Optional[VolumeSurface] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
 
         Parameters
@@ -1492,25 +1490,25 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     """TID 1410 Planar ROI Measurements and Qualitative Evaluations"""
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_region: Optional[
-                Union[ImageRegion, ImageRegion3D]
-            ] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
-            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_region: Optional[
+            Union[ImageRegion, ImageRegion3D]
+        ] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
 
         Parameters
@@ -1595,26 +1593,24 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     """TID 1411 Volumetric ROI Measurements and Qualitative Evaluations"""
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_regions: Optional[
-                Union[ImageRegion, ImageRegion3D]
-            ] = None,
-            referenced_volume_surface: Optional[VolumeSurface] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
-            geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_regions: Optional[Union[ImageRegion, ImageRegion3D]] = None,
+        referenced_volume_surface: Optional[VolumeSurface] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
 
         Parameters

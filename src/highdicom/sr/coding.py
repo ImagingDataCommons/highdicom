@@ -39,6 +39,8 @@ class CodedConcept(Dataset):
                 self.LongCodeValue = str(value)
         else:
             self.CodeValue = str(value)
+        if len(meaning) > 64:
+            raise ValueError('Code meaning can have maximally 64 characters.')
         self.CodeMeaning = str(meaning)
         self.CodingSchemeDesignator = str(scheme_designator)
         if scheme_version is not None:

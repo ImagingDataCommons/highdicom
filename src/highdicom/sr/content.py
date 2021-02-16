@@ -28,11 +28,11 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
     """
 
     def __init__(
-            self,
-            value: Optional[Union[int, float]],
-            unit: Optional[Union[CodedConcept, Code]] = None,
-            event_type: Optional[Union[CodedConcept, Code]] = None
-        ) -> None:
+        self,
+        value: Optional[Union[int, float]],
+        unit: Optional[Union[CodedConcept, Code]] = None,
+        event_type: Optional[Union[CodedConcept, Code]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -210,14 +210,14 @@ class ImageRegion(ScoordContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues, str],
-            graphic_data: np.ndarray,
-            source_image: SourceImageForRegion,
-            pixel_origin_interpretation: Optional[
-                Union[PixelOriginInterpretationValues, str]
-            ] = None
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues, str],
+        graphic_data: np.ndarray,
+        source_image: SourceImageForRegion,
+        pixel_origin_interpretation: Optional[
+            Union[PixelOriginInterpretationValues, str]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -277,11 +277,11 @@ class ImageRegion3D(Scoord3DContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues3D, str],
-            graphic_data: np.ndarray,
-            frame_of_reference_uid: str
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_data: np.ndarray,
+        frame_of_reference_uid: str
+    ) -> None:
         """
         Parameters
         ----------
@@ -323,15 +323,15 @@ class VolumeSurface(Scoord3DContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues3D, str],
-            graphic_data: np.ndarray,
-            frame_of_reference_uid: str,
-            source_images: Optional[
-                Sequence[SourceImageForSegmentation]
-            ] = None,
-            source_series: Optional[SourceSeriesForSegmentation] = None
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_data: np.ndarray,
+        frame_of_reference_uid: str,
+        source_images: Optional[
+            Sequence[SourceImageForSegmentation]
+        ] = None,
+        source_series: Optional[SourceSeriesForSegmentation] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -420,11 +420,11 @@ class FindingSite(CodeContentItem):
     """Content item representing a coded finding site."""
 
     def __init__(
-            self,
-            anatomic_location: Union[CodedConcept, Code],
-            laterality: Optional[Union[CodedConcept, Code]] = None,
-            topographical_modifier: Optional[Union[CodedConcept, Code]] = None
-        ) -> None:
+        self,
+        anatomic_location: Union[CodedConcept, Code],
+        laterality: Optional[Union[CodedConcept, Code]] = None,
+        topographical_modifier: Optional[Union[CodedConcept, Code]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -479,13 +479,13 @@ class ReferencedSegmentationFrame(ContentSequence):
     """
 
     def __init__(
-            self,
-            sop_class_uid: str,
-            sop_instance_uid: str,
-            frame_number: int,
-            segment_number: int,
-            source_image: SourceImageForSegmentation
-        ) -> None:
+        self,
+        sop_class_uid: str,
+        sop_instance_uid: str,
+        frame_number: int,
+        segment_number: int,
+        source_image: SourceImageForSegmentation
+    ) -> None:
         """
         Parameters
         ----------
@@ -531,16 +531,16 @@ class ReferencedSegment(ContentSequence):
     """
 
     def __init__(
-            self,
-            sop_class_uid: str,
-            sop_instance_uid: str,
-            segment_number: int,
-            frame_numbers: Optional[Sequence[int]] = None,
-            source_images: Optional[
-                Sequence[SourceImageForSegmentation]
-            ] = None,
-            source_series: Optional[SourceSeriesForSegmentation] = None
-        ) -> None:
+        self,
+        sop_class_uid: str,
+        sop_instance_uid: str,
+        segment_number: int,
+        frame_numbers: Optional[Sequence[int]] = None,
+        source_images: Optional[
+            Sequence[SourceImageForSegmentation]
+        ] = None,
+        source_series: Optional[SourceSeriesForSegmentation] = None
+    ) -> None:
         """
         Parameters
         ----------
