@@ -94,7 +94,7 @@ class SegmentDescription(Dataset):
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
         if algorithm_identification is None:
-            if self.SegmentAlgorithmType != SegmentAlgorithmTypeValues.MANUAL:
+            if self.SegmentAlgorithmType != SegmentAlgorithmTypeValues.MANUAL.value:
                 raise TypeError(
                     "Algorithm identification sequence is required unless "
                     "the segmentation type is MANUAL"
