@@ -28,7 +28,9 @@ class SegmentDescription(Dataset):
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
             algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-            algorithm_identification: Optional[AlgorithmIdentificationSequence] = None,
+            algorithm_identification: Optional[
+                AlgorithmIdentificationSequence
+            ] = None,
             tracking_uid: Optional[str] = None,
             tracking_id: Optional[str] = None,
             anatomic_regions: Optional[
@@ -94,13 +96,17 @@ class SegmentDescription(Dataset):
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
         if algorithm_identification is None:
-            if self.SegmentAlgorithmType != SegmentAlgorithmTypeValues.MANUAL.value:
+            if (
+                self.SegmentAlgorithmType !=
+                SegmentAlgorithmTypeValues.MANUAL.value
+            ):
                 raise TypeError(
-                    "Algorithm identification sequence is required unless "
-                    "the segmentation type is MANUAL"
+                    "Algorithm identification sequence is required "
+                    "unless the segmentation type is MANUAL"
                 )
         else:
-            self.SegmentAlgorithmName = algorithm_identification[0].AlgorithmName
+            self.SegmentAlgorithmName = \
+                algorithm_identification[0].AlgorithmName
             self.SegmentationAlgorithmIdentificationSequence = \
                 algorithm_identification
         num_given_tracking_identifiers = sum([
