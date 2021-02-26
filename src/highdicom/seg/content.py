@@ -48,11 +48,13 @@ class SegmentDescription(Dataset):
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
-            (see CID 7150 Segmentation Property Categories)
+            (see `CID 7150 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7150.html>`_
+            "Segmentation Property Categories")
         segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see CID 7151 Segmentation Property Types)
+            (see `CID 7151 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7151.html>`_
+            "Segmentation Property Types")
         algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: highdicom.content.AlgorithmIdentificationSequence, optional
@@ -65,7 +67,8 @@ class SegmentDescription(Dataset):
         anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
-            (see CID 4 Anatomic Region, CID 4031 Common Anatomic Regions, as
+            (see `CID 4 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4.html>`_
+            "Anatomic Region", `CID 4031 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4031.html>`_ "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
         primary_anatomic_structures: Sequence[Union[highdicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic structure(s) the segment represents
