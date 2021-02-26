@@ -2,6 +2,7 @@
 from typing import Optional, Sequence, Union
 
 import numpy as np
+from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
@@ -101,6 +102,34 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
             relationship_type=RelationshipTypeValues.SELECTED_FROM
+        )
+
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ) -> 'SourceImageForMeasurement':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing the image to be referenced
+        referenced_frame_numbers: Sequence[int], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Returns
+        -------
+        SourceImageForMeasurement
+            Content item representing a reference to the image dataset
+
+        """
+        return cls(
+            referenced_sop_class_uid=dataset.SOPClassUID,
+            referenced_sop_instance_uid=dataset.SOPInstanceUID,
+            referenced_frame_numbers=referenced_frame_numbers
         )
 
 
