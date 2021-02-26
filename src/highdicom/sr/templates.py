@@ -293,7 +293,7 @@ class MeasurementStatisticalProperties(Template):
             authority for a description of the reference population of
             measurements
 
-        """
+        """  # noqa: E501
         super().__init__()
         if not isinstance(values, (list, tuple)):
             raise TypeError('Argument "values" must be a list.')
@@ -352,7 +352,7 @@ class NormalRangeProperties(Template):
         authority: str, optional
             authority for the description of the normal range
 
-        """
+        """  # noqa: E501
         super().__init__()
         if not isinstance(values, (list, tuple)):
             raise TypeError('Argument "values" must be a list.')
@@ -793,7 +793,7 @@ class SubjectContextSpecimen(Template):
             (see `CID 8103 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_8103.html>`_
             "Anatomic Pathology Specimen Types" for options)
 
-        """
+        """  # noqa: E501
         super().__init__()
         specimen_uid_item = UIDRefContentItem(
             name=CodedConcept(
