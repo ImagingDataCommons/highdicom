@@ -428,7 +428,7 @@ class FindingSite(CodeContentItem):
         """
         Parameters
         ----------
-        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
         laterality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
