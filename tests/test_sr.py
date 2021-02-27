@@ -85,12 +85,11 @@ class TestAlgorithmIdentification(unittest.TestCase):
         )
         assert len(algo_id) == 2
         assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.AlgorithmName.value
+            codes.DCM.AlgorithmName.value
         assert algo_id[0].TextValue == self._name
         assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.AlgorithmVersion.value
+            codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
-
 
     def test_construction_parameters(self):
         algo_id = AlgorithmIdentification(
@@ -100,14 +99,14 @@ class TestAlgorithmIdentification(unittest.TestCase):
         )
         assert len(algo_id) == 2 + len(self._parameters)
         assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.AlgorithmName.value
+            codes.DCM.AlgorithmName.value
         assert algo_id[0].TextValue == self._name
         assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.AlgorithmVersion.value
+            codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
         for i, param in enumerate(self._parameters, start=2):
             assert algo_id[i].ConceptNameCodeSequence[0].CodeValue == \
-                    codes.DCM.AlgorithmParameters.value
+                codes.DCM.AlgorithmParameters.value
             assert algo_id[i].TextValue == param
 
 
@@ -115,8 +114,8 @@ class TestMeasurementStatisticalProperties(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._value_name=codes.SCT.Volume
-        self._value_unit=codes.UCUM.CubicMillimeter
+        self._value_name = codes.SCT.Volume
+        self._value_unit = codes.UCUM.CubicMillimeter
         self._value_number = 0.12345
         self._values = [
             NumContentItem(
@@ -134,9 +133,9 @@ class TestMeasurementStatisticalProperties(unittest.TestCase):
         )
         assert len(stat_props) == 1
         assert stat_props[0].ConceptNameCodeSequence[0].CodeValue == \
-                self._value_name.value
+            self._value_name.value
         assert str(stat_props[0].MeasuredValueSequence[0].NumericValue) == \
-                str(self._value_number)
+            str(self._value_number)
 
     def test_construction_description(self):
         stat_props = MeasurementStatisticalProperties(
@@ -145,11 +144,11 @@ class TestMeasurementStatisticalProperties(unittest.TestCase):
         )
         assert len(stat_props) == 2
         assert stat_props[0].ConceptNameCodeSequence[0].CodeValue == \
-                self._value_name.value
+            self._value_name.value
         assert str(stat_props[0].MeasuredValueSequence[0].NumericValue) == \
-                str(self._value_number)
+            str(self._value_number)
         assert stat_props[1].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.PopulationDescription.value
+            codes.DCM.PopulationDescription.value
 
 
 class TestCodedConcept(unittest.TestCase):
@@ -677,7 +676,7 @@ class TestSubjectContextDevice(unittest.TestCase):
         context = SubjectContextDevice(name=self._name)
         assert len(context) == 1
         assert context[0].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectName.value
+            codes.DCM.DeviceSubjectName.value
         assert context[0].TextValue == self._name
 
     def test_construction_all(self):
@@ -691,22 +690,22 @@ class TestSubjectContextDevice(unittest.TestCase):
         )
         assert len(context) == 6
         assert context[0].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectName.value
+            codes.DCM.DeviceSubjectName.value
         assert context[0].TextValue == self._name
         assert context[1].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectUID.value
+            codes.DCM.DeviceSubjectUID.value
         assert context[1].UID == self._uid
         assert context[2].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectManufacturer.value
+            codes.DCM.DeviceSubjectManufacturer.value
         assert context[2].TextValue == self._manufacturer
         assert context[3].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectModelName.value
+            codes.DCM.DeviceSubjectModelName.value
         assert context[3].TextValue == self._model_name
         assert context[4].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectSerialNumber.value
+            codes.DCM.DeviceSubjectSerialNumber.value
         assert context[4].TextValue == self._serial_number
         assert context[5].ConceptNameCodeSequence[0].CodeValue == \
-                codes.DCM.DeviceSubjectPhysicalLocationDuringObservation.value
+            codes.DCM.DeviceSubjectPhysicalLocationDuringObservation.value
         assert context[5].TextValue == self._physical_location
 
 
