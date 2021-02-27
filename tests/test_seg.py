@@ -219,6 +219,17 @@ class TestSegmentDescription(unittest.TestCase):
                 algorithm_type=self._segment_algorithm_type
             )
 
+    def test_construction_no_algo_id_manual_seg(self):
+        # Omitting the algo id should not give an error if the segmentation
+        # type is MANUAL
+        SegmentDescription(
+            segment_number=self._segment_number,
+            segment_label=self._segment_label,
+            segmented_property_category=self._segmented_property_category,
+            segmented_property_type=self._segmented_property_type,
+            algorithm_type=SegmentAlgorithmTypeValues.MANUAL
+        )
+
     def test_construction_optional_argument(self):
         item = SegmentDescription(
             segment_number=self._segment_number,
