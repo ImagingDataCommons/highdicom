@@ -28,7 +28,9 @@ class SegmentDescription(Dataset):
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
             algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-            algorithm_identification: AlgorithmIdentificationSequence,
+            algorithm_identification: Optional[
+                AlgorithmIdentificationSequence
+            ] = None,
             tracking_uid: Optional[str] = None,
             tracking_id: Optional[str] = None,
             anatomic_regions: Optional[
@@ -48,16 +50,18 @@ class SegmentDescription(Dataset):
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
-            (see CID 7150 Segmentation Property Categories)
+            (see `CID 7150 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7150.html>`_
+            "Segmentation Property Categories")
         segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see CID 7151 Segmentation Property Types)
+            (see `CID 7151 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7151.html>`_
+            "Segmentation Property Types")
         algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: highdicom.content.AlgorithmIdentificationSequence, optional
             Information useful for identification of the algorithm, such
-            as its name or version
+            as its name or version. Required unless the algorithm type is `MANUAL`
         tracking_uid: str, optional
             Unique tracking identifier (universally unique)
         tracking_id: str, optional
@@ -65,7 +69,8 @@ class SegmentDescription(Dataset):
         anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
-            (see CID 4 Anatomic Region, CID 4031 Common Anatomic Regions, as
+            (see `CID 4 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4.html>`_
+            "Anatomic Region", `CID 4031 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4031.html>`_ "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
         primary_anatomic_structures: Sequence[Union[highdicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic structure(s) the segment represents
@@ -93,9 +98,20 @@ class SegmentDescription(Dataset):
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
-        self.SegmentAlgorithmName = algorithm_identification[0].AlgorithmName
-        self.SegmentationAlgorithmIdentificationSequence = \
-            algorithm_identification
+        if algorithm_identification is None:
+            if (
+                self.SegmentAlgorithmType !=
+                SegmentAlgorithmTypeValues.MANUAL.value
+            ):
+                raise TypeError(
+                    "Algorithm identification sequence is required "
+                    "unless the segmentation type is MANUAL"
+                )
+        else:
+            self.SegmentAlgorithmName = \
+                algorithm_identification[0].AlgorithmName
+            self.SegmentationAlgorithmIdentificationSequence = \
+                algorithm_identification
         num_given_tracking_identifiers = sum([
             tracking_id is not None,
             tracking_uid is not None

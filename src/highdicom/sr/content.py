@@ -457,11 +457,12 @@ class FindingSite(CodeContentItem):
         """
         Parameters
         ----------
-        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
         laterality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
-            (see CID 244 "Laterality" for options)
+            (see `CID 244 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_244.html>`_
+            "Laterality" for options)
         topographical_modifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
