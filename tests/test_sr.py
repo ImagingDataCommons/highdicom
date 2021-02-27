@@ -52,8 +52,10 @@ from highdicom.sr.sop import (
 )
 from highdicom.sr.templates import (
     DEFAULT_LANGUAGE,
+    AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
     Measurement,
+    MeasurementStatisticalProperties,
     MeasurementProperties,
     MeasurementReport,
     ObservationContext,
@@ -62,9 +64,92 @@ from highdicom.sr.templates import (
     PlanarROIMeasurementsAndQualitativeEvaluations,
     SubjectContext,
     SubjectContextSpecimen,
+    SubjectContextDevice,
     TrackingIdentifier,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
+
+
+class TestAlgorithmIdentification(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._name = "Foo's Method"
+        self._version = '1.0'
+        self._parameters = ['spam=True', 'eggs=False']
+
+    def test_construction_basic(self):
+        algo_id = AlgorithmIdentification(
+            name=self._name,
+            version=self._version,
+        )
+        assert len(algo_id) == 2
+        assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.AlgorithmName.value
+        assert algo_id[0].TextValue == self._name
+        assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.AlgorithmVersion.value
+        assert algo_id[1].TextValue == self._version
+
+
+    def test_construction_parameters(self):
+        algo_id = AlgorithmIdentification(
+            name=self._name,
+            version=self._version,
+            parameters=self._parameters,
+        )
+        assert len(algo_id) == 2 + len(self._parameters)
+        assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.AlgorithmName.value
+        assert algo_id[0].TextValue == self._name
+        assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.AlgorithmVersion.value
+        assert algo_id[1].TextValue == self._version
+        for i, param in enumerate(self._parameters, start=2):
+            assert algo_id[i].ConceptNameCodeSequence[0].CodeValue == \
+                    codes.DCM.AlgorithmParameters.value
+            assert algo_id[i].TextValue == param
+
+
+class TestMeasurementStatisticalProperties(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._value_name=codes.SCT.Volume
+        self._value_unit=codes.UCUM.CubicMillimeter
+        self._value_number = 0.12345
+        self._values = [
+            NumContentItem(
+                name=self._value_name,
+                value=self._value_number,
+                unit=self._value_unit
+            )
+        ]
+        self._description = 'Population of Foo'
+        self._authority = "World Foo Organization"
+
+    def test_construction_basic(self):
+        stat_props = MeasurementStatisticalProperties(
+            values=self._values,
+        )
+        assert len(stat_props) == 1
+        assert stat_props[0].ConceptNameCodeSequence[0].CodeValue == \
+                self._value_name.value
+        assert str(stat_props[0].MeasuredValueSequence[0].NumericValue) == \
+                str(self._value_number)
+
+    def test_construction_description(self):
+        stat_props = MeasurementStatisticalProperties(
+            values=self._values,
+            description=self._description,
+        )
+        assert len(stat_props) == 2
+        assert stat_props[0].ConceptNameCodeSequence[0].CodeValue == \
+                self._value_name.value
+        assert str(stat_props[0].MeasuredValueSequence[0].NumericValue) == \
+                str(self._value_number)
+        assert stat_props[1].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.PopulationDescription.value
 
 
 class TestCodedConcept(unittest.TestCase):
@@ -577,6 +662,54 @@ class TestContentSequence(unittest.TestCase):
         super().setUp()
 
 
+class TestSubjectContextDevice(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._name = 'Foo Device'
+        self._uid = generate_uid()
+        self._manufacturer = 'Foomakers Inc.'
+        self._model_name = 'Foo Mark II'
+        self._serial_number = '987654321'
+        self._physical_location = 'Planet Foo'
+
+    def test_construction_basic(self):
+        context = SubjectContextDevice(name=self._name)
+        assert len(context) == 1
+        assert context[0].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectName.value
+        assert context[0].TextValue == self._name
+
+    def test_construction_all(self):
+        context = SubjectContextDevice(
+            name=self._name,
+            uid=self._uid,
+            manufacturer_name=self._manufacturer,
+            model_name=self._model_name,
+            serial_number=self._serial_number,
+            physical_location=self._physical_location
+        )
+        assert len(context) == 6
+        assert context[0].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectName.value
+        assert context[0].TextValue == self._name
+        assert context[1].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectUID.value
+        assert context[1].UID == self._uid
+        assert context[2].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectManufacturer.value
+        assert context[2].TextValue == self._manufacturer
+        assert context[3].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectModelName.value
+        assert context[3].TextValue == self._model_name
+        assert context[4].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectSerialNumber.value
+        assert context[4].TextValue == self._serial_number
+        assert context[5].ConceptNameCodeSequence[0].CodeValue == \
+                codes.DCM.DeviceSubjectPhysicalLocationDuringObservation.value
+        assert context[5].TextValue == self._physical_location
+
+
 class TestObservationContext(unittest.TestCase):
 
     def setUp(self):
@@ -721,6 +854,17 @@ class TestTrackingIdentifier(unittest.TestCase):
         item = self._tracking_identifier[0]
         assert item.ConceptNameCodeSequence[0].CodeValue == '112040'
         assert item.UID == self._uid
+
+
+class TestTrackingIdentifierDefault(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._tracking_identifier = TrackingIdentifier()
+
+    def test_uid(self):
+        item = self._tracking_identifier[0]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '112040'
 
 
 class TestMeasurement(unittest.TestCase):
