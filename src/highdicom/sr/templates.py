@@ -177,7 +177,7 @@ class TimePointContext(Template):
         Parameters
         ----------
         time_point: str
-            actual value represention of the time point
+            actual value representation of the time point
         time_point_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded type of time point, e.g., "Baseline" or "Posttreatment"
             (see CID 646 "Time Point Types" for options)
@@ -194,7 +194,7 @@ class TimePointContext(Template):
            particular protocol using the same value for different subjects
         temporal_offset_from_event: highdicom.sr.content.LongitudinalTemporalOffsetFromEvent, optional
             offset in time from a particular event of significance, e.g., the
-            baseline of an imaging study or enrollment into a clincal trial
+            baseline of an imaging study or enrollment into a clinical trial
         temporal_event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of event to which `temporal_offset_from_event` is relative,
             e.g., "Baseline" or "Enrollment"

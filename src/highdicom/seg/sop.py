@@ -373,7 +373,7 @@ class Segmentation(SOPClass):
             # same physical dimensions
             # seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
             # seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
-            # src_row_dim = src_img.Rows 
+            # src_row_dim = src_img.Rows
 
         if is_multiframe:
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
