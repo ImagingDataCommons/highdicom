@@ -402,8 +402,7 @@ class NumContentItem(ContentItem):
             numeric value
         unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded units of measurement (see `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
-            "Abstract Multi-dimensional
-            Image Model Component Units")
+            "Abstract Multi-dimensional Image Model Component Units")
         qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
