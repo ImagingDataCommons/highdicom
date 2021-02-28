@@ -1499,7 +1499,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegment or '
                     'ReferencedSegmentationFrame.'
                 )
-            group_item.ContentSequence.append(referenced_segment)
+            group_item.ContentSequence.extend(referenced_segment)
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
