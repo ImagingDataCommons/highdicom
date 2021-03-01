@@ -205,6 +205,7 @@ class TimePointContext(Template):
             (required if `temporal_offset_from_event` is provided)
 
         """  # noqa
+        super().__init__()
         time_point_item = TextContentItem(
             name=CodedConcept(
                 value='C2348792',
