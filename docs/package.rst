@@ -61,6 +61,14 @@ highdicom.spatial module
    :undoc-members:
    :show-inheritance:
 
+highdicom.uid module
+++++++++++++++++++++++
+
+.. automodule:: highdicom.uid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 highdicom.utils module
 ++++++++++++++++++++++
 
