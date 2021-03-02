@@ -22,6 +22,7 @@ class TestSCImage(unittest.TestCase):
         self._series_number = int(np.random.choice(100))
         self._instance_number = int(np.random.choice(100))
         self._manufacturer = 'ABC'
+        self._laterality = 'L'
         self._patient_orientation = ['A', 'R']
         self._container_identifier = str(np.random.choice(100))
         self._specimen_identifier = str(np.random.choice(100))
@@ -52,7 +53,8 @@ class TestSCImage(unittest.TestCase):
             series_number=self._series_number,
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation
+            patient_orientation=self._patient_orientation,
+            laterality=self._laterality
         )
         assert instance.BitsAllocated == bits_allocated
         assert instance.SamplesPerPixel == 3
@@ -64,6 +66,7 @@ class TestSCImage(unittest.TestCase):
         assert instance.SeriesNumber == self._series_number
         assert instance.InstanceNumber == self._instance_number
         assert instance.Manufacturer == self._manufacturer
+        assert instance.Laterality == self._laterality
         assert instance.PatientOrientation == self._patient_orientation
         assert instance.AccessionNumber is None
         assert instance.PatientName is None
