@@ -24,7 +24,6 @@ from highdicom.content import (
 from highdicom.enum import (
     AnatomicalOrientationTypeValues,
     CoordinateSystemNames,
-    LateralityValues,
     PhotometricInterpretationValues,
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
@@ -68,7 +67,6 @@ class SCImage(SOPClass):
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[str] = None,
             pixel_spacing: Optional[Tuple[int, int]] = None,
-            laterality: Optional[Union[str, LateralityValues]] = None,
             patient_orientation: Optional[
                 Union[
                     Tuple[str, str],
@@ -145,9 +143,6 @@ class SCImage(SOPClass):
         pixel_spacing: Tuple[int, int], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
-        laterality: Union[str, highdicom.enum.LateralityValues], optional
-            Laterality of the examined body part (required if
-            `coordinate_system` is ``"PATIENT"``)
         patient_orientation:
                 Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped]], optional
             Orientation of the patient along the row and column axes of the
@@ -207,20 +202,11 @@ class SCImage(SOPClass):
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.PATIENT:
-            if laterality is None:
-                raise TypeError(
-                    'Laterality is required if coordinate system '
-                    'is "PATIENT".'
-                )
             if patient_orientation is None:
                 raise TypeError(
                     'Patient orientation is required if coordinate system '
                     'is "PATIENT".'
                 )
-
-            # General Series
-            laterality = LateralityValues(laterality)
-            self.Laterality = laterality.value
 
             # General Image
             if anatomical_orientation_type is not None:
