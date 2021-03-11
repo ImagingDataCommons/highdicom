@@ -353,7 +353,8 @@ class SpecimenCollection(ContentSequence):
 class SpecimenSampling(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
-    sampling procedure according to structured reporting template TID 8002
+    sampling procedure according to structured reporting template
+    `TID 8002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8002>`_
     Specimen Sampling.
     """
 
@@ -410,7 +411,8 @@ class SpecimenSampling(ContentSequence):
 class SpecimenStaining(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
-    staining procedure according to structured reporting template TID 8003
+    staining procedure according to structured reporting template
+    `TID 8003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8003>`_
     Specimen Staining.
     """
 
@@ -438,7 +440,9 @@ class SpecimenStaining(ContentSequence):
 class SpecimenPreparationStep(ContentSequence):
 
     """Dataset describing a specimen preparation step according to
-    structured reporting template TID 8001 Specimen Preparation.
+    structured reporting template
+    `TID 8001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8001>`_
+    Specimen Preparation.
     """
 
     def __init__(
