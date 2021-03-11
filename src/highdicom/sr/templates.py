@@ -55,7 +55,7 @@ class Template(ContentSequence):
 class AlgorithmIdentification(Template):
 
     """`TID 4019 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_TID_4019.html>`_
-     Algorithm Identification"""
+    Algorithm Identification"""  # noqa: E501
 
     def __init__(
         self,
@@ -113,7 +113,7 @@ class AlgorithmIdentification(Template):
 class TrackingIdentifier(Template):
 
     """`TID 4108 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_TID_4108.html>`_
-     Tracking Identifier"""
+    Tracking Identifier"""  # noqa: E501
 
     def __init__(
         self,
@@ -159,7 +159,7 @@ class TrackingIdentifier(Template):
 class TimePointContext(Template):
 
     """`TID 1502 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1502>`_
-     Time Point Context"""
+     Time Point Context"""  # noqa: E501
 
     def __init__(
         self,
@@ -272,7 +272,7 @@ class TimePointContext(Template):
 class MeasurementStatisticalProperties(Template):
 
     """`TID 311 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_311>`_
-     Measurement Statistical Properties"""
+     Measurement Statistical Properties"""  # noqa: E501
 
     def __init__(
         self,
@@ -335,7 +335,7 @@ class MeasurementStatisticalProperties(Template):
 class NormalRangeProperties(Template):
 
     """`TID 312 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_312>`_
-     Normal Range Properties"""
+     Normal Range Properties"""  # noqa: E501
 
     def __init__(
         self,
@@ -387,7 +387,7 @@ class NormalRangeProperties(Template):
 class MeasurementProperties(Template):
 
     """`TID 310 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_310>`_
-     Measurement Properties"""
+     Measurement Properties"""  # noqa: E501
 
     def __init__(
         self,
@@ -507,7 +507,7 @@ class MeasurementProperties(Template):
 class PersonObserverIdentifyingAttributes(Template):
 
     """`TID 1003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1003>`_
-     Person Observer Identifying Attributes"""
+     Person Observer Identifying Attributes"""  # noqa: E501
 
     def __init__(
             self,
@@ -593,7 +593,7 @@ class PersonObserverIdentifyingAttributes(Template):
 class DeviceObserverIdentifyingAttributes(Template):
 
     """`TID 1004 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1004>`_
-     Device Observer Identifying Attributes"""
+     Device Observer Identifying Attributes"""  # noqa: E501
 
     def __init__(
         self,
@@ -688,7 +688,7 @@ class DeviceObserverIdentifyingAttributes(Template):
 class ObserverContext(Template):
 
     """`TID 1002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1002>`_
-     Observer Context"""
+     Observer Context"""  # noqa: E501
 
     def __init__(
         self,
@@ -751,7 +751,7 @@ class ObserverContext(Template):
 class SubjectContextFetus(Template):
 
     """`TID 1008 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1008>`_
-     Subject Context Fetus"""
+     Subject Context Fetus"""  # noqa: E501
 
     def __init__(self, subject_id: str):
         """
@@ -778,7 +778,7 @@ class SubjectContextFetus(Template):
 class SubjectContextSpecimen(Template):
 
     """`TID 1009 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1009>`_
-     Subject Context Specimen"""
+     Subject Context Specimen"""  # noqa: E501
 
     def __init__(
         self,
@@ -854,7 +854,7 @@ class SubjectContextSpecimen(Template):
 class SubjectContextDevice(Template):
 
     """`TID 1010 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1010>`_
-     Subject Context Device"""
+     Subject Context Device"""  # noqa: E501
 
     def __init__(
         self,
@@ -942,7 +942,7 @@ class SubjectContextDevice(Template):
 class SubjectContext(Template):
 
     """`TID 1006 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1006>`_
-     Subject Context"""
+     Subject Context"""  # noqa: E501
 
     def __init__(
         self,
@@ -985,7 +985,7 @@ class SubjectContext(Template):
 class ObservationContext(Template):
 
     """`TID 1001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1001>`_
-     Observation Context"""
+     Observation Context"""  # noqa: E501
 
     def __init__(
         self,
@@ -1041,7 +1041,7 @@ class ObservationContext(Template):
 class LanguageOfContentItemAndDescendants(Template):
 
     """`TID 1204 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1204>`_
-     Language of Content Item and Descendants"""
+     Language of Content Item and Descendants"""  # noqa: E501
 
     def __init__(self, language: CodedConcept):
         """
@@ -1068,7 +1068,7 @@ class LanguageOfContentItemAndDescendants(Template):
 class Measurement(Template):
 
     """`TID 300 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300>`_
-     Measurement"""
+     Measurement"""  # noqa: E501
 
     def __init__(
         self,
@@ -1218,7 +1218,7 @@ class Measurement(Template):
 class MeasurementsAndQualitativeEvaluations(Template):
 
     """`TID 1501 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1501>`_
-     Measurement and Qualitative Evaluation Group"""
+     Measurement and Qualitative Evaluation Group"""  # noqa: E501
 
     def __init__(
         self,
@@ -1523,7 +1523,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
 
     """`TID 1410 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1410>`_
-     Planar ROI Measurements and Qualitative Evaluations"""
+     Planar ROI Measurements and Qualitative Evaluations"""  # noqa: E501
 
     def __init__(
         self,
@@ -1629,7 +1629,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
 
     """`TID 1411 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1411>`_
-     Volumetric ROI Measurements and Qualitative Evaluations"""
+     Volumetric ROI Measurements and Qualitative Evaluations"""  # noqa: E501
 
     def __init__(
         self,
@@ -1716,7 +1716,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 
     """`TID 1420 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1420>`_
-     Measurements Derived From Multiple ROI Measurements"""
+     Measurements Derived From Multiple ROI Measurements"""  # noqa: E501
 
     def __init__(
             self,
@@ -1778,7 +1778,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 class MeasurementReport(Template):
 
     """`TID 1500 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500>`_
-     Measurement Report"""
+     Measurement Report"""  # noqa: E501
 
     def __init__(
             self,
@@ -1944,7 +1944,7 @@ class MeasurementReport(Template):
 class ImageLibrary(Template):
 
     """`TID 1600 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1600>`_
-     Image Library"""
+     Image Library"""  # noqa: E501
 
     def __init__(self) -> None:
         """

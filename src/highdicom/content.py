@@ -356,7 +356,7 @@ class SpecimenSampling(ContentSequence):
     sampling procedure according to structured reporting template
     `TID 8002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8002>`_
     Specimen Sampling.
-    """
+    """  # noqa E501
 
     def __init__(
             self,
@@ -414,7 +414,7 @@ class SpecimenStaining(ContentSequence):
     staining procedure according to structured reporting template
     `TID 8003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8003>`_
     Specimen Staining.
-    """
+    """  # noqa E501
 
     def __init__(
             self,
@@ -443,7 +443,7 @@ class SpecimenPreparationStep(ContentSequence):
     structured reporting template
     `TID 8001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8001>`_
     Specimen Preparation.
-    """
+    """  # noqa E501
 
     def __init__(
             self,
