@@ -105,7 +105,7 @@ class SourceImageForMeasurement(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(
+    def from_source_dataset(
             cls,
             dataset: Dataset,
             referenced_frame_numbers: Optional[Sequence[int]] = None
@@ -169,6 +169,34 @@ class SourceImageForRegion(ImageContentItem):
             relationship_type=RelationshipTypeValues.SELECTED_FROM
         )
 
+    @classmethod
+    def from_source_dataset(
+            cls,
+            dataset: Dataset,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ) -> 'SourceImageForRegion':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing the image to be referenced
+        referenced_frame_numbers: Sequence[int], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Returns
+        -------
+        SourceImageForRegion
+            Content item representing a reference to the image dataset
+
+        """
+        return cls(
+            referenced_sop_class_uid=dataset.SOPClassUID,
+            referenced_sop_instance_uid=dataset.SOPInstanceUID,
+            referenced_frame_numbers=referenced_frame_numbers
+        )
+
 
 class SourceImageForSegmentation(ImageContentItem):
 
@@ -206,6 +234,35 @@ class SourceImageForSegmentation(ImageContentItem):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
 
+    @classmethod
+    def from_source_dataset(
+            cls,
+            dataset: Dataset,
+            referenced_frame_numbers: Optional[Sequence[int]] = None
+        ) -> 'SourceImageForSegmentation':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing the image to be referenced
+        referenced_frame_numbers: Sequence[int], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Returns
+        -------
+        SourceImageForSegmentation
+            Content item representing a reference to the image dataset
+
+        """
+        return cls(
+            referenced_sop_class_uid=dataset.SOPClassUID,
+            referenced_sop_instance_uid=dataset.SOPInstanceUID,
+            referenced_frame_numbers=referenced_frame_numbers
+        )
+
+
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
 
@@ -229,6 +286,29 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
             ),
             value=referenced_series_instance_uid,
             relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+    @classmethod
+    def from_source_dataset(
+            cls,
+            dataset: Dataset,
+        ) -> 'SourceSeriesForSegmentation':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            dataset representing a single image from the series to be
+            referenced
+
+        Returns
+        -------
+        SourceSeriesForSegmentation
+            Content item representing a reference to the image dataset
+
+        """
+        return cls(
+            referenced_series_instance_uid=dataset.SeriesInstanceUID,
         )
 
 
@@ -443,6 +523,29 @@ class RealWorldValueMap(CompositeContentItem):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
 
+    @classmethod
+    def from_source_dataset(
+            cls,
+            dataset: Dataset,
+        ) -> 'RealWorldValueMap':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            dataset representing the real world value map to be
+            referenced
+
+        Returns
+        -------
+        RealWorldValueMap
+            Content item representing a reference to the image dataset
+
+        """
+        return cls(
+            referenced_sop_instance_uid=dataset.SOPInstanceUID,
+        )
+
 
 class FindingSite(CodeContentItem):
 
@@ -628,3 +731,36 @@ class ReferencedSegment(ContentSequence):
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
+
+#    @classmethod
+#    def from_source_dataset(
+#            cls,
+#            dataset: Dataset,
+#            segment_number: int,
+#            frame_numbers: Optional[Sequence[int]] = None
+#        ) -> 'ReferencedSegment':
+#        """Construct the content item directly from a segmentation dataset
+#
+#        Parameters
+#        ----------
+#        dataset: pydicom.dataset.Dataset
+#            dataset representing the real world value map to be
+#            referenced
+#
+#        Returns
+#        -------
+#        ReferencedSegment
+#            Content item representing a reference to the segment
+#
+#        """
+#        return cls(
+#            sop_class_uid=dataset.SOPClassUID,
+#            sop_instance_uid=dataset.SOPInstanceUID,
+#            segment_number=segment_number,
+#            frame_numbers: Optional[Sequence[int]] = None,
+#            source_images: Optional[
+#                Sequence[SourceImageForSegmentation]
+#            ] = None,
+#            source_series: Optional[SourceSeriesForSegmentation] = None
+#        )
+#
