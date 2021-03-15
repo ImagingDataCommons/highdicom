@@ -2,6 +2,7 @@
 from typing import Optional, Sequence, Union
 
 import numpy as np
+from pydicom._storage_sopclass_uids import SegmentationStorage
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
@@ -261,7 +262,6 @@ class SourceImageForSegmentation(ImageContentItem):
             referenced_sop_instance_uid=dataset.SOPInstanceUID,
             referenced_frame_numbers=referenced_frame_numbers
         )
-
 
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
@@ -655,6 +655,113 @@ class ReferencedSegmentationFrame(ContentSequence):
             )
         self.append(source_image)
 
+    @classmethod
+    def from_seg_dataset(
+            cls,
+            dataset: Dataset,
+            frame_number: int
+        ) -> 'ReferencedSegmentationFrame':
+        """Construct the content item directly from a segmentation dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            dataset representing a segmentation containing the referenced
+            segment
+        frame_number: int
+            number of the frame to which the reference applies
+
+        Returns
+        -------
+        ReferencedSegment
+            Content item representing a reference to the segment
+
+        Notes
+        -----
+             This method will attempt to deduce source image information
+             from information provided in the segmentation instance. If
+             available, it will used information specific to the segment
+             and frame numbers (if any) provided using the Derivation
+             Image Sequence information in the frames. If this information
+             is not present in the segmentation dataset, it will instead
+             use the information in the Referenced Series Sequence, which
+             applies to all segments and frames present in the segmentation
+             instance.
+
+        """
+        if dataset.SOPClassUID != SegmentationStorage:
+            raise ValueError(
+                'Input dataset should be a segmentation storage instance'
+            )
+
+        if frame_number < 0 or frame_number >= dataset.NumberOfFrames:
+            raise ValueError(
+                f'Frame {frame_number} is an invalid frame number within the '
+                'provided dataset'
+            )
+
+        frame_info = dataset.PerFrameFunctionalGroupsSequence[frame_number]
+
+        segment_number = frame_info.SegmentIdentificationSequence[0]\
+            .ReferencedSegmentNumber
+
+        # Try to deduce the single source image from per-frame functional
+        # groups
+        found_source_image = False
+        if hasattr(frame_info, 'DerivationImageSequence'):
+            if len(frame_info.DerivationImageSequence) != 1:
+                raise ValueError(
+                    'Could not deduce a single source image from the '
+                    'provided dataset'
+                )
+            drv_image = frame_info.DerivationImageSequence[0]
+
+            if hasattr(drv_image, 'SourceImageSequence'):
+                if len(drv_image.SourceImageSequence) != 1:
+                    raise ValueError(
+                        'Could not deduce a single source image from the '
+                        'provided dataset'
+                    )
+                src = drv_image.SourceImageSequence[0]
+                source_image = SourceImageForSegmentation(
+                    referenced_sop_class_uid=src.ReferencedSOPClassUID,
+                    referenced_sop_instance_uid=src.ReferencedSOPInstanceUID
+                )
+                found_source_image = True
+
+        if not found_source_image:
+            if hasattr(dataset, 'ReferencedSeriesSequence'):
+                ref_series = dataset.ReferencedSeriesSequence[0]
+                if hasattr(ref_series, 'ReferencedInstanceSequence'):
+                    if len(ref_series.ReferencedInstanceSequence) != 1:
+                        raise ValueError(
+                            'Could not deduce a single source image from the '
+                            'provided dataset'
+                        )
+                    src = ref_series.ReferencedInstanceSequence[0]
+                    source_image = SourceImageForSegmentation(
+                        src.ReferencedSOPClassUID,
+                        src.ReferencedSOPInstanceUID
+                    )
+                else:
+                    raise AttributeError(
+                        "The ReferencedSeriesSequence in the segmentation "
+                        "dataset does not contain the expected information"
+                    )
+            else:
+                raise AttributeError(
+                    "Dataset does not contain a ReferencedSeriesSequence "
+                    "containing information about the source images"
+                )
+
+        return cls(
+            sop_class_uid=dataset.SOPClassUID,
+            sop_instance_uid=dataset.SOPInstanceUID,
+            frame_number=frame_number,
+            segment_number=segment_number,
+            source_image=source_image
+        )
+
 
 class ReferencedSegment(ContentSequence):
 
@@ -685,7 +792,7 @@ class ReferencedSegment(ContentSequence):
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
         segment_number: int
-            number of the segment to which the refernce applies
+            number of the segment to which the reference applies
         source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
             source images for segmentation
         source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional
@@ -732,35 +839,156 @@ class ReferencedSegment(ContentSequence):
                 '"source_images" or "source_series".'
             )
 
-#    @classmethod
-#    def from_source_dataset(
-#            cls,
-#            dataset: Dataset,
-#            segment_number: int,
-#            frame_numbers: Optional[Sequence[int]] = None
-#        ) -> 'ReferencedSegment':
-#        """Construct the content item directly from a segmentation dataset
-#
-#        Parameters
-#        ----------
-#        dataset: pydicom.dataset.Dataset
-#            dataset representing the real world value map to be
-#            referenced
-#
-#        Returns
-#        -------
-#        ReferencedSegment
-#            Content item representing a reference to the segment
-#
-#        """
-#        return cls(
-#            sop_class_uid=dataset.SOPClassUID,
-#            sop_instance_uid=dataset.SOPInstanceUID,
-#            segment_number=segment_number,
-#            frame_numbers: Optional[Sequence[int]] = None,
-#            source_images: Optional[
-#                Sequence[SourceImageForSegmentation]
-#            ] = None,
-#            source_series: Optional[SourceSeriesForSegmentation] = None
-#        )
-#
+    @classmethod
+    def from_seg_dataset(
+            cls,
+            dataset: Dataset,
+            segment_number: int,
+            frame_numbers: Optional[Sequence[int]] = None
+        ) -> 'ReferencedSegment':
+        """Construct the content item directly from a segmentation dataset
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            dataset representing a segmentation containing the referenced
+            segment
+        segment_number: int
+            number of the segment to reference within the provided dataset
+        frame_numbers: Optional[Sequence[int]], optional
+            list of frames in the segmentation dataset to reference. If
+            not provided, the reference is assumed to apply to all frames
+            of the given segment number
+
+        Returns
+        -------
+        ReferencedSegment
+            Content item representing a reference to the segment
+
+        Notes
+        -----
+             This method will attempt to deduce source image information
+             from information provided in the segmentation instance. If
+             available, it will used information specific to the segment
+             and frame numbers (if any) provided using the Derivation
+             Image Sequence information in the frames. If this information
+             is not present in the segmentation dataset, it will instead
+             use the information in the Referenced Series Sequence, which
+             applies to all segments and frames present in the segmentation
+             instance.
+
+        """
+        if dataset.SOPClassUID != SegmentationStorage:
+            raise ValueError(
+                'Input dataset should be a segmentation storage instance'
+            )
+
+        source_images = []
+        source_series = None
+
+        # Attempt to retrieve a list of source images for the specific segment
+        # and frames specified using information in the per-frame functional
+        # groups sequence
+        # This gives more specific information, but depends upon optional
+        # attributes so may fail with some segmentation objects
+        # Those created with highdicom should have this information
+        referenced_frame_info = []
+        if frame_numbers is not None:
+            # Use only the provided frames
+            for f in frame_numbers:
+                # Check that the provided frame number is valid
+                if f < 0 or f >= dataset.NumberOfFrames:
+                    raise ValueError(
+                        f'Frame {f} is an invalid frame number within the '
+                        'provided dataset'
+                    )
+
+                frame_info = dataset.PerFrameFunctionalGroupsSequence[f]
+
+                # Check that this frame references the correct
+                # segment
+                ref_segment = frame_info.SegmentIdentificationSequence[0]\
+                    .ReferencedSegmentNumber
+
+                if ref_segment != segment_number:
+                    raise ValueError(
+                        f'The provided frame number {f} does not refer to '
+                        f'segment number {segment_number}'
+                    )
+                referenced_frame_info.append(frame_info)
+        else:
+            # Use every frame that applies to this segment
+            for frame_info in dataset.PerFrameFunctionalGroupsSequence:
+                ref_segment = frame_info.SegmentIdentificationSequence[0]\
+                    .ReferencedSegmentNumber
+                if ref_segment == segment_number:
+                    referenced_frame_info.append(frame_info)
+
+            if len(referenced_frame_info) == 0:
+                raise ValueError(
+                    f'No frame information found referencing segment '
+                    f'{segment_number}'
+                )
+
+        # Gather up references using the Derivation Image Sequences of the
+        # referenced frames
+        refd_insuids = set()
+        for frame_info in referenced_frame_info:
+            if hasattr(frame_info, 'DerivationImageSequence'):
+                for drv_image in frame_info.DerivationImageSequence:
+                    if hasattr(drv_image, 'SourceImageSequence'):
+                        for src_image in drv_image.SourceImageSequence:
+                            # Check to avoid duplication of instances
+                            ins_uid = src_image.ReferencedSOPInstanceUID
+                            cls_uid = src_image.ReferencedSOPClassUID
+                            if ins_uid not in refd_insuids:
+                                source_images.append(
+                                    SourceImageForSegmentation(
+                                        referenced_sop_class_uid=cls_uid,
+                                        referenced_sop_instance_uid=ins_uid
+                                    )
+                                )
+                                refd_insuids |= {ins_uid}
+
+        if len(source_images) == 0:
+            # Attempt to retrieve the source series instance uid from the
+            # dataset
+            # Note since only a single series may be used, we take the
+            # first
+            # ReferencedSeriesSequence is a type 1C that should be
+            # present in all segmentations that reference other instances
+            # within the study
+            if hasattr(dataset, 'ReferencedSeriesSequence'):
+                ref_series = dataset.ReferencedSeriesSequence[0]
+                if hasattr(ref_series, 'ReferencedInstanceSequence'):
+                    source_images = [
+                        SourceImageForSegmentation(
+                            s.ReferencedSOPClassUID,
+                            s.ReferencedSOPInstanceUID
+                        )
+                        for s in ref_series.ReferencedInstanceSequence
+                    ]
+                elif hasattr(ref_series, 'SeriesInstanceUID'):
+                    source_series = SourceSeriesForSegmentation(
+                        ref_series.SeriesInstanceUID
+                    )
+                    source_images = []
+                else:
+                    raise AttributeError(
+                        "The ReferencedSeriesSequence in the segmentation "
+                        "dataset does not contain the expected information"
+                    )
+            else:
+                raise AttributeError(
+                    "Dataset does not contain a ReferencedSeriesSequence "
+                    "containing information about the source images"
+                )
+
+        return cls(
+            sop_class_uid=dataset.SOPClassUID,
+            sop_instance_uid=dataset.SOPInstanceUID,
+            segment_number=segment_number,
+            frame_numbers=frame_numbers,
+            source_images=source_images if source_images else None,
+            source_series=source_series
+        )
