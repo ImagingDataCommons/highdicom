@@ -942,10 +942,16 @@ class ReferencedSegment(ContentSequence):
                             ins_uid = src_image.ReferencedSOPInstanceUID
                             cls_uid = src_image.ReferencedSOPClassUID
                             if ins_uid not in refd_insuids:
+                                if hasattr(src_image, 'ReferencedFrameNumber'):
+                                    ref_frames = src_image.ReferencedFrameNumber
+                                else:
+                                    ref_frames = None
+
                                 source_images.append(
                                     SourceImageForSegmentation(
                                         referenced_sop_class_uid=cls_uid,
-                                        referenced_sop_instance_uid=ins_uid
+                                        referenced_sop_instance_uid=ins_uid,
+                                        referenced_frame_numbers=ref_frames
                                     )
                                 )
                                 refd_insuids |= {ins_uid}
