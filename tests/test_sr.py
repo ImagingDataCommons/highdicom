@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -1087,43 +1088,46 @@ class TestReferencedSegment(unittest.TestCase):
     def setUp(self):
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
-        self._src_dataset = dcmread(
-            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        self._filepath = str(
+            data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
         )
-        self._ref_sop_class_uid = self._src_dataset.ReferencedSeriesSequence[0]\
+        self._seg_dataset = dcmread(self._filepath)
+        self._src_sop_class_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
             .ReferencedInstanceSequence[0].ReferencedSOPClassUID
-        self._ref_sop_ins_uid = self._src_dataset.ReferencedSeriesSequence[0]\
+        self._src_sop_ins_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
             .ReferencedInstanceSequence[0].ReferencedSOPInstanceUID
-        self._ref_series_ins_uid = self._src_dataset.\
+        self._src_series_ins_uid = self._seg_dataset.\
             ReferencedSeriesSequence[0].SeriesInstanceUID
-        self._ref_frame_number = 35
-        self._ref_segment_number = 38
-        self._num_frames = self._src_dataset.NumberOfFrames
+        self._ref_frame_number = 38
+        self._wrong_ref_frame_number = 13  # does not match the segment
+        self._invalid_ref_frame_number = self._seg_dataset.NumberOfFrames
+        self._ref_segment_number = 35
+        self._invalid_ref_segment_number = 8  # does not exist in this dataset
         self._src_images = [
             SourceImageForSegmentation(
-                self._ref_sop_class_uid,
-                self._ref_sop_ins_uid
+                self._src_sop_class_uid,
+                self._src_sop_ins_uid
             )
         ]
         self._src_series = SourceSeriesForSegmentation(
-            self._ref_series_ins_uid
+            self._src_series_ins_uid
         )
 
     def test_basic(self):
         ref_seg = ReferencedSegment(
-            sop_class_uid=self._src_dataset.SOPClassUID,
-            sop_instance_uid=self._src_dataset.SOPInstanceUID,
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
             segment_number=self._ref_segment_number,
             source_images=self._src_images
         )
         assert len(ref_seg) == 2
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
-            self._src_dataset.SOPClassUID
+            self._seg_dataset.SOPClassUID
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
-            self._src_dataset.SOPInstanceUID
+            self._seg_dataset.SOPInstanceUID
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
@@ -1131,17 +1135,17 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
-            self._ref_sop_class_uid
+            self._src_sop_class_uid
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
-            self._ref_sop_ins_uid
+            self._src_sop_ins_uid
         )
 
     def test_basic_frames(self):
         ref_seg = ReferencedSegment(
-            sop_class_uid=self._src_dataset.SOPClassUID,
-            sop_instance_uid=self._src_dataset.SOPInstanceUID,
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
             segment_number=self._ref_segment_number,
             frame_numbers=[self._ref_frame_number],
             source_images=self._src_images
@@ -1149,11 +1153,52 @@ class TestReferencedSegment(unittest.TestCase):
         assert len(ref_seg) == 2
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
-            self._src_dataset.SOPClassUID
+            self._seg_dataset.SOPClassUID
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
-            self._src_dataset.SOPInstanceUID
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            [self._ref_frame_number]
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_basic_series(self):
+        ref_seg = ReferencedSegment(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            frame_numbers=[self._ref_frame_number],
+            source_series=self._src_series
+        )
+        assert (ref_seg[1].UID == self._src_series_ins_uid)
+
+    def test_from_seg_dataset(self):
+        ref_seg = ReferencedSegment.from_seg_dataset(
+            dataset=self._seg_dataset,
+            segment_number=self._ref_segment_number
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
@@ -1161,28 +1206,273 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
-            self._ref_sop_class_uid
+            self._src_sop_class_uid
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
-            self._ref_sop_ins_uid
+            self._src_sop_ins_uid
+        )
+
+    def test_from_seg_dataset_frames(self):
+        ref_seg = ReferencedSegment.from_seg_dataset(
+            dataset=self._seg_dataset,
+            segment_number=self._ref_segment_number,
+            frame_numbers=[self._ref_frame_number]
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            [self._ref_frame_number]
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
-            self._ref_sop_ins_uid
+            self._src_sop_ins_uid
         )
 
-    # TODO
-    # test from series
-    # test from seg_dataset
-    # test if frame number is invalid
-    # test if frame number does not match segment
-    # test if segment number is invalid
-    # test from seg dataset if no Derviation Image Sequence
-    # test from seg dataset if no instance level info
+    def test_from_seg_dataset_wrong_frame(self):
+        # Test with a frame that doesn't match the segment
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_seg_dataset(
+                dataset=self._seg_dataset,
+                segment_number=self._ref_segment_number,
+                frame_numbers=[self._wrong_ref_frame_number]
+            )
+
+    def test_from_seg_dataset_invalid_frame(self):
+        # Test with an invalid frame number
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_seg_dataset(
+                dataset=self._seg_dataset,
+                segment_number=self._ref_segment_number,
+                frame_numbers=[self._invalid_ref_frame_number]
+            )
+
+    def test_from_seg_dataset_invalid_segment(self):
+        # Test with a non-existent segment
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_seg_dataset(
+                dataset=self._seg_dataset,
+                segment_number=self._invalid_ref_segment_number,
+            )
+
+    def test_from_seg_dataset_no_derivation_image(self):
+        # Delete the derivation image information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        ref_seg = ReferencedSegment.from_seg_dataset(
+            dataset=temp_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_seg_dataset_no_derivation_image_no_instance_info(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        ref_seg = ReferencedSegment.from_seg_dataset(
+            dataset=temp_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert (ref_seg[1].UID == self._src_series_ins_uid)
+
+    def test_from_seg_dataset_no_referenced_series_uid(self):
+        # Delete the derivation image information and the referenced instance
+        # and series information. This should give an error
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
+        with pytest.raises(AttributeError):
+            ReferencedSegment.from_seg_dataset(
+                dataset=temp_dataset,
+                segment_number=self._ref_segment_number,
+            )
+
+    def test_from_seg_dataset_no_referenced_series_sequence(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence
+        with pytest.raises(AttributeError):
+            ReferencedSegment.from_seg_dataset(
+                dataset=temp_dataset,
+                segment_number=self._ref_segment_number,
+            )
 
 
-# TODO Referenced Segmentation Frame
+class TestReferencedSegmentationFrame(unittest.TestCase):
+
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._filepath = str(
+            data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
+        )
+        self._seg_dataset = dcmread(self._filepath)
+        self._src_sop_class_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPClassUID
+        self._src_sop_ins_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPInstanceUID
+        self._src_series_ins_uid = self._seg_dataset.\
+            ReferencedSeriesSequence[0].SeriesInstanceUID
+        self._ref_segment_number = 35
+        self._ref_frame_number = 38
+        self._invalid_ref_frame_number = self._seg_dataset.NumberOfFrames
+        self._src_image = SourceImageForSegmentation(
+            self._src_sop_class_uid,
+            self._src_sop_ins_uid
+        )
+
+    def test_basic(self):
+        ref_seg = ReferencedSegmentationFrame(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            frame_number=self._ref_frame_number,
+            source_image=self._src_image
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_seg_dataset(self):
+        ref_seg = ReferencedSegmentationFrame.from_seg_dataset(
+            self._seg_dataset,
+            frame_number=self._ref_frame_number,
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_seg_dataset_invalid_frame(self):
+        with pytest.raises(ValueError):
+            ReferencedSegmentationFrame.from_seg_dataset(
+                self._seg_dataset,
+                frame_number=self._invalid_ref_frame_number,
+            )
+
+    def test_from_seg_dataset_no_derivation_image(self):
+        # Delete the derivation image information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        ref_seg = ReferencedSegmentationFrame.from_seg_dataset(
+            dataset=temp_dataset,
+            frame_number=self._ref_frame_number,
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_seg_dataset_no_referenced_series_uid(self):
+        # Delete the derivation image information and the referenced instance
+        # and series information. This should give an error
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
+        with pytest.raises(AttributeError):
+            ReferencedSegmentationFrame.from_seg_dataset(
+                dataset=temp_dataset,
+                frame_number=self._ref_frame_number,
+            )
+
+    def test_from_seg_dataset_no_referenced_series_sequence(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence
+        with pytest.raises(AttributeError):
+            ReferencedSegmentationFrame.from_seg_dataset(
+                dataset=temp_dataset,
+                frame_number=self._ref_frame_number,
+            )
+
 
 class TestTrackingIdentifierOptional(unittest.TestCase):
 
