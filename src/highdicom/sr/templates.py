@@ -631,7 +631,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         if manufacturer_name is not None:
             manufacturer_name_item = TextContentItem(
                 name=CodedConcept(
-                    value='121013',
+                    value='121014',
                     meaning='Device Observer Manufacturer',
                     scheme_designator='DCM',
                 ),
