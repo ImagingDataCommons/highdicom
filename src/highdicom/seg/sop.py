@@ -579,7 +579,10 @@ class Segmentation(SOPClass):
                     # The appropriate error message depends on whether segment
                     # numbers were provided or automatically determined
                     if all(descriptions_are_numbered):
-                        msg = 'Pixel array contains segments that lack descriptions.'
+                        msg = (
+                            'Pixel array contains segments that lack '
+                            'descriptions.'
+                        )
                     else:
                         msg = (
                             'Pixel array contains integer values that are not '
