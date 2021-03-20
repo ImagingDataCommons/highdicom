@@ -427,7 +427,7 @@ class Segmentation(SOPClass):
         pixel_array: np.ndarray,
         segment_descriptions: Sequence[SegmentDescription],
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None
-    ) -> Dataset:
+    ) -> None:
         """Adds one or more segments to the segmentation image.
 
         Parameters
@@ -496,16 +496,66 @@ class Segmentation(SOPClass):
                 'rows and columns.'
             )
 
-        described_segment_numbers = np.array([
-            int(item.SegmentNumber)
-            for item in segment_descriptions
-        ])
-        # Check that there are no duplicated segment numbers in the segment
-        # descriptions
-        if not (np.diff(described_segment_numbers) > 0).all():
+        # Determine the expected starting number of the segments to ensure
+        # they will be continuous with existing segments
+        if self._segment_inventory:
+            # Next segment number is one greater than the largest existing
+            # segment number
+            seg_num_start = max(self._segment_inventory) + 1
+        else:
+            # No existing segments so start at 1
+            seg_num_start = 1
+
+        # If segment numbers were in the descriptions, check them
+        # If not, automatically determine them in ascending order
+        descriptions_are_numbered = [
+            'SegmentNumber' in item for item in segment_descriptions
+        ]
+        if len(set(descriptions_are_numbered)) > 1:
             raise ValueError(
-                'Segment descriptions must be sorted by segment number.'
+                'Either all segment descriptions should be numbered, or none '
+                'should be numbered.'
             )
+        if all(descriptions_are_numbered):
+            # Check the existing descriptions
+            described_segment_numbers = np.array([
+                int(item.SegmentNumber)
+                for item in segment_descriptions
+            ])
+            # Check segment numbers in the segment descriptions are
+            # monotonically increasing by 1
+            if not (np.diff(described_segment_numbers) == 1).all():
+                raise ValueError(
+                    'Segment descriptions must be sorted by segment number '
+                    'and monotonically increasing by 1.'
+                )
+            if described_segment_numbers[0] != seg_num_start:
+                if seg_num_start == 1:
+                    msg = (
+                        'Segment descriptions should be numbered starting '
+                        f'from 1. Found {described_segment_numbers[0]}. '
+                        'You may leave segment numbers unspecified to let '
+                        'highdicom automatically number segments.'
+                    )
+                else:
+                    msg = (
+                        'Segment descriptions should be numbered to '
+                        'continue from existing segments. Expected the first '
+                        f'segment to be numbered {seg_num_start} but found '
+                        f'{described_segment_numbers[0]}. You may leave '
+                        'segment numbers unspecified to let highdicom '
+                        'automatically number segments.'
+                    )
+                raise ValueError(msg)
+        else:
+            # Segment descriptions were not numbered so segment numbers must be
+            # determined automatically
+            described_segment_numbers = np.arange(
+                seg_num_start,
+                seg_num_start + len(segment_descriptions)
+            )
+            for n, desc in zip(described_segment_numbers, segment_descriptions):
+                desc.SegmentNumber = n
 
         if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
             segments_present = np.unique(
@@ -513,7 +563,7 @@ class Segmentation(SOPClass):
             )
 
             # Special case where the mask is binary and there is a single
-            # segment description. Allow the mark the positive segment with
+            # segment description. Mark the positive segment with
             # the correct segment number
             if (np.array_equal(segments_present, np.array([1])) and
                     len(segment_descriptions) == 1):
@@ -526,9 +576,17 @@ class Segmentation(SOPClass):
                 if not np.all(
                         np.in1d(segments_present, described_segment_numbers)
                     ):
-                    raise ValueError(
-                        'Pixel array contains segments that lack descriptions.'
-                    )
+                    # The appropriate error message depends on whether segment
+                    # numbers were provided or automatically determined
+                    if all(descriptions_are_numbered):
+                        msg = 'Pixel array contains segments that lack descriptions.'
+                    else:
+                        msg = (
+                            'Pixel array contains integer values that are not '
+                            'monotonically increasing from the existing '
+                            'segment numbers in the instance'
+                        )
+                    raise ValueError(msg)
 
         elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
             unique_values = np.unique(pixel_array)

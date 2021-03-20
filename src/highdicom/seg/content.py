@@ -23,11 +23,11 @@ class SegmentDescription(Dataset):
 
     def __init__(
             self,
-            segment_number: int,
             segment_label: str,
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
             algorithm_type: Union[SegmentAlgorithmTypeValues, str],
+            segment_number: Optional[int] = None,
             algorithm_identification: Optional[
                 AlgorithmIdentificationSequence
             ] = None,
@@ -78,7 +78,8 @@ class SegmentDescription(Dataset):
 
         """  # noqa
         super().__init__()
-        self.SegmentNumber = segment_number
+        if segment_number is not None:
+            self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
             CodedConcept(
