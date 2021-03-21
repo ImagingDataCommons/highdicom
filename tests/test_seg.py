@@ -162,7 +162,7 @@ class TestSegmentDescription(unittest.TestCase):
 
     def test_construction_invalid_segment_number(self):
         with pytest.raises(ValueError):
-            item = SegmentDescription(
+            SegmentDescription(
                 self._invalid_segment_number,
                 self._segment_label,
                 self._segmented_property_category,
@@ -1202,7 +1202,6 @@ class TestSegmentation(unittest.TestCase):
                 self._device_serial_number,
                 max_fractional_value=1
             )
-
 
             assert len(instance.SegmentSequence) == 2
             assert instance.SegmentSequence[0].SegmentNumber == 1
