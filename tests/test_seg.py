@@ -680,6 +680,7 @@ class TestSegmentation(unittest.TestCase):
             instance.LossyImageCompressionRatio
             instance.LossyImageCompressionMethod
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         ref_item = instance.SourceImageSequence[0]
@@ -737,6 +738,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.SpecimenDescriptionSequence[0].SpecimenUID == \
             self._sm_image.SpecimenDescriptionSequence[0].SpecimenUID
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
@@ -799,6 +801,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == len(self._ct_series)
         ref_item = instance.SourceImageSequence[1]
         assert ref_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
@@ -867,6 +870,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.PatientID == self._ct_multiframe.PatientID
         assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
@@ -1199,6 +1203,11 @@ class TestSegmentation(unittest.TestCase):
                 max_fractional_value=1
             )
 
+
+            assert len(instance.SegmentSequence) == 2
+            assert instance.SegmentSequence[0].SegmentNumber == 1
+            assert instance.SegmentSequence[1].SegmentNumber == 2
+
             # Ensure the recovered pixel array matches what is expected
             assert np.array_equal(
                 self.get_array_after_writing(instance),
@@ -1274,8 +1283,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._additional_segment_descriptions_numbered +
-                    self._segment_descriptions_numbered
+                    self._additional_segment_descriptions_numbered +  # seg 2
+                    self._segment_descriptions_numbered               # seg 1
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1295,7 +1304,7 @@ class TestSegmentation(unittest.TestCase):
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._segment_descriptions_numbered +
-                    self._segment_descriptions_numbered
+                    self._segment_descriptions_numbered  # duplicate
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1316,7 +1325,7 @@ class TestSegmentation(unittest.TestCase):
                 segment_descriptions=(
                     self._segment_descriptions_numbered +
                     self._additional_segment_descriptions_numbered
-                ),
+                ),  # two segments, value of 3 in pixel array
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
