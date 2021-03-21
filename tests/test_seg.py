@@ -118,6 +118,7 @@ class TestSegmentDescription(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._segment_number = 1
+        self._invalid_segment_number = 0
         self._segment_label = 'segment #1'
         self._segmented_property_category = \
             codes.SCT.MorphologicallyAbnormalStructure
@@ -158,6 +159,17 @@ class TestSegmentDescription(unittest.TestCase):
             item.TrackingUID
             item.AnatomicRegionSequence
             item.PrimaryAnatomicStructureSequence
+
+    def test_construction_invalid_segment_number(self):
+        with pytest.raises(ValueError):
+            item = SegmentDescription(
+                self._invalid_segment_number,
+                self._segment_label,
+                self._segmented_property_category,
+                self._segmented_property_type,
+                self._segment_algorithm_type,
+                self._algorithm_identification
+            )
 
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
