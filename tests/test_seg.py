@@ -136,11 +136,11 @@ class TestSegmentDescription(unittest.TestCase):
 
     def test_construction(self):
         item = SegmentDescription(
+            self._segment_number,
             self._segment_label,
             self._segmented_property_category,
             self._segmented_property_type,
             self._segment_algorithm_type,
-            self._segment_number,
             self._algorithm_identification
         )
         assert item.SegmentNumber == self._segment_number
@@ -465,6 +465,7 @@ class TestSegmentation(unittest.TestCase):
         self._segmented_property_type = codes.SCT.Neoplasm
         self._segment_descriptions = [
             SegmentDescription(
+                segment_number=None,
                 segment_label='Segment #1',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
@@ -478,11 +479,11 @@ class TestSegmentation(unittest.TestCase):
         ]
         self._segment_descriptions_numbered = [
             SegmentDescription(
+                segment_number=1,
                 segment_label='Segment #1',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
-                segment_number=1,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='bla',
                     family=codes.DCM.ArtificialIntelligence,
@@ -492,6 +493,7 @@ class TestSegmentation(unittest.TestCase):
         ]
         self._additional_segment_descriptions = [
             SegmentDescription(
+                segment_number=None,
                 segment_label='Segment #2',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
@@ -505,11 +507,11 @@ class TestSegmentation(unittest.TestCase):
         ]
         self._additional_segment_descriptions_numbered = [
             SegmentDescription(
+                segment_number=2,
                 segment_label='Segment #2',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
-                segment_number=2,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='foo',
                     family=codes.DCM.ArtificialIntelligence,
@@ -519,11 +521,11 @@ class TestSegmentation(unittest.TestCase):
         ]
         self._additional_segment_descriptions_numbered_4 = [
             SegmentDescription(
+                segment_number=4,
                 segment_label='Segment #4',
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
-                segment_number=4,
                 algorithm_identification=AlgorithmIdentificationSequence(
                     name='foo',
                     family=codes.DCM.ArtificialIntelligence,

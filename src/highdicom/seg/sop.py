@@ -474,15 +474,55 @@ class Segmentation(SOPClass):
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
+        Raises
+        ------
+        ValueError
+            When
+                - The pixel array is not 2D or 3D numpy array
+                - The shape of the pixel array does not match the source images
+                - The segment descriptions contain a mixture of numbered
+                  and unnumbered segments
+                - The segment descriptions are numbered and the numbering is
+                  not monotonically increasing by 1
+                - The segment descriptions are numbered and the numbering does
+                  not begin at 1 (for the first segments added to the instance)
+                  or at one greater than the last added segment (for
+                  subsequent segments)
+                - The segment descriptions are numbered and one or more
+                  segments already exist within the segmentation instance
+                - The segmentation is binary and the pixel array contains
+                  integer values that belong to segments that are not described
+                  in the segment descriptions
+                - The segmentation is binary and pixel array has floating point
+                  values not equal to 0.0 or 1.0
+                - The segmentation is fractional and pixel array has floating
+                  point values outside the range 0.0 to 1.0
+                - The segmentation is fractional and pixel array has floating
+                  point values outside the range 0.0 to 1.0
+                - Plane positions are provided but the length of the array
+                  does not match the number of frames in the pixel array
+        TypeError
+            When the dtype of the pixel array is invalid
+
+
         Note
         ----
-        Items of `segment_descriptions` must be sorted by segment number in
-        ascending order.
-        In case `segmentation_type` is ``"BINARY"``, the number of items per
-        sequence must match the number of unique positive pixel values in
+        Items of `segment_descriptions` may be either numbered or unnumbered
+        (constructed with ``segment_number=None``). If numbered, segments must
+        be sorted by segment number in ascending order and increase by 1.
+        Additionally, the first segment description must have a segment number
+        one greater than the segment number of the last segment added to the
+        segmentation, or 1 if this is the first segment added. If unnumbered,
+        segment numbers will be determined automatically following the above
+        rules.
+
+        In case `segmentation_type` is ``"BINARY"``, the number of items in
+        `segment_descriptions` must be greater than or equal to the number of
+        unique positive pixel values in `pixel_array`. It is possible for some
+        segments described in `segment_descriptions` not to appear in the
         `pixel_array`. In case `segmentation_type` is ``"FRACTIONAL"``, only
         one segment can be encoded by `pixel_array` and hence only one item is
-        permitted per sequence.
+        permitted in `segment_descriptions`.
 
         """  # noqa
         if pixel_array.ndim == 2:

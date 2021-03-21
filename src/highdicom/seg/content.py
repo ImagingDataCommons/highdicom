@@ -23,11 +23,11 @@ class SegmentDescription(Dataset):
 
     def __init__(
             self,
+            segment_number: Optional[int],
             segment_label: str,
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
             algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-            segment_number: Optional[int] = None,
             algorithm_identification: Optional[
                 AlgorithmIdentificationSequence
             ] = None,
@@ -43,8 +43,11 @@ class SegmentDescription(Dataset):
         """
         Parameters
         ----------
-        segment_number: int
-            Number of the segment
+        segment_number: Optional[int]
+            Number of the segment. If set to ``None``, no segment number will
+            assigned at this time, and a number will be automatically
+            determined when the description is added to a segmentation
+            instance.
         segment_label: str
             Label of the segment
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
@@ -79,6 +82,8 @@ class SegmentDescription(Dataset):
         """  # noqa
         super().__init__()
         if segment_number is not None:
+            if segment_number < 1:
+                raise ValueError("Segment number must be a positive integer")
             self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
