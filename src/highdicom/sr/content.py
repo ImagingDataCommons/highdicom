@@ -100,7 +100,7 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.SELECTED_FROM
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
 
 
