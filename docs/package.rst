@@ -77,6 +77,14 @@ highdicom.utils module
    :undoc-members:
    :show-inheritance:
 
+highdicom.valuerep module
++++++++++++++++++++++++++
+
+.. automodule:: highdicom.valuerep
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 .. _highdicom-legacy-subpackage:
 

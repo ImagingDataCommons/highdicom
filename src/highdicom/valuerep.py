@@ -49,10 +49,10 @@ def get_ds_string(f: float) -> str:
     sign_chars = 1 if f < 0.0 else 0
 
     if use_scientific:
-        # How many chars are taken by the exponent at the end
-        # In principle could have number where the exponent
-        # needs three digits to represent (bigger cannot be
-        # represented by float)
+        # How many chars are taken by the exponent at the end.
+        # In principle, we could have number where the exponent
+        # needs three digits represent (bigger than this cannot be
+        # represented by floats)
         if logf >= 100 or logf <= -100:
             exp_chars = 5  # e.g. 'e-123'
         else:
