@@ -100,7 +100,7 @@ class AlgorithmIdentification(Template):
                 parameter_item = TextContentItem(
                     name=CodedConcept(
                         value='111002',
-                        meaning='Algorithm Parameter',
+                        meaning='Algorithm Parameters',
                         scheme_designator='DCM'
                     ),
                     value=param,
