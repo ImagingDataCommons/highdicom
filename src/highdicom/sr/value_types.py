@@ -9,6 +9,7 @@ from pydicom.sr.coding import Code
 from pydicom.uid import UID
 from pydicom.valuerep import DA, TM, DT, PersonName
 
+from highdicom.valuerep import get_ds_string
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -426,7 +427,7 @@ class NumContentItem(ContentItem):
                 raise TypeError(
                     'Argument "value" must have type "int" or "float".'
                 )
-            measured_value_sequence_item.NumericValue = value
+            measured_value_sequence_item.NumericValue = get_ds_string(value)
             if isinstance(value, float):
                 measured_value_sequence_item.FloatingPointValue = value
             if not isinstance(unit, (CodedConcept, Code, )):
@@ -801,7 +802,7 @@ class TcoordContentItem(ContentItem):
             ]
         elif referenced_time_offsets is not None:
             self.ReferencedTimeOffsets = [
-                float(v) for v in referenced_time_offsets
+                get_ds_string(float(v)) for v in referenced_time_offsets
             ]
         elif referenced_date_time is not None:
             self.ReferencedDateTime = [

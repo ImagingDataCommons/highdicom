@@ -12,6 +12,7 @@ from highdicom.enum import (
     CoordinateSystemNames,
     UniversalEntityIDTypeValues,
 )
+from highdicom.valuerep import get_ds_string
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -103,10 +104,10 @@ class PixelMeasuresSequence(DataElementSequence):
         """
         super().__init__()
         item = Dataset()
-        item.PixelSpacing = list(pixel_spacing)
-        item.SliceThickness = slice_thickness
+        item.PixelSpacing = [get_ds_string(ps) for ps in pixel_spacing]
+        item.SliceThickness = get_ds_string(slice_thickness)
         if spacing_between_slices is not None:
-            item.SpacingBetweenSlices = spacing_between_slices
+            item.SpacingBetweenSlices = get_ds_string(spacing_between_slices)
         self.append(item)
 
 
@@ -145,9 +146,6 @@ class PlanePositionSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
 
-        def ds(num: float) -> float:
-            return float(str(num)[:16])
-
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
@@ -157,13 +155,15 @@ class PlanePositionSequence(DataElementSequence):
                 )
             col_position, row_position = pixel_matrix_position
             x, y, z = image_position
-            item.XOffsetInSlideCoordinateSystem = ds(x)
-            item.YOffsetInSlideCoordinateSystem = ds(y)
-            item.ZOffsetInSlideCoordinateSystem = ds(z)
+            item.XOffsetInSlideCoordinateSystem = get_ds_string(x)
+            item.YOffsetInSlideCoordinateSystem = get_ds_string(y)
+            item.ZOffsetInSlideCoordinateSystem = get_ds_string(z)
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImagePositionPatient = list(image_position)
+            item.ImagePositionPatient = [
+                get_ds_string(p) for p in image_position
+            ]
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
@@ -241,9 +241,13 @@ class PlaneOrientationSequence(DataElementSequence):
         item = Dataset()
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
-            item.ImageOrientationSlide = list(image_orientation)
+            item.ImageOrientationSlide = [
+                get_ds_string(e) for e in image_orientation
+            ]
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImageOrientationPatient = list(image_orientation)
+            item.ImageOrientationPatient = [
+                get_ds_string(e) for e in image_orientation
+            ]
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
@@ -261,7 +265,7 @@ class PlaneOrientationSequence(DataElementSequence):
         Returns
         -------
         bool
-            Whether the two image planes have the same orientation
+            Whether the two image planes ha[
 
         """
         if not isinstance(other, self.__class__):
