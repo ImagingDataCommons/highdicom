@@ -265,7 +265,7 @@ class PlaneOrientationSequence(DataElementSequence):
         Returns
         -------
         bool
-            Whether the two image planes ha[
+            Whether the two image planes have the same orientation
 
         """
         if not isinstance(other, self.__class__):
