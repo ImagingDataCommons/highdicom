@@ -166,7 +166,7 @@ class _SR(SOPClass):
             observer_item.VerifyingOrganization = verifying_organization
             observer_item.VerificationDateTime = DT(now)
             observer_item.VerifyingObserverIdentificationCodeSequence = \
-                pdcm_Sequence()  #  type 2 attribute. we will leave empty
+                pdcm_Sequence()  # type 2 attribute. we will leave empty
             self.VerifyingObserverSequence = [observer_item]
         else:
             self.VerificationFlag = 'UNVERIFIED'
