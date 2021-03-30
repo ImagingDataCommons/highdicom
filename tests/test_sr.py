@@ -816,7 +816,7 @@ class TestFindingSite(unittest.TestCase):
         item = self._finding_site
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
 
 
 class TestTrackingIdentifierOptional(unittest.TestCase):
@@ -963,7 +963,7 @@ class TestMeasurementOptional(unittest.TestCase):
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
 
 
 class TestImageRegion(unittest.TestCase):
