@@ -3,7 +3,6 @@ from pydicom import FileDataset, Dataset
 from pydicom.uid import generate_uid
 from highdicom.legacy import sop
 from datetime import datetime, timedelta
-import pytest
 import enum
 
 

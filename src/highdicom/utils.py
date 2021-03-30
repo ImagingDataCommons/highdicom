@@ -1,145 +1,232 @@
 import itertools
-from typing import Iterator, Tuple
+from typing import Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
+from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
+from highdicom.spatial import map_pixel_into_coordinate_system
 
 
 def tile_pixel_matrix(
-        total_pixel_matrix_rows: int,
-        total_pixel_matrix_columns: int,
-        rows: int,
-        columns: int,
-        image_orientation: Tuple[float, float, float, float, float, float]
-    ) -> Iterator[Tuple[int, int]]:
-    """Tiles an image into smaller frames given the size of the
-    total pixel matrix, the size of each frame and the orientation of the image
-    with respect to the three-dimensional slide coordinate system.
+    total_pixel_matrix_rows: int,
+    total_pixel_matrix_columns: int,
+    rows: int,
+    columns: int,
+) -> Iterator[Tuple[int, int]]:
+    """Tiles an image into smaller frames (rectangular regions).
 
     Parameters
     ----------
     total_pixel_matrix_rows: int
-        Number of rows in the total pixel matrix
+        Number of rows in the Total Pixel Matrix
     total_pixel_matrix_columns: int
-        Number of columns in the total pixel matrix
+        Number of columns in the Total Pixel Matrix
     rows: int
-        Number of rows per tile
+        Number of rows per Frame (tile)
     columns: int
-        Number of columns per tile
-    image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet) and column (second triplet) direction
-        for x, y and z axis of the slide coordinate system
+        Number of columns per Frame (tile)
 
     Returns
     -------
     Iterator
-        One-based row, column coordinates of each image tile
+        One-based (Column, Row) index of each Frame (tile)
 
     """
-    tiles_per_row = int(np.ceil(total_pixel_matrix_rows / rows))
-    tiles_per_col = int(np.ceil(total_pixel_matrix_columns / columns))
-    if tuple(image_orientation[:3]) == (0.0, -1.0, 0.0):
-        tile_row_indices = reversed(range(1, tiles_per_row + 1))
-    else:
-        tile_row_indices = iter(range(1, tiles_per_row + 1))
-    if tuple(image_orientation[3:]) == (-1.0, 0.0, 0.0):
-        tile_col_indices = reversed(range(1, tiles_per_col + 1))
-    else:
-        tile_col_indices = iter(range(1, tiles_per_col + 1))
-    return itertools.product(tile_row_indices, tile_col_indices)
+    tiles_per_col = int(np.ceil(total_pixel_matrix_rows / rows))
+    tiles_per_row = int(np.ceil(total_pixel_matrix_columns / columns))
+    tile_row_indices = iter(range(1, tiles_per_col + 1))
+    tile_col_indices = iter(range(1, tiles_per_row + 1))
+    return itertools.product(tile_col_indices, tile_row_indices)
 
 
-def compute_plane_positions_tiled_full(
-        row_index: int,
-        column_index: int,
-        depth_index: int,
-        x_offset: float,
-        y_offset: float,
-        z_offset: float,
-        rows: int,
-        columns: int,
-        image_orientation: Tuple[float, float, float, float, float, float],
-        pixel_spacing: Tuple[float, float],
-        slice_thickness: float,
-        spacing_between_slices: float
-    ) -> PlanePositionSequence:
-    """Computes the absolute position of a plane (frame) in the
-    three-dimensional slide coordinate system given their relative position
-    in the Total Pixel Matrix.
+def compute_plane_position_tiled_full(
+    row_index: int,
+    column_index: int,
+    x_offset: float,
+    y_offset: float,
+    rows: int,
+    columns: int,
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+    slice_thickness: Optional[float] = None,
+    spacing_between_slices: Optional[float] = None,
+    slice_index: Optional[float] = None
+) -> PlanePositionSequence:
+    """Computes the absolute position of a Frame (image plane) in the
+    Frame of Reference defined by the three-dimensional slide coordinate
+    system given their relative position in the Total Pixel Matrix.
+
     This information is not provided in image instances with Dimension
     Orientation Type TILED_FULL and therefore needs to be computed.
 
     Parameters
     ----------
     row_index: int
-        Relative one-based index value for a given frame along the row
-        direction of the the tiled total pixel matrix, which is defined by
-        the first triplet in `image_orientation`
+        One-based Row index value for a given frame (tile) along the column
+        direction of the tiled Total Pixel Matrix, which is defined by
+        the second triplet in `image_orientation` (values should be in the
+        range [1, *n*], where *n* is the number of tiles per column)
     column_index: int
-        Relative one-based index value for a given frame along the column
-        direction of the the tiled total pixel matrix, which is defined by
-        the second triplet in `image_orientation`
-    depth_index: int
-        Relative one-based index value for a given frame along the depth
-        direction from the glass slide to the coverslip (focal plane)
-    x_offset_image: float
-        X offset of the total pixel matrix in the slide coordinate system
-    y_offset_image: float
-        Y offset of the total pixel matrix in the slide coordinate system
-    z_offset_image: float
-        Z offset of the total pixel matrix (focal plane) in the slide
-        coordinate system
+        One-based Column index value for a given frame (tile) along the row
+        direction of the tiled Total Pixel Matrix, which is defined by
+        the first triplet in `image_orientation` (values should be in the
+        range [1, *n*], where *n* is the number of tiles per row)
+    x_offset: float
+        X offset of the Total Pixel Matrix in the slide coordinate system
+        in millimeters
+    y_offset: float
+        Y offset of the Total Pixel Matrix in the slide coordinate system
+        in millimeters
     rows: int
-        Number of rows per tile
+        Number of rows per Frame (tile)
     columns: int
-        Number of columns per tile
-    image_orientation: Tuple[float, float, float, float, float, float]
-        Cosines of row (first triplet) and column (second triplet) direction
-        for x, y and z axis of the slide coordinate system
-    pixel_spacing: Tuple[float, float]
-        Physical distance between the centers of neighboring pixels along
-        the row and column direction
-    slice_thickness: float
-        Physical thickness of a focal plane
-    spacing_between_slices: float
-        Physical distance between neighboring focal planes
+        Number of columns per Frame (tile)
+    image_orientation: Sequence[float]
+        Cosines of the row direction (first triplet: horizontal, left to right,
+        increasing Column index) and the column direction (second triplet:
+        vertical, top to bottom, increasing Row index) direction for X, Y, and
+        Z axis of the slide coordinate system defined by the Frame of Reference
+    pixel_spacing: Sequence[float]
+        Spacing between pixels in millimeter unit along the column direction
+        (first value: spacing between rows, vertical, top to bottom,
+        increasing Row index) and the row direction (second value: spacing
+        between columns, horizontal, left to right, increasing Column index)
+    slice_thickness: float, optional
+        Thickness of a focal plane in micrometers
+    spacing_between_slices: float, optional
+        Distance between neighboring focal planes in micrometers
+    slice_index: int, optional
+        Relative one-based index of the slice in the array of slices
+        within the volume
 
     Returns
     -------
     highdicom.content.PlanePositionSequence
-        Positon of each plane in the slide coordinate system
+        Positon of the plane in the slide coordinate system
+
+    Raises
+    ------
+    TypeError
+        When only one of `slice_index` and `spacing_between_slices` is provided
 
     """
+    # Offset values are one-based, i.e., the top left pixel in the Total Pixel
+    # Matrix has offset (1, 1) rather than (0, 0)
     row_offset_frame = ((row_index - 1) * rows) + 1
     column_offset_frame = ((column_index - 1) * columns) + 1
-    # We need to take rotation of pixel matrix relative to slide into account.
-    # According to the standard, we only have to deal with planar rotations by
-    # 180 degrees along the row and/or column direction.
-    if tuple([float(v) for v in image_orientation[:3]]) == (0.0, -1.0, 0.0):
-        x_func = np.subtract
+
+    provided_3d_params = (
+        slice_index is not None,
+        spacing_between_slices is not None,
+    )
+    if not(sum(provided_3d_params) == 0 or sum(provided_3d_params) == 2):
+        raise TypeError(
+            'None or both of the following parameters need to be provided: '
+            '"slice_index", "spacing_between_slices"'
+        )
+    # These checks are needed for mypy to be able to determine the correct type
+    if (slice_index is not None and spacing_between_slices is not None):
+        z_offset = float(slice_index - 1) * spacing_between_slices
     else:
-        x_func = np.add
-    x_offset_frame = float(x_func(
-        x_offset,
-        (row_offset_frame * pixel_spacing[1])
-    ))
-    if tuple([float(v) for v in image_orientation[3:]]) == (-1.0, 0.0, 0.0):
-        y_func = np.subtract
-    else:
-        y_func = np.add
-    y_offset_frame = float(y_func(
-        y_offset,
-        (column_offset_frame * pixel_spacing[0])
-    ))
-    z_offset_frame = float(np.sum([
-        z_offset,
-        (float(depth_index - 1) * slice_thickness),
-        (float(depth_index - 1) * spacing_between_slices)
-    ]))
+        z_offset = 0.0
+
+    # We should only be dealing with planar rotations.
+    x, y, z = map_pixel_into_coordinate_system(
+        coordinate=(column_offset_frame, row_offset_frame),
+        image_position=(x_offset, y_offset, z_offset),
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing,
+    )
+
     return PlanePositionSequence(
         coordinate_system=CoordinateSystemNames.SLIDE,
-        image_position=(x_offset_frame, y_offset_frame, z_offset_frame),
-        pixel_matrix_position=(row_offset_frame, column_offset_frame)
+        image_position=(x, y, z),
+        pixel_matrix_position=(column_offset_frame, row_offset_frame)
     )
+
+
+def compute_plane_position_slide_per_frame(
+        dataset: Dataset
+    ) -> List[PlanePositionSequence]:
+    """Computes the plane position for each frame in given dataset with
+    respect to the slide coordinate system.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        VL Whole Slide Microscopy Image
+
+    Returns
+    -------
+    List[highdicom.content.PlanePositionSequence]
+        Plane Position Sequence per frame
+
+    Raises
+    ------
+    ValueError
+        When `dataset` does not represent a VL Whole Slide Microscopy Image
+
+    """
+    if not dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.77.1.6':
+        raise ValueError('Expected a VL Whole Slide Microscopy Image')
+
+    image_origin = dataset.TotalPixelMatrixOriginSequence[0]
+    image_orientation = (
+        float(dataset.ImageOrientationSlide[0]),
+        float(dataset.ImageOrientationSlide[1]),
+        float(dataset.ImageOrientationSlide[2]),
+        float(dataset.ImageOrientationSlide[3]),
+        float(dataset.ImageOrientationSlide[4]),
+        float(dataset.ImageOrientationSlide[5]),
+    )
+    tiles_per_column = int(
+        np.ceil(dataset.TotalPixelMatrixRows / dataset.Rows)
+    )
+    tiles_per_row = int(
+        np.ceil(dataset.TotalPixelMatrixColumns / dataset.Columns)
+    )
+    num_focal_planes = getattr(
+        dataset,
+        'NumberOfFocalPlanes',
+        1
+    )
+
+    shared_fg = dataset.SharedFunctionalGroupsSequence[0]
+    pixel_measures = shared_fg.PixelMeasuresSequence[0]
+    pixel_spacing = (
+        float(pixel_measures.PixelSpacing[0]),
+        float(pixel_measures.PixelSpacing[1]),
+    )
+    slice_thickness = getattr(
+        pixel_measures,
+        'SliceThickness',
+        1.0
+    )
+    spacing_between_slices = getattr(
+        pixel_measures,
+        'SpacingBetweenSlices',
+        1.0
+    )
+
+    return [
+        compute_plane_position_tiled_full(
+            row_index=r,
+            column_index=c,
+            x_offset=image_origin.XOffsetInSlideCoordinateSystem,
+            y_offset=image_origin.YOffsetInSlideCoordinateSystem,
+            rows=dataset.Rows,
+            columns=dataset.Columns,
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            slice_thickness=slice_thickness,
+            spacing_between_slices=spacing_between_slices,
+            slice_index=s,
+        )
+        for s, r, c in itertools.product(
+            range(1, num_focal_planes + 1),
+            range(1, tiles_per_column + 1),  # column direction, top to bottom
+            range(1, tiles_per_row + 1),  # row direction, left to right
+        )
+    ]

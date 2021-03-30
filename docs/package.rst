@@ -13,6 +13,14 @@ highdicom package
    :undoc-members:
    :show-inheritance:
 
+highdicom.color module
+++++++++++++++++++++++
+
+.. automodule:: highdicom.color
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 highdicom.content module
 ++++++++++++++++++++++++
 
@@ -25,6 +33,38 @@ highdicom.enum module
 +++++++++++++++++++++
 
 .. automodule:: highdicom.enum
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.frame module
+++++++++++++++++++++++
+
+.. automodule:: highdicom.frame
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.io module
++++++++++++++++++++
+
+.. automodule:: highdicom.io
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.spatial module
+++++++++++++++++++++++++
+
+.. automodule:: highdicom.spatial
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.uid module
+++++++++++++++++++++++
+
+.. automodule:: highdicom.uid
    :members:
    :undoc-members:
    :show-inheritance:

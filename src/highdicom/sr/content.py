@@ -28,11 +28,11 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
     """
 
     def __init__(
-            self,
-            value: Optional[Union[int, float]],
-            unit: Optional[Union[CodedConcept, Code]] = None,
-            event_type: Optional[Union[CodedConcept, Code]] = None
-        ) -> None:
+        self,
+        value: Optional[Union[int, float]],
+        unit: Optional[Union[CodedConcept, Code]] = None,
+        event_type: Optional[Union[CodedConcept, Code]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -100,7 +100,7 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.SELECTED_FROM
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
 
 
@@ -210,14 +210,14 @@ class ImageRegion(ScoordContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues, str],
-            graphic_data: np.ndarray,
-            source_image: SourceImageForRegion,
-            pixel_origin_interpretation: Optional[
-                Union[PixelOriginInterpretationValues, str]
-            ] = None
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues, str],
+        graphic_data: np.ndarray,
+        source_image: SourceImageForRegion,
+        pixel_origin_interpretation: Optional[
+            Union[PixelOriginInterpretationValues, str]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -277,11 +277,11 @@ class ImageRegion3D(Scoord3DContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues3D, str],
-            graphic_data: np.ndarray,
-            frame_of_reference_uid: str
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_data: np.ndarray,
+        frame_of_reference_uid: str
+    ) -> None:
         """
         Parameters
         ----------
@@ -323,15 +323,15 @@ class VolumeSurface(Scoord3DContentItem):
     """
 
     def __init__(
-            self,
-            graphic_type: Union[GraphicTypeValues3D, str],
-            graphic_data: np.ndarray,
-            frame_of_reference_uid: str,
-            source_images: Optional[
-                Sequence[SourceImageForSegmentation]
-            ] = None,
-            source_series: Optional[SourceSeriesForSegmentation] = None
-        ) -> None:
+        self,
+        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_data: np.ndarray,
+        frame_of_reference_uid: str,
+        source_images: Optional[
+            Sequence[SourceImageForSegmentation]
+        ] = None,
+        source_series: Optional[SourceSeriesForSegmentation] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -420,19 +420,20 @@ class FindingSite(CodeContentItem):
     """Content item representing a coded finding site."""
 
     def __init__(
-            self,
-            anatomic_location: Union[CodedConcept, Code],
-            laterality: Optional[Union[CodedConcept, Code]] = None,
-            topographical_modifier: Optional[Union[CodedConcept, Code]] = None
-        ) -> None:
+        self,
+        anatomic_location: Union[CodedConcept, Code],
+        laterality: Optional[Union[CodedConcept, Code]] = None,
+        topographical_modifier: Optional[Union[CodedConcept, Code]] = None
+    ) -> None:
         """
         Parameters
         ----------
-        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
         laterality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
-            (see CID 244 "Laterality" for options)
+            (see `CID 244 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_244.html>`_
+            "Laterality" for options)
         topographical_modifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
@@ -479,13 +480,13 @@ class ReferencedSegmentationFrame(ContentSequence):
     """
 
     def __init__(
-            self,
-            sop_class_uid: str,
-            sop_instance_uid: str,
-            frame_number: int,
-            segment_number: int,
-            source_image: SourceImageForSegmentation
-        ) -> None:
+        self,
+        sop_class_uid: str,
+        sop_instance_uid: str,
+        frame_number: int,
+        segment_number: int,
+        source_image: SourceImageForSegmentation
+    ) -> None:
         """
         Parameters
         ----------
@@ -531,16 +532,16 @@ class ReferencedSegment(ContentSequence):
     """
 
     def __init__(
-            self,
-            sop_class_uid: str,
-            sop_instance_uid: str,
-            segment_number: int,
-            frame_numbers: Optional[Sequence[int]] = None,
-            source_images: Optional[
-                Sequence[SourceImageForSegmentation]
-            ] = None,
-            source_series: Optional[SourceSeriesForSegmentation] = None
-        ) -> None:
+        self,
+        sop_class_uid: str,
+        sop_instance_uid: str,
+        segment_number: int,
+        frame_numbers: Optional[Sequence[int]] = None,
+        source_images: Optional[
+            Sequence[SourceImageForSegmentation]
+        ] = None,
+        source_series: Optional[SourceSeriesForSegmentation] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -548,11 +549,11 @@ class ReferencedSegment(ContentSequence):
             SOP Class UID of the referenced segmentation object
         sop_instance_uid: str
             SOP Instance UID of the referenced segmentation object
+        segment_number: int
+            number of the segment to which the refernce applies
         frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
-        segment_number: int
-            number of the segment to which the refernce applies
         source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
             source images for segmentation
         source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional

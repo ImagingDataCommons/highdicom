@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
 from typing import Optional, Sequence, Union
 
-from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 
@@ -43,6 +42,7 @@ class Template(ContentSequence):
 
     def __init__(self, items: Optional[Sequence[ContentItem]] = None) -> None:
         """
+
         Parameters
         ----------
         items: Sequence[ContentItem], optional
@@ -54,15 +54,17 @@ class Template(ContentSequence):
 
 class AlgorithmIdentification(Template):
 
-    """TID 4019 Algorithm Identification"""
+    """`TID 4019 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_TID_4019.html>`_
+    Algorithm Identification"""  # noqa: E501
 
     def __init__(
-            self,
-            name: str,
-            version: str,
-            parameters: Optional[Sequence[str]] = None
-        ) -> None:
+        self,
+        name: str,
+        version: str,
+        parameters: Optional[Sequence[str]] = None
+    ) -> None:
         """
+
         Parameters
         ----------
         name: str
@@ -99,7 +101,7 @@ class AlgorithmIdentification(Template):
                 parameter_item = TextContentItem(
                     name=CodedConcept(
                         value='111002',
-                        meaning='Algorithm Parameter',
+                        meaning='Algorithm Parameters',
                         scheme_designator='DCM'
                     ),
                     value=param,
@@ -110,14 +112,16 @@ class AlgorithmIdentification(Template):
 
 class TrackingIdentifier(Template):
 
-    """TID 4108 Tracking Identifier"""
+    """`TID 4108 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_TID_4108.html>`_
+    Tracking Identifier"""  # noqa: E501
 
     def __init__(
-            self,
-            uid: Optional[str] = None,
-            identifier: Optional[str] = None
-        ):
+        self,
+        uid: Optional[str] = None,
+        identifier: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         uid: Union[pydicom.uid.UID, str], optional
@@ -154,30 +158,33 @@ class TrackingIdentifier(Template):
 
 class TimePointContext(Template):
 
-    """TID 1502 Time Point Context"""
+    """`TID 1502 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1502>`_
+     Time Point Context"""  # noqa: E501
 
     def __init__(
-            self,
-            time_point: str,
-            time_point_type: Optional[Union[CodedConcept, Code]] = None,
-            time_point_order: Optional[int] = None,
-            subject_time_point_identifier: Optional[
-                LongitudinalTemporalOffsetFromEvent
-            ] = None,
-            protocol_time_point_identifier: Optional[str] = None,
-            temporal_offset_from_event: Optional[
-                LongitudinalTemporalOffsetFromEvent
-            ] = None,
-            temporal_event_type: Optional[Union[CodedConcept, Code]] = None
-        ):
+        self,
+        time_point: str,
+        time_point_type: Optional[Union[CodedConcept, Code]] = None,
+        time_point_order: Optional[int] = None,
+        subject_time_point_identifier: Optional[
+            LongitudinalTemporalOffsetFromEvent
+        ] = None,
+        protocol_time_point_identifier: Optional[str] = None,
+        temporal_offset_from_event: Optional[
+            LongitudinalTemporalOffsetFromEvent
+        ] = None,
+        temporal_event_type: Optional[Union[CodedConcept, Code]] = None
+    ):
         """
+
         Parameters
         ----------
         time_point: str
-            actual value represention of the time point
+            actual value representation of the time point
         time_point_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded type of time point, e.g., "Baseline" or "Posttreatment"
-            (see CID 646 "Time Point Types" for options)
+            coded type of time point, e.g., "Baseline" or "Posttreatment" (see
+            `CID 6146 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6146.html>`_
+            "Time Point Types" for options)
         time_point_order: int, optional
             number indicating the order of a time point relative to other
             time points in a time series
@@ -191,7 +198,7 @@ class TimePointContext(Template):
            particular protocol using the same value for different subjects
         temporal_offset_from_event: highdicom.sr.content.LongitudinalTemporalOffsetFromEvent, optional
             offset in time from a particular event of significance, e.g., the
-            baseline of an imaging study or enrollment into a clincal trial
+            baseline of an imaging study or enrollment into a clinical trial
         temporal_event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of event to which `temporal_offset_from_event` is relative,
             e.g., "Baseline" or "Enrollment"
@@ -264,29 +271,33 @@ class TimePointContext(Template):
 
 class MeasurementStatisticalProperties(Template):
 
-    """TID 311 Measurement Statistical Properties"""
+    """`TID 311 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_311>`_
+     Measurement Statistical Properties"""  # noqa: E501
 
     def __init__(
-            self,
-            values: Sequence[NumContentItem],
-            description: Optional[str] = None,
-            authority: Optional[str] = None
-        ):
+        self,
+        values: Sequence[NumContentItem],
+        description: Optional[str] = None,
+        authority: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         values: Sequence[highdicom.sr.value_types.NumContentItem]
             reference values of the population of measurements, e.g., its
-            mean or standard deviation
-            (see CID 226 "Population Statistical Descriptors" and
-            CID 227 227 "Sample Statistical Descriptors" for options)
+            mean or standard deviation (see
+            `CID 226 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_226.html>`_
+            "Population Statistical Descriptors" and
+            `CID 227 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_227.html>`_
+            "Sample Statistical Descriptors" for options)
         description: str, optional
             description of the reference population of measurements
         authority: str, optional
             authority for a description of the reference population of
             measurements
 
-        """
+        """  # noqa: E501
         super().__init__()
         if not isinstance(values, (list, tuple)):
             raise TypeError('Argument "values" must be a list.')
@@ -323,27 +334,30 @@ class MeasurementStatisticalProperties(Template):
 
 class NormalRangeProperties(Template):
 
-    """TID 312 Normal Range Properties"""
+    """`TID 312 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_312>`_
+     Normal Range Properties"""  # noqa: E501
 
     def __init__(
-            self,
-            values: Sequence[NumContentItem],
-            description: Optional[str] = None,
-            authority: Optional[str] = None
-        ):
+        self,
+        values: Sequence[NumContentItem],
+        description: Optional[str] = None,
+        authority: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         values: Sequence[highdicom.sr.value_types.NumContentItem]
             reference values of the normal range, e.g., its upper and lower
-            bound
-            (see CID 223 "Normal Range Values" for options)
+            bound (see
+            `CID 223 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_223.html>`_
+            "Normal Range Values" for options)
         description: str, optional
             description of the normal range
         authority: str, optional
             authority for the description of the normal range
 
-        """
+        """  # noqa: E501
         super().__init__()
         if not isinstance(values, (list, tuple)):
             raise TypeError('Argument "values" must be a list.')
@@ -372,33 +386,38 @@ class NormalRangeProperties(Template):
 
 class MeasurementProperties(Template):
 
-    """TID 310 Measurement Properties"""
+    """`TID 310 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_310>`_
+     Measurement Properties"""  # noqa: E501
 
     def __init__(
-            self,
-            normality: Optional[Union[CodedConcept, Code]] = None,
-            level_of_significance: Optional[Union[CodedConcept, Code]] = None,
-            selection_status: Optional[Union[CodedConcept, Code]] = None,
-            measurement_statistical_properties: Optional[
-                MeasurementStatisticalProperties
-            ] = None,
-            normal_range_properties: Optional[NormalRangeProperties] = None,
-            upper_measurement_uncertainty: Optional[Union[int, float]] = None,
-            lower_measurement_uncertainty: Optional[Union[int, float]] = None
-        ):
+        self,
+        normality: Optional[Union[CodedConcept, Code]] = None,
+        level_of_significance: Optional[Union[CodedConcept, Code]] = None,
+        selection_status: Optional[Union[CodedConcept, Code]] = None,
+        measurement_statistical_properties: Optional[
+            MeasurementStatisticalProperties
+        ] = None,
+        normal_range_properties: Optional[NormalRangeProperties] = None,
+        upper_measurement_uncertainty: Optional[Union[int, float]] = None,
+        lower_measurement_uncertainty: Optional[Union[int, float]] = None
+    ):
         """
+
         Parameters
         ----------
         normality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             the extend to which the measurement is considered normal or abnormal
-            (see CID 222 "Normality Codes" for options)
+            (see `CID 222 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_222.html>`_
+            "Normality Codes" for options)
         level_of_significance: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             the extend to which the measurement is considered normal or abnormal
-            (see CID 220 "Level of Significance" for options)
+            (see `CID 220 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_220.html>`_
+            "Level of Significance" for options)
         selection_status: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             how the measurement value was selected or computed from a set of
-            available values
-            (see CID 224 "Selection Method" for options)
+            available values (see
+            `CID 224 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_224.html>`_
+            "Selection Method" for options)
         measurement_statistical_properties: highdicom.sr.templates.MeasurementStatisticalProperties, optional
             statistical properties of a reference population for a measurement
             and/or the position of a measurement in such a reference population
@@ -487,7 +506,8 @@ class MeasurementProperties(Template):
 
 class PersonObserverIdentifyingAttributes(Template):
 
-    """TID 1003 Person Observer Identifying Attributes"""
+    """`TID 1003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1003>`_
+     Person Observer Identifying Attributes"""  # noqa: E501
 
     def __init__(
             self,
@@ -498,6 +518,7 @@ class PersonObserverIdentifyingAttributes(Template):
             role_in_procedure: Optional[Union[CodedConcept, Code]] = None
         ):
         """
+
         Parameters
         ----------
         name: str
@@ -571,19 +592,21 @@ class PersonObserverIdentifyingAttributes(Template):
 
 class DeviceObserverIdentifyingAttributes(Template):
 
-    """TID 1004 Device Observer Identifying Attributes"""
+    """`TID 1004 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1004>`_
+     Device Observer Identifying Attributes"""  # noqa: E501
 
     def __init__(
-            self,
-            uid: str,
-            name: Optional[str] = None,
-            manufacturer_name: Optional[str] = None,
-            model_name: Optional[str] = None,
-            serial_number: Optional[str] = None,
-            physical_location: Optional[str] = None,
-            role_in_procedure: Optional[str] = None
-        ):
+        self,
+        uid: str,
+        name: Optional[str] = None,
+        manufacturer_name: Optional[str] = None,
+        model_name: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        physical_location: Optional[str] = None,
+        role_in_procedure: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         uid: str
@@ -616,7 +639,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         if manufacturer_name is not None:
             manufacturer_name_item = TextContentItem(
                 name=CodedConcept(
-                    value='121013',
+                    value='121014',
                     meaning='Device Observer Manufacturer',
                     scheme_designator='DCM',
                 ),
@@ -664,22 +687,25 @@ class DeviceObserverIdentifyingAttributes(Template):
 
 class ObserverContext(Template):
 
-    """TID 1002 Observer Context"""
+    """`TID 1002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1002>`_
+     Observer Context"""  # noqa: E501
 
     def __init__(
-            self,
-            observer_type: CodedConcept,
-            observer_identifying_attributes: Union[
-                PersonObserverIdentifyingAttributes,
-                DeviceObserverIdentifyingAttributes
-            ]
-        ):
+        self,
+        observer_type: CodedConcept,
+        observer_identifying_attributes: Union[
+            PersonObserverIdentifyingAttributes,
+            DeviceObserverIdentifyingAttributes
+        ]
+    ):
         """
+
         Parameters
         ----------
         observer_type: highdicom.sr.coding.CodedConcept
-            type of observer
-            (see CID 270 "Observer Type" for options)
+            type of observer (see
+            `CID 270 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_270.html>`_
+            "Observer Type" for options)
         observer_identifying_attributes: Union[highdicom.sr.templates.PersonObserverIdentifyingAttributes, highdicom.sr.templates.DeviceObserverIdentifyingAttributes]
             observer identifying attributes
 
@@ -724,10 +750,12 @@ class ObserverContext(Template):
 
 class SubjectContextFetus(Template):
 
-    """TID 1008 Subject Context Fetus"""
+    """`TID 1008 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1008>`_
+     Subject Context Fetus"""  # noqa: E501
 
     def __init__(self, subject_id: str):
         """
+
         Parameters
         ----------
         subject_id: str
@@ -749,16 +777,18 @@ class SubjectContextFetus(Template):
 
 class SubjectContextSpecimen(Template):
 
-    """TID 1009 Subject Context Specimen"""
+    """`TID 1009 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1009>`_
+     Subject Context Specimen"""  # noqa: E501
 
     def __init__(
-            self,
-            uid: str,
-            identifier: Optional[str] = None,
-            container_identifier: Optional[str] = None,
-            specimen_type: Optional[str] = None
-        ):
+        self,
+        uid: str,
+        identifier: Optional[str] = None,
+        container_identifier: Optional[str] = None,
+        specimen_type: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         uid: str
@@ -770,10 +800,11 @@ class SubjectContextSpecimen(Template):
             identifier of the container holding the speciment (e.g., a glass
             slide)
         specimen_type: highdicom.sr.coding.CodedConcept, optional
-            type of the specimen
-            (see CID 8103 "Anatomic Pathology Specimen Types" for options)
+            type of the specimen (see
+            `CID 8103 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_8103.html>`_
+            "Anatomic Pathology Specimen Types" for options)
 
-        """
+        """  # noqa: E501
         super().__init__()
         specimen_uid_item = UIDRefContentItem(
             name=CodedConcept(
@@ -822,18 +853,20 @@ class SubjectContextSpecimen(Template):
 
 class SubjectContextDevice(Template):
 
-    """TID 1010 Subject Context Device"""
+    """`TID 1010 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1010>`_
+     Subject Context Device"""  # noqa: E501
 
     def __init__(
-            self,
-            name: str,
-            uid: Optional[str] = None,
-            manufacturer_name: Optional[str] = None,
-            model_name: Optional[str] = None,
-            serial_number: Optional[str] = None,
-            physical_location: Optional[str] = None
-        ):
+        self,
+        name: str,
+        uid: Optional[str] = None,
+        manufacturer_name: Optional[str] = None,
+        model_name: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        physical_location: Optional[str] = None
+    ):
         """
+
         Parameters
         ----------
         name: str
@@ -908,25 +941,28 @@ class SubjectContextDevice(Template):
 
 class SubjectContext(Template):
 
-    """TID 1006 Subject Context"""
+    """`TID 1006 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1006>`_
+     Subject Context"""  # noqa: E501
 
     def __init__(
-            self,
-            subject_class: CodedConcept,
-            subject_class_specific_context: Optional[
-                Union[
-                    SubjectContextFetus,
-                    SubjectContextSpecimen,
-                    SubjectContextDevice
-                ]
-            ] = None
-        ):
+        self,
+        subject_class: CodedConcept,
+        subject_class_specific_context: Optional[
+            Union[
+                SubjectContextFetus,
+                SubjectContextSpecimen,
+                SubjectContextDevice
+            ]
+        ] = None
+    ):
         """
+
         Parameters
         ----------
         subject_class: highdicom.sr.coding.CodedConcept
             type of subject if the subject of the report is not the patient
-            (see CID 271 "Observation Subject Class" for options)
+            (see `CID 271 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_271.html>`_
+            "Observation Subject Class" for options)
         subject_class_specific_context: Union[highdicom.sr.templates.SubjectContextFetus, highdicom.sr.templates.SubjectContextSpecimen, highdicom.sr.templates.SubjectContextDevice], optional
             additional context information specific to `subject_class`
 
@@ -948,15 +984,17 @@ class SubjectContext(Template):
 
 class ObservationContext(Template):
 
-    """TID 1001 Observation Context"""
+    """`TID 1001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1001>`_
+     Observation Context"""  # noqa: E501
 
     def __init__(
-            self,
-            observer_person_context: Optional[ObserverContext] = None,
-            observer_device_context: Optional[ObserverContext] = None,
-            subject_context: Optional[SubjectContext] = None
-        ):
+        self,
+        observer_person_context: Optional[ObserverContext] = None,
+        observer_device_context: Optional[ObserverContext] = None,
+        subject_context: Optional[SubjectContext] = None
+    ):
         """
+
         Parameters
         ----------
         observer_person_context: [highdicom.sr.templates.ObserverContext, None], optional
@@ -1002,10 +1040,12 @@ class ObservationContext(Template):
 
 class LanguageOfContentItemAndDescendants(Template):
 
-    """TID 1204 Language of Content Item and Descendants"""
+    """`TID 1204 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1204>`_
+     Language of Content Item and Descendants"""  # noqa: E501
 
     def __init__(self, language: CodedConcept):
         """
+
         Parameters
         ----------
         language: highdicom.sr.coding.CodedConcept
@@ -1027,63 +1067,68 @@ class LanguageOfContentItemAndDescendants(Template):
 
 class Measurement(Template):
 
-    """TID 300 Measurement"""
+    """`TID 300 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300>`_
+     Measurement"""  # noqa: E501
 
     def __init__(
-            self,
-            name: Union[CodedConcept, Code],
-            tracking_identifier: Optional[TrackingIdentifier] = None,
-            value: Optional[Union[int, float]] = None,
-            unit: Optional[Union[CodedConcept, Code]] = None,
-            qualifier: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            derivation: Optional[Union[CodedConcept, Code]] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            properties: Optional[MeasurementProperties] = None,
-            referenced_images: Optional[
-                Sequence[SourceImageForMeasurement]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None
-        ):
+        self,
+        name: Union[CodedConcept, Code],
+        tracking_identifier: Optional[TrackingIdentifier] = None,
+        value: Optional[Union[int, float]] = None,
+        unit: Optional[Union[CodedConcept, Code]] = None,
+        qualifier: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        derivation: Optional[Union[CodedConcept, Code]] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        properties: Optional[MeasurementProperties] = None,
+        referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None
+    ):
         """
+
         Parameters
         ----------
         name: highdicom.sr.coding.CodedConcept
-            name of the measurement
-            (see CID 7469 "Generic Intensity and Size Measurements" and
-            CID 7468 "Texture Measurements" for options)
+            Name of the measurement (see
+            `CID 7469 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7469.html>`_
+            "Generic Intensity and Size Measurements" and
+            `CID 7468 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7468.html>`_
+            "Texture Measurements" for options)
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier, optional
-            identifier for tracking measurements
+            Identifier for tracking measurements
         value: Union[int, float], optional
-            numeric measurement value
+            Numeric measurement value
         unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            unit of the numeric measurement value
-            (see CID 7181 "Abstract Multi-dimensional Image Model Component
+            Unit of the numeric measurement value (see
+            `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
+            "Abstract Multi-dimensional Image Model Component
             Units" for options)
         qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            qualification of numeric measurement value or as an alternative
+            Qualification of numeric measurement value or as an alternative
             qualitative description
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            how the value was computed
-            (see CID 7464 "General Region of Interest Measurement Modifiers"
+            How the value was computed (see
+            `CID 7464 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7464.html>`_
+            "General Region of Interest Measurement Modifiers"
             for options)
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            measurement method
-            (see CID 6147 "Response Criteria" for options)
+            Measurement method (see
+            `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
+            "Response Criteria" for options)
         properties: highdicom.sr.templates.MeasurementProperties, optional
-            measurement properties, including evaluations of its normality
+            Measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
         referenced_images: Sequence[highdicom.sr.content.SourceImageForMeasurement], optional
-            referenced images which were used as sources for the measurement
+            Referenced images which were used as sources for the measurement
         referenced_real_world_value_map: highdicom.sr.content.RealWorldValueMap, optional
-            referenced real world value map for referenced source images
+            Referenced real world value map for referenced source images
 
         """  # noqa
         super().__init__()
@@ -1172,22 +1217,24 @@ class Measurement(Template):
 
 class MeasurementsAndQualitativeEvaluations(Template):
 
-    """TID 1501 Measurement and Qualitative Evaluation Group"""
+    """`TID 1501 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1501>`_
+     Measurement and Qualitative Evaluation Group"""  # noqa: E501
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
+    ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1199,8 +1246,9 @@ class MeasurementsAndQualitativeEvaluations(Template):
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             Type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method
-            (see CID 6147 "Response Criteria" for options)
+            coded measurement method (see
+            `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
+            "Response Criteria" for options)
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
             identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
@@ -1313,7 +1361,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'type Measurement.'
                     )
                 group_item.ContentSequence.extend(measurement)
-            group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
                 if not isinstance(evaluation, CodeContentItem):
@@ -1332,26 +1379,28 @@ class _ROIMeasurementsAndQualitativeEvaluations(
     templates."""
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_regions: Optional[
-                Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
-            ] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_volume_surface: Optional[VolumeSurface] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_regions: Optional[
+            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
+        ] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_volume_surface: Optional[VolumeSurface] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1369,8 +1418,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method
-            (see CID 6147 "Response Criteria" for options)
+            coded measurement method (see
+            `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
+            "Response Criteria" for options)
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
             identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
@@ -1383,6 +1433,10 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest (see
+            `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
+            "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1421,6 +1475,17 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                 '"referenced_regions", "referenced_volume_surface", or '
                 '"referenced_segment".'
             )
+        if geometric_purpose is not None:
+            geometric_purpose_item = CodeContentItem(
+                name=CodedConcept(
+                    value='130400',
+                    meaning='Geometric purpose of region',
+                    scheme_designator='DCM',
+                ),
+                value=geometric_purpose,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            group_item.ContentSequence.append(geometric_purpose_item)
         if referenced_regions is not None:
             if len(referenced_regions) == 0:
                 raise ValueError(
@@ -1451,34 +1516,37 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegment or '
                     'ReferencedSegmentationFrame.'
                 )
-            group_item.ContentSequence.append(referenced_segment)
+            group_item.ContentSequence.extend(referenced_segment)
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
 
-    """TID 1410 Planar ROI Measurements and Qualitative Evaluations"""
+    """`TID 1410 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1410>`_
+     Planar ROI Measurements and Qualitative Evaluations"""  # noqa: E501
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_region: Optional[
-                Union[ImageRegion, ImageRegion3D]
-            ] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_region: Optional[
+            Union[ImageRegion, ImageRegion3D]
+        ] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1494,8 +1562,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method
-            (see CID 6147 "Response Criteria" for options)
+            coded measurement method (see
+            `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
+            "Response Criteria" for options)
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
             identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
@@ -1508,6 +1577,10 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a region of interest
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest (see
+            `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
+            "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1547,36 +1620,38 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             finding_sites=finding_sites,
             session=session,
             measurements=measurements,
-            qualitative_evaluations=qualitative_evaluations
+            qualitative_evaluations=qualitative_evaluations,
+            geometric_purpose=geometric_purpose
         )
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
 
-    """TID 1411 Volumetric ROI Measurements and Qualitative Evaluations"""
+    """`TID 1411 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1411>`_
+     Volumetric ROI Measurements and Qualitative Evaluations"""  # noqa: E501
 
     def __init__(
-            self,
-            tracking_identifier: TrackingIdentifier,
-            referenced_regions: Optional[
-                Union[ImageRegion, ImageRegion3D]
-            ] = None,
-            referenced_volume_surface: Optional[VolumeSurface] = None,
-            referenced_segment: Optional[
-                Union[ReferencedSegment, ReferencedSegmentationFrame]
-            ] = None,
-            referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-            time_point_context: Optional[TimePointContext] = None,
-            finding_type: Optional[Union[CodedConcept, Code]] = None,
-            method: Optional[Union[CodedConcept, Code]] = None,
-            algorithm_id: Optional[AlgorithmIdentification] = None,
-            finding_sites: Optional[Sequence[FindingSite]] = None,
-            session: Optional[str] = None,
-            measurements: Sequence[Measurement] = None,
-            qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None
-        ):
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_regions: Optional[Union[ImageRegion, ImageRegion3D]] = None,
+        referenced_volume_surface: Optional[VolumeSurface] = None,
+        referenced_segment: Optional[
+            Union[ReferencedSegment, ReferencedSegmentationFrame]
+        ] = None,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+    ):
         """
+
         Parameters
         ----------
         tracking_identifier: highdicom.sr.templates.TrackingIdentifier
@@ -1594,8 +1669,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
             type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method
-            (see CID 6147 "Response Criteria" for options)
+            coded measurement method (see
+            `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
+            "Response Criteria" for options)
         algorithm_id: highdicom.sr.templates.AlgorithmIdentification, optional
             identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.content.FindingSite], optional
@@ -1608,6 +1684,10 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         qualitative_evaluations: Sequence[highdicom.sr.value_types.CodeContentItem], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a volume of interest
+        geometric_purpose: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            geometric interpretation of region of interest (see
+            `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
+            "Geometry Graphical Representation" for options)
 
         Note
         ----
@@ -1628,13 +1708,15 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             algorithm_id=algorithm_id,
             finding_sites=finding_sites,
             session=session,
-            qualitative_evaluations=qualitative_evaluations
+            qualitative_evaluations=qualitative_evaluations,
+            geometric_purpose=geometric_purpose
         )
 
 
 class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 
-    """TID 1420 Measurements Derived From Multiple ROI Measurements"""
+    """`TID 1420 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1420>`_
+     Measurements Derived From Multiple ROI Measurements"""  # noqa: E501
 
     def __init__(
             self,
@@ -1646,13 +1728,15 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
             measurement_properties: Optional[MeasurementProperties] = None
         ):
         """
+
         Parameters
         ----------
         derivation: Sequence[highdicom.sr.coding.CodedConcept]
             methods for derivation of measurements from multiple ROIs
-            measurements
-            (see CID 7465 "Measurements Derived From Multiple ROI Measurements"
-            for otions)
+            measurements (see
+            `CID 7465 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7465.html>`_
+            "Measurements Derived From Multiple ROI Measurements"
+            for options)
         measurement_groups: Union[Sequence[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations]]
             one or more groups of either planar or volumetric ROI measurements
             and qualitative evaluations
@@ -1693,7 +1777,8 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 
 class MeasurementReport(Template):
 
-    """TID 1500 Measurement Report"""
+    """`TID 1500 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500>`_
+     Measurement Report"""  # noqa: E501
 
     def __init__(
             self,
@@ -1717,14 +1802,15 @@ class MeasurementReport(Template):
             ] = None
         ):
         """
+
         Parameters
         ----------
         observation_context: highdicom.sr.templates.ObservationContext
             description of the observation context
         procedure_reported: Union[Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], Sequence[Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]]]
-            one or more coded description(s) of the procedure
-            (see CID 100 "Quantitative Diagnostic Imaging Procedures" for
-            options)
+            one or more coded description(s) of the procedure (see
+            `CID 100 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_100.html>`_
+            "Quantitative Diagnostic Imaging Procedures" for options)
         imaging_measurements: Sequence[Union[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations, highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations, highdicom.sr.templates.MeasurementsAndQualitativeEvaluations]], optional
             measurements and qualitative evaluations of images or regions
             within images
@@ -1733,8 +1819,9 @@ class MeasurementReport(Template):
             within images
             qualitative evaluations of images
         title: highdicom.sr.coding.CodedConcept, optional
-            title of the report
-            (see CID 7021 "Measurement Report Document Titles" for options)
+            title of the report (see 
+            `CID 7021 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7021.html>`_
+            "Measurement Report Document Titles" for options)
         language_of_content_item_and_descendants: highdicom.sr.templates.LanguageOfContentItemAndDescendants, optional
             specification of the language of report content items
             (defaults to English)
@@ -1856,7 +1943,8 @@ class MeasurementReport(Template):
 
 class ImageLibrary(Template):
 
-    """TID 1600 Image Library"""
+    """`TID 1600 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1600>`_
+     Image Library"""  # noqa: E501
 
     def __init__(self) -> None:
         """

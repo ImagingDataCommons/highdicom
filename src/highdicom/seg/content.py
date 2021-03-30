@@ -1,5 +1,5 @@
 """Data Elements that are specific to the Segmentation IOD."""
-from typing import Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -7,10 +7,14 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 
-from highdicom.content import AlgorithmIdentificationSequence
+from highdicom.content import (
+    AlgorithmIdentificationSequence,
+    PlanePositionSequence,
+)
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.utils import compute_plane_position_slide_per_frame
 
 
 class SegmentDescription(Dataset):
@@ -24,7 +28,9 @@ class SegmentDescription(Dataset):
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
             algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-            algorithm_identification: AlgorithmIdentificationSequence,
+            algorithm_identification: Optional[
+                AlgorithmIdentificationSequence
+            ] = None,
             tracking_uid: Optional[str] = None,
             tracking_id: Optional[str] = None,
             anatomic_regions: Optional[
@@ -44,16 +50,18 @@ class SegmentDescription(Dataset):
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
-            (see CID 7150 Segmentation Property Categories)
+            (see `CID 7150 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7150.html>`_
+            "Segmentation Property Categories")
         segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see CID 7151 Segmentation Property Types)
+            (see `CID 7151 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7151.html>`_
+            "Segmentation Property Types")
         algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: highdicom.content.AlgorithmIdentificationSequence, optional
             Information useful for identification of the algorithm, such
-            as its name or version
+            as its name or version. Required unless the algorithm type is `MANUAL`
         tracking_uid: str, optional
             Unique tracking identifier (universally unique)
         tracking_id: str, optional
@@ -61,7 +69,8 @@ class SegmentDescription(Dataset):
         anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
-            (see CID 4 Anatomic Region, CID 4031 Common Anatomic Regions, as
+            (see `CID 4 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4.html>`_
+            "Anatomic Region", `CID 4031 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4031.html>`_ "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
         primary_anatomic_structures: Sequence[Union[highdicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
             Anatomic structure(s) the segment represents
@@ -89,9 +98,20 @@ class SegmentDescription(Dataset):
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
-        self.SegmentAlgorithmName = algorithm_identification[0].AlgorithmName
-        self.SegmentationAlgorithmIdentificationSequence = \
-            algorithm_identification
+        if algorithm_identification is None:
+            if (
+                self.SegmentAlgorithmType !=
+                SegmentAlgorithmTypeValues.MANUAL.value
+            ):
+                raise TypeError(
+                    "Algorithm identification sequence is required "
+                    "unless the segmentation type is MANUAL"
+                )
+        else:
+            self.SegmentAlgorithmName = \
+                algorithm_identification[0].AlgorithmName
+            self.SegmentationAlgorithmIdentificationSequence = \
+                algorithm_identification
         num_given_tracking_identifiers = sum([
             tracking_id is not None,
             tracking_uid is not None
@@ -138,9 +158,9 @@ class DimensionIndexSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames]
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames]
+    ) -> None:
         """
         Parameters
         ----------
@@ -150,8 +170,8 @@ class DimensionIndexSequence(DataElementSequence):
 
         """
         super().__init__()
-        coordinate_system = CoordinateSystemNames(coordinate_system)
-        if coordinate_system == CoordinateSystemNames.SLIDE:
+        self._coordinate_system = CoordinateSystemNames(coordinate_system)
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
 
             segment_number_index = Dataset()
@@ -164,71 +184,75 @@ class DimensionIndexSequence(DataElementSequence):
             segment_number_index.DimensionOrganizationUID = dim_uid
             segment_number_index.DimensionDescriptionLabel = 'Segment Number'
 
-            x_image_dimension_index = Dataset()
-            x_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+            x_axis_index = Dataset()
+            x_axis_index.DimensionIndexPointer = tag_for_keyword(
                 'XOffsetInSlideCoordinateSystem'
             )
-            x_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+            x_axis_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            x_image_dimension_index.DimensionOrganizationUID = dim_uid
-            x_image_dimension_index.DimensionDescriptionLabel = \
+            x_axis_index.DimensionOrganizationUID = dim_uid
+            x_axis_index.DimensionDescriptionLabel = \
                 'X Offset in Slide Coordinate System'
 
-            y_image_dimension_index = Dataset()
-            y_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+            y_axis_index = Dataset()
+            y_axis_index.DimensionIndexPointer = tag_for_keyword(
                 'YOffsetInSlideCoordinateSystem'
             )
-            y_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+            y_axis_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            y_image_dimension_index.DimensionOrganizationUID = dim_uid
-            y_image_dimension_index.DimensionDescriptionLabel = \
+            y_axis_index.DimensionOrganizationUID = dim_uid
+            y_axis_index.DimensionDescriptionLabel = \
                 'Y Offset in Slide Coordinate System'
 
-            z_image_dimension_index = Dataset()
-            z_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+            z_axis_index = Dataset()
+            z_axis_index.DimensionIndexPointer = tag_for_keyword(
                 'ZOffsetInSlideCoordinateSystem'
             )
-            z_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+            z_axis_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            z_image_dimension_index.DimensionOrganizationUID = dim_uid
-            z_image_dimension_index.DimensionDescriptionLabel = \
+            z_axis_index.DimensionOrganizationUID = dim_uid
+            z_axis_index.DimensionDescriptionLabel = \
                 'Z Offset in Slide Coordinate System'
 
-            col_image_dimension_index = Dataset()
-            col_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+            row_dimension_index = Dataset()
+            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
                 'ColumnPositionInTotalImagePixelMatrix'
             )
-            col_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            col_image_dimension_index.DimensionOrganizationUID = dim_uid
-            col_image_dimension_index.DimensionDescriptionLabel = \
+            row_dimension_index.DimensionOrganizationUID = dim_uid
+            row_dimension_index.DimensionDescriptionLabel = \
                 'Column Position In Total Image Pixel Matrix'
 
-            row_image_dimension_index = Dataset()
-            row_image_dimension_index.DimensionIndexPointer = tag_for_keyword(
+            column_dimension_index = Dataset()
+            column_dimension_index.DimensionIndexPointer = tag_for_keyword(
                 'RowPositionInTotalImagePixelMatrix'
             )
-            row_image_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+            column_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            row_image_dimension_index.DimensionOrganizationUID = dim_uid
-            row_image_dimension_index.DimensionDescriptionLabel = \
+            column_dimension_index.DimensionOrganizationUID = dim_uid
+            column_dimension_index.DimensionDescriptionLabel = \
                 'Row Position In Total Image Pixel Matrix'
 
+            # Organize frames for each segment similar to TILED_FULL, first
+            # along the row dimension (column indices from left to right) and
+            # then along the column dimension (row indices from top to bottom)
+            # of the Total Pixel Matrix.
             self.extend([
                 segment_number_index,
-                x_image_dimension_index,
-                y_image_dimension_index,
-                z_image_dimension_index,
-                col_image_dimension_index,
-                row_image_dimension_index,
+                row_dimension_index,
+                column_dimension_index,
+                x_axis_index,
+                y_axis_index,
+                z_axis_index,
             ])
 
-        elif coordinate_system == CoordinateSystemNames.PATIENT:
+        elif self._coordinate_system == CoordinateSystemNames.PATIENT:
             dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
 
             segment_number_index = Dataset()
@@ -256,3 +280,130 @@ class DimensionIndexSequence(DataElementSequence):
                 segment_number_index,
                 image_position_index,
             ])
+
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{self._coordinat_system}"'
+            )
+
+    def get_plane_positions_of_image(
+        self,
+        image: Dataset
+    ) -> List[PlanePositionSequence]:
+        """Gets plane positions of frames in multi-frame image.
+
+        Parameters
+        ----------
+        image: Dataset
+            Multi-frame image
+
+        Returns
+        -------
+        List[PlanePositionSequence]
+            Plane position of each frame in the image
+
+        """
+        is_multiframe = hasattr(image, 'NumberOfFrames')
+        if not is_multiframe:
+            raise ValueError('Argument "image" must be a multi-frame image.')
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
+                plane_positions = [
+                    item.PlanePositionSlideSequence
+                    for item in image.PerFrameFunctionalGroupsSequence
+                ]
+            else:
+                # If Dimension Organization Type is TILED_FULL, plane
+                # positions are implicit and need to be computed.
+                plane_positions = compute_plane_position_slide_per_frame(
+                    image
+                )
+        else:
+            plane_positions = [
+                item.PlanePositionSequence
+                for item in image.PerFrameFunctionalGroupsSequence
+            ]
+
+        return plane_positions
+
+    def get_plane_positions_of_series(
+        self,
+        images: Sequence[Dataset]
+    ) -> List[PlanePositionSequence]:
+        """Gets plane positions for series of single-frame images.
+
+        Parameters
+        ----------
+        images: Sequence[Dataset]
+            Series of single-frame images
+
+        Returns
+        -------
+        List[PlanePositionSequence]
+            Plane position of each frame in the image
+
+        """
+        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        if is_multiframe:
+            raise ValueError(
+                'Argument "images" must be a series of single-frame images.'
+            )
+
+        plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT,
+                image_position=img.ImagePositionPatient
+            )
+            for img in images
+        ]
+
+        return plane_positions
+
+    def get_index_values(
+        self,
+        plane_positions: Sequence[PlanePositionSequence]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Get the values of indexed attributes.
+
+        Parameters
+        ----------
+        plane_positions: Sequence[PlanePositionSequence]
+            Plane position of frames in a multi-frame image or in a series of
+            single-frame images
+
+        Returns
+        -------
+        Tuple[numpy.ndarray, numpy.ndarray]
+            2D array of dimension index values and 1D array of planes indices
+            for sorting frames according to their spatial position specified
+            by the dimension index.
+
+        """
+        # For each dimension other than the Referenced Segment Number,
+        # obtain the value of the attribute that the Dimension Index Pointer
+        # points to in the element of the Plane Position Sequence or
+        # Plane Position Slide Sequence.
+        # Per definition, this is the Image Position Patient attribute
+        # in case of the patient coordinate system, or the
+        # X/Y/Z Offset In Slide Coordinate System and the Column/Row
+        # Position in Total Image Pixel Matrix attributes in case of the
+        # the slide coordinate system.
+        plane_position_values = np.array([
+            [
+                np.array(p[0][indexer.DimensionIndexPointer].value)
+                for indexer in self[1:]
+            ]
+            for p in plane_positions
+        ])
+
+        # Build an array that can be used to sort planes according to the
+        # Dimension Index Value based on the order of the items in the
+        # Dimension Index Sequence.
+        _, plane_sort_indices = np.unique(
+            plane_position_values,
+            axis=0,
+            return_index=True
+        )
+
+        return (plane_position_values, plane_sort_indices)

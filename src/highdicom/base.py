@@ -3,22 +3,16 @@ import datetime
 from io import BytesIO
 from typing import List, Optional, Sequence, Union
 
-from pydicom.datadict import keyword_for_tag, tag_for_keyword
+from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.filewriter import write_file_meta_info
-from pydicom.uid import (
-    DeflatedExplicitVRLittleEndian,
-    ExplicitVRBigEndian,
-    ExplicitVRLittleEndian,
-    ImplicitVRLittleEndian,
-    UID_dictionary,
-)
-from pydicom.valuerep import DA, DT, TM
+from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian
+from pydicom.valuerep import DA, TM
 
 from highdicom.sr.coding import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues
 from highdicom.version import __version__
-from highdicom._iods import IOD_MODULE_MAP
+from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
 
@@ -30,33 +24,33 @@ class SOPClass(Dataset):
     """Base class for DICOM SOP Instances."""
 
     def __init__(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            sop_class_uid: str,
-            instance_number: int,
-            manufacturer: str,
-            modality: str,
-            transfer_syntax_uid: Optional[str] = None,
-            patient_id: Optional[str] = None,
-            patient_name: Optional[str] = None,
-            patient_birth_date: Optional[str] = None,
-            patient_sex: Optional[str] = None,
-            accession_number: Optional[str] = None,
-            study_id: str = None,
-            study_date: Optional[Union[str, datetime.date]] = None,
-            study_time: Optional[Union[str, datetime.time]] = None,
-            referring_physician_name: Optional[str] = None,
-            content_qualification: Optional[
-                Union[str, ContentQualificationValues]
-            ] = None,
-            coding_schemes: Optional[
-                Sequence[CodingSchemeIdentificationItem]
-            ] = None,
-            series_description: Optional[str] = None
-        ):
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        sop_class_uid: str,
+        instance_number: int,
+        modality: str,
+        manufacturer: Optional[str] = None,
+        transfer_syntax_uid: Optional[str] = None,
+        patient_id: Optional[str] = None,
+        patient_name: Optional[str] = None,
+        patient_birth_date: Optional[str] = None,
+        patient_sex: Optional[str] = None,
+        accession_number: Optional[str] = None,
+        study_id: str = None,
+        study_date: Optional[Union[str, datetime.date]] = None,
+        study_time: Optional[Union[str, datetime.time]] = None,
+        referring_physician_name: Optional[str] = None,
+        content_qualification: Optional[
+            Union[str, ContentQualificationValues]
+        ] = None,
+        coding_schemes: Optional[
+            Sequence[CodingSchemeIdentificationItem]
+        ] = None,
+        series_description: Optional[str] = None
+    ):
         """
         Parameters
         ----------
@@ -216,9 +210,10 @@ class SOPClass(Dataset):
         self.add(data_element)
 
     def _copy_root_attributes_of_module(
-            self,
-            dataset: Dataset,
-            ie: str
+        self,
+        dataset: Dataset,
+        ie: str,
+        module: Optional[str] = None
     ) -> None:
         """Copies all attributes at the root level of a given module from
         `dataset` to `self`.
@@ -228,7 +223,9 @@ class SOPClass(Dataset):
         dataset: pydicom.dataset.Dataset
             DICOM Data Set from which attribute should be copied
         ie: str
-            DICOM Information Entity (IE)
+            DICOM Information Entity (e.g., ``"Patient"`` or ``"Study"``)
+        module: str, optional
+            DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
         logger.info(
@@ -236,20 +233,15 @@ class SOPClass(Dataset):
                 ie, dataset.SOPInstanceUID
             )
         )
-        try:
-            sop_class_name = UID_dictionary[dataset.SOPClassUID][0]
-        except KeyError:
-            raise ValueError(
-                'Could not determine IOD for SOP Class UID "{}".'.format(
-                    dataset.SOPClassUID
-                )
-            )
-        iod_key = sop_class_name.replace(' Storage', '').replace(' ', '-')
-        iod_key = iod_key.lower()
+        iod_key = SOP_CLASS_UID_IOD_KEY_MAP[dataset.SOPClassUID]
         for module_item in IOD_MODULE_MAP[iod_key]:
             module_key = module_item['key']
             if module_item['ie'] != ie:
                 continue
+            if module is not None:
+                module_key = module.replace(' ', '-').lower()
+                if module_item['key'] != module_key:
+                    continue
             logger.info(
                 'copy attributes of module "{}"'.format(
                     ' '.join([
@@ -286,7 +278,7 @@ class SOPClass(Dataset):
             DICOM Data Set from which attributes should be copied
 
         """
-        self._copy_root_attributes_of_module(dataset, 'Specimen')
+        self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'SOPClass':

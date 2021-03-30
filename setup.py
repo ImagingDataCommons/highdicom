@@ -30,6 +30,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Development Status :: 4 - Beta',
     ],
     include_package_data=True,
@@ -37,8 +38,8 @@ setuptools.setup(
     package_dir={'': 'src'},
     python_requires='>=3.6',
     install_requires=[
-        'pydicom>=1.4.1',
-        'numpy>=1.0',
+        'pydicom>=1.4,!=2.1.0,!=2.1.1',
+        'numpy>=1.19',
         'pillow>=6.0'
     ],
 )

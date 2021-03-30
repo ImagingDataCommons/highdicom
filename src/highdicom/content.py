@@ -29,13 +29,13 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            name: str,
-            family: Union[Code, CodedConcept],
-            version: str,
-            source: Optional[str] = None,
-            parameters: Optional[Dict[str, str]] = None
-        ):
+        self,
+        name: str,
+        family: Union[Code, CodedConcept],
+        version: str,
+        source: Optional[str] = None,
+        parameters: Optional[Dict[str, str]] = None
+    ):
         """
         Parameters
         ----------
@@ -81,17 +81,19 @@ class PixelMeasuresSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            pixel_spacing: Tuple[float, float],
-            slice_thickness: float,
-            spacing_between_slices: Optional[float] = None,
-        ) -> None:
+        self,
+        pixel_spacing: Sequence[float],
+        slice_thickness: float,
+        spacing_between_slices: Optional[float] = None,
+    ) -> None:
         """
         Parameters
         ----------
-        pixel_spacing: Tuple[float, float]
+        pixel_spacing: Sequence[float]
             Distance in physical space between neighboring pixels in
-            millimeters along the row and column dimension of the image
+            millimeters along the row and column dimension of the image. First
+            value represents the spacing between rows (vertical) and second
+            value represents the spacing between columns (horizontal).
         slice_thickness: float
             Depth of physical space volume the image represents in millimeter
         spacing_between_slices: float, optional
@@ -117,40 +119,55 @@ class PlanePositionSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames],
-            image_position: Tuple[float, float, float],
-            pixel_matrix_position: Optional[Tuple[int, int]] = None
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames],
+        image_position: Sequence[float],
+        pixel_matrix_position: Optional[Tuple[int, int]] = None
+    ) -> None:
         """
         Parameters
         ----------
-        image_position: Tuple[float, float, float]
+        image_position: Sequence[float]
             Offset of the first row and first column of the plane (frame) in
             millimeter along the x, y, and z axis of the three-dimensional
             patient or slide coordinate system
         pixel_matrix_position: Tuple[int, int], optional
-            Offset of the first row and first column of the plane (frame) in
+            Offset of the first column and first row of the plane (frame) in
             pixels along the row and column direction of the total pixel matrix
             (only required if `coordinate_system` is ``"SLIDE"``)
+
+        Note
+        ----
+        The values of both `image_position` and `pixel_matrix_position` are
+        one-based.
 
         """
         super().__init__()
         item = Dataset()
+
+        def ds(num: float) -> float:
+            return float(str(num)[:16])
+
+        coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
                 raise TypeError(
                     'Position in Pixel Matrix must be specified for '
                     'slide coordinate system.'
                 )
-            row_position, col_position = pixel_matrix_position
-            item.XOffsetInSlideCoordinateSystem = image_position[0]
-            item.YOffsetInSlideCoordinateSystem = image_position[1]
-            item.ZOffsetInSlideCoordinateSystem = image_position[2]
+            col_position, row_position = pixel_matrix_position
+            x, y, z = image_position
+            item.XOffsetInSlideCoordinateSystem = ds(x)
+            item.YOffsetInSlideCoordinateSystem = ds(y)
+            item.ZOffsetInSlideCoordinateSystem = ds(z)
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImagePositionPatient = list(image_position)
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{coordinate_system.value}".'
+            )
         self.append(item)
 
     def __eq__(self, other: Any) -> bool:
@@ -183,11 +200,15 @@ class PlanePositionSequence(DataElementSequence):
                     other[0].XOffsetInSlideCoordinateSystem,
                     other[0].YOffsetInSlideCoordinateSystem,
                     other[0].ZOffsetInSlideCoordinateSystem,
+                    other[0].RowPositionInTotalImagePixelMatrix,
+                    other[0].ColumnPositionInTotalImagePixelMatrix,
                 ]),
                 np.array([
                     self[0].XOffsetInSlideCoordinateSystem,
                     self[0].YOffsetInSlideCoordinateSystem,
                     self[0].ZOffsetInSlideCoordinateSystem,
+                    self[0].RowPositionInTotalImagePixelMatrix,
+                    self[0].ColumnPositionInTotalImagePixelMatrix,
                 ]),
             )
 
@@ -200,29 +221,33 @@ class PlaneOrientationSequence(DataElementSequence):
     """
 
     def __init__(
-            self,
-            coordinate_system: Union[str, CoordinateSystemNames],
-            image_orientation: Tuple[float, float, float, float, float, float]
-        ) -> None:
+        self,
+        coordinate_system: Union[str, CoordinateSystemNames],
+        image_orientation: Sequence[float]
+    ) -> None:
         """
         Parameters
         ----------
         coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
-        image_orientation: Tuple[float, float, float, float, float, float]
+        image_orientation: Sequence[float]
             Direction cosines for the first row (first triplet) and the first
-            column (second triplet) of an image with respect to the x, y, and z
+            column (second triplet) of an image with respect to the X, Y, and Z
             axis of the three-dimensional coordinate system
 
         """
         super().__init__()
-        coordinate_system = CoordinateSystemNames(coordinate_system)
         item = Dataset()
+        coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             item.ImageOrientationSlide = list(image_orientation)
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImageOrientationPatient = list(image_orientation)
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{coordinate_system.value}".'
+            )
         self.append(item)
 
     def __eq__(self, other: Any) -> bool:
@@ -328,9 +353,10 @@ class SpecimenCollection(ContentSequence):
 class SpecimenSampling(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
-    sampling procedure according to structured reporting template TID 8002
+    sampling procedure according to structured reporting template
+    `TID 8002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8002>`_
     Specimen Sampling.
-    """
+    """  # noqa E501
 
     def __init__(
             self,
@@ -385,9 +411,10 @@ class SpecimenSampling(ContentSequence):
 class SpecimenStaining(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
-    staining procedure according to structured reporting template TID 8003
+    staining procedure according to structured reporting template
+    `TID 8003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8003>`_
     Specimen Staining.
-    """
+    """  # noqa E501
 
     def __init__(
             self,
@@ -413,8 +440,10 @@ class SpecimenStaining(ContentSequence):
 class SpecimenPreparationStep(ContentSequence):
 
     """Dataset describing a specimen preparation step according to
-    structured reporting template TID 8001 Specimen Preparation.
-    """
+    structured reporting template
+    `TID 8001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8001>`_
+    Specimen Preparation.
+    """  # noqa E501
 
     def __init__(
             self,

@@ -7,8 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
-from pydicom.uid import PYDICOM_IMPLEMENTATION_UID, ExplicitVRLittleEndian
-from pydicom.valuerep import DA, DT, TM
+from pydicom.valuerep import DT
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
     Comprehensive3DSRStorage,
@@ -37,7 +36,7 @@ class _SR(SOPClass):
             sop_instance_uid: str,
             sop_class_uid: str,
             instance_number: int,
-            manufacturer: str,
+            manufacturer: Optional[str] = None,
             is_complete: bool = False,
             is_final: bool = False,
             is_verified: bool = False,
@@ -68,7 +67,9 @@ class _SR(SOPClass):
         series_number: Union[int, None]
             Series Number of the SR document series
         sop_instance_uid: str
-            SOP instance UID that should be assigned to the SR document instance
+            SOP Instance UID that should be assigned to the SR document instance
+        sop_class_uid: str
+            SOP Class UID for the SR document type
         instance_number: int
             Number that should be assigned to this SR document instance
         manufacturer: str
@@ -254,7 +255,7 @@ class EnhancedSR(_SR):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            manufacturer: str,
+            manufacturer: Optional[str] = None,
             is_complete: bool = False,
             is_final: bool = False,
             is_verified: bool = False,
@@ -285,10 +286,10 @@ class EnhancedSR(_SR):
         series_number: Union[int, None]
             Series Number of the SR document series
         sop_instance_uid: str
-            SOP instance UID that should be assigned to the SR document instance
+            SOP Instance UID that should be assigned to the SR document instance
         instance_number: int
             Number that should be assigned to this SR document instance
-        manufacturer: str
+        manufacturer: str, optional
             Name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
             as `institution_name`)
@@ -382,7 +383,7 @@ class ComprehensiveSR(_SR):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            manufacturer: str,
+            manufacturer: Optional[str] = None,
             is_complete: bool = False,
             is_final: bool = False,
             is_verified: bool = False,
@@ -413,10 +414,10 @@ class ComprehensiveSR(_SR):
         series_number: Union[int, None]
             Series Number of the SR document series
         sop_instance_uid: str
-            SOP instance UID that should be assigned to the SR document instance
+            SOP Instance UID that should be assigned to the SR document instance
         instance_number: int
             Number that should be assigned to this SR document instance
-        manufacturer: str
+        manufacturer: str, optional
             Name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
             as `institution_name`)
@@ -510,7 +511,7 @@ class Comprehensive3DSR(_SR):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            manufacturer: str,
+            manufacturer: Optional[str] = None,
             is_complete: bool = False,
             is_final: bool = False,
             is_verified: bool = False,
@@ -544,7 +545,7 @@ class Comprehensive3DSR(_SR):
             SOP instance UID that should be assigned to the SR document instance
         instance_number: int
             Number that should be assigned to this SR document instance
-        manufacturer: str
+        manufacturer: str, optional
             Name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
             as `institution_name`)

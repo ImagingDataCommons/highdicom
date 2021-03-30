@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Sequence
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -12,11 +12,11 @@ class CodedConcept(Dataset):
     """Coded concept of a DICOM SR document content module attribute."""
 
     def __init__(
-            self,
-            value: str,
-            scheme_designator: str,
-            meaning: str,
-            scheme_version: Optional[str] = None
+        self,
+        value: str,
+        scheme_designator: str,
+        meaning: str,
+        scheme_version: Optional[str] = None
     ) -> None:
         """
         Parameters
@@ -39,6 +39,8 @@ class CodedConcept(Dataset):
                 self.LongCodeValue = str(value)
         else:
             self.CodeValue = str(value)
+        if len(meaning) > 64:
+            raise ValueError('Code meaning can have maximally 64 characters.')
         self.CodeMeaning = str(meaning)
         self.CodingSchemeDesignator = str(scheme_designator)
         if scheme_version is not None:
@@ -135,15 +137,15 @@ class CodingSchemeIdentificationItem(Dataset):
     """Class for items of the Coding Scheme Identification Sequence."""
 
     def __init__(
-            self,
-            designator: str,
-            name: Optional[str] = None,
-            version: Optional[str] = None,
-            registry: Optional[str] = None,
-            uid: Optional[str] = None,
-            external_id: Optional[str] = None,
-            responsible_organization: Optional[str] = None,
-            resources: Optional[Sequence[CodingSchemeResourceItem]] = None
+        self,
+        designator: str,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        registry: Optional[str] = None,
+        uid: Optional[str] = None,
+        external_id: Optional[str] = None,
+        responsible_organization: Optional[str] = None,
+        resources: Optional[Sequence[CodingSchemeResourceItem]] = None
     ) -> None:
         """
         Parameters
