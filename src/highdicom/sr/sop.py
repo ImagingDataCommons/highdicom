@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
-from pydicom.sequence import Sequence as pdcm_Sequence
 from pydicom.valuerep import DT
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
@@ -165,8 +164,10 @@ class _SR(SOPClass):
             observer_item.VerifyingObserverName = verifying_observer_name
             observer_item.VerifyingOrganization = verifying_organization
             observer_item.VerificationDateTime = DT(now)
-            observer_item.VerifyingObserverIdentificationCodeSequence = \
-                pdcm_Sequence()  #  type 2 attribute. we will leave empty
+
+            #  Type 2 attribute - we will leave empty
+            observer_item.VerifyingObserverIdentificationCodeSequence = []
+
             self.VerifyingObserverSequence = [observer_item]
         else:
             self.VerificationFlag = 'UNVERIFIED'
