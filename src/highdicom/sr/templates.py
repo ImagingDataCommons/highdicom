@@ -100,7 +100,7 @@ class AlgorithmIdentification(Template):
                 parameter_item = TextContentItem(
                     name=CodedConcept(
                         value='111002',
-                        meaning='Algorithm Parameter',
+                        meaning='Algorithm Parameters',
                         scheme_designator='DCM'
                     ),
                     value=param,
@@ -631,7 +631,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         if manufacturer_name is not None:
             manufacturer_name_item = TextContentItem(
                 name=CodedConcept(
-                    value='121013',
+                    value='121014',
                     meaning='Device Observer Manufacturer',
                     scheme_designator='DCM',
                 ),
@@ -1499,7 +1499,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegment or '
                     'ReferencedSegmentationFrame.'
                 )
-            group_item.ContentSequence.append(referenced_segment)
+            group_item.ContentSequence.extend(referenced_segment)
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(

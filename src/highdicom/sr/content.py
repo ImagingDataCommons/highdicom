@@ -102,7 +102,7 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.SELECTED_FROM
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
 
     @classmethod
@@ -788,11 +788,11 @@ class ReferencedSegment(ContentSequence):
             SOP Class UID of the referenced segmentation object
         sop_instance_uid: str
             SOP Instance UID of the referenced segmentation object
+        segment_number: int
+            number of the segment to which the reference applies
         frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
-        segment_number: int
-            number of the segment to which the reference applies
         source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
             source images for segmentation
         source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional

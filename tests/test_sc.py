@@ -53,8 +53,8 @@ class TestSCImage(unittest.TestCase):
             series_number=self._series_number,
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
-            laterality=self._laterality,
-            patient_orientation=self._patient_orientation
+            patient_orientation=self._patient_orientation,
+            laterality=self._laterality
         )
         assert instance.BitsAllocated == bits_allocated
         assert instance.SamplesPerPixel == 3
@@ -96,26 +96,6 @@ class TestSCImage(unittest.TestCase):
                 series_number=self._series_number,
                 instance_number=self._instance_number,
                 manufacturer=self._manufacturer,
-                patient_orientation=self._patient_orientation
-            )
-
-    def test_construct_rgb_patient_missing_parameter_1(self):
-        with pytest.raises(TypeError):
-            bits_allocated = 8
-            photometric_interpretation = 'RGB'
-            coordinate_system = 'PATIENT'
-            SCImage(
-                pixel_array=self._rgb_pixel_array,
-                photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
-                coordinate_system=coordinate_system,
-                study_instance_uid=self._study_instance_uid,
-                series_instance_uid=self._series_instance_uid,
-                sop_instance_uid=self._sop_instance_uid,
-                series_number=self._series_number,
-                instance_number=self._instance_number,
-                manufacturer=self._manufacturer,
-                laterality=self._laterality,
             )
 
     def test_construct_rgb_slide_single_specimen(self):
@@ -224,7 +204,6 @@ class TestSCImage(unittest.TestCase):
             series_number=self._series_number,
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
-            laterality=self._laterality,
             patient_orientation=self._patient_orientation
         )
         assert instance.BitsAllocated == bits_allocated
@@ -236,7 +215,6 @@ class TestSCImage(unittest.TestCase):
         assert instance.SeriesNumber == self._series_number
         assert instance.InstanceNumber == self._instance_number
         assert instance.Manufacturer == self._manufacturer
-        assert instance.Laterality == self._laterality
         assert instance.PatientOrientation == self._patient_orientation
         assert instance.AccessionNumber is None
         assert instance.PatientName is None
@@ -266,7 +244,6 @@ class TestSCImage(unittest.TestCase):
             series_number=self._series_number,
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
-            laterality=self._laterality,
             patient_orientation=self._patient_orientation,
             transfer_syntax_uid=RLELossless
         )
@@ -294,7 +271,6 @@ class TestSCImage(unittest.TestCase):
             series_number=self._series_number,
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
-            laterality=self._laterality,
             patient_orientation=self._patient_orientation,
             transfer_syntax_uid=RLELossless
         )

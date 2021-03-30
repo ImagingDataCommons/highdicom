@@ -22,6 +22,7 @@ from highdicom.sr.content import (
     SourceImageForRegion,
     SourceImageForMeasurement,
     SourceImageForSegmentation,
+    RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
     SourceSeriesForSegmentation
@@ -1641,18 +1642,69 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
-        self._image = SourceImageForRegion(
+        self._image_for_region = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=generate_uid()
+        )
+        self._image_for_segment = SourceImageForSegmentation(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
             referenced_sop_instance_uid=generate_uid()
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
-            source_image=self._image
+            source_image=self._image_for_region
         )
-        self._measurements = PlanarROIMeasurementsAndQualitativeEvaluations(
+        self._segment = ReferencedSegmentationFrame(
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
+            sop_instance_uid=generate_uid(),
+            segment_number=1,
+            frame_number=1,
+            source_image=self._image_for_segment
+        )
+        self._real_world_value_map = RealWorldValueMap(
+            referenced_sop_instance_uid=generate_uid()
+        )
+        self._finding_type = codes.SCT.Nodule
+        self._method = codes.DCM.RECIST1Point1
+        self._algo_id = AlgorithmIdentification(
+            name='Foo Method',
+            version='1.0.1',
+        )
+        self._finding_sites = [
+            FindingSite(
+                anatomic_location=codes.cid7151.LobeOfLung,
+                laterality=codes.cid244.Right,
+                topographical_modifier=codes.cid2.Apical
+            )
+        ]
+        self._session = 'Session 1'
+        self._geometric_purpose = codes.DCM.Center
+
+    def test_construction_with_region(self):
+        PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region
+        )
+
+    def test_construction_with_segment(self):
+        PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_segment=self._segment
+        )
+
+    def test_construction_all_parameters(self):
+        # TODO add time_point_context, measurements and qualitative evaluations
+        PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            referenced_real_world_value_map=self._real_world_value_map,
+            finding_type=self._finding_type,
+            method=self._method,
+            algorithm_id=self._algo_id,
+            finding_sites=self._finding_sites,
+            session=self._session,
+            geometric_purpose=self._geometric_purpose
         )
 
     def test_constructed_without_human_readable_tracking_identifier(self):
@@ -1676,7 +1728,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             PlanarROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
-                referenced_segment=self._region
+                referenced_segment=self._segment
             )
 
 
@@ -1688,12 +1740,18 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             uid=generate_uid(),
             identifier='volumetric roi measurements'
         )
-        self._images = [
+        self._images_for_region = [
             SourceImageForRegion(
                 referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
                 referenced_sop_instance_uid=generate_uid()
             )
             for i in range(3)
+        ]
+        self._images_for_segment = [
+            SourceImageForSegmentation(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=generate_uid()
+            )
         ]
         self._regions = [
             ImageRegion(
@@ -1701,13 +1759,59 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 graphic_data=np.array([
                     [1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [1.0, 1.0]
                 ]),
-                source_image=self._images[i]
+                source_image=self._images_for_region[i]
             )
             for i in range(3)
         ]
+        self._segment = ReferencedSegment(
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
+            sop_instance_uid=generate_uid(),
+            segment_number=1,
+            source_images=self._images_for_segment
+        )
+        self._real_world_value_map = RealWorldValueMap(
+            referenced_sop_instance_uid=generate_uid()
+        )
+        self._finding_type = codes.SCT.Nodule
+        self._method = codes.DCM.RECIST1Point1
+        self._algo_id = AlgorithmIdentification(
+            name='Foo Method',
+            version='1.0.1',
+        )
+        self._finding_sites = [
+            FindingSite(
+                anatomic_location=codes.cid7151.LobeOfLung,
+                laterality=codes.cid244.Right,
+                topographical_modifier=codes.cid2.Apical
+            )
+        ]
+        self._session = 'Session 1'
+        self._geometric_purpose = codes.DCM.Center
+
+    def test_constructed_with_regions(self):
         self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_regions=self._regions
+        )
+
+    def test_constructed_with_segment(self):
+        self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_segment=self._segment
+        )
+
+    def test_construction_all_parameters(self):
+        # TODO add time_point_context, measurements and qualitative evaluations
+        VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=self._regions,
+            referenced_real_world_value_map=self._real_world_value_map,
+            finding_type=self._finding_type,
+            method=self._method,
+            algorithm_id=self._algo_id,
+            finding_sites=self._finding_sites,
+            session=self._session,
+            geometric_purpose=self._geometric_purpose
         )
 
     def test_constructed_with_volume(self):

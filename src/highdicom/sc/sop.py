@@ -24,8 +24,8 @@ from highdicom.content import (
 from highdicom.enum import (
     AnatomicalOrientationTypeValues,
     CoordinateSystemNames,
-    LateralityValues,
     PhotometricInterpretationValues,
+    LateralityValues,
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
 )
@@ -146,8 +146,7 @@ class SCImage(SOPClass):
             Physical spacing in millimeter between pixels along the row and
             column dimension
         laterality: Union[str, highdicom.enum.LateralityValues], optional
-            Laterality of the examined body part (required if
-            `coordinate_system` is ``"PATIENT"``)
+            Laterality of the examined body part
         patient_orientation:
                 Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped]], optional
             Orientation of the patient along the row and column axes of the
@@ -207,11 +206,6 @@ class SCImage(SOPClass):
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.PATIENT:
-            if laterality is None:
-                raise TypeError(
-                    'Laterality is required if coordinate system '
-                    'is "PATIENT".'
-                )
             if patient_orientation is None:
                 raise TypeError(
                     'Patient orientation is required if coordinate system '
@@ -219,8 +213,9 @@ class SCImage(SOPClass):
                 )
 
             # General Series
-            laterality = LateralityValues(laterality)
-            self.Laterality = laterality.value
+            if laterality is not None:
+                laterality = LateralityValues(laterality)
+                self.Laterality = laterality.value
 
             # General Image
             if anatomical_orientation_type is not None:
