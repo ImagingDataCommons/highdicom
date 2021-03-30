@@ -23,7 +23,7 @@ class SegmentDescription(Dataset):
 
     def __init__(
             self,
-            segment_number: Optional[int],
+            segment_number: int,
             segment_label: str,
             segmented_property_category: Union[Code, CodedConcept],
             segmented_property_type: Union[Code, CodedConcept],
@@ -43,11 +43,8 @@ class SegmentDescription(Dataset):
         """
         Parameters
         ----------
-        segment_number: Optional[int]
-            Number of the segment. If set to ``None``, no segment number will
-            assigned at this time, and a number will be automatically
-            determined when the description is added to a segmentation
-            instance.
+        segment_number: int
+            Number of the segment.
         segment_label: str
             Label of the segment
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
@@ -79,12 +76,17 @@ class SegmentDescription(Dataset):
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 
+        Notes
+        -----
+        When segment descriptions are passed to a segmentation instance they
+        must have consecutive segment numbers, starting at 1 for the first
+        segment added.
+
         """  # noqa
         super().__init__()
-        if segment_number is not None:
-            if segment_number < 1:
-                raise ValueError("Segment number must be a positive integer")
-            self.SegmentNumber = segment_number
+        if segment_number < 1:
+            raise ValueError("Segment number must be a positive integer")
+        self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
             CodedConcept(

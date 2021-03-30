@@ -477,20 +477,6 @@ class TestSegmentation(unittest.TestCase):
         self._segmented_property_type = codes.SCT.Neoplasm
         self._segment_descriptions = [
             SegmentDescription(
-                segment_number=None,
-                segment_label='Segment #1',
-                segmented_property_category=self._segmented_property_category,
-                segmented_property_type=self._segmented_property_type,
-                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
-                algorithm_identification=AlgorithmIdentificationSequence(
-                    name='bla',
-                    family=codes.DCM.ArtificialIntelligence,
-                    version='v1'
-                )
-            ),
-        ]
-        self._segment_descriptions_numbered = [
-            SegmentDescription(
                 segment_number=1,
                 segment_label='Segment #1',
                 segmented_property_category=self._segmented_property_category,
@@ -505,20 +491,6 @@ class TestSegmentation(unittest.TestCase):
         ]
         self._additional_segment_descriptions = [
             SegmentDescription(
-                segment_number=None,
-                segment_label='Segment #2',
-                segmented_property_category=self._segmented_property_category,
-                segmented_property_type=self._segmented_property_type,
-                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
-                algorithm_identification=AlgorithmIdentificationSequence(
-                    name='foo',
-                    family=codes.DCM.ArtificialIntelligence,
-                    version='v1'
-                )
-            ),
-        ]
-        self._additional_segment_descriptions_numbered = [
-            SegmentDescription(
                 segment_number=2,
                 segment_label='Segment #2',
                 segmented_property_category=self._segmented_property_category,
@@ -531,7 +503,7 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
-        self._additional_segment_descriptions_numbered_4 = [
+        self._additional_segment_descriptions_no4 = [
             SegmentDescription(
                 segment_number=4,
                 segment_label='Segment #4',
@@ -1213,26 +1185,6 @@ class TestSegmentation(unittest.TestCase):
                 expected_encoding
             )
 
-    def test_construction_numbered_mismatch(self):
-        with pytest.raises(ValueError):
-            Segmentation(
-                source_images=[self._ct_image],
-                pixel_array=self._ct_pixel_array,
-                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-                segment_descriptions=(
-                    self._segment_descriptions_numbered +  # numbered
-                    self._additional_segment_descriptions  # not numbered
-                ),
-                series_instance_uid=self._series_instance_uid,
-                series_number=self._series_number,
-                sop_instance_uid=self._sop_instance_uid,
-                instance_number=self._instance_number,
-                manufacturer=self._manufacturer,
-                manufacturer_model_name=self._manufacturer_model_name,
-                software_versions=self._software_versions,
-                device_serial_number=self._device_serial_number
-            )
-
     def test_construction_segment_numbers_start_wrong(self):
         with pytest.raises(ValueError):
             Segmentation(
@@ -1240,7 +1192,7 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._additional_segment_descriptions_numbered  # seg num 2
+                    self._additional_segment_descriptions  # seg num 2
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1258,7 +1210,7 @@ class TestSegmentation(unittest.TestCase):
             pixel_array=self._ct_pixel_array,
             segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
             segment_descriptions=(
-                self._segment_descriptions_numbered  # seg num 1
+                self._segment_descriptions  # seg num 1
             ),
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
@@ -1272,7 +1224,7 @@ class TestSegmentation(unittest.TestCase):
         with pytest.raises(ValueError):
             instance.add_segments(
                 self._ct_pixel_array,
-                self._additional_segment_descriptions_numbered_4
+                self._additional_segment_descriptions_no4
             )
 
     def test_construction_wrong_segment_order(self):
@@ -1282,8 +1234,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._additional_segment_descriptions_numbered +  # seg 2
-                    self._segment_descriptions_numbered               # seg 1
+                    self._additional_segment_descriptions +  # seg 2
+                    self._segment_descriptions               # seg 1
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1302,8 +1254,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._segment_descriptions_numbered +
-                    self._segment_descriptions_numbered  # duplicate
+                    self._segment_descriptions +
+                    self._segment_descriptions  # duplicate
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1322,8 +1274,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=(self._ct_pixel_array * 3).astype(np.uint8),
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._segment_descriptions_numbered +
-                    self._additional_segment_descriptions_numbered
+                    self._segment_descriptions +
+                    self._additional_segment_descriptions
                 ),  # two segments, value of 3 in pixel array
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
