@@ -166,14 +166,11 @@ class TimePointContext(Template):
         time_point: str,
         time_point_type: Optional[Union[CodedConcept, Code]] = None,
         time_point_order: Optional[int] = None,
-        subject_time_point_identifier: Optional[
-            LongitudinalTemporalOffsetFromEvent
-        ] = None,
+        subject_time_point_identifier: Optional[str] = None,
         protocol_time_point_identifier: Optional[str] = None,
         temporal_offset_from_event: Optional[
             LongitudinalTemporalOffsetFromEvent
-        ] = None,
-        temporal_event_type: Optional[Union[CodedConcept, Code]] = None
+        ] = None
     ):
         """
 
@@ -199,12 +196,9 @@ class TimePointContext(Template):
         temporal_offset_from_event: highdicom.sr.content.LongitudinalTemporalOffsetFromEvent, optional
             offset in time from a particular event of significance, e.g., the
             baseline of an imaging study or enrollment into a clinical trial
-        temporal_event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
-            type of event to which `temporal_offset_from_event` is relative,
-            e.g., "Baseline" or "Enrollment"
-            (required if `temporal_offset_from_event` is provided)
 
         """  # noqa
+        super().__init__()
         time_point_item = TextContentItem(
             name=CodedConcept(
                 value='C2348792',
@@ -234,11 +228,12 @@ class TimePointContext(Template):
                     scheme_designator='DCM'
                 ),
                 value=time_point_order,
+                unit=Code('1', 'UCUM', 'no units'),
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(time_point_order_item)
         if subject_time_point_identifier is not None:
-            subject_time_point_identifier_item = NumContentItem(
+            subject_time_point_identifier_item = TextContentItem(
                 name=CodedConcept(
                     value='126070',
                     meaning='Subject Time Point Identifier',
