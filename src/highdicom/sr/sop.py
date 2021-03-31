@@ -164,6 +164,10 @@ class _SR(SOPClass):
             observer_item.VerifyingObserverName = verifying_observer_name
             observer_item.VerifyingOrganization = verifying_organization
             observer_item.VerificationDateTime = DT(now)
+
+            #  Type 2 attribute - we will leave empty
+            observer_item.VerifyingObserverIdentificationCodeSequence = []
+
             self.VerifyingObserverSequence = [observer_item]
         else:
             self.VerificationFlag = 'UNVERIFIED'
