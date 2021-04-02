@@ -10,7 +10,7 @@ from pydicom.tag import Tag, BaseTag
 from pydicom.dataelem import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.multival import MultiValue
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
 from pydicom.valuerep import DT, DA, TM
 from copy import deepcopy
 from pydicom.uid import UID
@@ -27,17 +27,16 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     '1.2.840.10008.5.1.4.1.1.128': '1.2.840.10008.5.1.4.1.1.128.1',
 }
 _SOP_CLASS_UID_IOD_KEY_MAP = {
-    '1.2.840.10008.5.1.4.1.1.2.2':  'legacy-converted-enhanced-ct-image',
-    '1.2.840.10008.5.1.4.1.1.4.4':  'legacy-converted-enhanced-mr-image',
+    '1.2.840.10008.5.1.4.1.1.2.2': 'legacy-converted-enhanced-ct-image',
+    '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
     '1.2.840.10008.5.1.4.1.1.128.1': 'legacy-converted-enhanced-pet-image',
 }
-
 
 
 def _convert_legacy_to_enhanced(
         sf_datasets: Sequence[Dataset],
         mf_dataset: Optional[Dataset] = None
-) -> Dataset:
+    ) -> Dataset:
     """Converts one or more MR, CT or PET Image instances into one
     Legacy Converted Enhanced MR/CT/PET Image instance by copying information
     from `sf_datasets` into `mf_dataset`.
@@ -534,11 +533,11 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs)
         _convert_legacy_to_enhanced(legacy_datasets, self)
-  
+
 
 class PerframeFunctionalGroup(DataElementSequence):
 
-    def __init__(self, number_of_frames: int) -> None:    
+    def __init__(self, number_of_frames: int) -> None:
         super().__init__()
         for i in range(0, number_of_frames):
             item = Dataset()
@@ -552,7 +551,7 @@ class SharedFunctionalGroup(DataElementSequence):
         item = Dataset()
         self.append(item)
 
-    
+
 class FrameSet:
     def __init__(self, single_frame_list: list,
                  distinguishing_tags: list):
@@ -862,7 +861,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         self[tg] = DataElement(tg, 'SQ', self._perframe_functional_group)
         self._shared_functional_group = SharedFunctionalGroup()
         tg = tag_for_keyword('SharedFunctionalGroupsSequence')
-        self[tg] = DataElement(tg, 'SQ', self._perframe_functional_group)
+        self[tg] = DataElement(tg, 'SQ', self._shared_functional_group)
         self.DistinguishingAttributesTags = self._get_tag_used_dictionary(
             frame_set.DistinguishingAttributesTags)
         self.ExcludedFromPerFrameTags = self._get_tag_used_dictionary(
@@ -873,14 +872,14 @@ class LegacyConvertedEnhanceImage(SOPClass):
             frame_set.SharedTags)
         self.ExcludedFromFunctionalGroupsTags = {
             tag_for_keyword('SpecificCharacterSet'): False}
-        
+
         # --------------------------------------------------------------------
         self.__build_blocks: list = []
         # == == == == == == == == == == == == == == == == == == == == == == ==
         new_ds = []
         for item in sorted(self._legacy_datasets, key=sort_key):
             new_ds.append(item)
-        
+
         # self = multi_frame_output
         self._module_excepted_list: dict = {
          "patient": [],
@@ -978,17 +977,15 @@ class LegacyConvertedEnhanceImage(SOPClass):
         self._byte_data = bytearray()
         self._word_data = bytearray()
         self.EarliestContentDateTime = self.FarthestFutureDateTime
-
-
         if (_SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
                 'legacy-converted-enhanced-ct-image'):
-            self.AddBuildBlocksForCT()
+            self._add_build_blocks_for_ct()
         elif (_SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
                 'legacy-converted-enhanced-mr-image'):
-            self.AddBuildBlocksForMR()
+            self._add_build_blocks_for_mr()
         elif (_SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
                 'legacy-converted-enhanced-pet-image'):
-            self.AddBuildBlocksForPET()
+            self._add_build_blocks_for_pet()
 
     def _is_empty_or_empty_items(self, attribute: DataElement) -> bool:
         if attribute.is_empty:
@@ -1076,12 +1073,6 @@ class LegacyConvertedEnhanceImage(SOPClass):
     def _add_module(self, module_name: str, excepted_attributes: list = [],
                     check_not_to_be_perframe: bool = True,
                     check_not_to_be_empty: bool = False) -> None:
-        # sf_sop_instance_uid = sf_datasets[0]
-        # mf_sop_instance_uid = LEGACY_ENHANCED_SOP_CLASS_UID_MAP[
-        #   sf_sop_instance_uid]
-        # iod_name = _SOP_CLASS_UID_IOD_KEY_MAP[mf_sop_instance_uid]
-        # modules = IOD_MODULE_MAP[iod_name]
-        from copy import deepcopy
         attribs: list = MODULE_ATTRIBUTE_MAP[module_name]
         ref_dataset = self._legacy_datasets[0]
         for a in attribs:
@@ -1094,7 +1085,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                     check_not_to_be_perframe=check_not_to_be_perframe,
                     check_not_to_be_empty=check_not_to_be_empty)
 
-    def add_module_image_pixel(self) -> None:
+    def _add_module_to_mf_image_pixel(self) -> None:
         module_and_excepted_at = {
          "image-pixel":
          [
@@ -1111,8 +1102,8 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 excepted_attributes=except_at,
                 check_not_to_be_empty=False,
                 check_not_to_be_perframe=True)  # don't check the perframe set
-    
-    def add_module_enhanced_common_image(self) -> None:
+
+    def _add_module_to_mf_enhanced_common_image(self) -> None:
         ref_dataset = self._legacy_datasets[0]
         attribs_to_be_added = [
             'ContentQualification',
@@ -1154,26 +1145,26 @@ class LegacyConvertedEnhanceImage(SOPClass):
             # also, do not need to check if PhotometricInterpretation is
             #           per-frame, since a distinguishing attribute
             phmi_kw = 'PhotometricInterpretation'
-            phmi_a = self._get_or_create_attribute(self._legacy_datasets[0],
-                                                   phmi_kw,
-                                                   "MONOCHROME2")
+            phmi_a = self._get_or_create_attribute(
+                self._legacy_datasets[0], phmi_kw, "MONOCHROME2")
             LUT_shape_default = "INVERTED" if phmi_a.value == 'MONOCHROME1'\
                 else "IDENTITY"
-            LUT_shape_a = self._get_or_create_attribute(self._legacy_datasets[0],
-                                                        'PresentationLUTShape',
-                                                        LUT_shape_default)
+            LUT_shape_a = self._get_or_create_attribute(
+                self._legacy_datasets[0],
+                'PresentationLUTShape',
+                LUT_shape_default)
             if not LUT_shape_a.is_empty:
                 self['PresentationLUTShape'] = LUT_shape_a
         # Icon Image Sequence - always discard these
 
-    def add_module_contrast_bolus(self) -> None:
+    def _add_module_to_mf_contrast_bolus(self) -> None:
         self._add_module('contrast-bolus')
 
-    def add_module_enhanced_ct_image(self) -> None:
+    def _add_module_to_mf_enhanced_ct_image(self) -> None:
         pass
         # David's code doesn't hold anything for this module ... should ask him
 
-    def add_module_enhanced_pet_image(self) -> None:
+    def _add_module_to_mf_enhanced_pet_image(self) -> None:
         # David's code doesn't hold anything for this module ... should ask him
         kw = 'ContentQualification'
         tg = tag_for_keyword(kw)
@@ -1181,7 +1172,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             self._legacy_datasets[0], kw, 'RESEARCH')
         self[tg] = elem
 
-    def add_module_enhanced_mr_image(self) -> None:
+    def _add_module_to_mf_enhanced_mr_image(self) -> None:
         self._copy_attrib_if_present(
             self._legacy_datasets[0],
             self,
@@ -1223,16 +1214,16 @@ class LegacyConvertedEnhanceImage(SOPClass):
             check_not_to_be_perframe=True,
             check_not_to_be_empty=True)
 
-    def add_module_acquisition_context(self) -> None:
+    def _add_module_to_mf_acquisition_context(self) -> None:
         tg = tag_for_keyword('AcquisitionContextSequence')
         if tg not in self._PerFrameTags:
             self[tg] = self._get_or_create_attribute(
                 self._legacy_datasets[0],
                 tg,
                 None)
-   
-    def _get_value_for_frame_type_common_ct_mr_pet_image_description(self,
-                                  attrib: DataElement) -> Union[list, None]:
+
+    def _get_value_for_frame_type(
+            self, attrib: DataElement) -> Union[list, None]:
         if not isinstance(attrib, DataElement):
             return None
         output = ['', '', '', '']
@@ -1244,7 +1235,8 @@ class LegacyConvertedEnhanceImage(SOPClass):
         output[3] = 'NONE'
         return output
 
-    def _get_frame_type_seq_tag_common_ct_mr_pet_image_description(self, modality: str) -> int:
+    def _get_frame_type_seq_tag(
+            self, modality: str) -> int:
         seq_kw = '{}{}FrameTypeSequence'
         if modality == 'PET':
             seq_kw = seq_kw.format(modality, '')
@@ -1252,95 +1244,96 @@ class LegacyConvertedEnhanceImage(SOPClass):
             seq_kw = seq_kw.format(modality, 'Image')
         return tag_for_keyword(seq_kw)
 
-    def _add_module_to_functional_group_common_ct_mr_pet_image_description(self, src_fg: Dataset,
-                                        dest_fg: Dataset, level: int) -> None:
-        FrameType_a = src_fg['ImageType']
+    def _add_module_to_dataset_common_ct_mr_pet_image_description(
+            self, source: Dataset, destination: Dataset, level: int) -> None:
+        FrameType_a = source['ImageType']
         if level == 0:
             FrameType_tg = tag_for_keyword('ImageType')
         else:
             FrameType_tg = tag_for_keyword('FrameType')
-        new_val = self._get_value_for_frame_type_common_ct_mr_pet_image_description(FrameType_a)
-        dest_fg[FrameType_tg] = DataElement(FrameType_tg,
-                                            FrameType_a.VR, new_val)
+        new_val = self._get_value_for_frame_type(FrameType_a)
+        destination[FrameType_tg] = DataElement(
+            FrameType_tg, FrameType_a.VR, new_val)
 
         def element_generator(kw: str, val: Any) -> DataElement:
             return DataElement(
                 tag_for_keyword(kw),
                 dictionary_VR(tag_for_keyword(kw)), val)
-        dest_fg['PixelPresentation'] = element_generator(
+        destination['PixelPresentation'] = element_generator(
             'PixelPresentation', "MONOCHROME")
-        dest_fg['VolumetricProperties'] = element_generator(
+        destination['VolumetricProperties'] = element_generator(
             'VolumetricProperties', "VOLUME")
-        dest_fg['VolumeBasedCalculationTechnique'] = element_generator(
+        destination['VolumeBasedCalculationTechnique'] = element_generator(
             'VolumeBasedCalculationTechnique', "NONE")
 
-    def add_module_common_ct_mr_pet_image_description(self, modality: str) -> None:
+    def _add_module_to_mf_common_ct_mr_pet_image_description(
+            self, modality: str) -> None:
         im_type_tag = tag_for_keyword('ImageType')
-        seq_tg = self._get_frame_type_seq_tag_common_ct_mr_pet_image_description(modality)
+        seq_tg = self._get_frame_type_seq_tag(modality)
         if im_type_tag not in self._PerFrameTags:
-            self._add_module_to_functional_group_common_ct_mr_pet_image_description(self._legacy_datasets[0],
-                                                 self, 0)
+            self._add_module_to_dataset_common_ct_mr_pet_image_description(
+                self._legacy_datasets[0], self, 0)
             # ----------------------------
             item = self._shared_functional_group[0]
             inner_item = Dataset()
-            self._add_module_to_functional_group_common_ct_mr_pet_image_description(self._legacy_datasets[0],
-                                                 inner_item, 1)
+            self._add_module_to_dataset_common_ct_mr_pet_image_description(
+                self._legacy_datasets[0], inner_item, 1)
             item[seq_tg] = DataElement(
                 seq_tg, 'SQ', DataElementSequence([inner_item]))
         else:
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
                 inner_item = Dataset()
-                self._add_module_to_functional_group_common_ct_mr_pet_image_description(self._legacy_datasets[i],
-                                                     inner_item, 1)
+                self._add_module_to_dataset_common_ct_mr_pet_image_description(
+                    self._legacy_datasets[i], inner_item, 1)
                 item[seq_tg] = DataElement(
                     seq_tg, 'SQ', DataElementSequence([inner_item]))
 
-    def add_module_composite_instance_contex(self) -> None:
+    def _add_module_to_mf_composite_instance_contex(self) -> None:
         for module_name, excpeted_a in self._module_excepted_list.items():
             self._add_module(
              module_name,
              excepted_attributes=excpeted_a,
              check_not_to_be_empty=False,
              check_not_to_be_perframe=True)  # don't check the perframe set
-       
-    def _add_module_to_functional_group_frame_anatomy(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+
+    def _add_module_to_dataset_frame_anatomy(
+            self, source: Dataset, destination: Dataset) -> None:
         # David's code is more complicaated than mine
         # Should check it out later.
         fa_seq_tg = tag_for_keyword('FrameAnatomySequence')
         item = Dataset()
-        self._copy_attrib_if_present(src_fg, item, 'AnatomicRegionSequence',
+        self._copy_attrib_if_present(source, item, 'AnatomicRegionSequence',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
         if len(item) != 0:
             self._copy_attrib_if_present(
-                src_fg, item, 'FrameLaterality',
+                source, item, 'FrameLaterality',
                 check_not_to_be_perframe=False,
                 check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
                 self._copy_attrib_if_present(
-                    src_fg, item, 'ImageLaterality',
+                    source, item, 'ImageLaterality',
                     'FrameLaterality',
                     check_not_to_be_perframe=False,
                     check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
                 self._copy_attrib_if_present(
-                    src_fg, item, 'Laterality',
+                    source, item, 'Laterality',
                     'FrameLaterality',
                     check_not_to_be_perframe=False,
                     check_not_to_be_empty=True)
             if 'FrameLaterality' not in item:
                 FrameLaterality_a = self._get_or_create_attribute(
-                    src_fg, 'FrameLaterality', "U")
+                    source, 'FrameLaterality', "U")
                 item['FrameLaterality'] = FrameLaterality_a
             FrameAnatomy_a = DataElement(
                 fa_seq_tg,
                 dictionary_VR(fa_seq_tg),
                 DataElementSequence([item]))
-            dest_fg['FrameAnatomySequence'] = FrameAnatomy_a
+            destination['FrameAnatomySequence'] = FrameAnatomy_a
 
-    def _contains_right_attributes_frame_anatomy(self, tags: dict) -> bool:
+    def _has_frame_anatomy(self, tags: dict) -> bool:
         laterality_tg = tag_for_keyword('Laterality')
         im_laterality_tg = tag_for_keyword('ImageLaterality')
         bodypart_tg = tag_for_keyword('BodyPartExamined')
@@ -1350,20 +1343,21 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 bodypart_tg in tags or
                 anatomical_reg_tg)
 
-    def add_module_frame_anatomy(self) -> None:
-        if (not self._contains_right_attributes_frame_anatomy(self._PerFrameTags) and
-            (self._contains_right_attributes_frame_anatomy(self._SharedTags) or
-             self._contains_right_attributes_frame_anatomy(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_frame_anatomy(self) -> None:
+        if (not self._has_frame_anatomy(self._PerFrameTags) and
+            (self._has_frame_anatomy(self._SharedTags) or
+             self._has_frame_anatomy(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_frame_anatomy(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_frame_anatomy(self._PerFrameTags):
+            self._add_module_to_dataset_frame_anatomy(
+                self._legacy_datasets[0], item)
+        elif self._has_frame_anatomy(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_frame_anatomy(
+                self._add_module_to_dataset_frame_anatomy(
                     self._legacy_datasets[i], item)
 
-    def _contains_right_attributes_pixel_measures(self, tags: dict) -> bool:
+    def _has_pixel_measures(self, tags: dict) -> bool:
         PixelSpacing_tg = tag_for_keyword('PixelSpacing')
         SliceThickness_tg = tag_for_keyword('SliceThickness')
         ImagerPixelSpacing_tg = tag_for_keyword('ImagerPixelSpacing')
@@ -1371,19 +1365,19 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 SliceThickness_tg in tags or
                 ImagerPixelSpacing_tg in tags)
 
-    def _add_module_to_functional_group_pixel_measures(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_pixel_measures(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'PixelSpacing',
                                      check_not_to_be_perframe=False)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'SliceThickness',
                                      check_not_to_be_perframe=False)
         if 'PixelSpacing' not in item:
-            self._copy_attrib_if_present(src_fg,
+            self._copy_attrib_if_present(source,
                                          item,
                                          'ImagerPixelSpacing',
                                          'PixelSpacing',
@@ -1394,29 +1388,30 @@ class LegacyConvertedEnhanceImage(SOPClass):
         seq = DataElement(pixel_measures_tg,
                           dictionary_VR(pixel_measures_tg),
                           DataElementSequence([item]))
-        dest_fg[pixel_measures_tg] = seq
+        destination[pixel_measures_tg] = seq
 
-    def add_module_pixel_measures(self) -> None:
-        if (not self._contains_right_attributes_pixel_measures(self._PerFrameTags) and
-            (self._contains_right_attributes_pixel_measures(self._SharedTags) or
-            self._contains_right_attributes_pixel_measures(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_pixel_measures(self) -> None:
+        if (not self._has_pixel_measures(self._PerFrameTags) and
+            (self._has_pixel_measures(self._SharedTags) or
+            self._has_pixel_measures(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_pixel_measures(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_pixel_measures(self._PerFrameTags):
+            self._add_module_to_dataset_pixel_measures(
+                self._legacy_datasets[0], item)
+        elif self._has_pixel_measures(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_pixel_measures(
+                self._add_module_to_dataset_pixel_measures(
                     self._legacy_datasets[i], item)
 
-    def _contains_right_attributes_plane_position(self, tags: dict) -> bool:
+    def _has_plane_position(self, tags: dict) -> bool:
         ImagePositionPatient_tg = tag_for_keyword('ImagePositionPatient')
         return ImagePositionPatient_tg in tags
 
-    def _add_module_to_functional_group_plane_position(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_plane_position(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'ImagePositionPatient',
                                      check_not_to_be_perframe=False,
@@ -1426,29 +1421,30 @@ class LegacyConvertedEnhanceImage(SOPClass):
         seq = DataElement(PlanePositionSequence_tg,
                           dictionary_VR(PlanePositionSequence_tg),
                           DataElementSequence([item]))
-        dest_fg[PlanePositionSequence_tg] = seq
+        destination[PlanePositionSequence_tg] = seq
 
-    def add_module_plane_position(self) -> None:
-        if (not self._contains_right_attributes_plane_position(self._PerFrameTags) and
-            (self._contains_right_attributes_plane_position(self._SharedTags) or
-            self._contains_right_attributes_plane_position(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_plane_position(self) -> None:
+        if (not self._has_plane_position(self._PerFrameTags) and
+            (self._has_plane_position(self._SharedTags) or
+            self._has_plane_position(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_plane_position(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_plane_position(self._PerFrameTags):
+            self._add_module_to_dataset_plane_position(
+                self._legacy_datasets[0], item)
+        elif self._has_plane_position(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_plane_position(
-                    self._legacy_datasets[i], item)   
-        
-    def _contains_right_attributes_plane_orientation(self, tags: dict) -> bool:
+                self._add_module_to_dataset_plane_position(
+                    self._legacy_datasets[i], item)
+
+    def _has_plane_orientation(self, tags: dict) -> bool:
         ImageOrientationPatient_tg = tag_for_keyword('ImageOrientationPatient')
         return ImageOrientationPatient_tg in tags
 
-    def _add_module_to_functional_group_plane_orientation(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_plane_orientation(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'ImageOrientationPatient',
                                      check_not_to_be_perframe=False,
@@ -1456,24 +1452,23 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'PlaneOrientationSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_plane_orientation(self) -> None:
-        if (not self._contains_right_attributes_plane_orientation(self._PerFrameTags) and
-            (self._contains_right_attributes_plane_orientation(self._SharedTags) or
-            self._contains_right_attributes_plane_orientation(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_plane_orientation(self) -> None:
+        if (not self._has_plane_orientation(self._PerFrameTags) and
+            (self._has_plane_orientation(self._SharedTags) or
+            self._has_plane_orientation(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_plane_orientation(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_plane_orientation(self._PerFrameTags):
+            self._add_module_to_dataset_plane_orientation(
+                self._legacy_datasets[0], item)
+        elif self._has_plane_orientation(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_plane_orientation(
+                self._add_module_to_dataset_plane_orientation(
                     self._legacy_datasets[i], item)
-    
 
-
-    def _contains_right_attributes_frame_voi_lut(self, tags: dict) -> bool:
+    def _has_frame_voi_lut(self, tags: dict) -> bool:
         WindowWidth_tg = tag_for_keyword('WindowWidth')
         WindowCenter_tg = tag_for_keyword('WindowCenter')
         WindowCenterWidthExplanation_tg = tag_for_keyword(
@@ -1482,20 +1477,20 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 WindowCenter_tg in tags or
                 WindowCenterWidthExplanation_tg in tags)
 
-    def _add_module_to_functional_group_frame_voi_lut(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_frame_voi_lut(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'WindowWidth',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'WindowCenter',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'WindowCenterWidthExplanation',
                                      check_not_to_be_perframe=False,
@@ -1503,22 +1498,23 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'FrameVOILUTSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_frame_voi_lut(self) -> None:
-        if (not self._contains_right_attributes_frame_voi_lut(self._PerFrameTags) and
-            (self._contains_right_attributes_frame_voi_lut(self._SharedTags) or
-            self._contains_right_attributes_frame_voi_lut(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_frame_voi_lut(self) -> None:
+        if (not self._has_frame_voi_lut(self._PerFrameTags) and
+            (self._has_frame_voi_lut(self._SharedTags) or
+            self._has_frame_voi_lut(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_frame_voi_lut(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_frame_voi_lut(self._PerFrameTags):
+            self._add_module_to_dataset_frame_voi_lut(
+                self._legacy_datasets[0], item)
+        elif self._has_frame_voi_lut(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_frame_voi_lut(
+                self._add_module_to_dataset_frame_voi_lut(
                     self._legacy_datasets[i], item)
-    
-    def _contains_right_attributes_pixel_value_transformation(self, tags: dict) -> bool:
+
+    def _has_pixel_value_transformation(self, tags: dict) -> bool:
         RescaleIntercept_tg = tag_for_keyword('RescaleIntercept')
         RescaleSlope_tg = tag_for_keyword('RescaleSlope')
         RescaleType_tg = tag_for_keyword('RescaleType')
@@ -1526,35 +1522,35 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 RescaleSlope_tg in tags or
                 RescaleType_tg in tags)
 
-    def _add_module_to_functional_group_pixel_value_transformation(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_pixel_value_transformation(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'RescaleSlope',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'RescaleIntercept',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
         haveValuesSoAddType = ('RescaleSlope' in item or
                                'RescaleIntercept' in item)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'RescaleType',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=True)
         value = ''
-        modality = '' if 'Modality' not in src_fg\
-            else src_fg["Modality"].value
+        modality = '' if 'Modality' not in source\
+            else source["Modality"].value
         if haveValuesSoAddType:
             value = 'US'
             if modality == 'CT':
                 containes_localizer = False
-                ImageType_v = [] if 'ImageType' not in src_fg\
-                    else src_fg['ImageType'].value
+                ImageType_v = [] if 'ImageType' not in source\
+                    else source['ImageType'].value
                 for i in ImageType_v:
                     if i == 'LOCALIZER':
                         containes_localizer = True
@@ -1562,8 +1558,8 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 if not containes_localizer:
                     value = "HU"
             # elif modality == 'PT':
-                # value = 'US' if 'Units' not in src_fg\
-                #     else src_fg['Units'].value
+                # value = 'US' if 'Units' not in source\
+                #     else source['Units'].value
             else:
                 value = 'US'
             tg = tag_for_keyword('RescaleType')
@@ -1578,62 +1574,64 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'PixelValueTransformationSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_pixel_value_transformation(self) -> None:
-        if (not self._contains_right_attributes_pixel_value_transformation(self._PerFrameTags) and
-            (self._contains_right_attributes_pixel_value_transformation(self._SharedTags) or
-            self._contains_right_attributes_pixel_value_transformation(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_pixel_value_transformation(self) -> None:
+        if (not self._has_pixel_value_transformation(self._PerFrameTags) and
+            (self._has_pixel_value_transformation(self._SharedTags) or
+            self._has_pixel_value_transformation(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_pixel_value_transformation(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_pixel_value_transformation(self._PerFrameTags):
+            self._add_module_to_dataset_pixel_value_transformation(
+                self._legacy_datasets[0], item)
+        elif self._has_pixel_value_transformation(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_pixel_value_transformation(
+                self._add_module_to_dataset_pixel_value_transformation(
                     self._legacy_datasets[i], item)
-    
-    def _contains_right_attributes_referenced_image(self, tags: dict) -> bool:
+
+    def _has_referenced_image(self, tags: dict) -> bool:
         return tag_for_keyword('ReferencedImageSequence') in tags
 
-    def _add_module_to_functional_group_referenced_image(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
-        self._copy_attrib_if_present(src_fg,
-                                     dest_fg,
+    def _add_module_to_dataset_referenced_image(
+        self, source: Dataset, destination: Dataset) -> None:
+        self._copy_attrib_if_present(source,
+                                     destination,
                                      'ReferencedImageSequence',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
 
-    def add_module_referenced_image(self) -> None:
-        if (not self._contains_right_attributes_referenced_image(self._PerFrameTags) and
-            (self._contains_right_attributes_referenced_image(self._SharedTags) or
-            self._contains_right_attributes_referenced_image(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_referenced_image(self) -> None:
+        if (not self._has_referenced_image(self._PerFrameTags) and
+            (self._has_referenced_image(self._SharedTags) or
+            self._has_referenced_image(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_referenced_image(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_referenced_image(self._PerFrameTags):
+            self._add_module_to_dataset_referenced_image(
+                self._legacy_datasets[0], item)
+        elif self._has_referenced_image(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_referenced_image(
+                self._add_module_to_dataset_referenced_image(
                     self._legacy_datasets[i], item)
 
-    def _contains_right_attributes_derivation_image(self, tags: dict) -> bool:
+    def _has_derivation_image(self, tags: dict) -> bool:
         return tag_for_keyword('SourceImageSequence') in tags
 
-    def _add_module_to_functional_group_derivation_image(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_derivation_image(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'DerivationDescription',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=True)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'DerivationCodeSequence',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'SourceImageSequence',
                                      check_not_to_be_perframe=False,
@@ -1641,19 +1639,20 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'DerivationImageSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_derivation_image(self) -> None:
-        if (not self._contains_right_attributes_derivation_image(self._PerFrameTags) and
-            (self._contains_right_attributes_derivation_image(self._SharedTags) or
-            self._contains_right_attributes_derivation_image(self.ExcludedFromPerFrameTags))
+    def _add_module_to_mf_derivation_image(self) -> None:
+        if (not self._has_derivation_image(self._PerFrameTags) and
+            (self._has_derivation_image(self._SharedTags) or
+            self._has_derivation_image(self.ExcludedFromPerFrameTags))
             ):
             item = self._shared_functional_group[0]
-            self._add_module_to_functional_group_derivation_image(self._legacy_datasets[0], item)
-        elif self._contains_right_attributes_derivation_image(self._PerFrameTags):
+            self._add_module_to_dataset_derivation_image(
+                self._legacy_datasets[0], item)
+        elif self._has_derivation_image(self._PerFrameTags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_group[i]
-                self._add_module_to_functional_group_derivation_image(
+                self._add_module_to_dataset_derivation_image(
                     self._legacy_datasets[i], item)
 
     def _get_tag_used_dictionary(self, input: list) -> dict:
@@ -1662,11 +1661,11 @@ class LegacyConvertedEnhanceImage(SOPClass):
             out[item] = False
         return out
 
-    def _add_module_to_functional_group_unassigned_perframe(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_unassigned_perframe(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
         for tg in self._eligeible_tags:
-            self._copy_attrib_if_present(src_fg,
+            self._copy_attrib_if_present(source,
                                          item,
                                          tg,
                                          check_not_to_be_perframe=False,
@@ -1674,7 +1673,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'UnassignedPerFrameConvertedAttributesSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
     def _add_largest_smallest_pixle_value(self) -> None:
         ltg = tag_for_keyword("LargestImagePixelValue")
@@ -1704,7 +1703,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
 
         stg = "SmallestImagePixelValue"
 
-    def add_module_unassigned_perframe(self) -> None:
+    def _add_module_to_mf_unassigned_perframe(self) -> None:
         # first collect all not used tags
         # note that this is module is order dependent
         self._add_largest_smallest_pixle_value()
@@ -1714,17 +1713,17 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self._eligeible_tags.append(tg)
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_group[i]
-            self._add_module_to_functional_group_unassigned_perframe(
+            self._add_module_to_dataset_unassigned_perframe(
                 self._legacy_datasets[i], item)
 
-    def _add_module_to_functional_group_unassigned_shared(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_unassigned_shared(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
         for tg, used in self._SharedTags.items():
             if (not used and
                     tg not in self and
                     tg not in self.ExcludedFromFunctionalGroupsTags):
-                self._copy_attrib_if_present(src_fg,
+                self._copy_attrib_if_present(source,
                                              item,
                                              tg,
                                              check_not_to_be_perframe=False,
@@ -1732,16 +1731,17 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'UnassignedSharedConvertedAttributesSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_unassigned_shared(self) -> None:
+    def _add_module_to_mf_unassigned_shared(self) -> None:
         item = self._shared_functional_group[0]
-        self._add_module_to_functional_group_unassigned_shared(self._legacy_datasets[0], item)
-    
+        self._add_module_to_dataset_unassigned_shared(
+            self._legacy_datasets[0], item)
+
     def _create_empty_element(self, tg: BaseTag) -> DataElement:
         return DataElement(tg, dictionary_VR(tg), None)
 
-    def add_module_empty_type2_attributes(self) -> None:
+    def _add_module_to_mf_empty_type2_attributes(self) -> None:
         iod_name = _SOP_CLASS_UID_IOD_KEY_MAP[
             self['SOPClassUID'].value]
         modules = IOD_MODULE_MAP[iod_name]
@@ -1758,17 +1758,17 @@ class LegacyConvertedEnhanceImage(SOPClass):
                            tg not in self._SharedTags):
                             self[tg] =\
                                 self._create_empty_element(tg)
-    
-    def _add_module_to_functional_group_conversion_source(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+
+    def _add_module_to_dataset_conversion_source(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'SOPClassUID',
                                      'ReferencedSOPClassUID',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=True)
-        self._copy_attrib_if_present(src_fg,
+        self._copy_attrib_if_present(source,
                                      item,
                                      'SOPInstanceUID',
                                      'ReferencedSOPInstanceUID',
@@ -1777,14 +1777,14 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'ConversionSourceAttributesSequence'
         tg = tag_for_keyword(kw)
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
-        dest_fg[tg] = seq
+        destination[tg] = seq
 
-    def add_module_conversion_source(self) -> None:
+    def _add_module_to_mf_conversion_source(self) -> None:
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_group[i]
-            self._add_module_to_functional_group_conversion_source(
+            self._add_module_to_dataset_conversion_source(
                 self._legacy_datasets[i], item)
-    
+
             self.EarliestFrameAcquisitionDateTime = self.FarthestFutureDateTime
 
     def _build_slices_geometry_frame_content(self) -> None:
@@ -1843,7 +1843,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             last_slice = self._slices[0]
             for i in range(1, slice_count):
                 curr_slice = self._slices[i]
-                if not GeometryOfSlice.AreParallel(
+                if not GeometryOfSlice.are_parallel(
                         curr_slice, last_slice, self._tolerance):
                     return False
                 last_slice = curr_slice
@@ -1861,7 +1861,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         if self._are_all_slices_parallel_frame_content():
             self._slice_location_map = {}
             for idx, s in enumerate(self._slices):
-                not_round_dist = s.GetDistanceAlongOrigin()
+                not_round_dist = s.get_distance_along_origin()
                 dist = round(not_round_dist, round_digits)
                 logger.debug(
                     'Slice locaation {} rounded by {} digits to {}'.format(
@@ -1894,7 +1894,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                         "InStackPositionNumber", distance_index)
                 distance_index += 1
 
-    def _contains_right_attributes_frame_content(self, tags: dict) -> bool:
+    def _has_frame_content(self, tags: dict) -> bool:
         AcquisitionDateTime_tg = tag_for_keyword('AcquisitionDateTime')
         AcquisitionDate_tg = tag_for_keyword('AcquisitionDate')
         AcquisitionTime_tg = tag_for_keyword('AcquisitionTime')
@@ -1902,31 +1902,31 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 AcquisitionTime_tg in tags or
                 AcquisitionDate_tg in tags)
 
-    def _add_module_to_functional_group_frame_content(
-        self, src_fg: Dataset, dest_fg: Dataset) -> None:
+    def _add_module_to_dataset_frame_content(
+        self, source: Dataset, destination: Dataset) -> None:
         item = Dataset()
         fan_tg = tag_for_keyword('FrameAcquisitionNumber')
         an_tg = tag_for_keyword('AcquisitionNumber')
-        if an_tg in src_fg:
-            fan_val = src_fg[an_tg].value
+        if an_tg in source:
+            fan_val = source[an_tg].value
         else:
             fan_val = 0
         item[fan_tg] = DataElement(fan_tg, dictionary_VR(fan_tg), fan_val)
         self._mark_tag_as_used(an_tg)
         # ----------------------------------------------------------------
         AcquisitionDateTime_a = self._get_or_create_attribute(
-            src_fg, 'AcquisitionDateTime',  self.EarliestDateTime)
+            source, 'AcquisitionDateTime', self.EarliestDateTime)
         # chnage the keyword to FrameAcquisitionDateTime:
         FrameAcquisitionDateTime_a = DataElement(
             tag_for_keyword('FrameAcquisitionDateTime'),
             'DT', AcquisitionDateTime_a.value)
-        AcquisitionDateTime_is_perframe = self._contains_right_attributes_frame_content(
+        AcquisitionDateTime_is_perframe = self._has_frame_content(
             self._PerFrameTags)
         if FrameAcquisitionDateTime_a.value == self.EarliestDateTime:
             AcquisitionDate_a = self._get_or_create_attribute(
-                src_fg, 'AcquisitionDate', self.EarliestDate)
+                source, 'AcquisitionDate', self.EarliestDate)
             AcquisitionTime_a = self._get_or_create_attribute(
-                src_fg, 'AcquisitionTime', self.EarliestTime)
+                source, 'AcquisitionTime', self.EarliestTime)
             d = AcquisitionDate_a.value
             t = AcquisitionTime_a.value
             # FrameAcquisitionDateTime_a.value = (DT(d.strftime('%Y%m%d') +
@@ -1938,10 +1938,10 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 self.EarliestFrameAcquisitionDateTime =\
                     FrameAcquisitionDateTime_a.value
             if not AcquisitionDateTime_is_perframe:
-                if ('TriggerTime' in src_fg and
-                        'FrameReferenceDateTime' not in src_fg):
+                if ('TriggerTime' in source and
+                        'FrameReferenceDateTime' not in source):
                     TriggerTime_a = self._get_or_create_attribute(
-                        src_fg, 'TriggerTime', self.EarliestTime)
+                        source, 'TriggerTime', self.EarliestTime)
                     trigger_time_in_millisecond = int(TriggerTime_a.value)
                     if trigger_time_in_millisecond > 0:
                         t_delta = timedelta(trigger_time_in_millisecond)
@@ -1956,30 +1956,30 @@ class LegacyConvertedEnhanceImage(SOPClass):
             item['FrameAcquisitionDateTime'] = FrameAcquisitionDateTime_a
         # ---------------------------------
         self._copy_attrib_if_present(
-            src_fg, item, "AcquisitionDuration",
+            source, item, "AcquisitionDuration",
             "FrameAcquisitionDuration",
             check_not_to_be_perframe=False,
             check_not_to_be_empty=True)
         self._copy_attrib_if_present(
-            src_fg, item,
+            source, item,
             'TemporalPositionIndex',
             check_not_to_be_perframe=False,
             check_not_to_be_empty=True)
         self._copy_attrib_if_present(
-            src_fg, item, "ImageComments",
+            source, item, "ImageComments",
             "FrameComments",
             check_not_to_be_perframe=False,
             check_not_to_be_empty=True)
         # -----------------------------------
         seq_tg = tag_for_keyword('FrameContentSequence')
-        dest_fg[seq_tg] = DataElement(
+        destination[seq_tg] = DataElement(
             seq_tg, dictionary_VR(seq_tg), DataElementSequence([item]))
     # Also we want to add the earliest frame acq date time to the multiframe:
 
     def _add_acquisition_info_frame_content(self) -> None:
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_group[i]
-            self._add_module_to_functional_group_frame_content(
+            self._add_module_to_dataset_frame_content(
                 self._legacy_datasets[i], item)
         if self.EarliestFrameAcquisitionDateTime < self.FarthestFutureDateTime:
             kw = 'AcquisitionDateTime'
@@ -1987,7 +1987,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                 tag_for_keyword(kw),
                 'DT', self.EarliestFrameAcquisitionDateTime)
 
-    def add_module_frame_content(self) -> None:
+    def _add_module_to_mf_frame_content(self) -> None:
         self._add_acquisition_info_frame_content()
         self._add_stack_info_frame_content()
 
@@ -1996,11 +1996,12 @@ class LegacyConvertedEnhanceImage(SOPClass):
 
     def _is_other_word_vr_pixel_data(self, vr: str) -> bool:
         return vr[0] == 'O' and vr[1] == 'W'
-    # def _contains_right_attributes(self, tags: dict) -> bool:
+    # def _has(self, tags: dict) -> bool:
     #     ImagePositionPatient_tg = tag_for_keyword('ImagePositionPatient')
     #     return ImagePositionPatient_tg in tags
 
-    def _copy_data_pixel_data(self, src: bytearray, word_data: bool = False) -> None:
+    def _copy_data_pixel_data(
+            self, src: bytearray, word_data: bool = False) -> None:
         # Make sure that the length complies by row and col
         if word_data:
             des = self._word_data
@@ -2014,7 +2015,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
             src = tmp
         des.extend(src)
 
-    def add_module_pixel_data(self) -> None:
+    def _add_module_to_mf_pixel_data(self) -> None:
         kw = 'NumberOfFrames'
         tg = tag_for_keyword(kw)
         self._frame_count = len(self._legacy_datasets)
@@ -2052,7 +2053,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
                                        'OW', bytes(self._word_data))
         self[kw] = MF_PixelData
 
-    def add_module_content_date_time(self) -> None:
+    def _add_module_to_mf_content_date_time(self) -> None:
         default_atrs = ["Acquisition", "Series", "Study"]
         for i in range(0, len(self._legacy_datasets)):
             src = self._legacy_datasets[i]
@@ -2093,12 +2094,12 @@ class LegacyConvertedEnhanceImage(SOPClass):
             self[kw] = DataElement(
                 tag_for_keyword(kw), 'TM', n_t)
 
-    def _add_data_element_to_target_contributing_equipment(self, target: Dataset,
-                                    kw: str, value: Any) -> None:
+    def _add_data_element_to_target_contributing_equipment(
+            self, target: Dataset, kw: str, value: Any) -> None:
         tg = tag_for_keyword(kw)
         target[kw] = DataElement(tg, dictionary_VR(tg), value)
 
-    def add_module_contributing_equipment(self) -> None:
+    def _add_module_to_mf_contributing_equipment(self) -> None:
         CodeValue_tg = tag_for_keyword('CodeValue')
         CodeMeaning_tg = tag_for_keyword('CodeMeaning')
         CodingSchemeDesignator_tg = tag_for_keyword('CodingSchemeDesignator')
@@ -2121,8 +2122,10 @@ class LegacyConvertedEnhanceImage(SOPClass):
         item: Dataset = Dataset()
         item[
             'PurposeOfReferenceCodeSequence'] = PurposeOfReferenceCode_seq
-        self._add_data_element_to_target_contributing_equipment(item, "Manufacturer", 'HighDicom')
-        self._add_data_element_to_target_contributing_equipment(item, "InstitutionName", 'HighDicom')
+        self._add_data_element_to_target_contributing_equipment(
+            item, "Manufacturer", 'HighDicom')
+        self._add_data_element_to_target_contributing_equipment(
+            item, "InstitutionName", 'HighDicom')
         self._add_data_element_to_target_contributing_equipment(
             item,
             "InstitutionalDepartmentName",
@@ -2142,7 +2145,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         tg = tag_for_keyword('ContributingEquipmentSequence')
         self[tg] = DataElement(tg, 'SQ', DataElementSequence([item]))
 
-    def add_module_instance_creation_date_time(self) -> None:
+    def _add_module_to_mf_instance_creation_date_time(self) -> None:
         nnooww = datetime.now()
         n_d = DA(nnooww.date().strftime('%Y%m%d'))
         n_t = TM(nnooww.time().strftime('%H%M%S'))
@@ -2152,7 +2155,7 @@ class LegacyConvertedEnhanceImage(SOPClass):
         kw = 'InstanceCreationTime'
         self[kw] = DataElement(
             tag_for_keyword(kw), 'TM', n_t)
-    
+
     def default_sort_key(x: Dataset) -> tuple:
         out: tuple = tuple()
         if 'SeriesNumber' in x:
@@ -2163,83 +2166,85 @@ class LegacyConvertedEnhanceImage(SOPClass):
             out += (x['SOPInstanceUID'].value, )
         return out
 
-    def add_new_build_block(
-        self, element) -> None:
-        # if not isinstance(element, Abstract_MultiframeModuleAdder):
-        #     raise ValueError('Build block must be an instance '
-        #                      'of Abstract_MultiframeModuleAdder')
-        self.__build_blocks.append(element)
-
-    def ClearBuildBlocks(self) -> None:
+    def _clear_build_blocks(self) -> None:
         self.__build_blocks = []
 
-    def add_commonct_pet_mr_build_blocks(self) -> none:
+    def _add_common_ct_pet_mr_build_blocks(self) -> None:
         blocks = [
-            [self.add_module_image_pixel, None],
-            [self.add_module_composite_instance_contex, None],
-            [self.add_module_enhanced_common_image, None],
-            [self.add_module_acquisition_context, None],
-            [self.add_module_frame_anatomy, None],
-            [self.add_module_pixel_measures, None],
-            [self.add_module_plane_orientation, None],
-            [self.add_module_plane_position, None],
-            [self.add_module_frame_voi_lut, None],
-            [self.add_module_pixel_value_transformation, None],
-            [self.add_module_referenced_image, None],
-            [self.add_module_conversion_source, None],
-            [self.add_module_frame_content, None],
-            [self.add_module_pixel_data, None],
-            [self.add_module_content_date_time, None],
-            [self.add_module_instance_creation_date_time, None],
-            [self.add_module_contributing_equipment, None],
-            [self.add_module_unassigned_perframe, None],
-            [self.add_module_unassigned_shared, None],
+            [self._add_module_to_mf_image_pixel, None],
+            [self._add_module_to_mf_composite_instance_contex, None],
+            [self._add_module_to_mf_enhanced_common_image, None],
+            [self._add_module_to_mf_acquisition_context, None],
+            [self._add_module_to_mf_frame_anatomy, None],
+            [self._add_module_to_mf_pixel_measures, None],
+            [self._add_module_to_mf_plane_orientation, None],
+            [self._add_module_to_mf_plane_position, None],
+            [self._add_module_to_mf_frame_voi_lut, None],
+            [self._add_module_to_mf_pixel_value_transformation, None],
+            [self._add_module_to_mf_referenced_image, None],
+            [self._add_module_to_mf_conversion_source, None],
+            [self._add_module_to_mf_frame_content, None],
+            [self._add_module_to_mf_pixel_data, None],
+            [self._add_module_to_mf_content_date_time, None],
+            [self._add_module_to_mf_instance_creation_date_time, None],
+            [self._add_module_to_mf_contributing_equipment, None],
+            [self._add_module_to_mf_unassigned_perframe, None],
+            [self._add_module_to_mf_unassigned_shared, None],
         ]
         for b in blocks:
-            self.add_new_build_block(b)
+            self.__build_blocks.append(b)
 
-    def add_ct_specific_build_blocks(self) -> none:
+    def _add_ct_specific_build_blocks(self) -> None:
         blocks = [
-            [self.add_module_common_ct_mr_pet_image_description, ('CT',)],
-            [self.add_module_enhanced_ct_image, None],
-            [self.add_module_contrast_bolus, None],
+            [
+                self._add_module_to_mf_common_ct_mr_pet_image_description,
+                ('CT',)
+            ],
+            [self._add_module_to_mf_enhanced_ct_image, None],
+            [self._add_module_to_mf_contrast_bolus, None],
         ]
         for b in blocks:
-            self.add_new_build_block(b)
+            self.__build_blocks.append(b)
 
-    def add_mr_specific_build_blocks(self) -> none:
+    def _add_mr_specific_build_blocks(self) -> None:
         blocks = [
-            [self.add_module_common_ct_mr_pet_image_description, ('MR',)],
-            [self.add_module_enhanced_mr_image, None],
-            [self.add_module_contrast_bolus, None],
+            [
+                self._add_module_to_mf_common_ct_mr_pet_image_description,
+                ('MR',)
+            ],
+            [self._add_module_to_mf_enhanced_mr_image, None],
+            [self._add_module_to_mf_contrast_bolus, None],
         ]
         for b in blocks:
-            self.add_new_build_block(b)
+            self.__build_blocks.append(b)
 
-    def add_pet_specific_build_blocks(self) -> none:
+    def _add_pet_specific_build_blocks(self) -> None:
         blocks = [
-            [self.add_module_common_ct_mr_pet_image_description, ('PET',)],
-            [self.add_module_enhanced_pet_image, None],
+            [
+                self._add_module_to_mf_common_ct_mr_pet_image_description,
+                ('PET',)
+            ],
+            [self._add_module_to_mf_enhanced_pet_image, None],
         ]
         for b in blocks:
-            self.add_new_build_block(b)
+            self.__build_blocks.append(b)
 
-    def AddBuildBlocksForCT(self) -> None:
-        self.ClearBuildBlocks()
-        self.add_commonct_pet_mr_build_blocks()
-        self.add_ct_specific_build_blocks()
+    def _add_build_blocks_for_ct(self) -> None:
+        self._clear_build_blocks()
+        self._add_common_ct_pet_mr_build_blocks()
+        self._add_ct_specific_build_blocks()
 
-    def AddBuildBlocksForMR(self) -> None:
-        self.ClearBuildBlocks()
-        self.add_commonct_pet_mr_build_blocks()
-        self.add_mr_specific_build_blocks()
+    def _add_build_blocks_for_mr(self) -> None:
+        self._clear_build_blocks()
+        self._add_common_ct_pet_mr_build_blocks()
+        self._add_mr_specific_build_blocks()
 
-    def AddBuildBlocksForPET(self) -> None:
-        self.ClearBuildBlocks()
-        self.add_commonct_pet_mr_build_blocks()
-        self.add_pet_specific_build_blocks()
+    def _add_build_blocks_for_pet(self) -> None:
+        self._clear_build_blocks()
+        self._add_common_ct_pet_mr_build_blocks()
+        self._add_pet_specific_build_blocks()
 
-    def BuildMultiFrame(self) -> None:
+    def convert2mf(self) -> None:
         logger = logging.getLogger(__name__)
         logger.debug('Strt singleframe to multiframe conversion')
         for fun, args in self.__build_blocks:
@@ -2263,31 +2268,31 @@ class GeometryOfSlice:
         self.VoxelSpacing = voxel_spaceing
         self.Dim = dimensions
 
-    def GetNormalVector(self) -> ndarray:
+    def get_normal_vector(self) -> ndarray:
         n: ndarray = cross(self.RowVector, self.ColVector)
         n[2] = -n[2]
         return n
 
-    def GetDistanceAlongOrigin(self) -> float:
-        n = self.GetNormalVector()
+    def get_distance_along_origin(self) -> float:
+        n = self.get_normal_vector()
         return float(
             dot(self.TopLeftCornerPosition, n))
 
-    def AreParallel(slice1: GeometryOfSlice,
-                    slice2: GeometryOfSlice,
-                    tolerance: float = 0.0001) -> bool:
+    def are_parallel(
+            slice1: GeometryOfSlice,
+            slice2: GeometryOfSlice,
+            tolerance: float = 0.0001) -> bool:
         logger = logging.getLogger(__name__)
         if (not isinstance(slice1, GeometryOfSlice) or
                 not isinstance(slice2, GeometryOfSlice)):
             logger.warning(
                 'slice1 and slice2 are not of the same '
                 'type: type(slice1) = {} and type(slice2) = {}'.format(
-                    type(slice1), type(slice2)
-                ))
+                    type(slice1), type(slice2)))
             return False
         else:
-            n1: ndarray = slice1.GetNormalVector()
-            n2: ndarray = slice2.GetNormalVector()
+            n1: ndarray = slice1.get_normal_vector()
+            n2: ndarray = slice2.get_normal_vector()
             for el1, el2 in zip(n1, n2):
                 if abs(el1 - el2) > tolerance:
                     return False
