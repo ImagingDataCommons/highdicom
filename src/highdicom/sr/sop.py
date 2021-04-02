@@ -72,7 +72,7 @@ class _SR(SOPClass):
             SOP Class UID for the SR document type
         instance_number: int
             Number that should be assigned to this SR document instance
-        manufacturer: str
+        manufacturer: str, optional
             Name of the manufacturer of the device that creates the SR document
             instance (in a research setting this is typically the same
             as `institution_name`)
@@ -93,15 +93,15 @@ class _SR(SOPClass):
         verifying_observer_name: Union[str, None], optional
             Name of the person that verfied the SR document
             (required if `is_verified`)
-        verifying_organization: str
+        verifying_organization: str, optional
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: List[pydicom.dataset.Dataset], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset]
+        previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded, i.e. included
@@ -115,7 +115,7 @@ class _SR(SOPClass):
         ----
         Each dataset in `evidence` must be part of the same study.
 
-        """
+        """  # noqa: E501
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -310,15 +310,15 @@ class EnhancedSR(_SR):
         verifying_observer_name: Union[str, None], optional
             Name of the person that verfied the SR document
             (required if `is_verified`)
-        verifying_organization: str
+        verifying_organization: str, optional
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: List[pydicom.dataset.Dataset], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset]
+        previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded, i.e. included
@@ -332,7 +332,7 @@ class EnhancedSR(_SR):
         ----
         Each dataset in `evidence` must be part of the same study.
 
-        """
+        """  # noqa: E501
         super().__init__(
             evidence=evidence,
             content=content,
@@ -438,15 +438,15 @@ class ComprehensiveSR(_SR):
         verifying_observer_name: Union[str, None], optional
             Name of the person that verfied the SR document
             (required if `is_verified`)
-        verifying_organization: str
+        verifying_organization: str, optional
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset]
+        previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded, i.e. included
@@ -460,7 +460,7 @@ class ComprehensiveSR(_SR):
         ----
         Each dataset in `evidence` must be part of the same study.
 
-        """
+        """  # noqa: E501
         super().__init__(
             evidence=evidence,
             content=content,
@@ -566,15 +566,15 @@ class Comprehensive3DSR(_SR):
         verifying_observer_name: Union[str, None], optional
             Name of the person that verfied the SR document
             (required if `is_verified`)
-        verifying_organization: str
+        verifying_organization: str, optional
             Name of the organization that verfied the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept]
+        performed_procedure_codes: List[highdicom.sr.coding.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: List[pydicom.dataset.Dataset]
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset]
+        previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded, i.e. included
@@ -588,7 +588,7 @@ class Comprehensive3DSR(_SR):
         ----
         Each dataset in `evidence` must be part of the same study.
 
-        """
+        """  # noqa: E501
         super().__init__(
             evidence=evidence,
             content=content,
