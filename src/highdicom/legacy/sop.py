@@ -1,7 +1,6 @@
 """ Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 import logging
-from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Union, Callable
+from typing import Any, List, Union, Callable
 from numpy import log10, array, ceil, cross, dot, ndarray
 from pydicom.datadict import tag_for_keyword, dictionary_VR, keyword_for_tag
 from pydicom.dataset import Dataset
@@ -14,7 +13,7 @@ from pydicom.valuerep import DT, DA, TM
 from copy import deepcopy
 from pydicom.uid import UID
 from highdicom.base import SOPClass
-from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
+from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 # logger = logging.getLogger(__name__)
 LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
