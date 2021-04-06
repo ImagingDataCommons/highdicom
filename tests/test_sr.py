@@ -830,7 +830,7 @@ class TestSourceImageForSegmentation(unittest.TestCase):
         self._src_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
-        self._ref_frames = [0, 4, 5]
+        self._ref_frames = [1, 4, 5]
 
     def test_basic(self):
         src_image = SourceImageForSegmentation(
@@ -867,8 +867,8 @@ class TestSourceImageForSegmentation(unittest.TestCase):
             self._ref_frames
         )
 
-    def test_from_source_dataset(self):
-        src_image = SourceImageForSegmentation.from_source_dataset(
+    def test_from_source_image(self):
+        src_image = SourceImageForSegmentation.from_source_image(
             self._src_dataset
         )
         assert len(src_image.ReferencedSOPSequence) == 1
@@ -881,8 +881,8 @@ class TestSourceImageForSegmentation(unittest.TestCase):
             self._src_dataset.SOPInstanceUID
         )
 
-    def test_from_source_dataset_frames(self):
-        src_image = SourceImageForSegmentation.from_source_dataset(
+    def test_from_source_image_frames(self):
+        src_image = SourceImageForSegmentation.from_source_image(
             self._src_dataset,
             self._ref_frames
         )
@@ -917,8 +917,8 @@ class TestSourceSeriesForSegmentation(unittest.TestCase):
         )
         assert src_series.UID == self._src_dataset.SeriesInstanceUID
 
-    def test_from_source_dataset(self):
-        src_series = SourceSeriesForSegmentation.from_source_dataset(
+    def test_from_source_image(self):
+        src_series = SourceSeriesForSegmentation.from_source_image(
             self._src_dataset
         )
         assert src_series.UID == self._src_dataset.SeriesInstanceUID
@@ -933,7 +933,7 @@ class TestSourceImageForRegion(unittest.TestCase):
         self._src_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
-        self._ref_frames = [0, 4, 5]
+        self._ref_frames = [1, 4, 5]
 
     def test_basic(self):
         src_image = SourceImageForRegion(
@@ -970,8 +970,8 @@ class TestSourceImageForRegion(unittest.TestCase):
             self._ref_frames
         )
 
-    def test_from_source_dataset(self):
-        src_image = SourceImageForRegion.from_source_dataset(
+    def test_from_source_image(self):
+        src_image = SourceImageForRegion.from_source_image(
             self._src_dataset
         )
         assert len(src_image.ReferencedSOPSequence) == 1
@@ -984,8 +984,8 @@ class TestSourceImageForRegion(unittest.TestCase):
             self._src_dataset.SOPInstanceUID
         )
 
-    def test_from_source_dataset_frames(self):
-        src_image = SourceImageForRegion.from_source_dataset(
+    def test_from_source_image_frames(self):
+        src_image = SourceImageForRegion.from_source_image(
             self._src_dataset,
             self._ref_frames
         )
@@ -1013,9 +1013,9 @@ class TestSourceImageForMeasurement(unittest.TestCase):
         self._src_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
-        self._ref_frames = [0, 4, 5]
+        self._ref_frames = [1, 4, 5]
 
-    def test_basic(self):
+    def test_construction(self):
         src_image = SourceImageForMeasurement(
             self._src_dataset.SOPClassUID,
             self._src_dataset.SOPInstanceUID
@@ -1030,7 +1030,7 @@ class TestSourceImageForMeasurement(unittest.TestCase):
             self._src_dataset.SOPInstanceUID
         )
 
-    def test_basic_frames(self):
+    def test_construction_with_frame_reference(self):
         src_image = SourceImageForMeasurement(
             self._src_dataset.SOPClassUID,
             self._src_dataset.SOPInstanceUID,
@@ -1050,8 +1050,8 @@ class TestSourceImageForMeasurement(unittest.TestCase):
             self._ref_frames
         )
 
-    def test_from_source_dataset(self):
-        src_image = SourceImageForMeasurement.from_source_dataset(
+    def test_from_source_image(self):
+        src_image = SourceImageForMeasurement.from_source_image(
             self._src_dataset
         )
         assert len(src_image.ReferencedSOPSequence) == 1
@@ -1064,8 +1064,8 @@ class TestSourceImageForMeasurement(unittest.TestCase):
             self._src_dataset.SOPInstanceUID
         )
 
-    def test_from_source_dataset_frames(self):
-        src_image = SourceImageForMeasurement.from_source_dataset(
+    def test_from_source_image_frames(self):
+        src_image = SourceImageForMeasurement.from_source_image(
             self._src_dataset,
             self._ref_frames
         )
@@ -1101,7 +1101,7 @@ class TestReferencedSegment(unittest.TestCase):
             ReferencedSeriesSequence[0].SeriesInstanceUID
         self._ref_frame_number = 38
         self._wrong_ref_frame_number = 13  # does not match the segment
-        self._invalid_ref_frame_number = self._seg_dataset.NumberOfFrames
+        self._invalid_ref_frame_number = 0
         self._ref_segment_number = 35
         self._invalid_ref_segment_number = 8  # does not exist in this dataset
         self._src_images = [
@@ -1114,7 +1114,7 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_series_ins_uid
         )
 
-    def test_basic(self):
+    def test_construction(self):
         ref_seg = ReferencedSegment(
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
@@ -1143,7 +1143,7 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_basic_frames(self):
+    def test_construction_with_frame_reference(self):
         ref_seg = ReferencedSegment(
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
@@ -1177,7 +1177,7 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_basic_series(self):
+    def test_construction_series(self):
         ref_seg = ReferencedSegment(
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
@@ -1350,13 +1350,13 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             ReferencedSeriesSequence[0].SeriesInstanceUID
         self._ref_segment_number = 35
         self._ref_frame_number = 38
-        self._invalid_ref_frame_number = self._seg_dataset.NumberOfFrames
+        self._invalid_ref_frame_number = 0
         self._src_image = SourceImageForSegmentation(
             self._src_sop_class_uid,
             self._src_sop_ins_uid
         )
 
-    def test_basic(self):
+    def test_construction(self):
         ref_seg = ReferencedSegmentationFrame(
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
