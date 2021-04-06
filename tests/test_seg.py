@@ -118,6 +118,7 @@ class TestSegmentDescription(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._segment_number = 1
+        self._invalid_segment_number = 0
         self._segment_label = 'segment #1'
         self._segmented_property_category = \
             codes.SCT.MorphologicallyAbnormalStructure
@@ -159,10 +160,20 @@ class TestSegmentDescription(unittest.TestCase):
             item.AnatomicRegionSequence
             item.PrimaryAnatomicStructureSequence
 
+    def test_construction_invalid_segment_number(self):
+        with pytest.raises(ValueError):
+            SegmentDescription(
+                self._invalid_segment_number,
+                self._segment_label,
+                self._segmented_property_category,
+                self._segmented_property_type,
+                self._segment_algorithm_type,
+                self._algorithm_identification
+            )
+
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
             SegmentDescription(
-                segment_label=self._segment_label,
                 segmented_property_category=self._segmented_property_category,
                 segmented_property_type=self._segmented_property_type,
                 algorithm_type=self._segment_algorithm_type,
@@ -492,6 +503,20 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
+        self._additional_segment_descriptions_no4 = [
+            SegmentDescription(
+                segment_number=4,
+                segment_label='Segment #4',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='foo',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            ),
+        ]
         self._series_instance_uid = generate_uid()
         self._series_number = 1
         self._sop_instance_uid = generate_uid()
@@ -627,6 +652,7 @@ class TestSegmentation(unittest.TestCase):
             instance.LossyImageCompressionRatio
             instance.LossyImageCompressionMethod
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         ref_item = instance.SourceImageSequence[0]
@@ -684,6 +710,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.SpecimenDescriptionSequence[0].SpecimenUID == \
             self._sm_image.SpecimenDescriptionSequence[0].SpecimenUID
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
@@ -746,6 +773,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == len(self._ct_series)
         ref_item = instance.SourceImageSequence[1]
         assert ref_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
@@ -814,6 +842,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.PatientID == self._ct_multiframe.PatientID
         assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
         assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
@@ -1146,10 +1175,56 @@ class TestSegmentation(unittest.TestCase):
                 max_fractional_value=1
             )
 
+            assert len(instance.SegmentSequence) == 2
+            assert instance.SegmentSequence[0].SegmentNumber == 1
+            assert instance.SegmentSequence[1].SegmentNumber == 2
+
             # Ensure the recovered pixel array matches what is expected
             assert np.array_equal(
                 self.get_array_after_writing(instance),
                 expected_encoding
+            )
+
+    def test_construction_segment_numbers_start_wrong(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._additional_segment_descriptions  # seg num 2
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_segment_numbers_continue_wrong(self):
+        instance = Segmentation(
+            source_images=[self._ct_image],
+            pixel_array=self._ct_pixel_array,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+            segment_descriptions=(
+                self._segment_descriptions  # seg num 1
+            ),
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+        with pytest.raises(ValueError):
+            instance.add_segments(
+                self._ct_pixel_array,
+                self._additional_segment_descriptions_no4
             )
 
     def test_construction_wrong_segment_order(self):
@@ -1159,8 +1234,8 @@ class TestSegmentation(unittest.TestCase):
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
-                    self._additional_segment_descriptions +
-                    self._segment_descriptions
+                    self._additional_segment_descriptions +  # seg 2
+                    self._segment_descriptions               # seg 1
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1180,7 +1255,7 @@ class TestSegmentation(unittest.TestCase):
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._segment_descriptions +
-                    self._segment_descriptions
+                    self._segment_descriptions  # duplicate
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
@@ -1196,12 +1271,12 @@ class TestSegmentation(unittest.TestCase):
         with pytest.raises(ValueError):
             Segmentation(
                 source_images=[self._ct_image],
-                pixel_array=self._ct_pixel_array * 3,
+                pixel_array=(self._ct_pixel_array * 3).astype(np.uint8),
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._segment_descriptions +
-                    self._segment_descriptions
-                ),
+                    self._additional_segment_descriptions
+                ),  # two segments, value of 3 in pixel array
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,

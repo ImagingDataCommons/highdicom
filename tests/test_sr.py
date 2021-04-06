@@ -18,14 +18,15 @@ from highdicom.sr.content import (
     FindingSite,
     ImageRegion,
     ImageRegion3D,
-    VolumeSurface,
-    SourceImageForRegion,
-    SourceImageForMeasurement,
-    SourceImageForSegmentation,
+    LongitudinalTemporalOffsetFromEvent,
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
-    SourceSeriesForSegmentation
+    SourceImageForRegion,
+    SourceImageForMeasurement,
+    SourceImageForSegmentation,
+    SourceSeriesForSegmentation,
+    VolumeSurface,
 )
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -68,6 +69,7 @@ from highdicom.sr.templates import (
     SubjectContext,
     SubjectContextSpecimen,
     SubjectContextDevice,
+    TimePointContext,
     TrackingIdentifier,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
@@ -818,7 +820,7 @@ class TestFindingSite(unittest.TestCase):
         item = self._finding_site
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
 
 
 class TestSourceImageForSegmentation(unittest.TestCase):
@@ -1523,6 +1525,80 @@ class TestTrackingIdentifierDefault(unittest.TestCase):
         assert item.ConceptNameCodeSequence[0].CodeValue == '112040'
 
 
+class TestTimePointContext(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._time_point = 'first'
+        self._time_point_context = TimePointContext(
+            time_point=self._time_point
+        )
+
+    def test_time_point(self):
+        item = self._time_point_context[0]
+        assert item.ConceptNameCodeSequence[0].CodeValue == 'C2348792'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'UMLS'
+        assert item.TextValue == self._time_point
+
+
+class TestTimePointContextOptional(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._time_point = 'first'
+        self._time_point_type = codes.DCM.Posttreatment
+        self._time_point_order = 1
+        self._subject_time_point_identifier = 'subject'
+        self._protocol_time_point_identifier = 'protocol'
+        self._temporal_offset_from_event = LongitudinalTemporalOffsetFromEvent(
+            value=5,
+            unit=Code('d', 'UCUM', 'days'),
+            event_type=codes.DCM.Baseline
+        )
+        self._time_point_context = TimePointContext(
+            time_point=self._time_point,
+            time_point_type=self._time_point_type,
+            time_point_order=self._time_point_order,
+            subject_time_point_identifier=self._subject_time_point_identifier,
+            protocol_time_point_identifier=self._protocol_time_point_identifier,
+            temporal_offset_from_event=self._temporal_offset_from_event
+        )
+
+    def test_time_point_type(self):
+        item = self._time_point_context[1]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126072'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._time_point_type.value
+        assert item.ConceptCodeSequence[0].CodeValue == value
+
+    def test_time_point_order(self):
+        item = self._time_point_context[2]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126073'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._time_point_order
+        assert item.MeasuredValueSequence[0].NumericValue == value
+
+    def test_subject_time_point_identifier(self):
+        item = self._time_point_context[3]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126070'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._subject_time_point_identifier
+        assert item.TextValue == value
+
+    def test_protocol_time_point_identifier(self):
+        item = self._time_point_context[4]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126071'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._protocol_time_point_identifier
+        assert item.TextValue == value
+
+    def test_temporal_offset_from_event(self):
+        item = self._time_point_context[5]
+        ref_item = self._temporal_offset_from_event
+        assert item == ref_item
+        assert item.ContentSequence[0] == ref_item.ContentSequence[0]
+
+
 class TestMeasurement(unittest.TestCase):
 
     def setUp(self):
@@ -1619,7 +1695,7 @@ class TestMeasurementOptional(unittest.TestCase):
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
 
 
 class TestImageRegion(unittest.TestCase):

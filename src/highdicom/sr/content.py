@@ -616,29 +616,30 @@ class FindingSite(CodeContentItem):
             value=anatomic_location,
             relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
-        self.ContentSequence = ContentSequence()
-        if laterality is not None:
-            laterality_item = CodeContentItem(
-                name=CodedConcept(
-                    value='272741003',
-                    meaning='Laterality',
-                    scheme_designator='SCT'
-                ),
-                value=laterality,
-                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
-            )
-            self.ContentSequence.append(laterality_item)
-        if topographical_modifier is not None:
-            modifier_item = CodeContentItem(
-                name=CodedConcept(
-                    value='106233006',
-                    meaning='Topographical Modifier',
-                    scheme_designator='SCT'
-                ),
-                value=topographical_modifier,
-                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
-            )
-            self.ContentSequence.append(modifier_item)
+        if laterality is not None or topographical_modifier is not None:
+            self.ContentSequence = ContentSequence()
+            if laterality is not None:
+                laterality_item = CodeContentItem(
+                    name=CodedConcept(
+                        value='272741003',
+                        meaning='Laterality',
+                        scheme_designator='SCT'
+                    ),
+                    value=laterality,
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+                )
+                self.ContentSequence.append(laterality_item)
+            if topographical_modifier is not None:
+                modifier_item = CodeContentItem(
+                    name=CodedConcept(
+                        value='106233006',
+                        meaning='Topographical Modifier',
+                        scheme_designator='SCT'
+                    ),
+                    value=topographical_modifier,
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+                )
+                self.ContentSequence.append(modifier_item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
