@@ -7,7 +7,7 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.uid import UID
-from pydicom.valuerep import DA, TM, DT, PersonName
+from pydicom.valuerep import DA, DS, TM, DT, PersonName
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
@@ -426,7 +426,10 @@ class NumContentItem(ContentItem):
                 raise TypeError(
                     'Argument "value" must have type "int" or "float".'
                 )
-            measured_value_sequence_item.NumericValue = value
+            measured_value_sequence_item.NumericValue = DS(
+                value,
+                auto_format=True
+            )
             if isinstance(value, float):
                 measured_value_sequence_item.FloatingPointValue = value
             if not isinstance(unit, (CodedConcept, Code, )):
@@ -801,7 +804,7 @@ class TcoordContentItem(ContentItem):
             ]
         elif referenced_time_offsets is not None:
             self.ReferencedTimeOffsets = [
-                float(v) for v in referenced_time_offsets
+                DS(v, auto_format=True) for v in referenced_time_offsets
             ]
         elif referenced_date_time is not None:
             self.ReferencedDateTime = [

@@ -38,7 +38,7 @@ setuptools.setup(
     package_dir={'': 'src'},
     python_requires='>=3.6',
     install_requires=[
-        'pydicom>=1.4,!=2.1.0,!=2.1.1',
+        'pydicom>=2.2.0',
         'numpy>=1.19',
         'pillow>=6.0'
     ],
