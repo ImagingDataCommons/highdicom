@@ -53,7 +53,6 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
             ),
             value=value,
             unit=unit,
-            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         event_type_item = CodeContentItem(
             name=CodedConcept(
@@ -62,9 +61,11 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
                 scheme_designator='DCM'
             ),
             value=event_type,
-            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
-        self.ContentSequence = ContentSequence([event_type_item])
+        self.ContentSequence = ContentSequence(
+            [event_type_item],
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
 
 
 class SourceImageForMeasurement(ImageContentItem):
@@ -100,7 +101,6 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
 
 
@@ -137,7 +137,6 @@ class SourceImageForRegion(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.SELECTED_FROM
         )
 
 
@@ -174,7 +173,6 @@ class SourceImageForSegmentation(ImageContentItem):
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -199,7 +197,6 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
                 scheme_designator='DCM'
             ),
             value=referenced_series_instance_uid,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -265,9 +262,11 @@ class ImageRegion(ScoordContentItem):
             graphic_type=graphic_type,
             graphic_data=graphic_data,
             pixel_origin_interpretation=pixel_origin_interpretation,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
-        self.ContentSequence = [source_image]
+        self.ContentSequence = ContentSequence(
+            [source_image],
+            RelationshipTypeValues.SELECTED_FROM
+        )
 
 
 class ImageRegion3D(Scoord3DContentItem):
@@ -312,7 +311,6 @@ class ImageRegion3D(Scoord3DContentItem):
             graphic_type=graphic_type,
             graphic_data=graphic_data,
             frame_of_reference_uid=frame_of_reference_uid,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -366,7 +364,6 @@ class VolumeSurface(Scoord3DContentItem):
             frame_of_reference_uid=frame_of_reference_uid,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.ContentSequence = ContentSequence()
         if source_images is not None:
@@ -376,14 +373,20 @@ class VolumeSurface(Scoord3DContentItem):
                         'Items of argument "source_image" must have type '
                         'SourceImageForSegmentation.'
                     )
-                self.ContentSequence.append(image)
+                self.ContentSequence.append(
+                    image,
+                    RelationshipTypeValues.INFERRED_FROM
+                )  # TODO verify
         elif source_series is not None:
             if not isinstance(source_series, SourceSeriesForSegmentation):
                 raise TypeError(
                     'Argument "source_series" must have type '
                     'SourceSeriesForSegmentation.'
                 )
-            self.ContentSequence.append(source_series)
+            self.ContentSequence.append(
+                source_series,
+                RelationshipTypeValues.INFERRED_FROM
+            )  # TODO verify
         else:
             raise ValueError(
                 'One of the following two arguments must be provided: '
@@ -411,7 +414,6 @@ class RealWorldValueMap(CompositeContentItem):
             ),
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.67',
             referenced_sop_instance_uid=referenced_sop_instance_uid,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
 
@@ -445,7 +447,6 @@ class FindingSite(CodeContentItem):
                 scheme_designator='SCT'
             ),
             value=anatomic_location,
-            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         if laterality is not None or topographical_modifier is not None:
             self.ContentSequence = ContentSequence()
@@ -457,9 +458,11 @@ class FindingSite(CodeContentItem):
                         scheme_designator='SCT'
                     ),
                     value=laterality,
-                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
-                self.ContentSequence.append(laterality_item)
+                self.ContentSequence.append(
+                    laterality_item,
+                    RelationshipTypeValues.HAS_CONCEPT_MOD
+                )
             if topographical_modifier is not None:
                 modifier_item = CodeContentItem(
                     name=CodedConcept(
@@ -470,7 +473,10 @@ class FindingSite(CodeContentItem):
                     value=topographical_modifier,
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
-                self.ContentSequence.append(modifier_item)
+                self.ContentSequence.append(
+                    modifier_item,
+                    RelationshipTypeValues.HAS_CONCEPT_MOD
+                )
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -514,15 +520,14 @@ class ReferencedSegmentationFrame(ContentSequence):
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_number,
             referenced_segment_numbers=segment_number,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
-        self.append(segmentation_item)
+        self.append(segmentation_item, RelationshipTypeValues.CONTAINS)
         if not isinstance(source_image, SourceImageForSegmentation):
             raise TypeError(
                 'Argument "source_image" must have type '
                 'SourceImageForSegmentation.'
             )
-        self.append(source_image)
+        self.append(source_image, RelationshipTypeValues.INFERRED_FROM)  # TODO verify
 
 
 class ReferencedSegment(ContentSequence):
@@ -576,9 +581,8 @@ class ReferencedSegment(ContentSequence):
             referenced_sop_instance_uid=sop_instance_uid,
             referenced_frame_numbers=frame_numbers,
             referenced_segment_numbers=segment_number,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
-        self.append(segment_item)
+        self.append(segment_item, RelationshipTypeValues.CONTAINS)
         if source_images is not None:
             for image in source_images:
                 if not isinstance(image, SourceImageForSegmentation):
@@ -586,7 +590,7 @@ class ReferencedSegment(ContentSequence):
                         'Items of argument "source_images" must have type '
                         'SourceImageForSegmentation.'
                     )
-                self.append(image)
+                self.append(image, RelationshipTypeValues.INFERRED_FROM)  # TODO verify
         elif source_series is not None:
             if not isinstance(source_series,
                               SourceSeriesForSegmentation):
@@ -594,7 +598,7 @@ class ReferencedSegment(ContentSequence):
                     'Argument "source_series" must have type '
                     'SourceSeriesForSegmentation.'
                 )
-            self.append(source_series)
+            self.append(source_series, RelationshipTypeValues.INFERRED_FROM)  # TODO verify
         else:
             raise ValueError(
                 'One of the following two arguments must be provided: '

@@ -1,6 +1,7 @@
 """DICOM structured reporting content item value types."""
 import datetime
 from typing import Any, List, Optional, Sequence, Union
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -55,11 +56,20 @@ class ContentItem(Dataset):
             name = CodedConcept(*name)
         self.ConceptNameCodeSequence = [name]
         if relationship_type is not None:
+            warnings.warn(
+                'Specifying a relationship type when constructing a content '
+                'item is deprecated behaviour and will be removed in a future '
+                'version of highdicom. Instead, specify the relationship type '
+                'when appending, extending or inserting the content item into '
+                'a content sequence. Relationship types specified here may be '
+                'overwritten when the item is added to a content sequence.',
+                DeprecationWarning
+            )
             relationship_type = RelationshipTypeValues(relationship_type)
             self.RelationshipType = relationship_type.value
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name == 'ContentSequence':
+        if name == 'ContentSequence':  # TODO fix this - deprecate???
             super(ContentItem, self).__setattr__(name, ContentSequence(value))
         else:
             super(ContentItem, self).__setattr__(name, value)
@@ -90,7 +100,11 @@ class ContentSequence(DataElementSequence):
 
     """Sequence of DICOM SR Content Items."""
 
-    def __init__(self, items: Optional[Sequence] = None) -> None:
+    def __init__(
+        self,
+        items: Optional[Sequence] = None,
+        relationship_type: Optional[Union[str, RelationshipTypeValues]] = None
+    ) -> None:
         if items is not None:
             if not all(isinstance(i, ContentItem) for i in items):
                 raise TypeError(
@@ -98,10 +112,33 @@ class ContentSequence(DataElementSequence):
                         self.__class__.__name__
                     )
                 )
+            if relationship_type is None:
+                items_have_relationships = [
+                    hasattr(i, 'RelationshipType') for i in items
+                ]
+                if all(items_have_relationships):
+                    warnings.warn(
+                        'Initializing a content sequence with items but '
+                        'without specifying a relationship type is deprecated '
+                        'and will be an error in a future version of '
+                        'highdicom.',
+                        DeprecationWarning
+                    )
+                else:
+                    raise ValueError(
+                        'A relationship type is required to describe the '
+                        'relationship of the content item(s) to the parent.'
+                    )
+            else:
+                # This will be standard behavior after deprecation
+                for item in items:
+                    item.RelationshipType = RelationshipTypeValues(
+                        relationship_type
+                    )
         super(ContentSequence, self).__init__(items)
 
     def __setitem__(self, position: int, item: ContentItem) -> None:
-        self.insert(position, item)
+        self.insert(position, item)  # TODO what to do here???
 
     def __contains__(self, item: ContentItem) -> bool:
         return any(contained_item == item for contained_item in self)
@@ -121,13 +158,21 @@ class ContentSequence(DataElementSequence):
             if hasattr(item, 'ContentSequence')
         ])
 
-    def append(self, item: ContentItem) -> None:
+    def append(
+        self,
+        item: ContentItem,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """Appends a content item to the sequence.
 
         Parameters
         ----------
         item: highdicom.sr.value_types.ContentItem
             content item
+        relationship_type: Union[str, highdicom.sr.enum.RelationshipTypeValues], optional
+            type of relationship this item has with the sequence
 
         """
         if not isinstance(item, ContentItem):
@@ -136,21 +181,69 @@ class ContentSequence(DataElementSequence):
                     self.__class__.__name__
                 )
             )
+        if relationship_type is None:
+            if hasattr(item, 'RelationshipType'):
+                warnings.warn(
+                    'Appending content items to a content sequence without '
+                    'specifying a relationship type is deprecated and will be '
+                    'an error in a future version of highdicom.',
+                    DeprecationWarning
+                )
+            else:
+                raise ValueError(
+                    'A relationship type is required to describe the '
+                    'relationship of the content item to its parent.'
+                )
+        else:
+            # This will become the standard behavior after deprecation
+            relationship_type = RelationshipTypeValues(relationship_type)
+            item.RelationshipType = relationship_type.value
         super(ContentSequence, self).append(item)
 
-    def extend(self, items: Sequence[ContentItem]) -> None:
+    def extend(
+        self, 
+        items: Sequence[ContentItem],
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """Extends multiple content items to the sequence.
 
         Parameters
         ----------
         items: Sequence[highdicom.sr.value_types.ContentItem]
             content items
+        relationship_type: Union[str, highdicom.sr.enum.RelationshipTypeValues], optional
+            type of relationship the items have with the sequence
 
         """
+        if relationship_type is None:
+            items_have_relationships = [
+                hasattr(i, 'RelationshipType') for i in items
+            ]
+            if all(items_have_relationships):
+                warnings.warn(
+                    'Extending a sequence with content items to without '
+                    'specifying a relationship type is deprecated and will be '
+                    'an error in a future version of highdicom.',
+                    DeprecationWarning
+                )
+            else:
+                raise ValueError(
+                    'A relationship type is required to describe the '
+                    'relationship of the content item to its parent.'
+                )
         for i in items:
-            self.append(i)
+            self.append(i, relationship_type)
 
-    def insert(self, position: int, item: ContentItem) -> None:
+    def insert(
+        self,
+        position: int,
+        item: ContentItem,
+        relationship_type: Optional[
+            Union[str, RelationshipTypeValues]
+        ] = None
+    ) -> None:
         """Inserts a content item into the sequence at a given position.
 
         Parameters
@@ -159,6 +252,8 @@ class ContentSequence(DataElementSequence):
             index position
         item: highdicom.sr.value_types.ContentItem
             content item
+        relationship_type: Union[str, highdicom.sr.enum.RelationshipTypeValues], optional
+            type of relationship this item has with the sequence
 
         """
         if not isinstance(item, ContentItem):
@@ -167,6 +262,23 @@ class ContentSequence(DataElementSequence):
                     self.__class__.__name__
                 )
             )
+        if relationship_type is None:
+            if hasattr(item, 'RelationshipType'):
+                warnings.warn(
+                    'Appending content items to a content sequence without '
+                    'specifying a relationship type is deprecated and will be '
+                    'an error in a future version of highdicom.',
+                    DeprecationWarning
+                )
+            else:
+                raise ValueError(
+                    'A relationship type is required to describe the '
+                    'relationship of the content item to its parent.'
+                )
+        else:
+            # This will become the standard behavior after deprecation
+            relationship_type = RelationshipTypeValues(relationship_type)
+            item.RelationshipType = relationship_type.value
         super(ContentSequence, self).insert(position, item)
 
 
