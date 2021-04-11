@@ -16,7 +16,11 @@ from pydicom.uid import UID
 from highdicom.base import SOPClass
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
-# logger = logging.getLogger(__name__)
+
+
+logger = logging.getLogger(__name__)
+
+
 LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     # CT Image Storage
     '1.2.840.10008.5.1.4.1.1.2': '1.2.840.10008.5.1.4.1.1.2.2',
@@ -25,6 +29,8 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     # PET Image Storage
     '1.2.840.10008.5.1.4.1.1.128': '1.2.840.10008.5.1.4.1.1.128.1',
 }
+
+
 _SOP_CLASS_UID_IOD_KEY_MAP = {
     '1.2.840.10008.5.1.4.1.1.2.2': 'legacy-converted-enhanced-ct-image',
     '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
@@ -37,94 +43,28 @@ class DicomHelper:
     """A class for checking dicom tags and comparing dicom attributes"""
 
     def __init__(self) -> None:
-        """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
         pass
 
     @classmethod
     def istag_file_meta_information_group(cls, t: BaseTag) -> bool:
-        """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
         return t.group == 0x0002
 
     @classmethod
     def istag_repeating_group(cls, t: BaseTag) -> bool:
-        """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
         g = t.group
         return (g >= 0x5000 and g <= 0x501e) or\
             (g >= 0x6000 and g <= 0x601e)
 
     @classmethod
     def istag_group_length(cls, t: BaseTag) -> bool:
-        """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
         return t.element == 0
 
     @classmethod
     def isequal(cls, v1: Any, v2: Any) -> bool:
-        """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
         from pydicom.valuerep import DSfloat
         float_tolerance = 1.0e-5
 
         def is_equal_float(x1: float, x2: float) -> bool:
-            """
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        Note
-        ----
-
-        """
             return abs(x1 - x2) < float_tolerance
         if type(v1) != type(v2):
             return False
@@ -2456,7 +2396,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         self._add_common_ct_pet_mr_build_blocks()
         self._add_ct_specific_build_blocks()
 
-    def convert2mf(self) -> None:
+    def _convert2multiframe(self) -> None:
         """Runs all necessary methods to conver from single frame to
         multi-frame.
 
@@ -2532,7 +2472,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
             sort_key=sort_key
         )
         self._add_build_blocks_for_ct()
-        self.convert2mf()
+        self._convert2multiframe()
 
 
 class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
@@ -2585,7 +2525,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
             sort_key=sort_key
         )
         self._add_build_blocks_for_pet()
-        self.convert2mf()
+        self._convert2multiframe()
 
 
 class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
@@ -2649,4 +2589,4 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
             sort_key=sort_key
         )
         self._add_build_blocks_for_mr()
-        self.convert2mf()
+        self._convert2multiframe()
