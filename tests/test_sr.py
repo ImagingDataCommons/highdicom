@@ -834,7 +834,7 @@ class TestSourceImageForSegmentation(unittest.TestCase):
         )
         self._ref_frames = [1, 4, 5]
 
-    def test_basic(self):
+    def test_construction(self):
         src_image = SourceImageForSegmentation(
             self._src_dataset.SOPClassUID,
             self._src_dataset.SOPInstanceUID
@@ -849,7 +849,7 @@ class TestSourceImageForSegmentation(unittest.TestCase):
             self._src_dataset.SOPInstanceUID
         )
 
-    def test_basic_frames(self):
+    def test_construction_with_frame_reference(self):
         src_image = SourceImageForSegmentation(
             self._src_dataset.SOPClassUID,
             self._src_dataset.SOPInstanceUID,

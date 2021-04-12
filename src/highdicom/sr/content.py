@@ -24,6 +24,53 @@ from highdicom.sr.value_types import (
 )
 
 
+def _check_valid_source_image_dataset(dataset: Dataset) -> None:
+    """Raise an error if the image is not a valid for a source image reference.
+
+    Certain datasets are not appropriate as source images for measurements,
+    regions, or segmentations. However the criteria do not appear to be clearly
+    defined or succinctly implementable.  This function is intended to catch
+    common mistakes users may make when creating references to source images,
+    without attempting to be comprehensive. If an error is found, a ValueError
+    is raised with an appropriate error message.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        A dataset object to be checked
+
+    Raise
+    -----
+    ValueError:
+        If the input dataset is not valid to serve as a source image for a
+        measurement, segmentation, or region.
+
+    """
+    # Check that there is some form of pixel data present
+    pixel_data_keywords = [
+        'PixelData',
+        'FloatPixelData',
+        'DoubleFloatPixelData'
+    ]
+    if not any(hasattr(dataset, attr) for attr in pixel_data_keywords):
+        raise ValueError(
+            'Dataset does not represent a valid source image for '
+            'a measurement, segmentation, or region because it '
+            'contains no pixel data.'
+        )
+    # Check for obviously invalid modalities
+    disallowed_modalities = [
+        'SEG', 'SR', 'DOC', 'KO', 'PR', 'PLAN', 'RWV', 'REG', 'FID',
+        'RTDOSE', 'RTPLAN', 'RTRECORD', 'RTSTRUCT'
+    ]
+    if dataset.Modality in disallowed_modalities:
+        raise ValueError(
+            f"Datasets with Modality '{dataset.Modality}' are not valid "
+            "to use as source images for measurements, regions or "
+            "segmentations."
+        )
+
+
 class LongitudinalTemporalOffsetFromEvent(NumContentItem):
 
     """Content item representing a longitudinal temporal offset from an event.
@@ -138,6 +185,7 @@ class SourceImageForMeasurement(ImageContentItem):
             Content item representing a reference to the image dataset
 
         """
+        _check_valid_source_image_dataset(image_dataset)
         return cls(
             referenced_sop_class_uid=image_dataset.SOPClassUID,
             referenced_sop_instance_uid=image_dataset.SOPInstanceUID,
@@ -214,6 +262,7 @@ class SourceImageForRegion(ImageContentItem):
             Content item representing a reference to the image dataset
 
         """
+        _check_valid_source_image_dataset(image_dataset)
         return cls(
             referenced_sop_class_uid=image_dataset.SOPClassUID,
             referenced_sop_instance_uid=image_dataset.SOPInstanceUID,
@@ -290,6 +339,7 @@ class SourceImageForSegmentation(ImageContentItem):
             Content item representing a reference to the image dataset
 
         """
+        _check_valid_source_image_dataset(image_dataset)
         return cls(
             referenced_sop_class_uid=image_dataset.SOPClassUID,
             referenced_sop_instance_uid=image_dataset.SOPInstanceUID,
@@ -340,6 +390,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
             Content item representing a reference to the image dataset
 
         """
+        _check_valid_source_image_dataset(image_dataset)
         return cls(
             referenced_series_instance_uid=image_dataset.SeriesInstanceUID,
         )
