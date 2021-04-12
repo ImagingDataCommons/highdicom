@@ -1,6 +1,6 @@
 """ Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 import logging
-from typing import Any, List, Union, Callable
+from typing import Any, List, Union, Callable, Sequence
 from numpy import log10, array, ceil, cross, dot, ndarray
 from pydicom.datadict import tag_for_keyword, dictionary_VR, keyword_for_tag
 from pydicom.dataset import Dataset
@@ -38,12 +38,9 @@ _SOP_CLASS_UID_IOD_KEY_MAP = {
 }
 
 
-class DicomHelper:
+class ـDicomHelper:
 
     """A class for checking dicom tags and comparing dicom attributes"""
-
-    def __init__(self) -> None:
-        pass
 
     @classmethod
     def istag_file_meta_information_group(cls, t: BaseTag) -> bool:
@@ -186,7 +183,6 @@ class GeometryOfSlice:
         """Returns False if two slices are not prallel else True
 
         """
-        logger = logging.getLogger(__name__)
         if (not isinstance(slice1, GeometryOfSlice) or
                 not isinstance(slice2, GeometryOfSlice)):
             logger.warning(
@@ -203,7 +199,7 @@ class GeometryOfSlice:
             return True
 
 
-class PerframeFunctionalGroup(DataElementSequence):
+class ـPerframeFunctionalGroup(DataElementSequence):
 
     """A sequence class for perframe functional group"""
 
@@ -221,7 +217,7 @@ class PerframeFunctionalGroup(DataElementSequence):
             self.append(item)
 
 
-class SharedFunctionalGroup(DataElementSequence):
+class ـSharedFunctionalGroup(DataElementSequence):
 
     """A sequence class for shared functional group"""
 
@@ -317,15 +313,14 @@ class FrameSet:
         """Detects and collects all shared and perframe attributes
 
         """
-        # logger = logging.getLogger(__name__)
         rough_shared: dict = {}
         sfs = self.frames
         for ds in sfs:
             for ttag, elem in ds.items():
                 if (not ttag.is_private and not
-                    DicomHelper.istag_file_meta_information_group(ttag) and not
-                        DicomHelper.istag_repeating_group(ttag) and not
-                        DicomHelper.istag_group_length(ttag) and not
+                    ـDicomHelper.istag_file_meta_information_group(ttag) and not
+                        ـDicomHelper.istag_repeating_group(ttag) and not
+                        ـDicomHelper.istag_group_length(ttag) and not
                         self._istag_excluded_from_perframe(ttag) and
                         ttag != tag_for_keyword('PixelData')):
                     elem = ds[ttag]
@@ -343,7 +338,7 @@ class FrameSet:
             else:
                 all_values_are_equal = True
                 for v_i in v:
-                    if not DicomHelper.isequal(v_i, v[0]):
+                    if not ـDicomHelper.isequal(v_i, v[0]):
                         all_values_are_equal = False
                         break
                 if not all_values_are_equal:
@@ -366,19 +361,32 @@ class FrameSetCollection:
 
     """A calss to extract framesets based on distinguishing dicom attributes"""
 
-    def __init__(self, single_frame_list: list) -> None:
-        """
+    def __init__(self, single_frame_list: Sequence[Any]) -> None:
+        """Forms framesets based on a list of distinguishing attributes.
+        The list of "distinguishing" attributes that are used to determine
+        commonality is currently fixed, and includes the unique identifying
+        attributes at the Patient, Study, Equipment levels, the Modality and
+        SOP Class, and ImageType as well as the characteristics of the Pixel
+        Data, and those attributes that for cross-sectional images imply
+        consistent sampling, such as ImageOrientationPatient, PixelSpacing and
+        SliceThickness, and in addition AcquisitionContextSequence and
+        BurnedInAnnotation.
         Parameters
         ----------
         single_frame_list: list
             lisf of mixed or non-mixed single frame dicom images
+        Note
+        -----
+        Note that Series identification, specifically SeriesInstanceUID is NOT
+        a distinguishing attribute; i.e. FrameSets may span Series
         """
-        logger = logging.getLogger(__name__)
         self.mixed_frames = single_frame_list
         self.mixed_frames_copy = self.mixed_frames[:]
         self._distinguishing_attribute_keywords = [
             'PatientID',
             'PatientName',
+            'StudyInstanceUID',
+            'FrameOfReferenceUID',
             'Manufacturer',
             'InstitutionName',
             'InstitutionAddress',
@@ -422,7 +430,7 @@ class FrameSetCollection:
             logger.debug('\t Distinguishing tags:')
             for dg_i, dg_tg in enumerate(x[1], 1):
                 logger.debug('\t\t{:02d}/{})\t{}-{:32.32s} = {:32.32s}'.format(
-                    dg_i, len(x[1]), DicomHelper.tag2str(dg_tg),
+                    dg_i, len(x[1]), ـDicomHelper.tag2str(dg_tg),
                     keyword_for_tag(dg_tg),
                     str(x[0][0][dg_tg].value)))
             logger.debug('\t dicom datasets in this frame set:')
@@ -453,7 +461,6 @@ class FrameSetCollection:
         """Takes the fist instance from mixed-frames and finds all dicom images
         that have the same distinguishing attributes.
         """
-        logger = logging.getLogger(__name__)
         similar_ds: list = [self.mixed_frames_copy[0]]
         distinguishing_tags_existing = []
         distinguishing_tags_missing = []
@@ -471,7 +478,7 @@ class FrameSetCollection:
                 if tg in ds:
                     logger_msg.add(
                         '{} is missing in all but {}'.format(
-                            DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
+                            ـDicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
                     all_equal = False
                     break
             if not all_equal:
@@ -482,11 +489,11 @@ class FrameSetCollection:
                     all_equal = False
                     break
                 new_val = ds[tg].value
-                if not DicomHelper.isequal(ref_val, new_val):
+                if not ـDicomHelper.isequal(ref_val, new_val):
                     logger_msg.add(
                         'Inequality on distinguishing '
                         'attribute{} -> {} != {} \n series uid = {}'.format(
-                            DicomHelper.tag2kwstr(tg), ref_val, new_val,
+                            ـDicomHelper.tag2kwstr(tg), ref_val, new_val,
                             ds.SeriesInstanceUID))
                     all_equal = False
                     break
@@ -496,7 +503,8 @@ class FrameSetCollection:
             logger.info(msg_)
         for ds in similar_ds:
             if ds in self.mixed_frames_copy:
-                self.mixed_frames_copy.remove(ds)
+                self.mixed_frames_copy = [
+                    nds for nds in self.mixed_frames_copy if nds != ds]
         return (similar_ds, distinguishing_tags_existing)
 
     @property
@@ -516,7 +524,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
     def __init__(
             self,
-            frame_set: FrameSet,
+            legacy_datasets: Sequence[Dataset],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -538,17 +546,21 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         instance_number: int
             Number that should be assigned to the instance
         """
-        legacy_datasets = frame_set.frames
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
             raise ValueError('No DICOM data sets of provided.')
         sop_class_uid = LEGACY_ENHANCED_SOP_CLASS_UID_MAP[ref_ds.SOPClassUID]
+        all_framesets = FrameSetCollection(legacy_datasets)
+        if len(all_framesets.frame_sets) > 1:
+            raise ValueError(
+                'Mixed frames sets: the input single frame list contain more '
+                'than one multiframe collection')
+        frame_set = all_framesets.frame_sets[0]
         if sort_key is None:
             sort_key = _CommonLegacyConvertedEnhanceImage.default_sort_key
         super().__init__(
-            study_instance_uid="" if 'StudyInstanceUID' not in ref_ds
-            else ref_ds.StudyInstanceUID,
+            study_instance_uid=ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
@@ -578,11 +590,11 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             ref_ds else ref_ds.ReferringPhysicianName,
         )
         self._legacy_datasets = legacy_datasets
-        self._perframe_functional_group = PerframeFunctionalGroup(
+        self._perframe_functional_group = ـPerframeFunctionalGroup(
             len(legacy_datasets))
         tg = tag_for_keyword('PerFrameFunctionalGroupsSequence')
         self[tg] = DataElement(tg, 'SQ', self._perframe_functional_group)
-        self._shared_functional_group = SharedFunctionalGroup()
+        self._shared_functional_group = ـSharedFunctionalGroup()
         tg = tag_for_keyword('SharedFunctionalGroupsSequence')
         self[tg] = DataElement(tg, 'SQ', self._shared_functional_group)
         self.distinguishing_attributes_tags = self._get_tag_used_dictionary(
@@ -1836,22 +1848,27 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         """Instantiates an object of GeometryOfSlice for each sice.
 
         """
-        logger = logging.getLogger(__name__)
         frame_count = len(self._legacy_datasets)
         for i in range(0, frame_count):
             curr_frame = self._legacy_datasets[i]
-            image_position_patient_v = None \
-                if 'ImagePositionPatient' not in curr_frame\
-                else curr_frame['ImagePositionPatient'].value
-            image_orientation_patient_v = None \
-                if 'ImageOrientationPatient' not in curr_frame\
-                else curr_frame['ImageOrientationPatient'].value
-            pixel_spacing_v = None \
-                if 'PixelSpacing' not in curr_frame\
-                else curr_frame['PixelSpacing'].value
-            slice_thickness_v = 0.0 \
-                if 'SliceThickness' not in curr_frame\
-                else curr_frame['SliceThickness'].value
+            if 'ImagePositionPatient' not in curr_frame:
+                image_position_patient_v = None
+            else:
+                image_position_patient_v =\
+                    curr_frame['ImagePositionPatient'].value
+            if 'ImageOrientationPatient' not in curr_frame:
+                image_orientation_patient_v = None
+            else:
+                image_orientation_patient_v =\
+                    curr_frame['ImageOrientationPatient'].value
+            if 'PixelSpacing' not in curr_frame:
+                pixel_spacing_v = None
+            else:
+                pixel_spacing_v = curr_frame['PixelSpacing'].value
+            if 'SliceThickness' not in curr_frame:
+                slice_thickness_v = 0.0
+            else:
+                slice_thickness_v = curr_frame['SliceThickness'].value
             # slice_location_v = None \
             #     if 'SliceLocation' not in curr_frame\
             #     else curr_frame['SliceLocation'].value
@@ -1908,7 +1925,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         """Adds stack information to the FrameContentSequence dicom attribute.
 
         """
-        logger = logging.getLogger(__name__)
         self._build_slices_geometry_frame_content()
         round_digits = int(ceil(-log10(self._tolerance)))
         source_series_uid = ''
@@ -2401,7 +2417,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         multi-frame.
 
         """
-        logger = logging.getLogger(__name__)
         logger.debug('Strt singleframe to multiframe conversion')
         for fun, args in self.__build_blocks:
             if not args:
@@ -2417,7 +2432,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
 
     def __init__(
             self,
-            frame_set: FrameSet,
+            legacy_datasets: Sequence[Dataset],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -2450,7 +2465,6 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
         instance_number: int
             Number that should be assigned to the instance
         """
-        legacy_datasets = frame_set.frames
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2464,7 +2478,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
                 'Wrong SOP class for conversion of legacy CT images.'
             )
         super().__init__(
-            frame_set,
+            legacy_datasets,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
@@ -2481,7 +2495,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
 
     def __init__(
             self,
-            frame_set: FrameSet,
+            legacy_datasets: Sequence[Dataset],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -2503,7 +2517,6 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
         instance_number: int
             Number that should be assigned to the instance
         """
-        legacy_datasets = frame_set.frames
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2517,7 +2530,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
                 'Wrong SOP class for conversion of legacy PET images.'
             )
         super().__init__(
-            frame_set,
+            legacy_datasets,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
@@ -2534,7 +2547,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
 
     def __init__(
             self,
-            frame_set: FrameSet,
+            legacy_datasets: Sequence[Dataset],
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
@@ -2567,7 +2580,6 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
         instance_number: int
             Number that should be assigned to the instance
         """
-        legacy_datasets = frame_set.frames
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2581,7 +2593,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
                 'Wrong SOP class for conversion of legacy MR images.'
             )
         super().__init__(
-            frame_set,
+            legacy_datasets,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,

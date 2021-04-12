@@ -312,8 +312,8 @@ class TestDicomHelper(unittest.TestCase):
 
     def test_attribute_equality(self) -> None:
         for vr, [v1, v2, v3] in self.data.items():
-            assert sop.DicomHelper.isequal(v1.value, v2.value) is True
-            assert sop.DicomHelper.isequal(v1.value, v3.value) is False
+            assert sop.ـDicomHelper.isequal(v1.value, v2.value) is True
+            assert sop.ـDicomHelper.isequal(v1.value, v3.value) is False
 
 
 class TestFrameSetCollection(unittest.TestCase):
@@ -371,7 +371,7 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     assert len(fset_collection.frame_sets) == 1
                     assert len(fset_collection.frame_sets[0].frames) == i
                     convertor = LegacyConverterClass(
-                        fset_collection.frame_sets[0],
+                        data,
                         generate_uid(),
                         555,
                         generate_uid(),
@@ -389,9 +389,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                 )
                 ref_dataset_seq = getattr(
                   self, "_ref_dataset_seq_{}".format(m))
-                fset_collection = sop.FrameSetCollection(ref_dataset_seq)
                 multiframe_item = LegacyConverterClass(
-                    fset_collection.frame_sets[0],
+                    ref_dataset_seq,
                     series_instance_uid=self._output_series_instance_uid,
                     series_number=self._output_instance_number,
                     sop_instance_uid=self._output_sop_instance_uid,
@@ -405,20 +404,20 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                 assert int(multiframe_item.InstanceNumber) == int(
                     self._output_instance_number)
 
-    # def test_empty_dataset(self):
-    #     for m in self._modalities:
-    #         with self.subTest(m=m):
-    #             LegacyConverterClass = getattr(
-    #                 sop,
-    #                 "LegacyConvertedEnhanced{}Image".format(m)
-    #             )
-    #             with self.assertRaises(ValueError):
-    #                 LegacyConverterClass(
-    #                     FrameSet(),
-    #                     series_instance_uid=self._output_series_instance_uid,
-    #                     series_number=self._output_instance_number,
-    #                     sop_instance_uid=self._output_sop_instance_uid,
-    #                     instance_number=self._output_instance_number)
+    def test_empty_dataset(self) -> None:
+        for m in self._modalities:
+            with self.subTest(m=m):
+                LegacyConverterClass = getattr(
+                    sop,
+                    "LegacyConvertedEnhanced{}Image".format(m)
+                )
+                with self.assertRaises(ValueError):
+                    LegacyConverterClass(
+                        [],
+                        series_instance_uid=self._output_series_instance_uid,
+                        series_number=self._output_instance_number,
+                        sop_instance_uid=self._output_sop_instance_uid,
+                        instance_number=self._output_instance_number)
 
     def test_wrong_modality(self) -> None:
 
@@ -432,10 +431,9 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                 ref_dataset_seq = getattr(
                     self, "_ref_dataset_seq_{}".format(
                         self._modalities[next_idx]))
-                fset_collection = sop.FrameSetCollection(ref_dataset_seq)
                 with self.assertRaises(ValueError):
                     LegacyConverterClass(
-                        fset_collection.frame_sets[0],
+                        ref_dataset_seq,
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
@@ -453,10 +451,9 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                 tmp_orig_sop_class_id = ref_dataset_seq[0].SOPClassUID
                 for ddss in ref_dataset_seq:
                     ddss.SOPClassUID = '1.2.3.4.5.6.7.8.9'
-                fset_collection = sop.FrameSetCollection(ref_dataset_seq)
                 with self.assertRaises(ValueError):
                     LegacyConverterClass(
-                        fset_collection.frame_sets[0],
+                        ref_dataset_seq,
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
@@ -464,36 +461,34 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                 for ddss in ref_dataset_seq:
                     ddss.SOPClassUID = tmp_orig_sop_class_id
 
-    # def test_mixed_studies(self):
-    #     for m in self._modalities:
-    #         with self.subTest(m=m):
-    #             LegacyConverterClass = getattr(
-    #                 sop,
-    #                 "LegacyConvertedEnhanced{}Image".format(m)
-    #             )
-    #             ref_dataset_seq = getattr(
-    #                   self, "_ref_dataset_seq_{}".format(m))
-    #             # first run with intact input
-
-    #             LegacyConverterClass(
-    #                 legacy_datasets=ref_dataset_seq,
-    #                 series_instance_uid=self._output_series_instance_uid,
-    #                 series_number=self._output_instance_number,
-    #                 sop_instance_uid=self._output_sop_instance_uid,
-    #                 instance_number=self._output_instance_number)
-    #             # second run with defected input
-    #             tmp_orig_study_instance_uid = ref_dataset_seq[
-    #                 0].StudyInstanceUID
-    #             ref_dataset_seq[0].StudyInstanceUID = '1.2.3.4.5.6.7.8.9'
-    #             with self.assertRaises(ValueError):
-    #                 LegacyConverterClass(
-    #                     legacy_datasets=ref_dataset_seq,
-    #                     series_instance_uid=self._output_series_instance_uid,
-    #                     series_number=self._output_instance_number,
-    #                     sop_instance_uid=self._output_sop_instance_uid,
-    #                     instance_number=self._output_instance_number)
-    #             ref_dataset_seq[
-    #                 0].StudyInstanceUID = tmp_orig_study_instance_uid
+    def test_mixed_studies(self) -> None:
+        for m in self._modalities:
+            with self.subTest(m=m):
+                LegacyConverterClass = getattr(
+                    sop,
+                    "LegacyConvertedEnhanced{}Image".format(m)
+                )
+                ref_dataset_seq = getattr(
+                    self, "_ref_dataset_seq_{}".format(m))
+                LegacyConverterClass(
+                    legacy_datasets=ref_dataset_seq,
+                    series_instance_uid=self._output_series_instance_uid,
+                    series_number=self._output_instance_number,
+                    sop_instance_uid=self._output_sop_instance_uid,
+                    instance_number=self._output_instance_number)
+                # second run with defected input
+                tmp_orig_study_instance_uid = ref_dataset_seq[
+                    0].StudyInstanceUID
+                ref_dataset_seq[0].StudyInstanceUID = '1.2.3.4.5.6.7.8.9'
+                with self.assertRaises(ValueError):
+                    LegacyConverterClass(
+                        legacy_datasets=ref_dataset_seq,
+                        series_instance_uid=self._output_series_instance_uid,
+                        series_number=self._output_instance_number,
+                        sop_instance_uid=self._output_sop_instance_uid,
+                        instance_number=self._output_instance_number)
+                ref_dataset_seq[
+                    0].StudyInstanceUID = tmp_orig_study_instance_uid
 
     # def test_mixed_series(self):
     #     for m in self._modalities:
