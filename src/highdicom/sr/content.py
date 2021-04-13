@@ -746,10 +746,10 @@ class ReferencedSegmentationFrame(ContentSequence):
 
     @classmethod
     def from_seg_dataset(
-            cls,
-            dataset: Dataset,
-            frame_number: int
-        ) -> 'ReferencedSegmentationFrame':
+        cls,
+        dataset: Dataset,
+        frame_number: int
+    ) -> 'ReferencedSegmentationFrame':
         """Construct the content item directly from a segmentation dataset
 
         Parameters
