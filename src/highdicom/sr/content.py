@@ -622,7 +622,7 @@ class RealWorldValueMap(CompositeContentItem):
 
         Returns
         -------
-        RealWorldValueMap
+        highdicom.sr.content.RealWorldValueMap
             Content item representing a reference to the image dataset
 
         """
