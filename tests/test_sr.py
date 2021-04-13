@@ -1301,8 +1301,8 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (ref_seg[1].UID == self._src_series_ins_uid)
 
-    def test_from_seg_dataset(self):
-        ref_seg = ReferencedSegment.from_seg_dataset(
+    def test_from_segmenation(self):
+        ref_seg = ReferencedSegment.from_segmentation(
             segmentation=self._seg_dataset,
             segment_number=self._ref_segment_number
         )
@@ -1328,8 +1328,8 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset_frames(self):
-        ref_seg = ReferencedSegment.from_seg_dataset(
+    def test_from_segmentation_with_frames(self):
+        ref_seg = ReferencedSegment.from_segmentation(
             segmentation=self._seg_dataset,
             segment_number=self._ref_segment_number,
             frame_numbers=[self._ref_frame_number]
@@ -1360,38 +1360,38 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset_wrong_frame(self):
+    def test_from_segmentation_wrong_frame(self):
         # Test with a frame that doesn't match the segment
         with pytest.raises(ValueError):
-            ReferencedSegment.from_seg_dataset(
+            ReferencedSegment.from_segmentation(
                 segmentation=self._seg_dataset,
                 segment_number=self._ref_segment_number,
                 frame_numbers=[self._wrong_ref_frame_number]
             )
 
-    def test_from_seg_dataset_invalid_frame(self):
+    def test_from_segmentation_invalid_frame(self):
         # Test with an invalid frame number
         with pytest.raises(ValueError):
-            ReferencedSegment.from_seg_dataset(
+            ReferencedSegment.from_segmentation(
                 segmentation=self._seg_dataset,
                 segment_number=self._ref_segment_number,
                 frame_numbers=[self._invalid_ref_frame_number]
             )
 
-    def test_from_seg_dataset_invalid_segment(self):
+    def test_from_segmentation_invalid_segment(self):
         # Test with a non-existent segment
         with pytest.raises(ValueError):
-            ReferencedSegment.from_seg_dataset(
+            ReferencedSegment.from_segmentation(
                 segmentation=self._seg_dataset,
                 segment_number=self._invalid_ref_segment_number,
             )
 
-    def test_from_seg_dataset_no_derivation_image(self):
+    def test_from_segmentation_no_derivation_image(self):
         # Delete the derivation image information
         temp_dataset = deepcopy(self._seg_dataset)
         for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
             del frame_info.DerivationImageSequence
-        ref_seg = ReferencedSegment.from_seg_dataset(
+        ref_seg = ReferencedSegment.from_segmentation(
             segmentation=temp_dataset,
             segment_number=self._ref_segment_number,
         )
@@ -1404,7 +1404,7 @@ class TestReferencedSegment(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset_no_derivation_image_no_instance_info(self):
+    def test_from_segmentation_no_derivation_image_no_instance_info(self):
         # Delete the derivation image information and the referenced instance
         # information such that the method is forced to look for series level
         # information
@@ -1412,13 +1412,13 @@ class TestReferencedSegment(unittest.TestCase):
         for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
             del frame_info.DerivationImageSequence
         del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
-        ref_seg = ReferencedSegment.from_seg_dataset(
+        ref_seg = ReferencedSegment.from_segmentation(
             segmentation=temp_dataset,
             segment_number=self._ref_segment_number,
         )
         assert (ref_seg[1].UID == self._src_series_ins_uid)
 
-    def test_from_seg_dataset_no_referenced_series_uid(self):
+    def test_from_segmentation_no_referenced_series_uid(self):
         # Delete the derivation image information and the referenced instance
         # and series information. This should give an error
         temp_dataset = deepcopy(self._seg_dataset)
@@ -1427,12 +1427,12 @@ class TestReferencedSegment(unittest.TestCase):
         del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
         del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
         with pytest.raises(AttributeError):
-            ReferencedSegment.from_seg_dataset(
+            ReferencedSegment.from_segmentation(
                 segmentation=temp_dataset,
                 segment_number=self._ref_segment_number,
             )
 
-    def test_from_seg_dataset_no_referenced_series_sequence(self):
+    def test_from_segmentation_no_referenced_series_sequence(self):
         # Delete the derivation image information and the referenced instance
         # information such that the method is forced to look for series level
         # information
@@ -1441,7 +1441,7 @@ class TestReferencedSegment(unittest.TestCase):
             del frame_info.DerivationImageSequence
         del temp_dataset.ReferencedSeriesSequence
         with pytest.raises(AttributeError):
-            ReferencedSegment.from_seg_dataset(
+            ReferencedSegment.from_segmentation(
                 segmentation=temp_dataset,
                 segment_number=self._ref_segment_number,
             )
@@ -1504,8 +1504,8 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset(self):
-        ref_seg = ReferencedSegmentationFrame.from_seg_dataset(
+    def test_from_segmentation(self):
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
             self._seg_dataset,
             frame_number=self._ref_frame_number,
         )
@@ -1535,19 +1535,19 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset_invalid_frame(self):
+    def test_from_segmentation_invalid_frame(self):
         with pytest.raises(ValueError):
-            ReferencedSegmentationFrame.from_seg_dataset(
+            ReferencedSegmentationFrame.from_segmentation(
                 self._seg_dataset,
                 frame_number=self._invalid_ref_frame_number,
             )
 
-    def test_from_seg_dataset_no_derivation_image(self):
+    def test_from_segmentation_no_derivation_image(self):
         # Delete the derivation image information
         temp_dataset = deepcopy(self._seg_dataset)
         for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
             del frame_info.DerivationImageSequence
-        ref_seg = ReferencedSegmentationFrame.from_seg_dataset(
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
             segmentation=temp_dataset,
             frame_number=self._ref_frame_number,
         )
@@ -1560,7 +1560,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_seg_dataset_no_referenced_series_uid(self):
+    def test_from_segmentation_no_referenced_series_uid(self):
         # Delete the derivation image information and the referenced instance
         # and series information. This should give an error
         temp_dataset = deepcopy(self._seg_dataset)
@@ -1569,12 +1569,12 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
         del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
         with pytest.raises(AttributeError):
-            ReferencedSegmentationFrame.from_seg_dataset(
+            ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
                 frame_number=self._ref_frame_number,
             )
 
-    def test_from_seg_dataset_no_referenced_series_sequence(self):
+    def test_from_segmentation_no_referenced_series_sequence(self):
         # Delete the derivation image information and the referenced instance
         # information such that the method is forced to look for series level
         # information
@@ -1583,7 +1583,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             del frame_info.DerivationImageSequence
         del temp_dataset.ReferencedSeriesSequence
         with pytest.raises(AttributeError):
-            ReferencedSegmentationFrame.from_seg_dataset(
+            ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
                 frame_number=self._ref_frame_number,
             )

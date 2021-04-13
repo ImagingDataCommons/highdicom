@@ -783,7 +783,7 @@ class ReferencedSegmentationFrame(ContentSequence):
         self.append(source_image)
 
     @classmethod
-    def from_seg_dataset(
+    def from_segmentation(
         cls,
         segmentation: Dataset,
         frame_number: int
@@ -987,7 +987,7 @@ class ReferencedSegment(ContentSequence):
             )
 
     @classmethod
-    def from_seg_dataset(
+    def from_segmentation(
         cls,
         segmentation: Dataset,
         segment_number: int,
