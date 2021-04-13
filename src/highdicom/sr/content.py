@@ -937,11 +937,11 @@ class ReferencedSegment(ContentSequence):
 
     @classmethod
     def from_seg_dataset(
-            cls,
-            dataset: Dataset,
-            segment_number: int,
-            frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'ReferencedSegment':
+        cls,
+        dataset: Dataset,
+        segment_number: int,
+        frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'ReferencedSegment':
         """Construct the content item directly from a segmentation dataset
 
         Parameters
