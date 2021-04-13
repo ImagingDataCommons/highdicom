@@ -609,9 +609,9 @@ class RealWorldValueMap(CompositeContentItem):
 
     @classmethod
     def from_source_value_map(
-            cls,
-            value_map_dataset: Dataset,
-        ) -> 'RealWorldValueMap':
+        cls,
+        value_map_dataset: Dataset,
+    ) -> 'RealWorldValueMap':
         """Construct the content item directly from an image dataset
 
         Parameters
