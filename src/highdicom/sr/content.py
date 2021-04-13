@@ -258,7 +258,7 @@ class SourceImageForRegion(ImageContentItem):
 
         Returns
         -------
-        SourceImageForRegion
+        highdicom.sr.content.SourceImageForRegion
             Content item representing a reference to the image dataset
 
         """
