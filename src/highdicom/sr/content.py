@@ -25,7 +25,7 @@ from highdicom.sr.value_types import (
 
 
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
-    """Raise an error if the image is not a valid for a source image reference.
+    """Raise an error if the image is not a valid source image reference.
 
     Certain datasets are not appropriate as source images for measurements,
     regions, or segmentations. However the criteria do not appear to be clearly
@@ -188,10 +188,10 @@ class SourceImageForMeasurement(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForMeasurement':
+        cls,
+        image: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForMeasurement':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -204,7 +204,7 @@ class SourceImageForMeasurement(ImageContentItem):
 
         Returns
         -------
-        SourceImageForMeasurement
+        highdicom.sr.content.SourceImageForMeasurement
             Content item representing a reference to the image dataset
 
         """
@@ -270,10 +270,10 @@ class SourceImageForRegion(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForRegion':
+        cls,
+        image: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForRegion':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -286,7 +286,7 @@ class SourceImageForRegion(ImageContentItem):
 
         Returns
         -------
-        SourceImageForRegion
+        highdicom.sr.content.SourceImageForRegion
             Content item representing a reference to the image dataset
 
         """
@@ -352,10 +352,10 @@ class SourceImageForSegmentation(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForSegmentation':
+        cls,
+        image: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForSegmentation':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -368,7 +368,7 @@ class SourceImageForSegmentation(ImageContentItem):
 
         Returns
         -------
-        SourceImageForSegmentation
+        highdicom.sr.content.SourceImageForSegmentation
             Content item representing a reference to the image dataset
 
         """
@@ -411,9 +411,9 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image: Dataset,
-        ) -> 'SourceSeriesForSegmentation':
+        cls,
+        image: Dataset,
+    ) -> 'SourceSeriesForSegmentation':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -424,7 +424,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 
         Returns
         -------
-        SourceSeriesForSegmentation
+        highdicom.sr.content.SourceSeriesForSegmentation
             Content item representing a reference to the image dataset
 
         """
@@ -647,9 +647,9 @@ class RealWorldValueMap(CompositeContentItem):
 
     @classmethod
     def from_source_value_map(
-            cls,
-            value_map_dataset: Dataset,
-        ) -> 'RealWorldValueMap':
+        cls,
+        value_map_dataset: Dataset,
+    ) -> 'RealWorldValueMap':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -660,7 +660,7 @@ class RealWorldValueMap(CompositeContentItem):
 
         Returns
         -------
-        RealWorldValueMap
+        highdicom.sr.content.RealWorldValueMap
             Content item representing a reference to the image dataset
 
         """
@@ -784,10 +784,10 @@ class ReferencedSegmentationFrame(ContentSequence):
 
     @classmethod
     def from_seg_dataset(
-            cls,
-            segmentation: Dataset,
-            frame_number: int
-        ) -> 'ReferencedSegmentationFrame':
+        cls,
+        segmentation: Dataset,
+        frame_number: int
+    ) -> 'ReferencedSegmentationFrame':
         """Construct the content item directly from a segmentation dataset
 
         Parameters
@@ -801,7 +801,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         Returns
         -------
-        ReferencedSegment
+        highdicom.sr.content.ReferencedSegment
             Content item representing a reference to the segment
 
         Notes
@@ -988,11 +988,11 @@ class ReferencedSegment(ContentSequence):
 
     @classmethod
     def from_seg_dataset(
-            cls,
-            segmentation: Dataset,
-            segment_number: int,
-            frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'ReferencedSegment':
+        cls,
+        segmentation: Dataset,
+        segment_number: int,
+        frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'ReferencedSegment':
         """Construct the content item directly from a segmentation dataset
 
         Parameters
@@ -1010,7 +1010,7 @@ class ReferencedSegment(ContentSequence):
 
         Returns
         -------
-        ReferencedSegment
+        highdicom.sr.content.ReferencedSegment
             Content item representing a reference to the segment
 
         Notes
