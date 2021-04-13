@@ -386,7 +386,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 
         Returns
         -------
-        SourceSeriesForSegmentation
+        highdicom.sr.content.SourceSeriesForSegmentation
             Content item representing a reference to the image dataset
 
         """
