@@ -319,10 +319,10 @@ class SourceImageForSegmentation(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image_dataset: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForSegmentation':
+        cls,
+        image_dataset: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForSegmentation':
         """Construct the content item directly from an image dataset
 
         Parameters
