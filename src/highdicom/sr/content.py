@@ -165,10 +165,10 @@ class SourceImageForMeasurement(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image_dataset: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForMeasurement':
+        cls,
+        image_dataset: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForMeasurement':
         """Construct the content item directly from an image dataset
 
         Parameters
