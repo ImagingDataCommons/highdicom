@@ -242,10 +242,10 @@ class SourceImageForRegion(ImageContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image_dataset: Dataset,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> 'SourceImageForRegion':
+        cls,
+        image_dataset: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForRegion':
         """Construct the content item directly from an image dataset
 
         Parameters
