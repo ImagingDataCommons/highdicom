@@ -959,7 +959,7 @@ class ReferencedSegment(ContentSequence):
 
         Returns
         -------
-        ReferencedSegment
+        highdicom.sr.content.ReferencedSegment
             Content item representing a reference to the segment
 
         Notes
