@@ -25,7 +25,7 @@ from highdicom.sr.value_types import (
 
 
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
-    """Raise an error if the image is not a valid for a source image reference.
+    """Raise an error if the image is not a valid source image reference.
 
     Certain datasets are not appropriate as source images for measurements,
     regions, or segmentations. However the criteria do not appear to be clearly
