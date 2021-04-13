@@ -335,7 +335,7 @@ class SourceImageForSegmentation(ImageContentItem):
 
         Returns
         -------
-        SourceImageForSegmentation
+        highdicom.sr.content.SourceImageForSegmentation
             Content item representing a reference to the image dataset
 
         """
