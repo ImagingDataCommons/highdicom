@@ -181,7 +181,7 @@ class SourceImageForMeasurement(ImageContentItem):
 
         Returns
         -------
-        SourceImageForMeasurement
+        highdicom.sr.content.SourceImageForMeasurement
             Content item representing a reference to the image dataset
 
         """
