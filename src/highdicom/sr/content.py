@@ -373,9 +373,9 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 
     @classmethod
     def from_source_image(
-            cls,
-            image_dataset: Dataset,
-        ) -> 'SourceSeriesForSegmentation':
+        cls,
+        image_dataset: Dataset,
+    ) -> 'SourceSeriesForSegmentation':
         """Construct the content item directly from an image dataset
 
         Parameters
