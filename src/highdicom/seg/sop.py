@@ -1,8 +1,9 @@
 """Module for the SOP class of the Segmentation IOD."""
 import logging
 import numpy as np
+from operator import eq
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
@@ -17,6 +18,7 @@ from pydicom.uid import (
 )
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName
+from pydicom.sr.coding import Code
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -34,6 +36,7 @@ from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
     SegmentsOverlapValues,
+    SpatialLocationsPreservedValues
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name
@@ -79,7 +82,7 @@ class Segmentation(SOPClass):
         """
         Parameters
         ----------
-        source_images: Sequence[pydicom.dataset.Dataset]
+        source_images: Sequence[Dataset]
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived
         pixel_array: numpy.ndarray
@@ -536,6 +539,11 @@ class Segmentation(SOPClass):
         permitted in `segment_descriptions`.
 
         """  # noqa
+        if self._source_images is None:
+            raise AttributeError(
+                'Further segments may not be added to Segmentation objects '
+                'created from existing datasets.'
+            )
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim != 3:
@@ -893,6 +901,8 @@ class Segmentation(SOPClass):
         if len(self.PixelData) % 2 == 1:
             self.PixelData += b'0'
 
+        self._build_luts()
+
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
 
@@ -940,3 +950,500 @@ class Segmentation(SOPClass):
                 return pack_bits(planes.flatten())
             else:
                 return planes.flatten().tobytes()
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
+        # Checks on integrity of input dataset
+        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
+            raise ValueError(
+                'Dataset is not a Segmentation.'
+            )
+        dataset.__class__ = Segmentation
+
+        dataset._source_images = None
+        dataset._source_plane_orientation = None
+        sf_groups = dataset.SharedFunctionalGroupsSequence[0]
+        plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
+        if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
+            dataset._coordinate_system = CoordinateSystemNames.SLIDE
+            dataset._plane_orientation = plane_ori_seq.ImageOrientationSlide
+        elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
+            dataset._coordinate_system = CoordinateSystemNames.PATIENT
+            dataset._plane_orientation = plane_ori_seq.ImageOrientationPatient
+        else:
+            raise ValueError(
+                'Expected Plane Orientation Sequence to have either '
+                'ImageOrientationSlide or ImageOrientationPatient '
+                'attribute.'
+            )
+
+        for i, segment in enumerate(dataset.SegmentSequence, 1):
+            if segment.SegmentNumber != i:
+                raise ValueError(
+                    'Segments are expected to start at 1 and be consecutive '
+                    'integers.'
+                )
+        dataset._segment_inventory = {
+            s.SegmentNumber for s in dataset.SegmentSequence
+        }
+
+        dataset._build_luts()
+
+        return dataset
+
+    def _build_luts(self) -> None:
+
+        ref_series = self.ReferencedSeriesSequence[0]
+        self.source_sop_instance_uids = np.array([
+            ref_ins.ReferencedSOPInstanceUID for ref_ins in
+            ref_series.ReferencedInstanceSequence
+        ])
+        self.segment_description_lut = {
+            int(item.SegmentNumber): item
+            for item in self.SegmentSequence
+        }
+
+        segnum_col_data = []
+        source_frame_col_data = []
+
+        for frame_item in self.PerFrameFunctionalGroupsSequence:
+            # Get segment number for this frame
+            seg_no = frame_item.SegmentIdentificationSequence[0].\
+                    ReferencedSegmentNumber
+            segnum_col_data.append(int(seg_no))
+
+            source_images = []
+            for der_im in frame_item.DerivationImageSequence:
+                for src_im in der_im.SourceImageSequence:
+                    if 'SpatialLocationsPreserved' in src_im:
+                        if eq(
+                            src_im.SpatialLocationsPreserved,
+                            SpatialLocationsPreservedValues.NO.value
+                        ):
+                            raise RuntimeError(
+                                'Segmentation dataset specifies that spatial '
+                                'locations are not preserved'
+                            )
+                    source_images.append(src_im.ReferencedSOPInstanceUID)
+            if len(set(source_images)) == 0:
+                raise RuntimeError(
+                    'Could not find source image information for '
+                    'segmentation frames'
+                )
+            if len(set(source_images)) > 1:
+                raise RuntimeError(
+                    "Multiple source images found for segmentation frames"
+                )
+            src_fm_ind = self._get_src_fm_index(source_images[0])
+            source_frame_col_data.append(src_fm_ind)
+
+        # Frame LUT is a 2D numpy array with two columns
+        # Row i represents frame i of the segmentation dataset
+        # The two columns represent the segment number and the source frame
+        # index in the source_sop_instance_uids list
+        # This allows for fairly efficient querying by any of the three
+        # variables: seg frame number, source frame number, segment number
+        self.frame_lut = np.array([segnum_col_data, source_frame_col_data]).T
+        self.lut_seg_col = 0
+        self.lut_src_col = 1
+
+        # Build LUT from tracking ID -> segment numbers
+        self.tracking_id_lut: Dict[str, List[int]] = defaultdict(list)
+        for n, seg_info in self.segment_description_lut.items():
+            if 'TrackingID' in seg_info:
+                self.tracking_id_lut[seg_info.TrackingID].append(n)
+
+        # Build LUT from tracking UID -> segment numbers
+        self.tracking_uid_lut: Dict[str, int] = defaultdict(list)
+        for n, seg_info in self.segment_description_lut.items():
+            if 'TrackingUID' in seg_info:
+                self.tracking_uid_lut[seg_info.TrackingUID].append(n)
+
+    def is_binary(self) -> bool:
+        return (
+            self.SegmentationType ==
+            SegmentationTypeValues.BINARY.value
+        )
+
+    def iter_segments(self):
+        return iter_segments(self)
+
+    @property
+    def number_of_segments(self) -> int:
+        return len(self.SegmentSequence)
+
+    @property
+    def segment_numbers(self) -> List[int]:
+        # Do not assume segments are sorted (although they should be)
+        return sorted(list(self.segment_description_lut.keys()))
+
+    def get_segment_description(self, segment_number: int) -> Dataset:
+
+        if segment_number < 1:
+            raise ValueError(f'{segment_number} is an invalid segment number')
+
+        if segment_number not in self.segment_description_lut:
+            raise KeyError(
+                f'No segment number {segment_number} found in dataset'
+            )
+        return self.segment_description_lut[segment_number]
+
+    @classmethod
+    def _coded_concept_sequence_to_code(
+        cls,
+        coded_concept: Dataset
+    ) -> Code:
+        scheme_version = (
+            coded_concept.CodingSchemeVersion
+            if 'CodingSchemeVersion' in coded_concept else None
+        )
+        return Code(
+            value=coded_concept.CodeValue,
+            meaning=coded_concept.CodeMeaning,
+            scheme_designator=coded_concept.CodingSchemeDesignator,
+            scheme_version=scheme_version
+        )
+
+    def get_segmented_property_category_code(
+        self,
+        segment_number: int
+    ) -> Code:
+        seg_desc = self.segment_description_lut[segment_number]
+        return self._coded_concept_sequence_to_code(
+            seg_desc.SegmentedPropertyCategoryCodeSequence[0]
+        )
+
+    def get_segmented_property_type_code(self, segment_number: int) -> Code:
+        seg_desc = self.segment_description_lut[segment_number]
+        return self._coded_concept_sequence_to_code(
+            seg_desc.SegmentedPropertyTypeCodeSequence[0]
+        )
+
+    def get_segment_number_property_mapping(
+        self
+    ) -> Dict[int, Tuple[Code, Code]]:
+        return {
+            n:
+            (
+                self.get_segmented_property_category_code(n),
+                self.get_segmented_property_type_code(n)
+            )
+            for n in self.segment_numbers
+        }
+
+    def get_segment_number_for_segmented_property(
+        self,
+        segmented_property_category: Union[Code, CodedConcept],
+        segmented_property_type: Union[Code, CodedConcept],
+    ) -> int:
+        if isinstance(segmented_property_category, CodedConcept):
+            segmented_property_category = self._coded_concept_sequence_to_code(
+                segmented_property_category
+            )
+        if isinstance(segmented_property_type, CodedConcept):
+            segmented_property_type = self._coded_concept_sequence_to_code(
+                segmented_property_type
+            )
+
+        segment_number: Optional[int] = None
+
+        for n in self.segment_numbers:
+            category_match = (
+                segmented_property_category ==
+                self.get_segmented_property_category_code(n)
+            )
+            type_match = (
+                segmented_property_type ==
+                self.get_segmented_property_type_code(n)
+            )
+
+            if category_match and type_match:
+                if segment_number is not None:
+                    raise KeyError(
+                        'Multiple segments found with specified segment '
+                        'property'
+                    )
+                segment_number = n
+
+        if segment_number is None:
+            raise KeyError(
+                'No segment found with specified segment property'
+            )
+
+        return segment_number
+
+    def get_segment_tracking_id(self, segment_number: int) -> Optional[str]:
+        seg_info = self.segment_description_lut[segment_number]
+        if 'TrackingID' in seg_info:
+            return self.segment_description_lut[segment_number].TrackingID
+        return None
+
+    def get_segment_tracking_uid(self, segment_number: int) -> Optional[str]:
+        seg_info = self.segment_description_lut[segment_number]
+        if 'TrackingUID' in seg_info:
+            return self.segment_description_lut[segment_number].TrackingUID
+        return None
+
+    def get_segment_numbers_for_tracking_id(
+        self,
+        tracking_id: str
+    ) -> List[int]:
+        if tracking_id not in self.tracking_id_lut:
+            raise KeyError(
+                'No segment found matching specified tracking ID'
+            )
+        return self.tracking_id_lut[tracking_id]
+
+    def get_segment_numbers_for_tracking_uid(
+        self,
+        tracking_uid: str
+    ) -> List[int]:
+        if tracking_uid not in self.tracking_uid_lut:
+            raise KeyError(
+                'No segment found matching specified tracking UID'
+            )
+        return self.tracking_uid_lut[tracking_uid]
+
+    def get_tracking_ids(self) -> List[str]:
+        return list(self.tracking_id_lut.keys())
+
+    def get_tracking_uids(self) -> List[str]:
+        return list(self.tracking_uid_lut.keys())
+
+    def _get_src_fm_index(self, sop_instance_uid: str) -> int:
+        ind = np.argwhere(self.source_sop_instance_uids == sop_instance_uid)
+        if len(ind) == 0:
+            raise KeyError(
+                f'No such source frame: {sop_instance_uid}'
+            )
+        return ind.item()
+
+    def list_seg_frames_for_source_frame(
+        self,
+        source_sop_instance_uid: str
+    ) -> List[int]:
+        src_ind = self._get_src_fm_index(source_sop_instance_uid)
+        seg_frames = np.where(
+            self.frame_lut[:, self.lut_src_col] == src_ind
+        )[0]
+        return seg_frames.tolist()
+
+    def list_segments_in_source_frame(
+        self,
+        source_sop_instance_uid: str
+    ) -> List[int]:
+        src_ind = self._get_src_fm_index(source_sop_instance_uid)
+        segments = self.frame_lut[
+            self.frame_lut[:, self.lut_src_col] == src_ind,
+            self.lut_seg_col
+        ]
+        return segments.tolist()
+
+    def list_seg_frames_for_segment_number(
+        self,
+        segment_number: int
+    ) -> List[int]:
+        if segment_number not in self.segment_numbers:
+            raise KeyError(
+                'No segment found with specified segment number'
+            )
+        seg_frames = np.where(
+            self.frame_lut[:, self.lut_seg_col] == segment_number
+        )[0].tolist()
+        return seg_frames
+
+    def list_source_frames_for_segment_number(
+        self,
+        segment_number: int
+    ) -> List[str]:
+        if segment_number not in self.segment_numbers:
+            raise KeyError(
+                'No segment found with specified segment number'
+            )
+        source_frame_indices = self.frame_lut[
+            self.frame_lut[:, self.lut_seg_col] == segment_number,
+            self.lut_src_col
+        ]
+        source_frame_uids = self.source_sop_instance_uids[source_frame_indices]
+        return source_frame_uids.tolist()
+
+    def get_pixels(
+        self,
+        source_frames: Optional[Iterable[str]] = None,
+        segment_numbers: Optional[Iterable[int]] = None,
+        combine_segments: bool = False,
+        remap_segment_numbers: bool = False,
+    ) -> np.ndarray:
+        """Get a numpy array of the reconstructed segmentation.
+        Parameters
+        ----------
+        source_frames: Optional[Iterable[str]]
+            Iterable containing SOP Instance UIDs of the source images to
+            include in the segmentation. If unspecified, all source images
+            are included.
+        segment_numbers: Optional[Sequence[int]]
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        remap_segment_numbers: bool
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are remapped into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array representing the segmentation
+        Note
+        ----
+        The output array will have 4 dimensions under the default behavior,
+        and 3 dimensions if ``combine_segments`` is set to ``True``.
+        The first dimension represents the source frames. If ``source_frames``
+        has been specified, then ``pixel_array[i, ...]`` represents the
+        segmentation of ``source_frames[i]``. If ``source_frames`` was not
+        specified, then ``pixel_array[i, ...]`` represents the segmentation of
+        ``parser.source_sop_instance_uids[i]``.
+        The next two dimensions are the rows and columns of the frames,
+        respectively.
+        When ``combine_segments`` is ``False`` (the default behavior), the
+        segments are stacked down the final (4th) dimension of the pixel array.
+        If ``segment_numbers`` was specified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``segment_numbers[i]``. If
+        ``segment_numbers`` was unspecified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``parser.segment_numbers[i]``. Note
+        that in neither case does ``pixel_array[:, :, :, i]`` represent
+        the segmentation data for the segment with segment number ``i``, since
+        segment numbers begin at 1 in DICOM.
+        When ``combine_segments`` is ``True``, then the segmentation data from
+        all specified segments is combined into a multi-class array in which
+        pixel value is used to denote the segment to which a pixel belongs.
+        This is only possible if the type of the segmentation is ``BINARY`` and
+        the segments do not overlap. If the segments do overlap, a
+        ``RuntimeError`` will be raised. After combining, the value of a pixel
+        depends upon the ``remap_segment_numbers`` parameter. In both
+        cases, pixels that appear in no segments with have a value of ``0``.
+        If ``remap_segment_numbers`` is ``False``, a pixel that appears
+        in the segment with segment number ``i`` (according to the original
+        segment numbering of the segmentation object) will have a value of
+        ``i``. If ``remap_segment_numbers`` is ``True``, the value of
+        a pixel in segment ``i`` is related not to the original segment number,
+        but to the index of that segment number in the ``segment_numbers``
+        parameter of this method. Specifically, pixels belonging to the
+        segment with segment number ``segment_numbers[i]`` is given the value
+        ``i + 1`` in the output pixel array (since 0 is reserved for pixels
+        that belong to no segments). In this case, the values in the output
+        pixel array will always lie in the range ``0`` to
+        ``len(segment_numbers)`` inclusive.
+        """
+        if combine_segments and not self.is_binary():
+            raise ValueError(
+                'Cannot combine segments if the segmentation is not binary'
+            )
+
+        # If no source frames were specified, use all source frames
+        if source_frames is None:
+            source_frames = self.source_sop_instance_uids
+
+        # If no segments were specified, use all segments
+        if segment_numbers is None:
+            segment_numbers = self.segment_numbers
+
+        # Check all provided segmentation numbers are valid
+        seg_num_arr = np.array(segment_numbers)
+        seg_nums_exist = np.in1d(
+            seg_num_arr, np.array(self.segment_numbers)
+        )
+        if not seg_nums_exist.all():
+            missing_seg_nums = seg_num_arr[np.logical_not(seg_nums_exist)]
+            raise KeyError(
+                'Segment numbers contained non-existent segments: '
+                f'{missing_seg_nums}'
+            )
+
+        # Check segment numbers are unique
+        if len(np.unique(seg_num_arr)) != len(seg_num_arr):
+            raise ValueError(
+                'Segment numbers must not contain duplicates'
+            )
+
+        # Initialize empty pixel array
+        pixel_array = np.zeros(
+            (
+                len(source_frames),
+                self.Rows,
+                self.Columns,
+                len(segment_numbers)
+            ),
+            self.pixel_array.dtype
+        )
+
+        # Loop through source frames
+        for out_ind, src_frame in enumerate(source_frames):
+            src_ind = self._get_src_fm_index(src_frame)
+
+            # Find segmentation frames relating to this source frame
+            seg_frames = np.where(
+                self.frame_lut[:, self.lut_src_col] == src_ind
+            )[0]
+            seg_nums_for_frame = self.frame_lut[seg_frames, self.lut_seg_col]
+
+            # Loop through segmentation frames
+            for seg_frame, seg_num in zip(seg_frames, seg_nums_for_frame):
+                # Find output index for this segmentation number (if any)
+                seg_ind = np.where(seg_num_arr == seg_num)[0]
+
+                if len(seg_ind) > 0:
+                    # Copy data to to output array
+                    if self.pixel_array.ndim == 2:
+                        # Special case with a single segmentation frame
+                        pixel_array[out_ind, :, :, seg_ind.item()] = \
+                            self.pixel_array
+                    else:
+                        pixel_array[out_ind, :, :, seg_ind.item()] = \
+                            self.pixel_array[seg_frame, :, :]
+
+        if combine_segments:
+            # Check for overlap by summing over the segments dimension
+            if np.any(pixel_array.sum(axis=-1) > 1):
+                raise RuntimeError(
+                    'Segments cannot be combined because they overlap'
+                )
+
+            # Scale the array by the segment number using broadcasting
+            if remap_segment_numbers:
+                pixel_value_map = np.arange(1, len(segment_numbers) + 1)
+            else:
+                pixel_value_map = seg_num_arr
+            scaled_array = pixel_array * pixel_value_map.reshape(1, 1, 1, -1)
+
+            # Combine segments by taking maximum down final dimension
+            max_array = scaled_array.max(axis=-1)
+            pixel_array = max_array
+
+        return pixel_array
+
+    # TODO
+    # Shift segment information getters to SegmentDescription
+    # Multi-frame source image
+        # Segs with a single frame
+        # Allow binary fractional segs to combine segments
+    # Option to force standards compliance
+    # Integrity checks:
+    #    Each source frame specified in pffgs exists
+    #    No combination of source frame and segment number has
+    #    multiple source frames
+    #    Tracking IDs do not have multiple segments with different
+    #    segmented properties
+    # Lazy decoding of segmentation frames
+    # Should functions raise error or return empty lists?
+    # Standardize method names
+    # List segmented property for tracking id and vice versa
+    # Correct for spatial ordering of source frames?
+    # Optimize combine_segments to exploit sparse nature of array
+    # Ensure output array cannot be used to change value of pixel_array
+
