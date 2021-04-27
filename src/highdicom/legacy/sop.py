@@ -4,7 +4,7 @@ from `PixelMed <https://www.dclunie.com>`_ by David Clunie
 
 """
 import logging
-from typing import Any, List, Union, Callable, Sequence
+from typing import Any, List, Union, Callable, Sequence, Optional
 from datetime import datetime, timedelta
 from copy import deepcopy
 
@@ -558,7 +558,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable = None,
+            sort_key: Optional[Callable] = None,
         ) -> None:
         """
         Parameters
@@ -574,6 +574,8 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        sort_key: Callable, optional
+            A function by which the single-frame instances will be sorted
         """
 
         try:
@@ -596,28 +598,29 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=sop_class_uid,
             instance_number=instance_number,
-            manufacturer="" if 'Manufacturer' not in ref_ds
-            else ref_ds.Manufacturer,
-            modality="" if 'Modality' not in ref_ds
-            else ref_ds.Modality,
-            patient_id=None if 'PatientID' not in ref_ds
-            else ref_ds.PatientID,
-            patient_name=None if 'PatientName' not in ref_ds
-            else ref_ds.PatientName,
-            patient_birth_date=None if 'PatientBirthDate' not in ref_ds
-            else ref_ds.PatientBirthDate,
-            patient_sex=None if 'PatientSex' not in ref_ds
-            else ref_ds.PatientSex,
-            accession_number=None if 'AccessionNumber' not in ref_ds
-            else ref_ds.AccessionNumber,
-            study_id=None if 'StudyID' not in ref_ds
-            else ref_ds.StudyID,
-            study_date=None if 'StudyDate' not in ref_ds
-            else ref_ds.StudyDate,
-            study_time=None if 'StudyTime' not in ref_ds
-            else ref_ds.StudyTime,
-            referring_physician_name=None if 'ReferringPhysicianName' not in
-            ref_ds else ref_ds.ReferringPhysicianName,
+            #  Manufacturer is type 2
+            manufacturer=getattr(ref_ds, "Manufacturer", None),
+            #  Modality is type 1
+            modality=ref_ds.Modality,
+            #  PatientID is type 2
+            patient_id=getattr(ref_ds, "PatientID", None),
+            #  PatientName is type 2
+            patient_name=getattr(ref_ds, "PatientName", None),
+            #  PatientBirthDate is type 2
+            patient_birth_date=getattr(ref_ds, "PatientBirthDate", None),
+            #  PatientSex is type 2
+            patient_sex=getattr(ref_ds, "PatientSex", None),
+            #  AccessionNumber is type 2
+            accession_number=getattr(ref_ds, "AccessionNumber", None),
+            #  StudyID is type 2
+            study_id=getattr(ref_ds, "StudyID", None),
+            #  StudyDate is type 2
+            study_date=getattr(ref_ds, "StudyDate", None),
+            #  StudyTime is type 2
+            study_time=getattr(ref_ds, "StudyTime", None),
+            #  ReferringPhysicianName is type 2
+            referring_physician_name=getattr(
+                ref_ds, "ReferringPhysicianName", None)
         )
         self._legacy_datasets = legacy_datasets
         self._perframe_functional_groups = ـPerframeFunctionalGroups(
@@ -792,7 +795,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             src_ds: Dataset,
             dest_ds: Dataset,
             src_kw_or_tg: str,
-            dest_kw_or_tg: str = None,
+            dest_kw_or_tg: Optional[str] = None,
             check_not_to_be_perframe: bool = True,
             check_not_to_be_empty: bool = False
         ) -> None:
@@ -806,7 +809,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             Destination Dataset to copy the attribute to.
         src_kw_or_tg: str
             The keyword from the source Dataset to copy its value.
-        dest_kw_or_tg: str = None
+        dest_kw_or_tg: str, optional
             The keyword of the destination Dataset, the value is copied to. If
             its value is None, then the destination keyword will be exactly the
             source keyword.
@@ -2655,7 +2658,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable = None,
+            sort_key: Optional[Callable] = None,
         ) -> None:
         """
         Parameters
@@ -2671,6 +2674,8 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        sort_key: Callable, optional
+            A function by which the single-frame instances will be sorted
         """
 
         try:
@@ -2708,7 +2713,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable = None,
+            sort_key: Optional[Callable] = None,
         ) -> None:
         """
         Parameters
@@ -2724,6 +2729,8 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        sort_key: Callable, optional
+            A function by which the single-frame instances will be sorted
         """
 
         try:
@@ -2761,7 +2768,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
-            sort_key: Callable = None,
+            sort_key: Optional[Callable] = None,
         ) -> None:
         """
         Parameters
@@ -2777,6 +2784,8 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        sort_key: Callable, optional
+            A function by which the single-frame instances will be sorted
         """
 
         try:
