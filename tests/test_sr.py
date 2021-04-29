@@ -2336,6 +2336,12 @@ class TestComprehensiveSR(unittest.TestCase):
     def test_sop_class_uid(self):
         assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
 
+    def test_evidence(self):
+        ref_evd_items = self._report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+        with pytest.raises(AttributeError):
+            assert self.PertinentOtherEvidenceSequence
+
 
 class TestComprehensive3DSR(unittest.TestCase):
 
@@ -2436,6 +2442,12 @@ class TestComprehensive3DSR(unittest.TestCase):
 
     def test_sop_class_uid(self):
         assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+
+    def test_evidence(self):
+        with pytest.raises(AttributeError):
+            assert self.CurrentRequestedProcedureEvidenceSequence
+        unref_evd_items = self._report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
 
     def test_patient_attributes(self):
         assert self._report.PatientID == self._ref_dataset.PatientID

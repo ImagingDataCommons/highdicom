@@ -5,8 +5,8 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-from pydicom.sr.coding import Code
 from pydicom.dataset import Dataset
+from pydicom.sr.coding import Code
 from pydicom.valuerep import DT
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
@@ -28,30 +28,30 @@ class _SR(SOPClass):
     """Abstract base class for Structured Report (SR) SOP classes."""
 
     def __init__(
-            self,
-            evidence: Sequence[Dataset],
-            content: Dataset,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            sop_class_uid: str,
-            instance_number: int,
-            manufacturer: Optional[str] = None,
-            is_complete: bool = False,
-            is_final: bool = False,
-            is_verified: bool = False,
-            institution_name: Optional[str] = None,
-            institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
-            verifying_organization: Optional[str] = None,
-            performed_procedure_codes: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None,
-            requested_procedures: Optional[Sequence[Dataset]] = None,
-            previous_versions: Optional[Sequence[Dataset]] = None,
-            record_evidence: bool = True,
-            **kwargs: Any
-        ) -> None:
+        self,
+        evidence: Sequence[Dataset],
+        content: Dataset,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        sop_class_uid: str,
+        instance_number: int,
+        manufacturer: Optional[str] = None,
+        is_complete: bool = False,
+        is_final: bool = False,
+        is_verified: bool = False,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        verifying_observer_name: Optional[str] = None,
+        verifying_organization: Optional[str] = None,
+        performed_procedure_codes: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        requested_procedures: Optional[Sequence[Dataset]] = None,
+        previous_versions: Optional[Sequence[Dataset]] = None,
+        record_evidence: bool = True,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -104,9 +104,9 @@ class _SR(SOPClass):
         previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
-            Whether provided `evidence` should be recorded, i.e. included
-            in Current Requested Procedure Evidence Sequence or Pertinent
-            Other Evidence Sequence (default: ``True``)
+            Whether provided `evidence` should be recorded (i.e. included
+            in Pertinent Other Evidence Sequence) even if not referenced by
+            content items in the document tree (default: ``True``)
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -180,47 +180,73 @@ class _SR(SOPClass):
         for tag, value in content.items():
             self[tag] = value
 
-        evd_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        ref_evd_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        unref_evd_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        references = find_content_items(
+            content,
+            value_type=ValueTypeValues.IMAGE,
+            recursive=True
+        )
+        references += find_content_items(
+            content,
+            value_type=ValueTypeValues.COMPOSITE,
+            recursive=True
+        )
+        ref_uids = [
+            ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
+            for ref in references
+        ]
         for evd in evidence:
             if evd.StudyInstanceUID != evidence[0].StudyInstanceUID:
                 raise ValueError(
-                    'Referenced data sets must all belong to the same study.'
+                    'Data sets provided as "evidence" must all belong to the '
+                    'same study.'
                 )
-            evd_instance_item = Dataset()
-            evd_instance_item.ReferencedSOPClassUID = evd.SOPClassUID
-            evd_instance_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
-            evd_collection[evd.SeriesInstanceUID].append(
-                evd_instance_item
-            )
-        evd_study_item = Dataset()
-        evd_study_item.StudyInstanceUID = evidence[0].StudyInstanceUID
-        evd_study_item.ReferencedSeriesSequence = []
-        for evd_series_uid, evd_instance_items in evd_collection.items():
-            evd_series_item = Dataset()
-            evd_series_item.SeriesInstanceUID = evd_series_uid
-            evd_series_item.ReferencedSOPSequence = evd_instance_items
-            evd_study_item.ReferencedSeriesSequence.append(evd_series_item)
+            evd_item = Dataset()
+            evd_item.ReferencedSOPClassUID = evd.SOPClassUID
+            evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
+            if evd.SOPInstanceUID in ref_uids:
+                ref_evd_collection[evd.SeriesInstanceUID].append(evd_item)
+            else:
+                unref_evd_collection[evd.SeriesInstanceUID].append(evd_item)
+
+        if len(ref_evd_collection) > 0:
+            study_item = Dataset()
+            study_item.StudyInstanceUID = evidence[0].StudyInstanceUID
+            study_item.ReferencedSeriesSequence = []
+            for series_uid, instance_items in ref_evd_collection.items():
+                series_item = Dataset()
+                series_item.SeriesInstanceUID = series_uid
+                series_item.ReferencedSOPSequence = instance_items
+                study_item.ReferencedSeriesSequence.append(series_item)
+            self.CurrentRequestedProcedureEvidenceSequence = [study_item]
+
+        if len(unref_evd_collection) > 0 and record_evidence:
+            study_item = Dataset()
+            study_item.StudyInstanceUID = evidence[0].StudyInstanceUID
+            study_item.ReferencedSeriesSequence = []
+            for series_uid, instance_items in unref_evd_collection.items():
+                series_item = Dataset()
+                series_item.SeriesInstanceUID = series_uid
+                series_item.ReferencedSOPSequence = instance_items
+                study_item.ReferencedSeriesSequence.append(series_item)
+            self.PertinentOtherEvidenceSequence = [study_item]
+
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
-            self.CurrentRequestedProcedureEvidenceSequence = [evd_study_item]
-        else:
-            if record_evidence:
-                self.PertinentOtherEvidenceSequence = [evd_study_item]
 
         if previous_versions is not None:
             pre_collection: Dict[str, List[Dataset]] = defaultdict(list)
             for pre in previous_versions:
                 if pre.StudyInstanceUID != evidence[0].StudyInstanceUID:
                     raise ValueError(
-                        'Previous version data sets must belong to the '
-                        'same study.'
+                        'Data sets provided as previous versions must all '
+                        'belong to the same study.'
                     )
                 pre_instance_item = Dataset()
                 pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
                 pre_instance_item.ReferencedSOPInstanceUID = pre.SOPInstanceUID
-                pre_collection[pre.SeriesInstanceUID].append(
-                    pre_instance_item
-                )
+                pre_collection[pre.SeriesInstanceUID].append(pre_instance_item)
             pre_study_item = Dataset()
             pre_study_item.StudyInstanceUID = pre.StudyInstanceUID
             pre_study_item.ReferencedSeriesSequence = []
@@ -325,9 +351,9 @@ class EnhancedSR(_SR):
         previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
-            Whether provided `evidence` should be recorded, i.e. included
-            in Current Requested Procedure Evidence Sequence or Pertinent
-            Other Evidence Sequence (default: ``True``)
+            Whether provided `evidence` should be recorded (i.e. included
+            in Pertinent Other Evidence Sequence) even if not referenced by
+            content items in the document tree (default: ``True``)
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -453,9 +479,9 @@ class ComprehensiveSR(_SR):
         previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
-            Whether provided `evidence` should be recorded, i.e. included
-            in Current Requested Procedure Evidence Sequence or Pertinent
-            Other Evidence Sequence (default: ``True``)
+            Whether provided `evidence` should be recorded (i.e. included
+            in Pertinent Other Evidence Sequence) even if not referenced by
+            content items in the document tree (default: ``True``)
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -581,9 +607,9 @@ class Comprehensive3DSR(_SR):
         previous_versions: List[pydicom.dataset.Dataset], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
-            Whether provided `evidence` should be recorded, i.e. included
-            in Current Requested Procedure Evidence Sequence or Pertinent
-            Other Evidence Sequence (default: ``True``)
+            Whether provided `evidence` should be recorded (i.e. included
+            in Pertinent Other Evidence Sequence) even if not referenced by
+            content items in the document tree (default: ``True``)
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
