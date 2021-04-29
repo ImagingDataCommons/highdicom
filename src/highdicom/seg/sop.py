@@ -256,7 +256,8 @@ class Segmentation(SOPClass):
             study_date=src_img.StudyDate,
             study_time=src_img.StudyTime,
             referring_physician_name=getattr(
-                src_img, "ReferringPhysicianName", None),
+                src_img, 'ReferringPhysicianName', None
+            ),
             **kwargs
         )
 
