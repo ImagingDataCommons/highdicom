@@ -457,7 +457,9 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             study_id=ref_ds.StudyID,
             study_date=ref_ds.StudyDate,
             study_time=ref_ds.StudyTime,
-            referring_physician_name=ref_ds.ReferringPhysicianName,
+            referring_physician_name=getattr(
+                ref_ds, 'ReferringPhysicianName', None
+            ),
             **kwargs
         )
         _convert_legacy_to_enhanced(legacy_datasets, self)
