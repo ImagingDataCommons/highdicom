@@ -1868,14 +1868,16 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
-        self._qualitative_evaluations = [CodeContentItem(CodedConcept(
-            value="RID49502",
-            meaning="clinically significant prostate cancer",
-            scheme_designator="RADLEX"), 
-            codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+        self._qualitative_evaluations = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
             )
         ]
-
 
     def test_construction_with_region(self):
         PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -1984,11 +1986,16 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
-        self._qualitative_evaluations = [CodeContentItem(CodedConcept(
-                value="RID49502",
-                meaning="clinically significant prostate cancer",
-                scheme_designator="RADLEX"
-            ), codes.SCT.Yes, RelationshipTypeValues.CONTAINS)]
+        self._qualitative_evaluations = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+            )
+        ]
 
     def test_constructed_with_regions(self):
         self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(

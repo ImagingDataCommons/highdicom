@@ -134,7 +134,8 @@ class _SR(SOPClass):
             study_id=evidence[0].StudyID,
             study_date=evidence[0].StudyDate,
             study_time=evidence[0].StudyTime,
-            referring_physician_name=getattr(evidence[0], "ReferringPhysicianName", None),
+            referring_physician_name=getattr(
+                evidence[0], "ReferringPhysicianName", None),
             **kwargs
         )
 
