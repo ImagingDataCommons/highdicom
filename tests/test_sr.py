@@ -1868,6 +1868,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
+        self._qualitative_evaluations = [CodeContentItem(CodedConcept(
+            value="RID49502",
+            meaning="clinically significant prostate cancer",
+            scheme_designator="RADLEX"), 
+            codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+            )
+        ]
+
 
     def test_construction_with_region(self):
         PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -1882,7 +1890,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        # TODO add time_point_context, measurements and qualitative evaluations
+        # TODO add time_point_context and measurements
         PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
@@ -1892,6 +1900,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             algorithm_id=self._algo_id,
             finding_sites=self._finding_sites,
             session=self._session,
+            qualitative_evaluations=self._qualitative_evaluations,
             geometric_purpose=self._geometric_purpose
         )
 
@@ -1975,6 +1984,11 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
+        self._qualitative_evaluations = [CodeContentItem(CodedConcept(
+                value="RID49502",
+                meaning="clinically significant prostate cancer",
+                scheme_designator="RADLEX"
+            ), codes.SCT.Yes, RelationshipTypeValues.CONTAINS)]
 
     def test_constructed_with_regions(self):
         self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -1989,7 +2003,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        # TODO add time_point_context, measurements and qualitative evaluations
+        # TODO add time_point_context and measurements
         VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_regions=self._regions,
@@ -1999,6 +2013,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             algorithm_id=self._algo_id,
             finding_sites=self._finding_sites,
             session=self._session,
+            qualitative_evaluations=self._qualitative_evaluations,
             geometric_purpose=self._geometric_purpose
         )
 
