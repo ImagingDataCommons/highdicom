@@ -165,7 +165,7 @@ highdicom.sr package
    :members:
    :special-members: __call__
    :undoc-members:
-   :show-inheritance
+   :show-inheritance:
 
 highdicom.sr.coding module
 ++++++++++++++++++++++++++
