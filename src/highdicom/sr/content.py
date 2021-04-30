@@ -468,6 +468,20 @@ class ImageRegion(ScoordContentItem):
             of the source image
             (default: ``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``)
 
+        Raises
+        ------
+        ValueError
+            If the shape of the graphic data array is invalid for the graphic
+            type used. If the graphic type parameter is ``MULTIPOINT``.
+
+        Notes
+        -----
+        See
+        `http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.18.6.html#sect_C.18.6.1.1`_
+        for an explanation of the interpretation of the graphic data elements
+        for each graphic type or use the :method:`from_circle`, :method:`from_box`, or
+        :method:`from_ellipse` methods for convenience.
+
         """  # noqa
         graphic_type = GraphicTypeValues(graphic_type)
         if graphic_type == GraphicTypeValues.MULTIPOINT:
@@ -499,6 +513,228 @@ class ImageRegion(ScoordContentItem):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.ContentSequence = [source_image]
+
+    @classmethod
+    def from_circle(
+        cls,
+        xc: float,
+        yc: float,
+        radius: float,
+        source_image: SourceImageForRegion,
+        pixel_origin_interpretation: Optional[
+            Union[PixelOriginInterpretationValues, str]
+        ] = None
+    ) -> 'ImageRegion':
+        """Construct an ImageRegion representing a circle.
+
+        This is a convenience wrapper that correctly populates the graphic
+        data from the named parameters.
+
+        Parameters
+        ----------
+        xc: float
+            Zero-based x-coordinate (column index) of the center of the
+            circle, in pixel units from the left of the image.
+        yc: float
+            Zero-based y-coordinate (row index) of the center of the circle,
+            in pixel units from the top of the image.
+        radius: float
+            Radius of the circle, in pixel units.
+
+        Returns
+        -------
+        ImageRegion
+            Image Region describing the specified circle using the GraphicType
+            ``CIRCLE``.
+
+        Raises
+        ------
+        ValueError
+            If any of the parameters are negative.
+
+        """
+        if radius < 0.0:
+            raise ValueError("The radius may not be negative.")
+        if xc < 0.0 or yc < 0.0:
+            raise ValueError("Center coordinates may not be negative.")
+
+        # The first point is the central pixel. The second point is a pixel on
+        # the perimeter of the circle.
+        graphic_data = np.array(
+            [
+                [xc, yc],
+                [xc + radius, yc]
+            ]
+        )
+
+        return cls(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=graphic_data,
+            source_image=source_image,
+            pixel_origin_interpretation=pixel_origin_interpretation
+        )
+
+    @classmethod
+    def from_box(
+        cls,
+        left: float,
+        right: float,
+        top: float,
+        bottom: float,
+        source_image: SourceImageForRegion,
+        pixel_origin_interpretation: Optional[
+            Union[PixelOriginInterpretationValues, str]
+        ] = None
+    ) -> 'ImageRegion':
+        """Construct an ImageRegion representing an axis-aligned box.
+
+        Note that there is no specialized way to represent a box using graphic
+        data. This is a convenience wrapper that correctly represents an
+        axis-aligned box as a special case of a closed polyline.
+
+        Parameters
+        ----------
+        left: float
+            Zero-based x-coordinate (column index) of the left side of the
+            box, in pixel units from the left of the image.
+        right: float
+            Zero-based x-coordinate (column index) of the right side of the
+            box, in pixel units from the left of the image.
+        top: float
+            Zero-based y-coordinate (row index) of the top of the
+            box, in pixel units from the top of the image.
+        bottom: float
+            Zero-based y-coordinate (row index) of the bottom of the
+            box, in pixel units from the top of the image.
+
+        Returns
+        -------
+        ImageRegion
+            Image Region describing the specified box using the GraphicType
+            ``POLYLINE``. The points are traversed clockwise from the top left
+            and the first and last points of the box are the same to encode a
+            closed box.
+
+        Raises
+        ------
+        ValueError
+            If any of the parameters are negative.
+
+        """
+        if left < 0.0 or top < 0.0:
+            raise ValueError("Image coordinates may not be negative.")
+
+        if right < left:
+            raise ValueError("Right must be greater than left.")
+        if bottom < top:
+            raise ValueError("Bottom must be greater than top.")
+
+        # Points in clockwise order from top left
+        graphic_data = np.array(
+            [
+                [left, top],
+                [right, top],
+                [right, bottom],
+                [left, bottom],
+                [left, top],  # close the polygon
+            ]
+        )
+
+        return cls(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=graphic_data,
+            source_image=source_image,
+            pixel_origin_interpretation=pixel_origin_interpretation
+        )
+
+    @classmethod
+    def from_ellipse(
+        cls,
+        xc: float,
+        yc: float,
+        major_axis: float,
+        minor_axis: float,
+        angle: float,
+        source_image: SourceImageForRegion,
+        pixel_origin_interpretation: Optional[
+            Union[PixelOriginInterpretationValues, str]
+        ] = None
+    ) -> 'ImageRegion':
+        """Construct an ImageRegion representing an ellipse.
+
+        This is a convenience wrapper that correctly populates the graphic
+        data from the named parameters.
+
+        Parameters
+        ----------
+        xc: float
+            Zero-based x-coordinate (column index) of the center of the
+            circle, in pixel units from the left of the image.
+        yc: float
+            Zero-based y-coordinate (row index) of the center of the circle,
+            in pixel units from the top of the image.
+        major_axis: float
+            Length of the major axis of the ellipse in pixel units.
+        minor_axis: float
+            Length of the minor axis of the ellipse in pixel units.
+        angle: float
+            Angle, in radians, of the major axis from the horizontal, with
+            positive angles tilting the major axis towards the top of the
+            image.
+
+        Returns
+        -------
+        ImageRegion
+            Image Region describing the specified circle using the GraphicType
+            ``ELLIPSE``.
+
+        Raises
+        ------
+        ValueError
+            If any of the parameters are negative.
+
+        """
+        if xc < 0.0 or yc < 0.0:
+            raise ValueError("Center coordinates may not be negative.")
+        if minor_axis < 0.0:
+            raise ValueError("Length of the minor axis must be positive.")
+        if major_axis < minor_axis:
+            raise ValueError(
+                "Length of the major axis must be greater than the length of "
+                "the minor axis."
+            )
+
+        center = np.array([xc, yc])
+
+        semi_major_axis_vec = np.array(
+            [
+                0.5 * major_axis * np.cos(angle),
+                0.5 * major_axis * np.sin(angle)
+            ]
+        )
+        semi_minor_axis_vec = np.array(
+            [
+                0.5 * minor_axis * np.sin(angle),
+                0.5 * minor_axis * -np.cos(angle)
+            ]
+        )
+
+        # Ends of the minor axis
+        graphic_data = np.stack(
+            [
+                center - semi_major_axis_vec,
+                center + semi_major_axis_vec,
+                center - semi_minor_axis_vec,
+                center + semi_minor_axis_vec
+            ]
+        )
+
+        return cls(
+            graphic_type=GraphicTypeValues.ELLIPSE,
+            graphic_data=graphic_data,
+            source_image=source_image,
+            pixel_origin_interpretation=pixel_origin_interpretation
+        )
 
 
 class ImageRegion3D(Scoord3DContentItem):
