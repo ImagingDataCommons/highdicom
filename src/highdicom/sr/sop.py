@@ -3,7 +3,7 @@
 import datetime
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -180,8 +180,125 @@ class _SR(SOPClass):
         for tag, value in content.items():
             self[tag] = value
 
-        ref_evd_collection: Dict[str, List[Dataset]] = defaultdict(list)
-        unref_evd_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        ref_items, unref_items = self._collect_evidence(evidence, content)
+        if len(ref_items) > 0:
+            self.CurrentRequestedProcedureEvidenceSequence = ref_items
+        if len(unref_items) > 0 and record_evidence:
+            self.PertinentOtherEvidenceSequence = unref_items
+
+        if requested_procedures is not None:
+            self.ReferencedRequestSequence = requested_procedures
+
+        if previous_versions is not None:
+            pre_items = self._collect_predecessors(previous_versions)
+            self.PredecessorDocumentsSequence = pre_items
+
+        if performed_procedure_codes is not None:
+            self.PerformedProcedureCodeSequence = performed_procedure_codes
+        else:
+            self.PerformedProcedureCodeSequence = []
+
+        # TODO: unclear how this would work
+        self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
+
+        self.copy_patient_and_study_information(evidence[0])
+
+    @staticmethod
+    def _create_references(
+        collection: Dict[Tuple[str, str], List[Dataset]]
+    ) -> List[Dataset]:
+        """Create references.
+
+        Parameters
+        ----------
+        collection: Dict[Tuple[str, str], List[pydicom.dataset.Dataset]]
+            Items of the Referenced SOP Sequence grouped by Study and Series
+            Instance UID
+
+        Returns
+        -------
+        List[pydicom.dataset.Dataset]
+            Items containing the Study Instance UID and the
+            Referenced Series Sequence attributes
+
+        """
+        study_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        for (study_uid, series_uid), instance_items in collection.items():
+            series_item = Dataset()
+            series_item.SeriesInstanceUID = series_uid
+            series_item.ReferencedSOPSequence = instance_items
+            study_collection[study_uid].append(series_item)
+
+        ref_items = []
+        for study_uid, series_items in study_collection.items():
+            study_item = Dataset()
+            study_item.StudyInstanceUID = study_uid
+            study_item.ReferencedSeriesSequence = series_items
+            ref_items.append(study_item)
+
+        return ref_items
+
+    def _collect_predecessors(
+        self,
+        previous_versions: List[Dataset]
+    ) -> List[Dataset]:
+        """Collect predecessors of the SR document.
+
+        Parameters
+        ----------
+        previous_versions: List[pydicom.dataset.Dataset]
+            Metadata of instances that represent previous versions of the
+            SR document content
+
+        Returns
+        -------
+        List[pydicom.dataset.Dataset]
+            Items of the Predecessor Documents Sequence
+
+        """
+        collection: Dict[str, List[Dataset]] = defaultdict(list)
+        for pre in previous_versions:
+            pre_instance_item = Dataset()
+            pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
+            pre_instance_item.ReferencedSOPInstanceUID = pre.SOPInstanceUID
+            key = (pre.StudyInstanceUID, pre.SeriesInstanceUID)
+            collection[key].append(pre_instance_item)
+        return self._create_references(collection)
+
+    def _collect_evidence(
+        self,
+        evidence: List[Dataset],
+        content: Dataset
+    ) -> Tuple[List[Dataset], List[Dataset]]:
+        """Collect evidence for the SR document.
+
+        Any `evidence` that is referenced in `content` via IMAGE or
+        COMPOSITE content items will be grouped together for inclusion in the
+        Current Requested Procedure Evidence Sequence and all remaining
+        evidence will be grouped for potential inclusion in the Pertinent Other
+        Evidence Sequence.
+
+        Parameters
+        ----------
+        evidence: List[pydicom.dataset.Dataset]
+            Metadata of instances that serve as evidence for the SR document
+            content
+        content: pydicom.dataset.Dataset
+            SR document content
+
+        Returns
+        -------
+        Tuple[List[pydicom.dataset.Dataset], List[pydicom.dataset.Dataset]]
+            Items of the Current Requested Procedure Evidence Sequence and the
+            Pertinent Other Evidence Sequence
+
+        Raises
+        ------
+        ValueError
+            When a SOP instance is referenced in `content` but not provided as
+            `evidence`
+
+        """  # noqa
         references = find_content_items(
             content,
             value_type=ValueTypeValues.IMAGE,
@@ -196,76 +313,34 @@ class _SR(SOPClass):
             ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
             for ref in references
         ]
+        evd_uids = []
+        ref_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        unref_collection: Dict[str, List[Dataset]] = defaultdict(list)
         for evd in evidence:
             if evd.StudyInstanceUID != evidence[0].StudyInstanceUID:
                 raise ValueError(
-                    'Data sets provided as "evidence" must all belong to the '
+                    'Data sets provided as evidence must all belong to the '
                     'same study.'
                 )
             evd_item = Dataset()
             evd_item.ReferencedSOPClassUID = evd.SOPClassUID
             evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
+            key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
             if evd.SOPInstanceUID in ref_uids:
-                ref_evd_collection[evd.SeriesInstanceUID].append(evd_item)
+                ref_collection[key].append(evd_item)
             else:
-                unref_evd_collection[evd.SeriesInstanceUID].append(evd_item)
+                unref_collection[key].append(evd_item)
+            evd_uids.append(evd.SOPInstanceUID)
+        for uid in ref_uids:
+            if uid not in evd_uids:
+                raise ValueError(
+                    f'No evidence was provided for SOP Instance "{uid}", '
+                    'which is referenced in the document content.'
+                )
 
-        if len(ref_evd_collection) > 0:
-            study_item = Dataset()
-            study_item.StudyInstanceUID = evidence[0].StudyInstanceUID
-            study_item.ReferencedSeriesSequence = []
-            for series_uid, instance_items in ref_evd_collection.items():
-                series_item = Dataset()
-                series_item.SeriesInstanceUID = series_uid
-                series_item.ReferencedSOPSequence = instance_items
-                study_item.ReferencedSeriesSequence.append(series_item)
-            self.CurrentRequestedProcedureEvidenceSequence = [study_item]
-
-        if len(unref_evd_collection) > 0 and record_evidence:
-            study_item = Dataset()
-            study_item.StudyInstanceUID = evidence[0].StudyInstanceUID
-            study_item.ReferencedSeriesSequence = []
-            for series_uid, instance_items in unref_evd_collection.items():
-                series_item = Dataset()
-                series_item.SeriesInstanceUID = series_uid
-                series_item.ReferencedSOPSequence = instance_items
-                study_item.ReferencedSeriesSequence.append(series_item)
-            self.PertinentOtherEvidenceSequence = [study_item]
-
-        if requested_procedures is not None:
-            self.ReferencedRequestSequence = requested_procedures
-
-        if previous_versions is not None:
-            pre_collection: Dict[str, List[Dataset]] = defaultdict(list)
-            for pre in previous_versions:
-                if pre.StudyInstanceUID != evidence[0].StudyInstanceUID:
-                    raise ValueError(
-                        'Data sets provided as previous versions must all '
-                        'belong to the same study.'
-                    )
-                pre_instance_item = Dataset()
-                pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
-                pre_instance_item.ReferencedSOPInstanceUID = pre.SOPInstanceUID
-                pre_collection[pre.SeriesInstanceUID].append(pre_instance_item)
-            pre_study_item = Dataset()
-            pre_study_item.StudyInstanceUID = pre.StudyInstanceUID
-            pre_study_item.ReferencedSeriesSequence = []
-            for pre_series_uid, pre_instance_items in pre_collection.items():
-                pre_series_item = Dataset()
-                pre_series_item.SeriesInstanceUID = pre_series_uid
-                pre_series_item.ReferencedSOPSequence = pre_instance_items
-                pre_study_item.ReferencedSeriesSequence.append(pre_series_item)
-            self.PredecessorDocumentsSequence = [pre_study_item]
-
-        if performed_procedure_codes is not None:
-            self.PerformedProcedureCodeSequence = performed_procedure_codes
-        else:
-            self.PerformedProcedureCodeSequence = []
-
-        # TODO
-        self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
-
-        self.copy_patient_and_study_information(evidence[0])
+        ref_items = self._create_references(ref_collection)
+        unref_items = self._create_references(unref_collection)
+        return (ref_items, unref_items)
 
 
 class EnhancedSR(_SR):
