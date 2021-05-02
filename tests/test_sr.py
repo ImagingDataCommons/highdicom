@@ -2454,12 +2454,8 @@ class TestComprehensiveSR(unittest.TestCase):
         )
         ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
         assert len(ref_evd_items) == 2
-
-    def test_evidence(self):
-        ref_evd_items = self._report.CurrentRequestedProcedureEvidenceSequence
-        assert len(ref_evd_items) == 1
         with pytest.raises(AttributeError):
-            assert self.PertinentOtherEvidenceSequence
+            assert report.PertinentOtherEvidenceSequence
 
 
 class TestComprehensive3DSR(unittest.TestCase):
