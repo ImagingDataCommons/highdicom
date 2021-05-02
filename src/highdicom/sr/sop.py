@@ -328,7 +328,7 @@ class _SR(SOPClass):
             evd_item = Dataset()
             evd_item.ReferencedSOPClassUID = evd.SOPClassUID
             evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
-            key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
+            key = (str(evd.StudyInstanceUID), str(evd.SeriesInstanceUID))
             if evd.SOPInstanceUID in ref_uids:
                 ref_group[key].append(evd_item)
             else:
