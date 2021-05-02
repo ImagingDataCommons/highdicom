@@ -56,7 +56,6 @@ from highdicom.sr.sop import (
     EnhancedSR,
 )
 from highdicom.sr.templates import (
-    DEFAULT_LANGUAGE,
     AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
     Measurement,
