@@ -486,9 +486,9 @@ class TestContentItem(unittest.TestCase):
         )
         assert i.ValueType == 'CONTAINER'
         assert i.ConceptNameCodeSequence[0] == name
-        content_template_item = i.ContentTemplateSequence[0]
-        assert content_template_item.TemplateIdentifier == tid
-        assert content_template_item.MappingResource == 'DCMR'
+        template_item = i.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == tid
+        assert template_item.MappingResource == 'DCMR'
         assert i.ContinuityOfContent == 'CONTINUOUS'
 
     def test_composite_item_construction(self):
@@ -2077,47 +2077,35 @@ class TestMeasurementReport(unittest.TestCase):
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region
         )
-        self._measurement_report = MeasurementReport(
+
+    def test_construction(self):
+        measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
             imaging_measurements=[self._measurements]
         )
-
-    def test_container(self):
-        item = self._measurement_report[0]
+        item = measurement_report[0]
         assert len(item.ContentSequence) == 8
-        subitem = item.ContentTemplateSequence[0]
-        assert subitem.TemplateIdentifier == '1500'
 
-    def test_language(self):
-        item = self._measurement_report[0].ContentSequence[0]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121049'
-        assert item.ConceptCodeSequence[0] == DEFAULT_LANGUAGE
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
 
-    def test_observation_context(self):
-        item = self._measurement_report[0].ContentSequence[1]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121005'
-        item = self._measurement_report[0].ContentSequence[2]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121008'
-        item = self._measurement_report[0].ContentSequence[3]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121005'
-        item = self._measurement_report[0].ContentSequence[4]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121012'
-
-    def test_procedure_reported(self):
-        item = self._measurement_report[0].ContentSequence[5]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121058'
-        assert item.ConceptCodeSequence[0] == self._procedure_reported
-
-    def test_image_library(self):
-        item = self._measurement_report[0].ContentSequence[6]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '111028'
-
-    def test_imaging_measurements(self):
-        item = self._measurement_report[0].ContentSequence[7]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '126010'
-        subitem = item.ContentSequence[0]
-        assert subitem.ConceptNameCodeSequence[0].CodeValue == '125007'
+        content_item_expectations = [
+            (0, '121049'),
+            (1, '121005'),
+            (2, '121008'),
+            (3, '121005'),
+            (4, '121012'),
+            # Procedure reported
+            (5, '121058'),
+            # Image library
+            (6, '111028'),
+            # Imaging measurements
+            (7, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
 
 class TestEnhancedSR(unittest.TestCase):
@@ -2144,7 +2132,7 @@ class TestEnhancedSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
 
         observer_person_context = ObserverContext(
@@ -2217,7 +2205,8 @@ class TestEnhancedSR(unittest.TestCase):
             imaging_measurements=imaging_measurements
         )[0]
 
-        self._report = EnhancedSR(
+    def test_construction(self):
+        report = EnhancedSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -2225,12 +2214,24 @@ class TestEnhancedSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+    def test_evidence_missing(self):
+        with pytest.raises(ValueError):
+            EnhancedSR(
+                evidence=[],
+                content=self._content,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                institution_name=self._institution_name,
+                institutional_department_name=self._department_name,
+                manufacturer=self._manufacturer
+            )
 
 
 class TestComprehensiveSR(unittest.TestCase):
@@ -2248,8 +2249,9 @@ class TestComprehensiveSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
+        self._procedure_reported = codes.LN.CTUnspecifiedBodyRegion
 
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
@@ -2263,10 +2265,11 @@ class TestComprehensiveSR(unittest.TestCase):
                 uid=generate_uid()
             )
         )
-        observation_context = ObservationContext(
+        self._observation_context = ObservationContext(
             observer_person_context=observer_person_context,
             observer_device_context=observer_device_context,
         )
+
         referenced_region = ImageRegion(
             graphic_type=GraphicTypeValues.POLYLINE,
             graphic_data=np.array([
@@ -2303,25 +2306,25 @@ class TestComprehensiveSR(unittest.TestCase):
                 )
             )
         ]
-        imaging_measurements = [
-            PlanarROIMeasurementsAndQualitativeEvaluations(
-                tracking_identifier=TrackingIdentifier(
-                    uid=generate_uid(),
-                    identifier='Planar ROI Measurements'
-                ),
-                referenced_region=referenced_region,
-                finding_type=codes.SCT.SpinalCord,
-                measurements=measurements,
-                finding_sites=finding_sites
-            )
-        ]
+        measurement_group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='Planar ROI Measurements'
+            ),
+            referenced_region=referenced_region,
+            finding_type=codes.SCT.SpinalCord,
+            measurements=measurements,
+            finding_sites=finding_sites
+        )
+        self._imaging_measurements = [measurement_group]
         self._content = MeasurementReport(
-            observation_context=observation_context,
-            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
-            imaging_measurements=imaging_measurements
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=self._imaging_measurements
         )[0]
 
-        self._report = ComprehensiveSR(
+    def test_construction(self):
+        report = ComprehensiveSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -2329,18 +2332,107 @@ class TestComprehensiveSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
-
-    def test_evidence(self):
-        ref_evd_items = self._report.CurrentRequestedProcedureEvidenceSequence
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
         assert len(ref_evd_items) == 1
         with pytest.raises(AttributeError):
-            assert self.PertinentOtherEvidenceSequence
+            assert report.PertinentOtherEvidenceSequence
+
+    def test_evidence_duplication(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+
+    def test_evidence_missing(self):
+        ref_dataset = deepcopy(self._ref_dataset)
+        ref_dataset.SOPInstanceUID = '1.2.3.4'
+        with pytest.raises(ValueError):
+            Comprehensive3DSR(
+                evidence=[ref_dataset],
+                content=self._content,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                institution_name=self._institution_name,
+                institutional_department_name=self._department_name,
+                manufacturer=self._manufacturer
+            )
+
+    def test_evidence_multiple_studies(self):
+        ref_dataset = deepcopy(self._ref_dataset)
+        ref_dataset.StudyInstanceUID = '1.2.6'
+        ref_dataset.SeriesInstanceUID = '1.2.7'
+        ref_dataset.SOPInstanceUID = '1.2.9'
+        referenced_region = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=np.array([
+                (65.0, 100.0),
+                (70.0, 100.0),
+                (70.0, 120.0),
+                (65.0, 120.0),
+                (65.0, 100.0),
+            ]),
+            source_image=SourceImageForRegion(
+                referenced_sop_class_uid=ref_dataset.SOPClassUID,
+                referenced_sop_instance_uid=ref_dataset.SOPInstanceUID
+            )
+        )
+        finding_sites = [
+            FindingSite(anatomic_location=codes.SCT.CervicoThoracicSpine),
+        ]
+        measurements = [
+            Measurement(
+                name=codes.SCT.AreaOfDefinedRegion,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+                value=0.7,
+                unit=codes.UCUM.SquareMillimeter,
+            )
+        ]
+        measurement_group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='Planar ROI Measurements'
+            ),
+            referenced_region=referenced_region,
+            finding_type=codes.SCT.SpinalCord,
+            measurements=measurements,
+            finding_sites=finding_sites
+        )
+        imaging_measurements = deepcopy(self._imaging_measurements)
+        imaging_measurements.append(measurement_group)
+        content = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=imaging_measurements
+        )[0]
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, ref_dataset],
+            content=content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 2
 
 
 class TestComprehensive3DSR(unittest.TestCase):
@@ -2358,7 +2450,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
 
         observer_person_context = ObserverContext(
@@ -2428,7 +2520,8 @@ class TestComprehensive3DSR(unittest.TestCase):
             imaging_measurements=imaging_measurements
         )[0]
 
-        self._report = Comprehensive3DSR(
+    def test_construction(self):
+        report = Comprehensive3DSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -2436,40 +2529,42 @@ class TestComprehensive3DSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.PatientID == self._ref_dataset.PatientID
+        assert report.PatientName == self._ref_dataset.PatientName
+        assert report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        assert report.AccessionNumber == self._ref_dataset.AccessionNumber
+        assert report.SeriesInstanceUID == self._series_instance_uid
+        assert report.SeriesNumber == self._series_number
+        assert report.SOPInstanceUID == self._sop_instance_uid
+        assert report.InstanceNumber == self._instance_number
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.InstitutionName == self._institution_name
+        assert report.Manufacturer == self._manufacturer
+        assert report.Modality == 'SR'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
-
-    def test_evidence(self):
         with pytest.raises(AttributeError):
-            assert self.CurrentRequestedProcedureEvidenceSequence
-        unref_evd_items = self._report.PertinentOtherEvidenceSequence
+            assert report.CurrentRequestedProcedureEvidenceSequence
+        unref_evd_items = report.PertinentOtherEvidenceSequence
         assert len(unref_evd_items) == 1
 
-    def test_patient_attributes(self):
-        assert self._report.PatientID == self._ref_dataset.PatientID
-        assert self._report.PatientName == self._ref_dataset.PatientName
-
-    def test_study_attributes(self):
-        assert (
-            self._report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+    def test_evidence_duplication(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
         )
-        assert self._report.AccessionNumber == self._ref_dataset.AccessionNumber
-
-    def test_series_attributes(self):
-        assert self._report.SeriesInstanceUID == self._series_instance_uid
-        assert self._report.SeriesNumber == self._series_number
-
-    def test_instance_attributes(self):
-        assert self._report.SOPInstanceUID == self._sop_instance_uid
-        assert self._report.InstanceNumber == self._instance_number
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
-        assert self._report.InstitutionName == self._institution_name
-        assert self._report.Manufacturer == self._manufacturer
-        assert self._report.Modality == 'SR'
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
 
 
 class TestSRUtilities(unittest.TestCase):

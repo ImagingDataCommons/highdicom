@@ -111,11 +111,14 @@ class _SR(SOPClass):
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
-        Note
-        ----
-        Each dataset in `evidence` must be part of the same study.
+        Raises
+        ------
+        ValueError
+            When no `evidence` is provided
 
         """  # noqa: E501
+        if len(evidence) == 0:
+            raise ValueError('No evidence was provided.')
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -353,29 +356,29 @@ class EnhancedSR(_SR):
     """
 
     def __init__(
-            self,
-            evidence: Sequence[Dataset],
-            content: Dataset,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            manufacturer: Optional[str] = None,
-            is_complete: bool = False,
-            is_final: bool = False,
-            is_verified: bool = False,
-            institution_name: Optional[str] = None,
-            institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
-            verifying_organization: Optional[str] = None,
-            performed_procedure_codes: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None,
-            requested_procedures: Optional[Sequence[Dataset]] = None,
-            previous_versions: Optional[Sequence[Dataset]] = None,
-            record_evidence: bool = True,
-            **kwargs: Any
-        ) -> None:
+        self,
+        evidence: Sequence[Dataset],
+        content: Dataset,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: Optional[str] = None,
+        is_complete: bool = False,
+        is_final: bool = False,
+        is_verified: bool = False,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        verifying_observer_name: Optional[str] = None,
+        verifying_organization: Optional[str] = None,
+        performed_procedure_codes: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        requested_procedures: Optional[Sequence[Dataset]] = None,
+        previous_versions: Optional[Sequence[Dataset]] = None,
+        record_evidence: bool = True,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
