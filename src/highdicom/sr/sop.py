@@ -3,7 +3,7 @@
 import datetime
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -205,13 +205,13 @@ class _SR(SOPClass):
 
     @staticmethod
     def _create_references(
-        collection: Dict[Tuple[str, str], List[Dataset]]
+        collection: Mapping[Tuple[str, str], Sequence[Dataset]]
     ) -> List[Dataset]:
         """Create references.
 
         Parameters
         ----------
-        collection: Dict[Tuple[str, str], List[pydicom.dataset.Dataset]]
+        collection: Mapping[Tuple[str, str], Sequence[pydicom.dataset.Dataset]]
             Items of the Referenced SOP Sequence grouped by Study and Series
             Instance UID
 
@@ -222,7 +222,7 @@ class _SR(SOPClass):
             Referenced Series Sequence attributes
 
         """
-        study_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        study_collection: Mapping[str, List[Dataset]] = defaultdict(list)
         for (study_uid, series_uid), instance_items in collection.items():
             series_item = Dataset()
             series_item.SeriesInstanceUID = series_uid
@@ -240,7 +240,7 @@ class _SR(SOPClass):
 
     def _collect_predecessors(
         self,
-        previous_versions: List[Dataset]
+        previous_versions: Sequence[Dataset]
     ) -> List[Dataset]:
         """Collect predecessors of the SR document.
 
@@ -256,18 +256,18 @@ class _SR(SOPClass):
             Items of the Predecessor Documents Sequence
 
         """
-        collection: Dict[str, List[Dataset]] = defaultdict(list)
+        group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
         for pre in previous_versions:
             pre_instance_item = Dataset()
             pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
             pre_instance_item.ReferencedSOPInstanceUID = pre.SOPInstanceUID
             key = (pre.StudyInstanceUID, pre.SeriesInstanceUID)
-            collection[key].append(pre_instance_item)
-        return self._create_references(collection)
+            group[key].append(pre_instance_item)
+        return self._create_references(group)
 
     def _collect_evidence(
         self,
-        evidence: List[Dataset],
+        evidence: Sequence[Dataset],
         content: Dataset
     ) -> Tuple[List[Dataset], List[Dataset]]:
         """Collect evidence for the SR document.
@@ -314,8 +314,8 @@ class _SR(SOPClass):
             for ref in references
         ])
         evd_uids = set()
-        ref_collection: Dict[str, List[Dataset]] = defaultdict(list)
-        unref_collection: Dict[str, List[Dataset]] = defaultdict(list)
+        ref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
+        unref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
         for evd in evidence:
             if evd.SOPInstanceUID in evd_uids:
                 # Skip potential duplicates
@@ -323,11 +323,11 @@ class _SR(SOPClass):
             evd_item = Dataset()
             evd_item.ReferencedSOPClassUID = evd.SOPClassUID
             evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
-            key = (str(evd.StudyInstanceUID), str(evd.SeriesInstanceUID))
+            key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
             if evd.SOPInstanceUID in ref_uids:
-                ref_collection[key].append(evd_item)
+                ref_group[key].append(evd_item)
             else:
-                unref_collection[key].append(evd_item)
+                unref_group[key].append(evd_item)
             evd_uids.add(evd.SOPInstanceUID)
         if not(ref_uids.issubset(evd_uids)):
             missing_uids = ref_uids.difference(evd_uids)
@@ -338,8 +338,8 @@ class _SR(SOPClass):
                 )
             )
 
-        ref_items = self._create_references(ref_collection)
-        unref_items = self._create_references(unref_collection)
+        ref_items = self._create_references(ref_group)
+        unref_items = self._create_references(unref_group)
         return (ref_items, unref_items)
 
 
