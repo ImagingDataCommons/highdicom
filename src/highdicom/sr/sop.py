@@ -309,34 +309,34 @@ class _SR(SOPClass):
             value_type=ValueTypeValues.COMPOSITE,
             recursive=True
         )
-        ref_uids = [
+        ref_uids = set([
             ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
             for ref in references
-        ]
-        evd_uids = []
+        ])
+        evd_uids = set()
         ref_collection: Dict[str, List[Dataset]] = defaultdict(list)
         unref_collection: Dict[str, List[Dataset]] = defaultdict(list)
         for evd in evidence:
-            if evd.StudyInstanceUID != evidence[0].StudyInstanceUID:
-                raise ValueError(
-                    'Data sets provided as evidence must all belong to the '
-                    'same study.'
-                )
+            if evd.SOPInstanceUID in evd_uids:
+                # Skip potential duplicates
+                continue
             evd_item = Dataset()
             evd_item.ReferencedSOPClassUID = evd.SOPClassUID
             evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
-            key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
+            key = (str(evd.StudyInstanceUID), str(evd.SeriesInstanceUID))
             if evd.SOPInstanceUID in ref_uids:
                 ref_collection[key].append(evd_item)
             else:
                 unref_collection[key].append(evd_item)
-            evd_uids.append(evd.SOPInstanceUID)
-        for uid in ref_uids:
-            if uid not in evd_uids:
-                raise ValueError(
-                    f'No evidence was provided for SOP Instance "{uid}", '
-                    'which is referenced in the document content.'
+            evd_uids.add(evd.SOPInstanceUID)
+        if not(ref_uids.issubset(evd_uids)):
+            missing_uids = ref_uids.difference(evd_uids)
+            raise ValueError(
+                'No evidence was provided for the following SOP instances, '
+                'which are referenced in the document content: "{}"'.format(
+                    '", "'.join(missing_uids)
                 )
+            )
 
         ref_items = self._create_references(ref_collection)
         unref_items = self._create_references(unref_collection)
