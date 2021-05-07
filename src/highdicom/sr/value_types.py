@@ -309,7 +309,19 @@ class TimeContentItem(ContentItem):
     @property
     def value(self) -> datetime.time:
         """datetime.time: time"""
-        return datetime.time.fromisoformat(self.Time.isoformat())
+        allowed_formats = [
+            '%H:%M:%S.%f',
+            '%H:%M:%S',
+            '%H:%M',
+            '%H',
+        ]
+        for fmt in allowed_formats:
+            try:
+                dt = datetime.datetime.strptime(self.Time.isoformat(), fmt)
+                return dt.time()
+            except ValueError:
+                continue
+        raise ValueError(f'Could not decode time value "{self.Time}"')
 
 
 class DateContentItem(ContentItem):
@@ -343,7 +355,8 @@ class DateContentItem(ContentItem):
     @property
     def value(self) -> datetime.date:
         """datetime.date: date"""
-        return datetime.date.fromisoformat(self.Date.isoformat())
+        fmt = '%Y-%m-%d'
+        return datetime.datetime.strptime(self.Date.isoformat(), fmt).date()
 
 
 class DateTimeContentItem(ContentItem):
@@ -377,7 +390,26 @@ class DateTimeContentItem(ContentItem):
     @property
     def value(self) -> datetime.datetime:
         """datetime.datetime: datetime"""
-        return datetime.datetime.fromisoformat(self.DateTime.isoformat())
+        allowed_formats = [
+            '%Y-%m-%dT%H:%M:%S.%f%z',
+            '%Y-%m-%dT%H:%M:%S.%f',
+            '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%dT%H:%M:%S%z',
+            '%Y-%m-%dT%H:%M',
+            '%Y-%m-%dT%H:%M%z',
+            '%Y-%m-%dT%H',
+            '%Y-%m-%dT%H%z',
+            '%Y-%m-%d',
+            '%Y-%m',
+            '%Y',
+        ]
+        for fmt in allowed_formats:
+            try:
+                dt = datetime.datetime.strptime(self.DateTime.isoformat(), fmt)
+                return dt
+            except ValueError:
+                continue
+        raise ValueError(f'Could not decode datetime value "{self.DateTime}"')
 
 
 class UIDRefContentItem(ContentItem):
