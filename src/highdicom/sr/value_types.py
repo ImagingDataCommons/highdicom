@@ -1,6 +1,6 @@
 """DICOM structured reporting content item value types."""
 import datetime
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -204,6 +204,11 @@ class CodeContentItem(ContentItem):
             value = CodedConcept(*value)
         self.ConceptCodeSequence = [value]
 
+    @property
+    def value(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: coded concept"""
+        return self.ConceptCodeSequence[0]
+
 
 class PnameContentItem(ContentItem):
 
@@ -232,6 +237,11 @@ class PnameContentItem(ContentItem):
             ValueTypeValues.PNAME, name, relationship_type
         )
         self.PersonName = PersonName(value)
+
+    @property
+    def value(self) -> str:
+        """str: person name"""
+        return self.PersonName
 
 
 class TextContentItem(ContentItem):
@@ -262,6 +272,11 @@ class TextContentItem(ContentItem):
         )
         self.TextValue = str(value)
 
+    @property
+    def value(self) -> str:
+        """str: text value"""
+        return self.TextValue
+
 
 class TimeContentItem(ContentItem):
 
@@ -290,6 +305,11 @@ class TimeContentItem(ContentItem):
             ValueTypeValues.TIME, name, relationship_type
         )
         self.Time = TM(value)
+
+    @property
+    def value(self) -> datetime.time:
+        """datetime.time: time"""
+        return datetime.time.fromisoformat(self.Time.isoformat())
 
 
 class DateContentItem(ContentItem):
@@ -320,6 +340,11 @@ class DateContentItem(ContentItem):
         )
         self.Date = DA(value)
 
+    @property
+    def value(self) -> datetime.date:
+        """datetime.date: date"""
+        return datetime.date.fromisoformat(self.Date.isoformat())
+
 
 class DateTimeContentItem(ContentItem):
 
@@ -349,6 +374,11 @@ class DateTimeContentItem(ContentItem):
         )
         self.DateTime = DT(value)
 
+    @property
+    def value(self) -> datetime.datetime:
+        """datetime.datetime: datetime"""
+        return datetime.datetime.fromisoformat(self.DateTime.isoformat())
+
 
 class UIDRefContentItem(ContentItem):
 
@@ -377,6 +407,11 @@ class UIDRefContentItem(ContentItem):
             ValueTypeValues.UIDREF, name, relationship_type
         )
         self.UID = value
+
+    @property
+    def value(self) -> str:
+        """str: UID"""
+        return str(self.UID)
 
 
 class NumContentItem(ContentItem):
@@ -452,6 +487,21 @@ class NumContentItem(ContentItem):
                 'upon creation of NumContentItem.'
             )
 
+    @property
+    def value(self) -> Union[int, float]:
+        """Union[int, float]: measured value"""
+        item = self.MeasuredValueSequence[0]
+        try:
+            return float(item.FloatingPointValue)
+        except AttributeError:
+            return item.NumericValue
+
+    @property
+    def unit(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: unit"""
+        item = self.MeasuredValueSequence[0]
+        return item.MeasurementUnitsCodeSequence[0]
+
 
 class ContainerContentItem(ContentItem):
 
@@ -493,6 +543,15 @@ class ContainerContentItem(ContentItem):
             item.TemplateIdentifier = str(template_id)
             self.ContentTemplateSequence = [item]
 
+    @property
+    def template_id(self) -> Union[str, None]:
+        """Union[str, None]: template identifier"""
+        try:
+            item = self.ContentTemplateSequence[0]
+            return item.TemplateIdentifier
+        except (AttributeError, IndexError):
+            return None
+
 
 class CompositeContentItem(ContentItem):
 
@@ -527,6 +586,12 @@ class CompositeContentItem(ContentItem):
         item.ReferencedSOPClassUID = str(referenced_sop_class_uid)
         item.ReferencedSOPInstanceUID = str(referenced_sop_instance_uid)
         self.ReferencedSOPSequence = [item]
+
+    @property
+    def value(self) -> Tuple[str, str]:
+        """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
+        item = self.ReferencedSOPSequence[0]
+        return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
 
 
 class ImageContentItem(ContentItem):
@@ -578,6 +643,12 @@ class ImageContentItem(ContentItem):
         if referenced_segment_numbers is not None:
             item.ReferencedSegmentNumber = referenced_segment_numbers
         self.ReferencedSOPSequence = [item]
+
+    @property
+    def value(self) -> Tuple[str, str]:
+        """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
+        item = self.ReferencedSOPSequence[0]
+        return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
 
 
 class ScoordContentItem(ContentItem):
@@ -639,7 +710,7 @@ class ScoordContentItem(ContentItem):
             if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "POINT" '
-                    'must be a single (column row) pair in two-dimensional '
+                    'must be a single (column, row) pair in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypeValues.CIRCLE:
@@ -675,6 +746,13 @@ class ScoordContentItem(ContentItem):
         self.PixelOriginInterpretation = pixel_origin_interpretation.value
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
+
+    @property
+    def value(self) -> np.ndarray:
+        """numpy.ndarray: spatial coordinates"""
+        graphic_data = np.array(self.GraphicData)
+        n_points = len(graphic_data) / 2
+        return np.array(np.array_split(graphic_data, n_points))
 
 
 class Scoord3DContentItem(ContentItem):
@@ -758,6 +836,13 @@ class Scoord3DContentItem(ContentItem):
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
 
+    @property
+    def value(self) -> np.ndarray:
+        """numpy.ndarray: spatial coordinates"""
+        graphic_data = np.array(self.GraphicData)
+        n_points = len(graphic_data) / 3
+        return np.array(np.array_split(graphic_data, n_points))
+
 
 class TcoordContentItem(ContentItem):
 
@@ -817,3 +902,15 @@ class TcoordContentItem(ContentItem):
                     ])
                 )
             )
+
+    @property
+    def value(self) -> Union[List[int], List[float], List[datetime.datetime]]:
+        """Union[List[int], List[float], List[datetime.datetime]]: time points
+        """
+        try:
+            return self.ReferencedSamplePositions
+        except AttributeError:
+            try:
+                return self.ReferencedTimeOffsets
+            except AttributeError:
+                return self.ReferencedDateTime

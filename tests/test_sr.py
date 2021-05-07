@@ -259,6 +259,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'CODE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.ConceptCodeSequence[0] == value
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -272,12 +274,14 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'TEXT'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.TextValue == value
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
     def test_time_item_construction_from_string(self):
         name = codes.DCM.StudyTime
-        value = '1530'
+        value = '153000'
         i = TimeContentItem(
             name=name,
             value=value
@@ -285,6 +289,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == datetime.strptime(value, '%H%M%S').time()
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -307,6 +313,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -320,6 +328,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == datetime.strptime(value, '%Y%m%d').date()
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -342,12 +352,14 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
     def test_datetime_item_construction_from_string(self):
         name = codes.DCM.ImagingStartDatetime
-        value = '20190821-15:30'
+        value = '20190821153000'
         i = DateTimeContentItem(
             name=name,
             value=value
@@ -355,6 +367,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == datetime.strptime(value, '%Y%m%d%H%M%S')
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -377,6 +391,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -390,6 +406,8 @@ class TestContentItem(unittest.TestCase):
         assert i.ValueType == 'UIDREF'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.UID == UID(value)
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
         with pytest.raises(AttributeError):
             assert i.RelationshipType
 
@@ -429,6 +447,9 @@ class TestContentItem(unittest.TestCase):
         value_item = i.MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert value_item.NumericValue == value
+        assert i.name == CodedConcept(*name)
+        assert i.value == value
+        assert i.unit == CodedConcept(*unit)
         with pytest.raises(AttributeError):
             assert value_item.FloatingPointValue
         assert unit_code_item.CodeValue == unit.value
@@ -489,6 +510,9 @@ class TestContentItem(unittest.TestCase):
         assert template_item.TemplateIdentifier == tid
         assert template_item.MappingResource == 'DCMR'
         assert i.ContinuityOfContent == 'CONTINUOUS'
+        assert i.name == CodedConcept(*name)
+        with pytest.raises(AttributeError):
+            assert i.value
 
     def test_composite_item_construction(self):
         name = codes.DCM.RealWorldValueMapUsedForMeasurement
@@ -504,6 +528,8 @@ class TestContentItem(unittest.TestCase):
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
+        assert i.name == CodedConcept(*name)
+        assert i.value == (sop_class_uid, sop_instance_uid)
 
     def test_image_item_construction(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -519,6 +545,8 @@ class TestContentItem(unittest.TestCase):
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
+        assert i.name == CodedConcept(*name)
+        assert i.value == (sop_class_uid, sop_instance_uid)
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber
         with pytest.raises(AttributeError):
