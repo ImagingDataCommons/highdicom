@@ -1270,9 +1270,10 @@ class Segmentation(SOPClass):
         source_frames: Optional[Iterable[str]] = None,
         segment_numbers: Optional[Iterable[int]] = None,
         combine_segments: bool = False,
-        remap_segment_numbers: bool = False,
+        relabel: bool = False,
     ) -> np.ndarray:
         """Get a numpy array of the reconstructed segmentation.
+
         Parameters
         ----------
         source_frames: Optional[Iterable[str]]
@@ -1287,16 +1288,18 @@ class Segmentation(SOPClass):
             map in which the value of a pixel represents its segment.
             If False (the default), segments are binary and stacked down the
             last dimension of the output array.
-        remap_segment_numbers: bool
+        relabel: bool
             If True and ``combine_segments`` is ``True``, the pixel values in
-            the output array are remapped into the range ``0`` to
+            the output array are relabelled into the range ``0`` to
             ``len(segment_numbers)`` (inclusive) accoring to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
+
         Returns
         -------
         pixel_array: np.ndarray
             Pixel array representing the segmentation
+
         Note
         ----
         The output array will have 4 dimensions under the default behavior,
@@ -1323,12 +1326,12 @@ class Segmentation(SOPClass):
         This is only possible if the type of the segmentation is ``BINARY`` and
         the segments do not overlap. If the segments do overlap, a
         ``RuntimeError`` will be raised. After combining, the value of a pixel
-        depends upon the ``remap_segment_numbers`` parameter. In both
+        depends upon the ``relabel`` parameter. In both
         cases, pixels that appear in no segments with have a value of ``0``.
-        If ``remap_segment_numbers`` is ``False``, a pixel that appears
+        If ``relabel`` is ``False``, a pixel that appears
         in the segment with segment number ``i`` (according to the original
         segment numbering of the segmentation object) will have a value of
-        ``i``. If ``remap_segment_numbers`` is ``True``, the value of
+        ``i``. If ``relabel`` is ``True``, the value of
         a pixel in segment ``i`` is related not to the original segment number,
         but to the index of that segment number in the ``segment_numbers``
         parameter of this method. Specifically, pixels belonging to the
@@ -1413,7 +1416,7 @@ class Segmentation(SOPClass):
                 )
 
             # Scale the array by the segment number using broadcasting
-            if remap_segment_numbers:
+            if relabel:
                 pixel_value_map = np.arange(1, len(segment_numbers) + 1)
             else:
                 pixel_value_map = seg_num_arr
