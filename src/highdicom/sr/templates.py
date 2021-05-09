@@ -1776,26 +1776,26 @@ class MeasurementReport(Template):
      Measurement Report"""  # noqa: E501
 
     def __init__(
-            self,
-            observation_context: ObservationContext,
-            procedure_reported: Union[CodedConcept, Code],
-            imaging_measurements: Optional[
-                Sequence[
-                    Union[
-                        PlanarROIMeasurementsAndQualitativeEvaluations,
-                        VolumetricROIMeasurementsAndQualitativeEvaluations,
-                        MeasurementsAndQualitativeEvaluations,
-                    ]
+        self,
+        observation_context: ObservationContext,
+        procedure_reported: Union[CodedConcept, Code],
+        imaging_measurements: Optional[
+            Sequence[
+                Union[
+                    PlanarROIMeasurementsAndQualitativeEvaluations,
+                    VolumetricROIMeasurementsAndQualitativeEvaluations,
+                    MeasurementsAndQualitativeEvaluations,
                 ]
-            ] = None,
-            derived_imaging_measurements: Optional[
-                Sequence[MeasurementsDerivedFromMultipleROIMeasurements]
-            ] = None,
-            title: Optional[Union[CodedConcept, Code]] = None,
-            language_of_content_item_and_descendants: Optional[
-                LanguageOfContentItemAndDescendants
-            ] = None
-        ):
+            ]
+        ] = None,
+        derived_imaging_measurements: Optional[
+            Sequence[MeasurementsDerivedFromMultipleROIMeasurements]
+        ] = None,
+        title: Optional[Union[CodedConcept, Code]] = None,
+        language_of_content_item_and_descendants: Optional[
+            LanguageOfContentItemAndDescendants
+        ] = None
+    ):
         """
 
         Parameters
@@ -1936,19 +1936,40 @@ class MeasurementReport(Template):
         self.append(item)
 
 
+class ImageLibraryEntry(Template):
+
+    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
+     Image Library Entry"""  # noqa: E501
+
+    def __init__(
+        self,
+        sop_class_uid: str,
+        sop_instance_uid: str,
+        modality: str,
+        frame_of_reference_uid: str,
+        pixel_data_rows: int,
+        pixel_data_columns: int,
+        descriptors: Sequence[ContentItem]
+    ) -> None:
+        ...
+
+
 class ImageLibrary(Template):
 
     """`TID 1600 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1600>`_
      Image Library"""  # noqa: E501
 
-    def __init__(self) -> None:
+    def __init__(
+            self,
+            entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
+        ) -> None:
         """
-        Note
-        ----
-        Image Library Entry Descriptors are not included.
+        Parameters
+        ----------
+        entries: Sequence[Sequence[highdicom.sr.templates.ImageLibraryEntry]]
+            Image library entries per image library group
 
         """
-        # We didn't implement this on purpose.
         super().__init__()
         library_item = ContainerContentItem(
             name=CodedConcept(
@@ -1958,4 +1979,26 @@ class ImageLibrary(Template):
             ),
             relationship_type=RelationshipTypeValues.CONTAINS
         )
+        library_item.ContentSequence = ContentSequence()
+        if entries is not None:
+            for group in entries:
+                group_item = ContainerContentItem(
+                    name=CodedConcept(
+                        value='26200',
+                        meaning='Image Library Group',
+                        scheme_designator='DCM'
+                    ),
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+                group_item.ContentSequence = ContentSequence()
+                # The Image Library Entry template contains the individual
+                # Image Library Entry Descriptors content items.
+                for descriptor_items in group:
+                    if not isinstance(descriptor_items, ImageLibraryEntry):
+                        raise TypeError(
+                            'Image library entries must have type '
+                            '"ImageLibraryEntry".'
+                        )
+                    group_item.ContentSequence.extend(descriptor_items)
+                library_item.ContentSequence.append(group_item)
         self.append(library_item)
