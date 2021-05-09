@@ -255,7 +255,9 @@ class Segmentation(SOPClass):
             study_id=src_img.StudyID,
             study_date=src_img.StudyDate,
             study_time=src_img.StudyTime,
-            referring_physician_name=src_img.ReferringPhysicianName,
+            referring_physician_name=getattr(
+                src_img, 'ReferringPhysicianName', None
+            ),
             **kwargs
         )
 
@@ -427,7 +429,7 @@ class Segmentation(SOPClass):
         pixel_array: np.ndarray,
         segment_descriptions: Sequence[SegmentDescription],
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None
-    ) -> Dataset:
+    ) -> None:
         """Adds one or more segments to the segmentation image.
 
         Parameters
@@ -474,15 +476,49 @@ class Segmentation(SOPClass):
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
+        Raises
+        ------
+        ValueError
+            When
+                - The pixel array is not 2D or 3D numpy array
+                - The shape of the pixel array does not match the source images
+                - The numbering of the segment descriptions is not
+                  monotonically increasing by 1
+                - The numbering of the segment descriptions does
+                  not begin at 1 (for the first segments added to the instance)
+                  or at one greater than the last added segment (for
+                  subsequent segments)
+                - One or more segments already exist within the
+                  segmentation instance
+                - The segmentation is binary and the pixel array contains
+                  integer values that belong to segments that are not described
+                  in the segment descriptions
+                - The segmentation is binary and pixel array has floating point
+                  values not equal to 0.0 or 1.0
+                - The segmentation is fractional and pixel array has floating
+                  point values outside the range 0.0 to 1.0
+                - The segmentation is fractional and pixel array has floating
+                  point values outside the range 0.0 to 1.0
+                - Plane positions are provided but the length of the array
+                  does not match the number of frames in the pixel array
+        TypeError
+            When the dtype of the pixel array is invalid
+
+
         Note
         ----
-        Items of `segment_descriptions` must be sorted by segment number in
-        ascending order.
-        In case `segmentation_type` is ``"BINARY"``, the number of items per
-        sequence must match the number of unique positive pixel values in
+        Segments must be sorted by segment number in ascending order and
+        increase by 1.  Additionally, the first segment description must have a
+        segment number one greater than the segment number of the last segment
+        added to the segmentation, or 1 if this is the first segment added.
+
+        In case `segmentation_type` is ``"BINARY"``, the number of items in
+        `segment_descriptions` must be greater than or equal to the number of
+        unique positive pixel values in `pixel_array`. It is possible for some
+        segments described in `segment_descriptions` not to appear in the
         `pixel_array`. In case `segmentation_type` is ``"FRACTIONAL"``, only
         one segment can be encoded by `pixel_array` and hence only one item is
-        permitted per sequence.
+        permitted in `segment_descriptions`.
 
         """  # noqa
         if pixel_array.ndim == 2:
@@ -496,16 +532,43 @@ class Segmentation(SOPClass):
                 'rows and columns.'
             )
 
+        # Determine the expected starting number of the segments to ensure
+        # they will be continuous with existing segments
+        if self._segment_inventory:
+            # Next segment number is one greater than the largest existing
+            # segment number
+            seg_num_start = max(self._segment_inventory) + 1
+        else:
+            # No existing segments so start at 1
+            seg_num_start = 1
+
+        # Check segment numbers
+        # Check the existing descriptions
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
             for item in segment_descriptions
         ])
-        # Check that there are no duplicated segment numbers in the segment
-        # descriptions
-        if not (np.diff(described_segment_numbers) > 0).all():
+        # Check segment numbers in the segment descriptions are
+        # monotonically increasing by 1
+        if not (np.diff(described_segment_numbers) == 1).all():
             raise ValueError(
-                'Segment descriptions must be sorted by segment number.'
+                'Segment descriptions must be sorted by segment number '
+                'and monotonically increasing by 1.'
             )
+        if described_segment_numbers[0] != seg_num_start:
+            if seg_num_start == 1:
+                msg = (
+                    'Segment descriptions should be numbered starting '
+                    f'from 1. Found {described_segment_numbers[0]}. '
+                )
+            else:
+                msg = (
+                    'Segment descriptions should be numbered to '
+                    'continue from existing segments. Expected the first '
+                    f'segment to be numbered {seg_num_start} but found '
+                    f'{described_segment_numbers[0]}.'
+                )
+            raise ValueError(msg)
 
         if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
             segments_present = np.unique(
@@ -513,7 +576,7 @@ class Segmentation(SOPClass):
             )
 
             # Special case where the mask is binary and there is a single
-            # segment description. Allow the mark the positive segment with
+            # segment description. Mark the positive segment with
             # the correct segment number
             if (np.array_equal(segments_present, np.array([1])) and
                     len(segment_descriptions) == 1):
@@ -527,7 +590,8 @@ class Segmentation(SOPClass):
                         np.in1d(segments_present, described_segment_numbers)
                     ):
                     raise ValueError(
-                        'Pixel array contains segments that lack descriptions.'
+                        'Pixel array contains segments that lack '
+                        'descriptions.'
                     )
 
         elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):

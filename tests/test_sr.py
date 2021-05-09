@@ -1,10 +1,12 @@
 import unittest
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from pydicom.data import get_testdata_file
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
@@ -17,13 +19,15 @@ from highdicom.sr.content import (
     FindingSite,
     ImageRegion,
     ImageRegion3D,
-    VolumeSurface,
-    SourceImageForRegion,
-    SourceImageForSegmentation,
+    LongitudinalTemporalOffsetFromEvent,
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
-    SourceSeriesForSegmentation
+    SourceImageForRegion,
+    SourceImageForMeasurement,
+    SourceImageForSegmentation,
+    SourceSeriesForSegmentation,
+    VolumeSurface,
 )
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -52,7 +56,6 @@ from highdicom.sr.sop import (
     EnhancedSR,
 )
 from highdicom.sr.templates import (
-    DEFAULT_LANGUAGE,
     AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
     Measurement,
@@ -66,6 +69,7 @@ from highdicom.sr.templates import (
     SubjectContext,
     SubjectContextSpecimen,
     SubjectContextDevice,
+    TimePointContext,
     TrackingIdentifier,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
@@ -481,9 +485,9 @@ class TestContentItem(unittest.TestCase):
         )
         assert i.ValueType == 'CONTAINER'
         assert i.ConceptNameCodeSequence[0] == name
-        content_template_item = i.ContentTemplateSequence[0]
-        assert content_template_item.TemplateIdentifier == tid
-        assert content_template_item.MappingResource == 'DCMR'
+        template_item = i.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == tid
+        assert template_item.MappingResource == 'DCMR'
         assert i.ContinuityOfContent == 'CONTINUOUS'
 
     def test_composite_item_construction(self):
@@ -816,7 +820,772 @@ class TestFindingSite(unittest.TestCase):
         item = self._finding_site
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
+
+
+class TestSourceImageForSegmentation(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._src_dataset_multiframe = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+        self._ref_frames = [1, 2]
+        self._ref_frames_invalid = [
+            self._src_dataset_multiframe.NumberOfFrames + 1
+        ]
+
+    def test_construction(self):
+        src_image = SourceImageForSegmentation(
+            self._src_dataset.SOPClassUID,
+            self._src_dataset.SOPInstanceUID
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_construction_with_frame_reference(self):
+        src_image = SourceImageForSegmentation(
+            self._src_dataset_multiframe.SOPClassUID,
+            self._src_dataset_multiframe.SOPInstanceUID,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image(self):
+        src_image = SourceImageForSegmentation.from_source_image(
+            self._src_dataset
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_from_source_image_with_referenced_frames(self):
+        src_image = SourceImageForSegmentation.from_source_image(
+            self._src_dataset_multiframe,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image_with_invalid_referenced_frames(self):
+        with pytest.raises(ValueError):
+            SourceImageForSegmentation.from_source_image(
+                self._src_dataset_multiframe,
+                self._ref_frames_invalid
+            )
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceImageForSegmentation.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceImageForSegmentation.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
+class TestSourceSeriesForSegmentation(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+
+    def test_construction(self):
+        src_series = SourceSeriesForSegmentation(
+            self._src_dataset.SeriesInstanceUID,
+        )
+        assert src_series.UID == self._src_dataset.SeriesInstanceUID
+
+    def test_from_source_image(self):
+        src_series = SourceSeriesForSegmentation.from_source_image(
+            self._src_dataset
+        )
+        assert src_series.UID == self._src_dataset.SeriesInstanceUID
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceSeriesForSegmentation.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceSeriesForSegmentation.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
+class TestSourceImageForRegion(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._src_dataset_multiframe = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+        self._ref_frames = [1, 2]
+        self._ref_frames_invalid = [
+            self._src_dataset_multiframe.NumberOfFrames + 1
+        ]
+
+    def test_construction(self):
+        src_image = SourceImageForRegion(
+            self._src_dataset.SOPClassUID,
+            self._src_dataset.SOPInstanceUID
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_construction_with_frame_reference_frames(self):
+        src_image = SourceImageForRegion(
+            self._src_dataset_multiframe.SOPClassUID,
+            self._src_dataset_multiframe.SOPInstanceUID,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image(self):
+        src_image = SourceImageForRegion.from_source_image(
+            self._src_dataset
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_from_source_image_with_referenced_frames(self):
+        src_image = SourceImageForRegion.from_source_image(
+            self._src_dataset_multiframe,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image_with_invalid_referenced_frames(self):
+        with pytest.raises(ValueError):
+            SourceImageForRegion.from_source_image(
+                self._src_dataset_multiframe,
+                self._ref_frames_invalid
+            )
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceImageForRegion.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceImageForRegion.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
+class TestSourceImageForMeasurement(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._src_dataset_multiframe = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+        self._ref_frames = [1, 2]
+        self._ref_frames_invalid = [
+            self._src_dataset_multiframe.NumberOfFrames + 1
+        ]
+
+    def test_construction(self):
+        src_image = SourceImageForMeasurement(
+            self._src_dataset.SOPClassUID,
+            self._src_dataset.SOPInstanceUID
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_construction_with_frame_reference(self):
+        src_image = SourceImageForMeasurement(
+            self._src_dataset_multiframe.SOPClassUID,
+            self._src_dataset_multiframe.SOPInstanceUID,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image(self):
+        src_image = SourceImageForMeasurement.from_source_image(
+            self._src_dataset
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_from_source_image_with_referenced_frames(self):
+        src_image = SourceImageForMeasurement.from_source_image(
+            self._src_dataset_multiframe,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image_with_invalid_referenced_frames(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurement.from_source_image(
+                self._src_dataset_multiframe,
+                self._ref_frames_invalid
+            )
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurement.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurement.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
+class TestReferencedSegment(unittest.TestCase):
+
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._filepath = str(
+            data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
+        )
+        self._seg_dataset = dcmread(self._filepath)
+        self._src_sop_class_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPClassUID
+        self._src_sop_ins_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPInstanceUID
+        self._src_series_ins_uid = self._seg_dataset.\
+            ReferencedSeriesSequence[0].SeriesInstanceUID
+        self._ref_frame_number = 38
+        self._wrong_ref_frame_number = 13  # does not match the segment
+        self._invalid_ref_frame_number = 0
+        self._ref_segment_number = 35
+        self._invalid_ref_segment_number = 8  # does not exist in this dataset
+        self._src_images = [
+            SourceImageForSegmentation(
+                self._src_sop_class_uid,
+                self._src_sop_ins_uid
+            )
+        ]
+        self._src_series = SourceSeriesForSegmentation(
+            self._src_series_ins_uid
+        )
+
+    def test_construction(self):
+        ref_seg = ReferencedSegment(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            source_images=self._src_images
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_construction_with_frame_reference(self):
+        ref_seg = ReferencedSegment(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            frame_numbers=[self._ref_frame_number],
+            source_images=self._src_images
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            [self._ref_frame_number]
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_construction_series(self):
+        ref_seg = ReferencedSegment(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            frame_numbers=[self._ref_frame_number],
+            source_series=self._src_series
+        )
+        assert (ref_seg[1].UID == self._src_series_ins_uid)
+
+    def test_from_segmenation(self):
+        ref_seg = ReferencedSegment.from_segmentation(
+            segmentation=self._seg_dataset,
+            segment_number=self._ref_segment_number
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_with_frames(self):
+        ref_seg = ReferencedSegment.from_segmentation(
+            segmentation=self._seg_dataset,
+            segment_number=self._ref_segment_number,
+            frame_numbers=[self._ref_frame_number]
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            [self._ref_frame_number]
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_wrong_frame(self):
+        # Test with a frame that doesn't match the segment
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_segmentation(
+                segmentation=self._seg_dataset,
+                segment_number=self._ref_segment_number,
+                frame_numbers=[self._wrong_ref_frame_number]
+            )
+
+    def test_from_segmentation_invalid_frame(self):
+        # Test with an invalid frame number
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_segmentation(
+                segmentation=self._seg_dataset,
+                segment_number=self._ref_segment_number,
+                frame_numbers=[self._invalid_ref_frame_number]
+            )
+
+    def test_from_segmentation_invalid_segment(self):
+        # Test with a non-existent segment
+        with pytest.raises(ValueError):
+            ReferencedSegment.from_segmentation(
+                segmentation=self._seg_dataset,
+                segment_number=self._invalid_ref_segment_number,
+            )
+
+    def test_from_segmentation_no_derivation_image(self):
+        # Delete the derivation image information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        ref_seg = ReferencedSegment.from_segmentation(
+            segmentation=temp_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_no_derivation_image_no_instance_info(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        ref_seg = ReferencedSegment.from_segmentation(
+            segmentation=temp_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert (ref_seg[1].UID == self._src_series_ins_uid)
+
+    def test_from_segmentation_no_referenced_series_uid(self):
+        # Delete the derivation image information and the referenced instance
+        # and series information. This should give an error
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
+        with pytest.raises(AttributeError):
+            ReferencedSegment.from_segmentation(
+                segmentation=temp_dataset,
+                segment_number=self._ref_segment_number,
+            )
+
+    def test_from_segmentation_no_referenced_series_sequence(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence
+        with pytest.raises(AttributeError):
+            ReferencedSegment.from_segmentation(
+                segmentation=temp_dataset,
+                segment_number=self._ref_segment_number,
+            )
+
+
+class TestReferencedSegmentationFrame(unittest.TestCase):
+
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._filepath = str(
+            data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
+        )
+        self._seg_dataset = dcmread(self._filepath)
+        self._src_sop_class_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPClassUID
+        self._src_sop_ins_uid = self._seg_dataset.ReferencedSeriesSequence[0]\
+            .ReferencedInstanceSequence[0].ReferencedSOPInstanceUID
+        self._src_series_ins_uid = self._seg_dataset.\
+            ReferencedSeriesSequence[0].SeriesInstanceUID
+        self._ref_segment_number = 35
+        self._ref_frame_number = 38
+        self._invalid_ref_frame_number = 0
+        self._src_image = SourceImageForSegmentation(
+            self._src_sop_class_uid,
+            self._src_sop_ins_uid
+        )
+
+    def test_construction(self):
+        ref_seg = ReferencedSegmentationFrame(
+            sop_class_uid=self._seg_dataset.SOPClassUID,
+            sop_instance_uid=self._seg_dataset.SOPInstanceUID,
+            segment_number=self._ref_segment_number,
+            frame_number=self._ref_frame_number,
+            source_image=self._src_image
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation(self):
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
+            self._seg_dataset,
+            frame_number=self._ref_frame_number,
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_number
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_invalid_frame(self):
+        with pytest.raises(ValueError):
+            ReferencedSegmentationFrame.from_segmentation(
+                self._seg_dataset,
+                frame_number=self._invalid_ref_frame_number,
+            )
+
+    def test_from_segmentation_no_derivation_image(self):
+        # Delete the derivation image information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
+            segmentation=temp_dataset,
+            frame_number=self._ref_frame_number,
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_no_referenced_series_uid(self):
+        # Delete the derivation image information and the referenced instance
+        # and series information. This should give an error
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence[0].ReferencedInstanceSequence
+        del temp_dataset.ReferencedSeriesSequence[0].SeriesInstanceUID
+        with pytest.raises(AttributeError):
+            ReferencedSegmentationFrame.from_segmentation(
+                segmentation=temp_dataset,
+                frame_number=self._ref_frame_number,
+            )
+
+    def test_from_segmentation_no_referenced_series_sequence(self):
+        # Delete the derivation image information and the referenced instance
+        # information such that the method is forced to look for series level
+        # information
+        temp_dataset = deepcopy(self._seg_dataset)
+        for frame_info in temp_dataset.PerFrameFunctionalGroupsSequence:
+            del frame_info.DerivationImageSequence
+        del temp_dataset.ReferencedSeriesSequence
+        with pytest.raises(AttributeError):
+            ReferencedSegmentationFrame.from_segmentation(
+                segmentation=temp_dataset,
+                frame_number=self._ref_frame_number,
+            )
 
 
 class TestTrackingIdentifierOptional(unittest.TestCase):
@@ -865,6 +1634,80 @@ class TestTrackingIdentifierDefault(unittest.TestCase):
     def test_uid(self):
         item = self._tracking_identifier[0]
         assert item.ConceptNameCodeSequence[0].CodeValue == '112040'
+
+
+class TestTimePointContext(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._time_point = 'first'
+        self._time_point_context = TimePointContext(
+            time_point=self._time_point
+        )
+
+    def test_time_point(self):
+        item = self._time_point_context[0]
+        assert item.ConceptNameCodeSequence[0].CodeValue == 'C2348792'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'UMLS'
+        assert item.TextValue == self._time_point
+
+
+class TestTimePointContextOptional(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._time_point = 'first'
+        self._time_point_type = codes.DCM.Posttreatment
+        self._time_point_order = 1
+        self._subject_time_point_identifier = 'subject'
+        self._protocol_time_point_identifier = 'protocol'
+        self._temporal_offset_from_event = LongitudinalTemporalOffsetFromEvent(
+            value=5,
+            unit=Code('d', 'UCUM', 'days'),
+            event_type=codes.DCM.Baseline
+        )
+        self._time_point_context = TimePointContext(
+            time_point=self._time_point,
+            time_point_type=self._time_point_type,
+            time_point_order=self._time_point_order,
+            subject_time_point_identifier=self._subject_time_point_identifier,
+            protocol_time_point_identifier=self._protocol_time_point_identifier,
+            temporal_offset_from_event=self._temporal_offset_from_event
+        )
+
+    def test_time_point_type(self):
+        item = self._time_point_context[1]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126072'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._time_point_type.value
+        assert item.ConceptCodeSequence[0].CodeValue == value
+
+    def test_time_point_order(self):
+        item = self._time_point_context[2]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126073'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._time_point_order
+        assert item.MeasuredValueSequence[0].NumericValue == value
+
+    def test_subject_time_point_identifier(self):
+        item = self._time_point_context[3]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126070'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._subject_time_point_identifier
+        assert item.TextValue == value
+
+    def test_protocol_time_point_identifier(self):
+        item = self._time_point_context[4]
+        assert item.ConceptNameCodeSequence[0].CodeValue == '126071'
+        assert item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
+        value = self._protocol_time_point_identifier
+        assert item.TextValue == value
+
+    def test_temporal_offset_from_event(self):
+        item = self._time_point_context[5]
+        ref_item = self._temporal_offset_from_event
+        assert item == ref_item
+        assert item.ContentSequence[0] == ref_item.ContentSequence[0]
 
 
 class TestMeasurement(unittest.TestCase):
@@ -963,7 +1806,7 @@ class TestMeasurementOptional(unittest.TestCase):
         assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
         assert item.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
-        assert len(item.ContentSequence) == 0
+        assert not hasattr(item, 'ContentSequence')
 
 
 class TestImageRegion(unittest.TestCase):
@@ -976,51 +1819,6 @@ class TestVolumeSurface(unittest.TestCase):
 
     def setUp(self):
         pass
-
-
-class TestReferencedSegment(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self._sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
-        self._sop_instance_uid = generate_uid()
-        self._segment_number = 1
-        self._frame_numbers = [1, 2, ]
-        self._source_series = SourceSeriesForSegmentation(
-            referenced_series_instance_uid=generate_uid()
-        )
-
-    def test_construction(self):
-        ReferencedSegment(
-            sop_class_uid=self._sop_class_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            segment_number=self._segment_number,
-            frame_numbers=self._frame_numbers,
-            source_series=self._source_series
-        )
-
-
-class TestReferencedSegmentationFrame(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self._sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
-        self._sop_instance_uid = generate_uid()
-        self._segment_number = 1
-        self._frame_number = 1
-        self._source_image = SourceImageForSegmentation(
-            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
-        )
-
-    def test_construction(self):
-        ReferencedSegmentationFrame(
-            sop_class_uid=self._sop_class_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            segment_number=self._segment_number,
-            frame_number=self._frame_number,
-            source_image=self._source_image
-        )
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -1069,6 +1867,16 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
+        self._qualitative_evaluations = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+            )
+        ]
 
     def test_construction_with_region(self):
         PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -1083,7 +1891,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        # TODO add time_point_context, measurements and qualitative evaluations
+        # TODO add time_point_context and measurements
         PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
@@ -1093,6 +1901,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             algorithm_id=self._algo_id,
             finding_sites=self._finding_sites,
             session=self._session,
+            qualitative_evaluations=self._qualitative_evaluations,
             geometric_purpose=self._geometric_purpose
         )
 
@@ -1176,6 +1985,16 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
+        self._qualitative_evaluations = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+            )
+        ]
 
     def test_constructed_with_regions(self):
         self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -1190,7 +2009,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        # TODO add time_point_context, measurements and qualitative evaluations
+        # TODO add time_point_context and measurements
         VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_regions=self._regions,
@@ -1200,6 +2019,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             algorithm_id=self._algo_id,
             finding_sites=self._finding_sites,
             session=self._session,
+            qualitative_evaluations=self._qualitative_evaluations,
             geometric_purpose=self._geometric_purpose
         )
 
@@ -1278,47 +2098,35 @@ class TestMeasurementReport(unittest.TestCase):
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region
         )
-        self._measurement_report = MeasurementReport(
+
+    def test_construction(self):
+        measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
             imaging_measurements=[self._measurements]
         )
-
-    def test_container(self):
-        item = self._measurement_report[0]
+        item = measurement_report[0]
         assert len(item.ContentSequence) == 8
-        subitem = item.ContentTemplateSequence[0]
-        assert subitem.TemplateIdentifier == '1500'
 
-    def test_language(self):
-        item = self._measurement_report[0].ContentSequence[0]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121049'
-        assert item.ConceptCodeSequence[0] == DEFAULT_LANGUAGE
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
 
-    def test_observation_context(self):
-        item = self._measurement_report[0].ContentSequence[1]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121005'
-        item = self._measurement_report[0].ContentSequence[2]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121008'
-        item = self._measurement_report[0].ContentSequence[3]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121005'
-        item = self._measurement_report[0].ContentSequence[4]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121012'
-
-    def test_procedure_reported(self):
-        item = self._measurement_report[0].ContentSequence[5]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121058'
-        assert item.ConceptCodeSequence[0] == self._procedure_reported
-
-    def test_image_library(self):
-        item = self._measurement_report[0].ContentSequence[6]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '111028'
-
-    def test_imaging_measurements(self):
-        item = self._measurement_report[0].ContentSequence[7]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '126010'
-        subitem = item.ContentSequence[0]
-        assert subitem.ConceptNameCodeSequence[0].CodeValue == '125007'
+        content_item_expectations = [
+            (0, '121049'),
+            (1, '121005'),
+            (2, '121008'),
+            (3, '121005'),
+            (4, '121012'),
+            # Procedure reported
+            (5, '121058'),
+            # Image library
+            (6, '111028'),
+            # Imaging measurements
+            (7, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
 
 class TestEnhancedSR(unittest.TestCase):
@@ -1345,7 +2153,7 @@ class TestEnhancedSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
 
         observer_person_context = ObserverContext(
@@ -1418,7 +2226,8 @@ class TestEnhancedSR(unittest.TestCase):
             imaging_measurements=imaging_measurements
         )[0]
 
-        self._report = EnhancedSR(
+    def test_construction(self):
+        report = EnhancedSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -1426,12 +2235,24 @@ class TestEnhancedSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+    def test_evidence_missing(self):
+        with pytest.raises(ValueError):
+            EnhancedSR(
+                evidence=[],
+                content=self._content,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                institution_name=self._institution_name,
+                institutional_department_name=self._department_name,
+                manufacturer=self._manufacturer
+            )
 
 
 class TestComprehensiveSR(unittest.TestCase):
@@ -1449,8 +2270,9 @@ class TestComprehensiveSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
+        self._procedure_reported = codes.LN.CTUnspecifiedBodyRegion
 
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
@@ -1464,10 +2286,11 @@ class TestComprehensiveSR(unittest.TestCase):
                 uid=generate_uid()
             )
         )
-        observation_context = ObservationContext(
+        self._observation_context = ObservationContext(
             observer_person_context=observer_person_context,
             observer_device_context=observer_device_context,
         )
+
         referenced_region = ImageRegion(
             graphic_type=GraphicTypeValues.POLYLINE,
             graphic_data=np.array([
@@ -1504,25 +2327,25 @@ class TestComprehensiveSR(unittest.TestCase):
                 )
             )
         ]
-        imaging_measurements = [
-            PlanarROIMeasurementsAndQualitativeEvaluations(
-                tracking_identifier=TrackingIdentifier(
-                    uid=generate_uid(),
-                    identifier='Planar ROI Measurements'
-                ),
-                referenced_region=referenced_region,
-                finding_type=codes.SCT.SpinalCord,
-                measurements=measurements,
-                finding_sites=finding_sites
-            )
-        ]
+        measurement_group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='Planar ROI Measurements'
+            ),
+            referenced_region=referenced_region,
+            finding_type=codes.SCT.SpinalCord,
+            measurements=measurements,
+            finding_sites=finding_sites
+        )
+        self._imaging_measurements = [measurement_group]
         self._content = MeasurementReport(
-            observation_context=observation_context,
-            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
-            imaging_measurements=imaging_measurements
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=self._imaging_measurements
         )[0]
 
-        self._report = ComprehensiveSR(
+    def test_construction(self):
+        report = ComprehensiveSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -1530,12 +2353,107 @@ class TestComprehensiveSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+        with pytest.raises(AttributeError):
+            assert report.PertinentOtherEvidenceSequence
+
+    def test_evidence_duplication(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+
+    def test_evidence_missing(self):
+        ref_dataset = deepcopy(self._ref_dataset)
+        ref_dataset.SOPInstanceUID = '1.2.3.4'
+        with pytest.raises(ValueError):
+            Comprehensive3DSR(
+                evidence=[ref_dataset],
+                content=self._content,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                institution_name=self._institution_name,
+                institutional_department_name=self._department_name,
+                manufacturer=self._manufacturer
+            )
+
+    def test_evidence_multiple_studies(self):
+        ref_dataset = deepcopy(self._ref_dataset)
+        ref_dataset.StudyInstanceUID = '1.2.6'
+        ref_dataset.SeriesInstanceUID = '1.2.7'
+        ref_dataset.SOPInstanceUID = '1.2.9'
+        referenced_region = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=np.array([
+                (65.0, 100.0),
+                (70.0, 100.0),
+                (70.0, 120.0),
+                (65.0, 120.0),
+                (65.0, 100.0),
+            ]),
+            source_image=SourceImageForRegion(
+                referenced_sop_class_uid=ref_dataset.SOPClassUID,
+                referenced_sop_instance_uid=ref_dataset.SOPInstanceUID
+            )
+        )
+        finding_sites = [
+            FindingSite(anatomic_location=codes.SCT.CervicoThoracicSpine),
+        ]
+        measurements = [
+            Measurement(
+                name=codes.SCT.AreaOfDefinedRegion,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+                value=0.7,
+                unit=codes.UCUM.SquareMillimeter,
+            )
+        ]
+        measurement_group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='Planar ROI Measurements'
+            ),
+            referenced_region=referenced_region,
+            finding_type=codes.SCT.SpinalCord,
+            measurements=measurements,
+            finding_sites=finding_sites
+        )
+        imaging_measurements = deepcopy(self._imaging_measurements)
+        imaging_measurements.append(measurement_group)
+        content = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=imaging_measurements
+        )[0]
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, ref_dataset],
+            content=content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 2
 
 
 class TestComprehensive3DSR(unittest.TestCase):
@@ -1553,7 +2471,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._sop_instance_uid = generate_uid()
         self._instance_number = 4
         self._institution_name = 'institute'
-        self._institutional_department_name = 'department'
+        self._department_name = 'department'
         self._manufacturer = 'manufacturer'
 
         observer_person_context = ObserverContext(
@@ -1623,7 +2541,8 @@ class TestComprehensive3DSR(unittest.TestCase):
             imaging_measurements=imaging_measurements
         )[0]
 
-        self._report = Comprehensive3DSR(
+    def test_construction(self):
+        report = Comprehensive3DSR(
             evidence=[self._ref_dataset],
             content=self._content,
             series_instance_uid=self._series_instance_uid,
@@ -1631,34 +2550,42 @@ class TestComprehensive3DSR(unittest.TestCase):
             sop_instance_uid=self._sop_instance_uid,
             instance_number=self._instance_number,
             institution_name=self._institution_name,
-            institutional_department_name=self._institutional_department_name,
+            institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.PatientID == self._ref_dataset.PatientID
+        assert report.PatientName == self._ref_dataset.PatientName
+        assert report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        assert report.AccessionNumber == self._ref_dataset.AccessionNumber
+        assert report.SeriesInstanceUID == self._series_instance_uid
+        assert report.SeriesNumber == self._series_number
+        assert report.SOPInstanceUID == self._sop_instance_uid
+        assert report.InstanceNumber == self._instance_number
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.InstitutionName == self._institution_name
+        assert report.Manufacturer == self._manufacturer
+        assert report.Modality == 'SR'
 
-    def test_sop_class_uid(self):
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        with pytest.raises(AttributeError):
+            assert report.CurrentRequestedProcedureEvidenceSequence
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
 
-    def test_patient_attributes(self):
-        assert self._report.PatientID == self._ref_dataset.PatientID
-        assert self._report.PatientName == self._ref_dataset.PatientName
-
-    def test_study_attributes(self):
-        assert (
-            self._report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+    def test_evidence_duplication(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
         )
-        assert self._report.AccessionNumber == self._ref_dataset.AccessionNumber
-
-    def test_series_attributes(self):
-        assert self._report.SeriesInstanceUID == self._series_instance_uid
-        assert self._report.SeriesNumber == self._series_number
-
-    def test_instance_attributes(self):
-        assert self._report.SOPInstanceUID == self._sop_instance_uid
-        assert self._report.InstanceNumber == self._instance_number
-        assert self._report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
-        assert self._report.InstitutionName == self._institution_name
-        assert self._report.Manufacturer == self._manufacturer
-        assert self._report.Modality == 'SR'
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
 
 
 class TestSRUtilities(unittest.TestCase):
