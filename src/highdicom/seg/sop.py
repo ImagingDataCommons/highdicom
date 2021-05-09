@@ -1131,11 +1131,19 @@ class Segmentation(SOPClass):
             for n in self.segment_numbers
         }
 
-    def get_segment_number_for_segmented_property(
+    def get_segment_numbers_for_segmented_property(
         self,
-        segmented_property_category: Union[Code, CodedConcept],
-        segmented_property_type: Union[Code, CodedConcept],
-    ) -> int:
+        segmented_property_category: Union[Code, CodedConcept, None] = None,
+        segmented_property_type: Union[Code, CodedConcept, None] = None,
+    ) -> List[int]:
+        if (
+            segmented_property_category is None and
+            segmented_property_type is None
+        ):
+            raise TypeError(
+                "At least one of the segmented_property_category and "
+                "segmented_property_type must be provided."
+            )
         if isinstance(segmented_property_category, CodedConcept):
             segmented_property_category = self._coded_concept_sequence_to_code(
                 segmented_property_category
@@ -1145,7 +1153,7 @@ class Segmentation(SOPClass):
                 segmented_property_type
             )
 
-        segment_number: Optional[int] = None
+        matched_segment_numbers: List[int] = []
 
         for n in self.segment_numbers:
             category_match = (
@@ -1158,19 +1166,9 @@ class Segmentation(SOPClass):
             )
 
             if category_match and type_match:
-                if segment_number is not None:
-                    raise KeyError(
-                        'Multiple segments found with specified segment '
-                        'property'
-                    )
-                segment_number = n
+                matched_segment_numbers.append(n)
 
-        if segment_number is None:
-            raise KeyError(
-                'No segment found with specified segment property'
-            )
-
-        return segment_number
+        return matched_segment_numbers
 
     def get_segment_tracking_id(self, segment_number: int) -> Optional[str]:
         seg_info = self.segment_description_lut[segment_number]
