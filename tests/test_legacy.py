@@ -312,8 +312,8 @@ class TestDicomHelper(unittest.TestCase):
 
     def test_attribute_equality(self) -> None:
         for vr, [v1, v2, v3] in self.data.items():
-            assert sop.ـDicomHelper.isequal(v1.value, v2.value) is True
-            assert sop.ـDicomHelper.isequal(v1.value, v3.value) is False
+            assert sop._DicomHelper.isequal(v1.value, v2.value) is True
+            assert sop._DicomHelper.isequal(v1.value, v3.value) is False
 
 
 class TestFrameSetCollection(unittest.TestCase):

@@ -456,3 +456,81 @@ def map_coordinate_into_pixel_matrix(
         pixel_matrix_coordinates[1],
         pixel_matrix_coordinates[2],
     )
+
+
+class _GeometryOfSlice:
+
+    """A class for checking dicom slices geometry/parallelity"""
+
+    def __init__(self,
+                 row_vector: np.ndarray,
+                 col_vector: np.ndarray,
+                 top_left_corner_pos: np.ndarray,
+                 voxel_spacing: np.ndarray) -> None:
+        """
+
+        Parameters
+        ----------
+        row_vector: numpy.ndarray
+            3D vector representing row of the input slice
+        col_vector: numpy.ndarray
+            3D vector representing column the input slice
+        top_left_corner_pos: numpy.ndarray
+            3D point representing top left corner position of the input slice
+        voxel_spacing: numpy.ndarray
+            Three element array. 1st and 2nd copied from PixelSpacing and the
+            3rd copied from SliceThickness
+
+        """
+
+        self.row_vector = row_vector
+        self.col_vector = col_vector
+        self.top_left_corner_position = top_left_corner_pos
+        self.voxel_spacing = voxel_spacing
+
+    def get_normal_vector(self) -> np.ndarray:
+        """Returns the normal vector of the input slice
+
+        """
+
+        n: np.ndarray = np.cross(self.row_vector, self.col_vector)
+        n[2] = -n[2]
+        return n
+
+    def get_distance_along_origin(self) -> float:
+        """Returns the shortest distance of the slice from the origin
+
+        """
+
+        n = self.get_normal_vector()
+        return float(
+            np.dot(self.top_left_corner_position, n))
+
+    @staticmethod
+    def are_parallel(
+            slice1: '_GeometryOfSlice',
+            slice2: '_GeometryOfSlice',
+            tolerance: float = 0.0001,
+        ) -> bool:
+        """Returns False if two slices are not parallel else True
+
+        """
+
+        if (not isinstance(slice1, _GeometryOfSlice) or
+                not isinstance(slice2, _GeometryOfSlice)):
+            raise TypeError(
+                'slice1 and slice2 are not of the same '
+                f'type: type(slice1) = {type(slice1)} and '
+                f'type(slice2) = {type(slice2)}')
+            # logger.warning(
+            #     'slice1 and slice2 are not of the same '
+            #     'type: type(slice1) = {} and type(slice2) = {}'.format(
+            #         type(slice1), type(slice2)))
+            # return False
+        else:
+            n1: np.ndarray = slice1.get_normal_vector()
+            n2: np.ndarray = slice2.get_normal_vector()
+            for el1, el2 in zip(n1, n2):
+                if abs(el1 - el2) > tolerance:
+                    return False
+            return True
