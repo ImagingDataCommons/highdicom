@@ -531,8 +531,9 @@ class _GeometryOfSlice:
 
         """
 
-        n: np.ndarray = np.cross(self.row_vector, self.col_vector)
-        n[2] = -n[2]
+        n: np.ndarray = np.cross(self.col_vector, self.row_vector)
+        # n: np.ndarray = np.cross(self.row_vector, self.col_vector)
+        # n[2] = -n[2]
         return n
 
     def get_distance_along_origin(self) -> float:
