@@ -9,7 +9,7 @@ from pydicom.filewriter import write_file_meta_info
 from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian
 from pydicom.valuerep import DA, TM
 
-from highdicom.sr.coding import CodingSchemeIdentificationItem
+from highdicom.coding_schemes import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues
 from highdicom.version import __version__
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
@@ -186,9 +186,9 @@ class SOPClass(Dataset):
                 self.CodingSchemeIdentificationSequence.append(item)
 
     def _copy_attribute(
-            self,
-            dataset: Dataset,
-            keyword: str
+        self,
+        dataset: Dataset,
+        keyword: str
     ) -> None:
         """Copies an attribute from `dataset` to `self`.
 
