@@ -520,7 +520,6 @@ class _GeometryOfSlice:
             3rd copied from SliceThickness
 
         """
-
         self.row_vector = row_vector
         self.col_vector = col_vector
         self.top_left_corner_position = top_left_corner_pos
@@ -530,17 +529,13 @@ class _GeometryOfSlice:
         """Returns the normal vector of the input slice
 
         """
-
-        n: np.ndarray = np.cross(self.col_vector, self.row_vector)
-        # n: np.ndarray = np.cross(self.row_vector, self.col_vector)
-        # n[2] = -n[2]
+        n: np.ndarray = np.cross(self.row_vector, self.col_vector)
         return n
 
     def get_distance_along_origin(self) -> float:
         """Returns the shortest distance of the slice from the origin
 
         """
-
         n = self.get_normal_vector()
         return float(
             np.dot(self.top_left_corner_position, n))
@@ -554,7 +549,6 @@ class _GeometryOfSlice:
         """Returns False if two slices are not parallel else True
 
         """
-
         if (not isinstance(slice1, _GeometryOfSlice) or
                 not isinstance(slice2, _GeometryOfSlice)):
             raise TypeError(
