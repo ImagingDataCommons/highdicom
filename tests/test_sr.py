@@ -682,7 +682,7 @@ class TestContentItem(unittest.TestCase):
         )
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
-        assert i.GraphicType == graphic_type.value
+        assert i.graphic_type == graphic_type
         assert np.all(i.GraphicData[:2] == graphic_data[0, :])
         assert np.all(i.GraphicData[2:4] == graphic_data[1, :])
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
@@ -723,7 +723,7 @@ class TestContentItem(unittest.TestCase):
         )
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
-        assert i.GraphicType == graphic_type.value
+        assert i.graphic_type == graphic_type
         assert np.all(i.GraphicData[:3] == graphic_data[0, :])
         assert np.all(i.GraphicData[3:6] == graphic_data[1, :])
         assert np.all(i.GraphicData[6:9] == graphic_data[2, :])
@@ -2381,7 +2381,7 @@ class TestMeasurementReport(unittest.TestCase):
         assert roi.tracking_uid == self._tracking_identifier[1].value
         # Image Region
         assert isinstance(roi.roi, ImageRegion)
-        assert roi.roi.GraphicType == GraphicTypeValues.CIRCLE.value
+        assert roi.roi.graphic_type == GraphicTypeValues.CIRCLE
         assert isinstance(roi.roi.value, np.ndarray)
         assert roi.roi.value.shape == (2, 2)
         # Measurements and Qualitative Evaluations

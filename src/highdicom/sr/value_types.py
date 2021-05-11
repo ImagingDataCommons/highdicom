@@ -417,9 +417,9 @@ class PnameContentItem(ContentItem):
         self.PersonName = PersonName(value)
 
     @property
-    def value(self) -> str:
-        """str: person name"""
-        return self.PersonName
+    def value(self) -> PersonName:
+        """pydicom.valuerep.PersonName: person name"""
+        return PersonName(self.PersonName)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
@@ -709,9 +709,9 @@ class UIDRefContentItem(ContentItem):
         self.UID = value
 
     @property
-    def value(self) -> str:
-        """str: UID"""
-        return str(self.UID)
+    def value(self) -> UID:
+        """pydicom.uid.UID: UID"""
+        return UID(self.UID)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
@@ -1144,6 +1144,11 @@ class ScoordContentItem(ContentItem):
         n_points = len(graphic_data) / 2
         return np.array(np.array_split(graphic_data, n_points))
 
+    @property
+    def graphic_type(self) -> GraphicTypeValues:
+        """GraphicTypeValues: graphic type"""
+        return GraphicTypeValues(self.GraphicType)
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
         """Construct instance from an existing dataset.
@@ -1250,6 +1255,11 @@ class Scoord3DContentItem(ContentItem):
         graphic_data = np.array(self.GraphicData)
         n_points = len(graphic_data) / 3
         return np.array(np.array_split(graphic_data, n_points))
+
+    @property
+    def graphic_type(self) -> GraphicTypeValues3D:
+        """GraphicTypeValues3D: graphic type"""
+        return GraphicTypeValues3D(self.GraphicType)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
