@@ -126,6 +126,19 @@ class TestEncodeFrame(TestCase):
         )
         assert compressed_frame.startswith(b'\x00\x00\x00\x0C\x6A\x50\x20')
         assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEG2000Lossless,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=frame.shape[2],
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='YBR_FULL',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpeg2000_monochrome(self):
         bits_allocated = 16
@@ -140,6 +153,19 @@ class TestEncodeFrame(TestCase):
         )
         assert compressed_frame.startswith(b'\x00\x00\x00\x0C\x6A\x50\x20')
         assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEG2000Lossless,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=1,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME1',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpeg_rgb_wrong_photometric_interpretation(self):
         frame = np.ones((16, 32, 3), dtype=np.uint8)
