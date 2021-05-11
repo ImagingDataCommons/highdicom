@@ -1,3 +1,5 @@
+from highdicom import legacy
+from highdicom import sc
 from highdicom import seg
 from highdicom import sr
 from highdicom.color import ColorManager
@@ -36,10 +38,12 @@ __all__ = [
     'ImageFileReader',
     'ImageToReferenceTransformer',
     'IssuerOfIdentifier',
+    'legacy',
     'PixelMeasuresSequence',
     'PlanePositionSequence',
     'PlaneOrientationSequence',
     'ReferenceToImageTransformer',
+    'sc',
     'seg',
     'SpecimenCollection',
     'SpecimenDescription',
