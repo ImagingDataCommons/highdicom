@@ -1,6 +1,8 @@
 """DICOM structured reporting templates."""
-from typing import Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
+import numpy as np
+from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 
@@ -16,7 +18,14 @@ from highdicom.sr.content import (
     ReferencedSegmentationFrame,
     SourceImageForMeasurement,
 )
-from highdicom.sr.enum import RelationshipTypeValues
+from highdicom.sr.enum import (
+    GraphicTypeValues,
+    GraphicTypeValues3D,
+    RelationshipTypeValues,
+    ValueTypeValues,
+)
+from highdicom.uid import UID
+from highdicom.sr.utils import find_content_items, get_coded_name
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
@@ -26,7 +35,6 @@ from highdicom.sr.value_types import (
     TextContentItem,
     UIDRefContentItem,
 )
-from highdicom.uid import UID
 
 
 DEFAULT_LANGUAGE = CodedConcept(
@@ -34,6 +42,306 @@ DEFAULT_LANGUAGE = CodedConcept(
     scheme_designator='RFC5646',
     meaning='English (United States)'
 )
+
+
+def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
+    """Checks whether a measurement group item contains planar ROIs.
+
+    Parameters
+    ----------
+    group_item: highdicom.sr.value_types.ContainerContentItem
+        SR Content Item representing a "Measurement Group"
+
+    Returns
+    -------
+    bool
+        Whether the `group_item` contains any content items with value type
+        SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing planar ROIs
+
+    """
+    if group_item.ValueType != ValueTypeValues.CONTAINER.value:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have value type CONTAINER.'
+        )
+    if group_item.name == codes.DCM.MeasurementGroup:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have name "Measurement Group".'
+        )
+    image_region_items = find_content_items(
+        group_item,
+        name=codes.DCM.ImageRegion,
+        value_type=ValueTypeValues.SCOORD,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    image_region_items += find_content_items(
+        group_item,
+        name=codes.DCM.ImageRegion,
+        value_type=ValueTypeValues.SCOORD3D,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    volume_surface_items = find_content_items(
+        group_item,
+        name=codes.DCM.VolumeSurface,
+        value_type=ValueTypeValues.SCOORD3D,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    referenced_segment_items = find_content_items(
+        group_item,
+        name=codes.DCM.ReferencedSegment,
+        value_type=ValueTypeValues.IMAGE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    referenced_segmentation_frame_items = find_content_items(
+        group_item,
+        name=codes.DCM.ReferencedSegmentationFrame,
+        value_type=ValueTypeValues.IMAGE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    regions_in_space_items = find_content_items(
+        group_item,
+        name=codes.DCM.RegionInSpace,
+        value_type=ValueTypeValues.COMPOSITE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+
+    if (
+            len(image_region_items) == 1 or
+            len(referenced_segmentation_frame_items) > 0 or
+            len(regions_in_space_items) == 1
+       ) and (
+            len(volume_surface_items) == 0 and
+            len(referenced_segment_items) == 0
+       ):
+        return True
+    return False
+
+
+def _contains_volumetric_rois(group_item: Dataset) -> bool:
+    """Checks whether a measurement group item contains volumetric ROIs.
+
+    Parameters
+    ----------
+    group_item: pydicom.dataset.Dataset
+        SR Content Item representing a "Measurement Group"
+
+    Returns
+    -------
+    bool
+        Whether the `group_item` contains any content items with value type
+        SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing volumetric ROIs
+
+    """
+    if group_item.ValueType != ValueTypeValues.CONTAINER.value:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have value type CONTAINER.'
+        )
+    if group_item.name == codes.DCM.MeasurementGroup:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have name "Measurement Group".'
+        )
+    image_region_items = find_content_items(
+        group_item,
+        name=codes.DCM.ImageRegion,
+        value_type=ValueTypeValues.SCOORD,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    image_region_items += find_content_items(
+        group_item,
+        name=codes.DCM.ImageRegion,
+        value_type=ValueTypeValues.SCOORD3D,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    volume_surface_items = find_content_items(
+        group_item,
+        name=codes.DCM.VolumeSurface,
+        value_type=ValueTypeValues.SCOORD3D,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    referenced_segment_items = find_content_items(
+        group_item,
+        name=codes.DCM.ReferencedSegment,
+        value_type=ValueTypeValues.IMAGE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    referenced_segmentation_frame_items = find_content_items(
+        group_item,
+        name=codes.DCM.ReferencedSegmentationFrame,
+        value_type=ValueTypeValues.IMAGE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    regions_in_space_items = find_content_items(
+        group_item,
+        name=codes.DCM.RegionInSpace,
+        value_type=ValueTypeValues.COMPOSITE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+
+    if (
+            len(image_region_items) > 1 or
+            len(referenced_segment_items) > 0 or
+            len(volume_surface_items) > 0 or
+            len(regions_in_space_items) == 1
+       ) and (
+            len(referenced_segmentation_frame_items) == 0
+       ):
+        return True
+    return False
+
+
+def _contains_code_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    value: Optional[Union[Code, CodedConcept]]
+) -> bool:
+    """Checks whether an item contains a specific item with value type CODE.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    value: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        Code value of the child SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa
+    matched_items = find_content_items(
+        parent_item,
+        name=name,
+        value_type=ValueTypeValues.CODE,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    for item in matched_items:
+        if value is not None:
+            if item.value == value:
+                return True
+        else:
+            return True
+    return False
+
+
+def _contains_text_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    value: Optional[str] = None
+) -> bool:
+    """Checks whether an item contains a specific item with value type TEXT.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    value: str, optional
+        Text value of the child SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa
+    matched_items = find_content_items(
+        parent_item,
+        name=name,
+        value_type=ValueTypeValues.TEXT,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    for item in matched_items:
+        if value is not None:
+            if item.TextValue == value:
+                return True
+        else:
+            return True
+    return False
+
+
+def _contains_scoord_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    graphic_type: Optional[GraphicTypeValues] = None
+) -> bool:
+    """Checks whether an item contains a specific item with value type SCOORD.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    graphic_type: highdicom.sr.enum.GraphicTypeValues, optional
+        Graphic type of the child SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa
+    matched_items = find_content_items(
+        parent_item,
+        name=name,
+        value_type=ValueTypeValues.SCOORD,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    for item in matched_items:
+        if graphic_type is not None:
+            if item.GraphicType == graphic_type.value:
+                return True
+        else:
+            return True
+    return False
+
+
+def _contains_scoord3d_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    graphic_type: Optional[GraphicTypeValues3D] = None
+) -> bool:
+    """Checks whether an item contains specific items with value type SCOORD3D.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    graphic_type: highdicom.sr.enum.GraphicTypeValues3D, optional
+        Graphic type of the child SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa
+    matched_items = find_content_items(
+        parent_item,
+        name=name,
+        value_type=ValueTypeValues.SCOORD3D,
+        relationship_type=RelationshipTypeValues.CONTAINS
+    )
+    for item in matched_items:
+        if graphic_type is not None:
+            if item.GraphicType == graphic_type.value:
+                return True
+        else:
+            return True
+    return False
 
 
 class Template(ContentSequence):
@@ -505,13 +813,13 @@ class PersonObserverIdentifyingAttributes(Template):
      Person Observer Identifying Attributes"""  # noqa: E501
 
     def __init__(
-            self,
-            name: str,
-            login_name: Optional[str] = None,
-            organization_name: Optional[str] = None,
-            role_in_organization: Optional[Union[CodedConcept, Code]] = None,
-            role_in_procedure: Optional[Union[CodedConcept, Code]] = None
-        ):
+        self,
+        name: str,
+        login_name: Optional[str] = None,
+        organization_name: Optional[str] = None,
+        role_in_organization: Optional[Union[CodedConcept, Code]] = None,
+        role_in_procedure: Optional[Union[CodedConcept, Code]] = None
+    ):
         """
 
         Parameters
@@ -584,6 +892,92 @@ class PersonObserverIdentifyingAttributes(Template):
             )
             self.append(role_in_procedure_item)
 
+    @property
+    def name(self) -> str:
+        """str: name of the person"""
+        return self[0].value
+
+    @property
+    def login_name(self) -> Union[str, None]:
+        """Union[str, None]: login name of the person"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.PersonObserverLoginName
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def organization_name(self) -> Union[str, None]:
+        """Union[str, None]: name of the person's organization"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.PersonObserverOrganizationName
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def role_in_organization(self) -> Union[str, None]:
+        """Union[str, None]: role of the person in the organization"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.PersonObserverRoleInTheOrganization
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def role_in_procedure(self) -> Union[str, None]:
+        """Union[str, None]: role of the person in the procedure"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.PersonObserverRoleInThisProcedure
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'PersonObserverIdentifyingAttributes':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items of template
+            TID 1003 "Person Observer Identifying Attributes"
+
+        Returns
+        -------
+        highdicom.sr.templates.PersonObserverIdentifyingAttributes
+            Content Sequence containing SR Content Items
+
+        """
+        attr_codes = [
+            ('name', codes.DCM.PersonObserverName),
+            ('login_name', codes.DCM.PersonObserverLoginName),
+            ('organization_name',
+             codes.DCM.PersonObserverOrganizationName),
+            ('role_in_organization',
+             codes.DCM.PersonObserverRoleInTheOrganization),
+            ('role_in_procedure',
+             codes.DCM.PersonObserverRoleInThisProcedure),
+        ]
+        kwargs = {}
+        for dataset in sequence:
+            content_item = ContentItem.from_dataset(dataset)
+            for param, name in attr_codes:
+                if content_item.name == name:
+                    kwargs[param] = content_item.value
+        return PersonObserverIdentifyingAttributes(**kwargs)
+
 
 class DeviceObserverIdentifyingAttributes(Template):
 
@@ -631,6 +1025,17 @@ class DeviceObserverIdentifyingAttributes(Template):
             relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(device_observer_item)
+        if name is not None:
+            name_item = TextContentItem(
+                name=CodedConcept(
+                    value='121013',
+                    meaning='Device Observer Name',
+                    scheme_designator='DCM',
+                ),
+                value=manufacturer_name,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            )
+            self.append(name_item)
         if manufacturer_name is not None:
             manufacturer_name_item = TextContentItem(
                 name=CodedConcept(
@@ -678,6 +1083,102 @@ class DeviceObserverIdentifyingAttributes(Template):
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(role_in_procedure_item)
+
+    @property
+    def uid(self) -> str:
+        """str: unique device identifier"""
+        return self[0].value
+
+    @property
+    def name(self) -> Union[str, None]:
+        """Union[str, None]: name of device"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceObserverName
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def manufacturer_name(self) -> Union[str, None]:
+        """Union[str, None]: name of device manufacturer"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceObserverManufacturer
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def model_name(self) -> Union[str, None]:
+        """Union[str, None]: name of device model"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceObserverModelName
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def serial_number(self) -> Union[str, None]:
+        """Union[str, None]: device serial number"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceObserverSerialNumber
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def physical_location(self) -> Union[str, None]:
+        """Union[str, None]: location of device"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceObserverPhysicalLocationDuringObservation  # noqa
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'DeviceObserverIdentifyingAttributes':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items of template
+            TID 1004 "Device Observer Identifying Attributes"
+
+        Returns
+        -------
+        highdicom.sr.templates.DeviceObserverIdentifyingAttributes
+            Content Sequence containing SR Content Items
+
+        """
+        attr_codes = [
+            ('name', codes.DCM.DeviceObserverName),
+            ('uid', codes.DCM.DeviceObserverUID),
+            ('manufacturer_name', codes.DCM.DeviceObserverManufacturer),
+            ('model_name', codes.DCM.DeviceObserverModelName),
+            ('serial_number', codes.DCM.DeviceObserverSerialNumber),
+            ('physical_location',
+             codes.DCM.DeviceObserverPhysicalLocationDuringObservation),
+        ]
+        kwargs = {}
+        for dataset in sequence:
+            content_item = ContentItem.from_dataset(dataset)
+            for param, name in attr_codes:
+                if content_item.name == name:
+                    kwargs[param] = content_item.value
+        return DeviceObserverIdentifyingAttributes(**kwargs)
 
 
 class ObserverContext(Template):
@@ -742,6 +1243,28 @@ class ObserverContext(Template):
             )
         self.extend(observer_identifying_attributes)
 
+    @property
+    def observer_type(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: observer type"""
+        return self[0].value
+
+    @property
+    def observer_identifying_attributes(self) -> Union[
+        PersonObserverIdentifyingAttributes,
+        DeviceObserverIdentifyingAttributes,
+    ]:
+        """Union[highdicom.sr.templates.PersonObserverIdentifyingAttributes, highdicom.sr.templates.DeviceObserverIdentifyingAttributes]:
+        observer identifying attributes
+        """  # noqa
+        if self.observer_type == codes.DCM.Device:
+            return DeviceObserverIdentifyingAttributes.from_sequence(self)
+        elif self.observer_type == codes.DCM.Person:
+            return PersonObserverIdentifyingAttributes.from_sequence(self)
+        else:
+            raise ValueError(
+                f'Unexpected observer type "{self.observer_type.meaning}"'
+            )
+
 
 class SubjectContextFetus(Template):
 
@@ -768,6 +1291,41 @@ class SubjectContextFetus(Template):
             relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(subject_id_item)
+
+    @property
+    def subject_id(self) -> str:
+        """str: subject identifier"""
+        return self[0].value
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'SubjectContextFetus':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items of template
+            TID 1008 "Subject Context, Fetus"
+
+        Returns
+        -------
+        highdicom.sr.templates.SubjectContextFetus
+            Content Sequence containing SR Content Items
+
+        """
+        attr_codes = [
+            ('subject_id', codes.DCM.SubjectID),
+        ]
+        kwargs = {}
+        for dataset in sequence:
+            content_item = ContentItem.from_dataset(dataset)
+            for param, name in attr_codes:
+                if content_item.name == name:
+                    kwargs[param] = content_item.value
+        return SubjectContextFetus(**kwargs)
 
 
 class SubjectContextSpecimen(Template):
@@ -822,6 +1380,17 @@ class SubjectContextSpecimen(Template):
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(specimen_identifier_item)
+        if specimen_type is not None:
+            specimen_type_item = CodeContentItem(
+                name=CodedConcept(
+                    value='371439000',
+                    meaning='Specimen Type',
+                    scheme_designator='SCT'
+                ),
+                value=specimen_type,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            )
+            self.append(specimen_type_item)
         if container_identifier is not None:
             container_identifier_item = TextContentItem(
                 name=CodedConcept(
@@ -833,17 +1402,77 @@ class SubjectContextSpecimen(Template):
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(container_identifier_item)
-        if specimen_type is not None:
-            specimen_type_item = CodeContentItem(
-                name=CodedConcept(
-                    value='121042',
-                    meaning='Specimen Type',
-                    scheme_designator='DCM'
-                ),
-                value=specimen_type,
-                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
-            )
-            self.append(specimen_type_item)
+
+    @property
+    def specimen_uid(self) -> str:
+        """str: unique specimen identifier"""
+        return self[0].value
+
+    @property
+    def specimen_identifier(self) -> Union[str, None]:
+        """Union[str, None]: specimen identifier"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.SpecimenIdentifier
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def container_identifier(self) -> Union[str, None]:
+        """Union[str, None]: specimen container identifier"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.SpecimenContainerIdentifier
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def specimen_type(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: type of specimen"""
+        matches = [
+            item for item in self
+            if item.name == codes.SCT.SpecimenType
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'SubjectContextSpecimen':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items of template
+            TID 1009 "Subject Context, Specimen"
+
+        Returns
+        -------
+        highdicom.sr.templates.SubjectContextSpecimen
+            Content Sequence containing SR Content Items
+
+        """
+        attr_codes = [
+            ('uid', codes.DCM.SpecimenUID),
+            ('identifier', codes.DCM.SpecimenIdentifier),
+            ('container_identifier', codes.DCM.SpecimenContainerIdentifier),
+            ('specimen_type', codes.SCT.SpecimenType),
+        ]
+        kwargs = {}
+        for dataset in sequence:
+            content_item = ContentItem.from_dataset(dataset)
+            for param, name in attr_codes:
+                if content_item.name == name:
+                    kwargs[param] = content_item.value
+        return SubjectContextSpecimen(**kwargs)
 
 
 class SubjectContextDevice(Template):
@@ -933,6 +1562,102 @@ class SubjectContextDevice(Template):
             )
             self.append(physical_location_item)
 
+    @property
+    def device_name(self) -> str:
+        """str: name of device"""
+        return self[0].value
+
+    @property
+    def device_uid(self) -> Union[str, None]:
+        """Union[str, None]: unique device identifier"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceSubjectUID
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def device_manufacturer_name(self) -> Union[str, None]:
+        """Union[str, None]: name of device manufacturer"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceSubjectManufacturer
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def device_model_name(self) -> Union[str, None]:
+        """Union[str, None]: name of device model"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceSubjectModelName
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def device_serial_number(self) -> Union[str, None]:
+        """Union[str, None]: device serial number"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceSubjectSerialNumber
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def device_physical_location(self) -> Union[str, None]:
+        """Union[str, None]: location of device"""
+        matches = [
+            item for item in self
+            if item.name == codes.DCM.DeviceSubjectPhysicalLocationDuringObservation  # noqa
+        ]
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'SubjectContextDevice':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items of template
+            TID 1010 "Subject Context, Device"
+
+        Returns
+        -------
+        highdicom.sr.templates.SubjectContextDevice
+            Content Sequence containing SR Content Items
+
+        """
+        attr_codes = [
+            ('name', codes.DCM.DeviceSubjectName),
+            ('uid', codes.DCM.DeviceSubjectUID),
+            ('manufacturer_name', codes.DCM.DeviceSubjectManufacturer),
+            ('model_name', codes.DCM.DeviceSubjectModelName),
+            ('serial_number', codes.DCM.DeviceSubjectSerialNumber),
+            ('physical_location',
+             codes.DCM.DeviceSubjectPhysicalLocationDuringObservation),
+        ]
+        kwargs = {}
+        for dataset in sequence:
+            content_item = ContentItem.from_dataset(dataset)
+            for param, name in attr_codes:
+                if content_item.name == name:
+                    kwargs[param] = content_item.value
+        return SubjectContextDevice(**kwargs)
+
 
 class SubjectContext(Template):
 
@@ -942,13 +1667,11 @@ class SubjectContext(Template):
     def __init__(
         self,
         subject_class: CodedConcept,
-        subject_class_specific_context: Optional[
-            Union[
-                SubjectContextFetus,
-                SubjectContextSpecimen,
-                SubjectContextDevice
-            ]
-        ] = None
+        subject_class_specific_context: Union[
+            SubjectContextFetus,
+            SubjectContextSpecimen,
+            SubjectContextDevice
+        ]
     ):
         """
 
@@ -973,8 +1696,50 @@ class SubjectContext(Template):
             relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
         )
         self.append(subject_class_item)
-        if subject_class_specific_context is not None:
-            self.extend(subject_class_specific_context)
+        if isinstance(subject_class_specific_context, SubjectContextSpecimen):
+            if subject_class != codes.DCM.Specimen:
+                raise TypeError(
+                    'Subject class specific context doesn\'t match '
+                    'subject class "Specimen".'
+                )
+        elif isinstance(subject_class_specific_context, SubjectContextFetus):
+            if subject_class != codes.DCM.Fetus:
+                raise TypeError(
+                    'Subject class specific context doesn\'t match '
+                    'subject class "Fetus".'
+                )
+        elif isinstance(subject_class_specific_context, SubjectContextDevice):
+            if subject_class != codes.DCM.Device:
+                raise TypeError(
+                    'Subject class specific context doesn\'t match '
+                    'subject class "Device".'
+                )
+        else:
+            raise TypeError('Unexpected subject class specific context.')
+        self.extend(subject_class_specific_context)
+
+    @property
+    def subject_class(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: type of subject"""
+        return self[0].value
+
+    @property
+    def subject_class_specific_context(self) -> Union[
+        SubjectContextFetus,
+        SubjectContextSpecimen,
+        SubjectContextDevice
+    ]:
+        """Union[highdicom.sr.templates.SubjectContextFetus, highdicom.sr.templates.SubjectContextSpecimen, highdicom.sr.templates.SubjectContextDevice]:
+        subject class specific context
+        """  # noqa
+        if self.subject_class == codes.DCM.Specimen:
+            return SubjectContextSpecimen.from_sequence(sequence=self)
+        elif self.subject_class == codes.DCM.Fetus:
+            return SubjectContextFetus.from_sequence(sequence=self)
+        elif self.subject_class == codes.DCM.Device:
+            return SubjectContextDevice(sequence=self)
+        else:
+            raise ValueError('Unexpected subject class "{item.meaning}".')
 
 
 class ObservationContext(Template):
@@ -1265,7 +2030,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 meaning='Measurement Group',
                 scheme_designator='DCM'
             ),
-            relationship_type=RelationshipTypeValues.CONTAINS
+            relationship_type=RelationshipTypeValues.CONTAINS,
+            template_id='1501'
         )
         group_item.ContentSequence = ContentSequence()
         if not isinstance(tracking_identifier, TrackingIdentifier):
@@ -1365,6 +2131,133 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     )
                 group_item.ContentSequence.append(evaluation)
         self.append(group_item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'MeasurementsAndQualitativeEvaluations':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing "Measurement Group" SR Content Items
+            of Value Type CONTAINER (sequence shall only contain a single item)
+
+        Returns
+        -------
+        highdicom.sr.templates.MeasurementsAndQualitativeEvaluations
+            Content Sequence containing root CONTAINER SR Content Item
+
+        """
+        if len(sequence) > 1:
+            raise ValueError(
+                'Sequence contains more than one SR Content Item.'
+            )
+        dataset = sequence[0]
+        if dataset.ValueType != ValueTypeValues.CONTAINER.value:
+            raise ValueError(
+                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'because it does not have Value Type CONTAINER.'
+            )
+        if get_coded_name(dataset) != codes.DCM.MeasurementGroup:
+            raise ValueError(
+                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'because it does not have name "Measurement Group".'
+            )
+        instance = ContentSequence.from_sequence(sequence)
+        instance.__class__ = cls
+        return instance
+
+    @property
+    def method(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: measurement method"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.SCT.MeasurementMethod,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def tracking_identifier(self) -> Union[str, None]:
+        """Union[str, None]: tracking identifier"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.TrackingIdentifier,
+            value_type=ValueTypeValues.TEXT
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def tracking_uid(self) -> Union[str, None]:
+        """Union[str, None]: tracking unique identifier"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.TrackingUniqueIdentifier,
+            value_type=ValueTypeValues.UIDREF
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def finding_type(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: finding"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.Finding,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def finding_sites(self) -> List[FindingSite]:
+        """List[highdicom.sr.content.FindingSite]: finding sites"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.SCT.FindingSite,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return [FindingSite.from_dataset(m) for m in matches]
+        return None
+
+    @property
+    def measurements(self) -> List[NumContentItem]:
+        """List[highdicom.sr.value_types.NumContentItem]: measurements"""
+        root_item = self[0]
+        return find_content_items(
+            root_item,
+            value_type=ValueTypeValues.NUM
+        )
+
+    @property
+    def qualitative_evaluations(self) -> List[CodeContentItem]:
+        """List[highdicom.sr.value_types.CodeContentItem]: qualitative
+        evaluations
+        """
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            value_type=ValueTypeValues.CODE
+        )
+        return [
+            item for item in matches
+            if item.name not in (codes.DCM.Finding, codes.SCT.FindingSite, )
+        ]
 
 
 class _ROIMeasurementsAndQualitativeEvaluations(
@@ -1618,6 +2511,30 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             qualitative_evaluations=qualitative_evaluations,
             geometric_purpose=geometric_purpose
         )
+        self[0].ContentTemplateSequence[0].TemplateIdentifier = '1410'
+
+    @property
+    def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
+        """Union[highdicom.sr.content.ImageRegion, highdicom.sr.content.ImageRegion3D], None]:
+        image region defined by spatial coordinates
+        """  # noqa
+        # Image Region may be defined by either SCOORD or SCOORD3D
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.ImageRegion,
+            value_type=ValueTypeValues.SCOORD
+        )
+        if len(matches) > 0:
+            return ImageRegion.from_dataset(matches[0])
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.ImageRegion,
+            value_type=ValueTypeValues.SCOORD3D
+        )
+        if len(matches) > 0:
+            return ImageRegion3D.from_dataset(matches[0])
+        return None
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -1706,6 +2623,41 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             qualitative_evaluations=qualitative_evaluations,
             geometric_purpose=geometric_purpose
         )
+        self[0].ContentTemplateSequence[0].TemplateIdentifier = '1411'
+
+    @property
+    def roi(
+        self
+    ) -> Union[VolumeSurface, List[ImageRegion3D], List[ImageRegion], None]:
+        """Union[highdicom.sr.content.VolumeSurface, List[highdicom.sr.content.ImageRegion], List[highdicom.sr.content.ImageRegion3D]], None]:
+        volume surface or image regions defined by spatial coordinates
+        """  # noqa
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.ImageRegion,
+            value_type=ValueTypeValues.SCOORD
+        )
+        if len(matches) > 0:
+            return [
+                ImageRegion.from_dataset(item)
+                for item in matches
+            ]
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.VolumeSurface,
+            value_type=ValueTypeValues.SCOORD3D
+        )
+        if len(matches) > 0:
+            if len(matches) > 1:
+                return [
+                    ImageRegion3D.from_dataset(item)
+                    for item in matches
+                ]
+            else:
+                return VolumeSurface.from_dataset(matches[0])
+
+        return None
 
 
 class MeasurementsDerivedFromMultipleROIMeasurements(Template):
@@ -1836,7 +2788,8 @@ class MeasurementReport(Template):
             )
         item = ContainerContentItem(
             name=title,
-            template_id='1500'
+            template_id='1500',
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         item.ContentSequence = ContentSequence()
         if language_of_content_item_and_descendants is None:
@@ -1935,6 +2888,410 @@ class MeasurementReport(Template):
         item.ContentSequence.append(container_item)
         self.append(item)
 
+    def _find_measurement_groups(self) -> Sequence[ContainerContentItem]:
+        root_item = self[0]
+        imaging_measurement_items = find_content_items(
+            root_item,
+            name=codes.DCM.ImagingMeasurements,
+            value_type=ValueTypeValues.CONTAINER
+        )
+        if len(imaging_measurement_items) == 0:
+            return []
+        return find_content_items(
+            imaging_measurement_items[0],
+            name=codes.DCM.MeasurementGroup,
+            value_type=ValueTypeValues.CONTAINER
+        )
+
+    @classmethod
+    def from_sequence(cls, sequence: Sequence[Dataset]) -> 'MeasurementReport':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing "Measurement Report" SR Content Items
+            of Value Type CONTAINER (sequence shall only contain a single item)
+
+        Returns
+        -------
+        highdicom.sr.templates.MeasurementsReport
+            Content Sequence containing root CONTAINER SR Content Item
+
+        """
+        if len(sequence) == 0:
+            raise ValueError('Sequence contains no SR Content Items.')
+        if len(sequence) > 1:
+            raise ValueError(
+                'Sequence contains more than one SR Content Item.'
+            )
+        dataset = sequence[0]
+        if dataset.ValueType != ValueTypeValues.CONTAINER.value:
+            raise ValueError(
+                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'because it does not have Value Type CONTAINER.'
+            )
+        if dataset.ContentTemplateSequence[0].TemplateIdentifier != '1500':
+            raise ValueError(
+                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'because it does not have Template Identifier "1500".'
+            )
+        instance = ContentSequence.from_sequence(sequence)
+        instance.__class__ = cls
+        return instance
+
+    def get_observer_contexts(
+        self,
+        observer_type: Optional[Union[CodedConcept, Code]] = None
+    ) -> List[ObserverContext]:
+        """Get observer contexts.
+
+        Parameters
+        ----------
+        observer_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Type of observer ("Device" or "Person") for which should be filtered
+
+        Returns
+        -------
+        List[highdicom.sr.templates.ObserverContext]
+            Observer contexts
+
+        """  # noqa
+        root_item = self[0]
+        matches = [
+            (i + 1, item) for i, item in enumerate(root_item.ContentSequence)
+            if item.name == codes.DCM.ObserverType
+        ]
+        observer_contexts = []
+        for i, (index, item) in enumerate(matches):
+            if observer_type is not None:
+                if item.value != observer_type:
+                    continue
+            try:
+                next_index = matches[i + 1][0]
+            except IndexError:
+                next_index = -1
+            if item.value == codes.DCM.Device:
+                attributes = DeviceObserverIdentifyingAttributes.from_sequence(
+                    sequence=root_item.ContentSequence[index:next_index]
+                )
+            elif item.value == codes.DCM.Person:
+                attributes = PersonObserverIdentifyingAttributes.from_sequence(
+                    sequence=root_item.ContentSequence[index:next_index]
+                )
+            else:
+                raise ValueError('Unexpected observer type "{item.meaning}".')
+            context = ObserverContext(
+                observer_type=item.value,
+                observer_identifying_attributes=attributes
+            )
+            observer_contexts.append(context)
+        return observer_contexts
+
+    def get_subject_contexts(
+        self,
+        subject_class: Optional[CodedConcept] = None
+    ) -> List[SubjectContext]:
+        """Get subject contexts.
+
+        Parameters
+        ----------
+        subject_class: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Type of subject ("Specimen", "Fetus", or "Device") for which should
+            be filtered
+
+        Returns
+        -------
+        List[highdicom.sr.templates.SubjectContext]
+           Subject contexts
+
+        """  # noqa
+        root_item = self[0]
+        matches = [
+            (i + 1, item) for i, item in enumerate(root_item.ContentSequence)
+            if item.name == codes.DCM.SubjectClass
+        ]
+        subject_contexts = []
+        for i, (index, item) in enumerate(matches):
+            if subject_class is not None:
+                if item.value != subject_class:
+                    continue
+            try:
+                next_index = matches[i + 1][0]
+            except IndexError:
+                next_index = -1
+            if item.value == codes.DCM.Specimen:
+                attributes = SubjectContextSpecimen.from_sequence(
+                    sequence=root_item.ContentSequence[index:next_index]
+                )
+            elif item.value == codes.DCM.Fetus:
+                attributes = SubjectContextFetus.from_sequence(
+                    sequence=root_item.ContentSequence[index:next_index]
+                )
+            elif item.value == codes.DCM.Device:
+                attributes = SubjectContextDevice(
+                    sequence=root_item.ContentSequence[index:next_index]
+                )
+            else:
+                raise ValueError('Unexpected subject class "{item.meaning}".')
+            context = SubjectContext(
+                subject_class=item.value,
+                subject_class_specific_context=attributes
+            )
+            subject_contexts.append(context)
+        return subject_contexts
+
+    def get_planar_roi_measurements(
+        self,
+        tracking_uid: Optional[str] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        finding_site: Optional[Union[CodedConcept, Code]] = None,
+        graphic_type: Optional[
+            Union[GraphicTypeValues, GraphicTypeValues3D]
+        ] = None
+    ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
+        """Get imaging measurements of planar image regions of interest.
+
+        Finds (and optionally filters) content items contained in the
+        CONTAINER content item "Measurement group" as specified by TID 1410
+        "Planar ROI Measurements and Qualitative Evaluations".
+
+        Parameters
+        ----------
+        tracking_uid: str, optional
+            Unique tracking identifier
+        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding
+        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding site
+        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, highdicom.sr.enum.GraphicTypeValues3D], optional
+            Graphic type of image region
+
+        Returns
+        -------
+        List[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations]
+            Sequence of content items for each matched measurement group
+
+        """  # noqa
+        measurement_group_items = self._find_measurement_groups()
+        sequences = []
+        for group_item in measurement_group_items:
+            if group_item.template_id is not None:
+                if group_item.template_id != '1410':
+                    continue
+            else:
+                contains_rois = _contains_planar_rois(group_item)
+                if not(contains_rois):
+                    continue
+
+            matches = []
+            if finding_type is not None:
+                matches_finding = _contains_code_items(
+                    group_item,
+                    name=codes.DCM.Finding,
+                    value=finding_type
+                )
+                matches.append(matches_finding)
+            if finding_site is not None:
+                matches_finding_sites = _contains_code_items(
+                    group_item,
+                    name=codes.SCT.FindingSite,
+                    value=finding_site
+                )
+                matches.append(matches_finding_sites)
+            if tracking_uid is not None:
+                matches_tracking_uid = _contains_text_items(
+                    group_item,
+                    name=codes.DCM.TrackingUniqueIdentifier,
+                    value=tracking_uid
+                )
+                matches.append(matches_tracking_uid)
+            if graphic_type is not None:
+                if isinstance(graphic_type, GraphicTypeValues):
+                    matches_graphic_type = _contains_scoord_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                        graphic_type=graphic_type
+                    )
+                else:
+                    matches_graphic_type = _contains_scoord3d_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                        graphic_type=graphic_type
+                    )
+                matches.append(matches_graphic_type)
+
+            seq = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+                [group_item]
+            )
+            if len(matches) == 0:
+                sequences.append(seq)
+            else:
+                if any(matches):
+                    sequences.append(seq)
+
+        return sequences
+
+    def get_volumetric_roi_measurements(
+        self,
+        tracking_uid: Optional[str] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        finding_site: Optional[Union[CodedConcept, Code]] = None,
+        graphic_type: Optional[GraphicTypeValues3D] = None
+    ) -> List[VolumetricROIMeasurementsAndQualitativeEvaluations]:
+        """Get imaging measurements of volumetric image regions of interest.
+
+        Finds (and optionally filters) content items contained in the
+        CONTAINER content item "Measurement group" as specified by TID 1411
+        "Volumetric ROI Measurements and Qualitative Evaluations".
+
+        Parameters
+        ----------
+        tracking_uid: str, optional
+            Unique tracking identifier
+        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding
+        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding site
+        graphic_type: highdicom.sr.enum.GraphicTypeValues3D, optional
+            Graphic type of image region
+
+        Returns
+        -------
+        List[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations]
+            Sequence of content items for each matched measurement group
+
+        """  # noqa
+        sequences = []
+        measurement_group_items = self._find_measurement_groups()
+        for group_item in measurement_group_items:
+            if group_item.template_id is not None:
+                if group_item.template_id != '1411':
+                    continue
+            else:
+                contains_rois = _contains_volumetric_rois(group_item)
+                if not(contains_rois):
+                    continue
+
+            matches = []
+            if finding_type is not None:
+                matches_finding = _contains_code_items(
+                    group_item,
+                    name=codes.DCM.Finding,
+                    value=finding_type
+                )
+                matches.append(matches_finding)
+            if finding_site is not None:
+                matches_finding_sites = _contains_code_items(
+                    group_item,
+                    name=codes.SCT.FindingSite,
+                    value=finding_site
+                )
+                matches.append(matches_finding_sites)
+            if tracking_uid is not None:
+                matches_tracking_uid = _contains_text_items(
+                    group_item,
+                    name=codes.DCM.TrackingUniqueIdentifier,
+                    value=tracking_uid
+                )
+                matches.append(matches_tracking_uid)
+            if graphic_type is not None:
+                matches_graphic_type = _contains_scoord_items(
+                    group_item,
+                    name=codes.DCM.ImageRegion,
+                    graphic_type=graphic_type
+                )
+                matches_graphic_type |= _contains_scoord3d_items(
+                    group_item,
+                    name=codes.DCM.VolumeSurface,
+                    graphic_type=graphic_type
+                )
+                matches.append(matches_graphic_type)
+
+            seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(  # noqa
+                [group_item]
+            )
+            if len(matches) == 0:
+                sequences.append(seq)
+            else:
+                if any(matches):
+                    sequences.append(seq)
+
+        return sequences
+
+    def get_image_measurments(
+        self,
+        tracking_uid: Optional[str] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        finding_site: Optional[Union[CodedConcept, Code]] = None,
+    ) -> List[MeasurementsAndQualitativeEvaluations]:
+        """Get imaging measurements of images.
+
+        Finds (and optionally filters) content items contained in the
+        CONTAINER content item "Measurement Group" as specified by TID 1501
+        "Measurement and Qualitative Evaluation Group".
+
+        Parameters
+        ----------
+        tracking_uid: str, optional
+            Unique tracking identifier
+        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding
+        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+            Finding site
+
+        Returns
+        -------
+        List[highdicom.sr.templates.MeasurementsAndQualitativeEvaluations]
+            Sequence of content items for each matched measurement group
+
+        """  # noqa
+        measurement_group_items = self._find_measurement_groups()
+        sequences = []
+        for group_item in measurement_group_items:
+            if group_item.template_id is not None:
+                if group_item.template_id != '1501':
+                    continue
+            else:
+                contains_rois = _contains_planar_rois(group_item)
+                contains_rois |= _contains_volumetric_rois(group_item)
+                if contains_rois:
+                    continue
+
+            matches = []
+            if finding_type is not None:
+                matches_finding = _contains_code_items(
+                    group_item,
+                    name=codes.DCM.Finding,
+                    value=finding_type
+                )
+                matches.append(matches_finding)
+            if finding_site is not None:
+                matches_finding_sites = _contains_code_items(
+                    group_item,
+                    name=codes.SCT.FindingSite,
+                    value=finding_site
+                )
+                matches.append(matches_finding_sites)
+            if tracking_uid is not None:
+                matches_tracking_uid = _contains_text_items(
+                    group_item,
+                    name=codes.DCM.TrackingUniqueIdentifier,
+                    value=tracking_uid
+                )
+                matches.append(matches_tracking_uid)
+
+            seq = MeasurementsAndQualitativeEvaluations.from_sequence(
+                [group_item]
+            )
+            if len(matches) == 0:
+                sequences.append(seq)
+            else:
+                if any(matches):
+                    sequences.append(seq)
+
+        return sequences
+
 
 class ImageLibraryEntry(Template):
 
@@ -1943,15 +3300,85 @@ class ImageLibraryEntry(Template):
 
     def __init__(
         self,
-        sop_class_uid: str,
-        sop_instance_uid: str,
-        modality: str,
+        modality: Union[Code, CodedConcept],
         frame_of_reference_uid: str,
         pixel_data_rows: int,
         pixel_data_columns: int,
         descriptors: Sequence[ContentItem]
     ) -> None:
-        ...
+        """
+        Parameters
+        ----------
+        modality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+            Modality
+        frame_of_reference_uid: str
+            Frame of Reference UID
+        pixel_data_rows: int
+            Number of rows in pixel data frames
+        pixel_data_columns: int
+            Number of rows in pixel data frames
+        descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
+            Additional SR Content Items that should be included
+
+        """  # noqa
+        super().__init__()
+        modality_item = CodeContentItem(
+            name=CodedConcept(
+                value='121139',
+                meaning='Modality',
+                scheme_designator='DCM'
+            ),
+            value=modality,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+        )
+        self.append(modality_item)
+        frame_of_reference_uid_item = UIDRefContentItem(
+            name=CodedConcept(
+                value='112227',
+                meaning='Frame of Reference UID',
+                scheme_designator='DCM'
+            ),
+            value=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+        )
+        self.append(frame_of_reference_uid_item)
+        pixel_data_rows_item = NumContentItem(
+            name=CodedConcept(
+                value='110910',
+                meaning='Pixel Data Rows',
+                scheme_designator='DCM'
+            ),
+            value=pixel_data_rows,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
+        )
+        self.append(pixel_data_rows_item)
+        pixel_data_cols_item = NumContentItem(
+            name=CodedConcept(
+                value='110911',
+                meaning='Pixel Data Columns',
+                scheme_designator='DCM'
+            ),
+            value=pixel_data_columns,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
+        )
+        self.append(pixel_data_cols_item)
+        for item in descriptors:
+            if not isinstance(item, ContentItem):
+                raise TypeError(
+                    'Image Library Entry Descriptor must have type ContentItem.'
+                )
+            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTENT.value
+            self.append(item)
 
 
 class ImageLibrary(Template):
@@ -1960,9 +3387,9 @@ class ImageLibrary(Template):
      Image Library"""  # noqa: E501
 
     def __init__(
-            self,
-            entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
-        ) -> None:
+        self,
+        entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
+    ) -> None:
         """
         Parameters
         ----------
