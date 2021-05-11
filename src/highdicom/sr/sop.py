@@ -1,8 +1,8 @@
 """Module for SOP Classes of Structured Report (SR) IODs."""
-
 import datetime
 import logging
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
@@ -17,7 +17,9 @@ from pydicom._storage_sopclass_uids import (
 from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
+from highdicom.sr.templates import MeasurementReport
 from highdicom.sr.utils import find_content_items
+from highdicom.sr.value_types import ContentSequence
 
 
 logger = logging.getLogger(__name__)
@@ -347,6 +349,17 @@ class _SR(SOPClass):
         unref_items = self._create_references(unref_group)
         return (ref_items, unref_items)
 
+    @property
+    def content(self) -> ContentSequence:
+        """highdicom.sr.value_types.ContentSequence: SR document content"""
+        root_container_item = self.ContentSequence[0]
+        try:
+            tid_item = root_container_item.ContentTemplateSequence[0]
+            if tid_item.TemplateIdentifier == '1500':
+                return MeasurementReport.from_sequence(self.ContentSequence)
+        except AttributeError:
+            return ContentSequence.from_sequence(self.ContentSequence)
+
 
 class EnhancedSR(_SR):
 
@@ -486,29 +499,29 @@ class ComprehensiveSR(_SR):
     """
 
     def __init__(
-            self,
-            evidence: Sequence[Dataset],
-            content: Dataset,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            manufacturer: Optional[str] = None,
-            is_complete: bool = False,
-            is_final: bool = False,
-            is_verified: bool = False,
-            institution_name: Optional[str] = None,
-            institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
-            verifying_organization: Optional[str] = None,
-            performed_procedure_codes: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None,
-            requested_procedures: Optional[Sequence[Dataset]] = None,
-            previous_versions: Optional[Sequence[Dataset]] = None,
-            record_evidence: bool = True,
-            **kwargs: Any
-        ) -> None:
+        self,
+        evidence: Sequence[Dataset],
+        content: Dataset,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: Optional[str] = None,
+        is_complete: bool = False,
+        is_final: bool = False,
+        is_verified: bool = False,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        verifying_observer_name: Optional[str] = None,
+        verifying_organization: Optional[str] = None,
+        performed_procedure_codes: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        requested_procedures: Optional[Sequence[Dataset]] = None,
+        previous_versions: Optional[Sequence[Dataset]] = None,
+        record_evidence: bool = True,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -604,6 +617,27 @@ class ComprehensiveSR(_SR):
                 'SCOORD3D value type.'
             )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ComprehensiveSR':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Comprehensive SR document
+
+        Returns
+        -------
+        highdicom.sr.sop.ComprehensiveSR
+            Comprehensive SR document
+
+        """
+        if dataset.SOPClassUID != ComprehensiveSRStorage:
+            raise ValueError('Dataset is not a Comprehensive SR document.')
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ == cls
+        return sop_instance
+
 
 class Comprehensive3DSR(_SR):
 
@@ -614,29 +648,29 @@ class Comprehensive3DSR(_SR):
     """
 
     def __init__(
-            self,
-            evidence: Sequence[Dataset],
-            content: Dataset,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            manufacturer: Optional[str] = None,
-            is_complete: bool = False,
-            is_final: bool = False,
-            is_verified: bool = False,
-            institution_name: Optional[str] = None,
-            institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
-            verifying_organization: Optional[str] = None,
-            performed_procedure_codes: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None,
-            requested_procedures: Optional[Sequence[Dataset]] = None,
-            previous_versions: Optional[Sequence[Dataset]] = None,
-            record_evidence: bool = True,
-            **kwargs: Any
-        ) -> None:
+        self,
+        evidence: Sequence[Dataset],
+        content: Dataset,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: Optional[str] = None,
+        is_complete: bool = False,
+        is_final: bool = False,
+        is_verified: bool = False,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        verifying_observer_name: Optional[str] = None,
+        verifying_organization: Optional[str] = None,
+        performed_procedure_codes: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        requested_procedures: Optional[Sequence[Dataset]] = None,
+        previous_versions: Optional[Sequence[Dataset]] = None,
+        record_evidence: bool = True,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -721,3 +755,24 @@ class Comprehensive3DSR(_SR):
             record_evidence=record_evidence,
             **kwargs
         )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'Comprehensive3DSR':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Comprehensive 3D SR document
+
+        Returns
+        -------
+        highdicom.sr.sop.Comprehensive3DSR
+            Comprehensive 3D SR document
+
+        """
+        if dataset.SOPClassUID != Comprehensive3DSRStorage:
+            raise ValueError('Dataset is not a Comprehensive 3D SR document.')
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ == cls
+        return sop_instance

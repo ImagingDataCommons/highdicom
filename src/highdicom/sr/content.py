@@ -4,6 +4,7 @@ from typing import Optional, Sequence, Union
 import numpy as np
 from pydicom._storage_sopclass_uids import SegmentationStorage
 from pydicom.dataset import Dataset
+from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
@@ -11,7 +12,9 @@ from highdicom.sr.enum import (
     GraphicTypeValues3D,
     PixelOriginInterpretationValues,
     RelationshipTypeValues,
+    ValueTypeValues,
 )
+from highdicom.sr.utils import find_content_items
 from highdicom.sr.value_types import (
     CodeContentItem,
     CompositeContentItem,
@@ -729,6 +732,28 @@ class FindingSite(CodeContentItem):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 self.ContentSequence.append(modifier_item)
+
+    @property
+    def topographical_modifier(self) -> Union[CodedConcept, None]:
+        matches = find_content_items(
+            self,
+            name=codes.SCT.TopographicalModifier,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def laterality(self) -> Union[CodedConcept, None]:
+        matches = find_content_items(
+            self,
+            name=codes.SCT.Laterality,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
 
 
 class ReferencedSegmentationFrame(ContentSequence):

@@ -77,12 +77,12 @@ def find_content_items(
         )
 
     def search_tree(
-            node: Dataset,
-            name: Optional[Union[CodedConcept, Code]],
-            value_type: Optional[Union[ValueTypeValues, str]],
-            relationship_type: Optional[Union[RelationshipTypeValues, str]],
-            recursive: bool
-        ) -> List:
+        node: Dataset,
+        name: Optional[Union[CodedConcept, Code]],
+        value_type: Optional[Union[ValueTypeValues, str]],
+        relationship_type: Optional[Union[RelationshipTypeValues, str]],
+        recursive: bool
+    ) -> List:
         matched_content_items = []
         for i, content_item in enumerate(node.ContentSequence):
             name_code = content_item.ConceptNameCodeSequence[0]

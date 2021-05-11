@@ -1,5 +1,6 @@
 """DICOM structured reporting content item value types."""
 import datetime
+from copy import deepcopy
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -18,6 +19,83 @@ from highdicom.sr.enum import (
     TemporalRangeTypeValues,
     ValueTypeValues,
 )
+
+
+def _assert_value_type(
+    dataset: Dataset,
+    value_type: ValueTypeValues
+) -> None:
+    """Check whether dataset contains required attributes for a value type.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        Dataset representing an SR Content Item
+    value_type: highdicom.sr.enum.ValueTypeValues
+        Expected value of Value Type attribute
+
+    Raises
+    ------
+    AttributeError
+        When a required attribute is missing
+    ValueError
+        When the expected and encountered value of Value Type attribute don't
+        match
+
+    """
+    if not hasattr(dataset, 'ValueType'):
+        raise AttributeError('Dataset is not an SR Content Item.')
+    if not dataset.ValueType == value_type.value:
+        raise ValueError(
+            'Dataset is not an SR Content Item with value type '
+            f'"{value_type.value}".'
+        )
+    required_attrs = {
+        ValueTypeValues.CODE: ['ConceptCodeSequence'],
+        ValueTypeValues.COMPOSITE: ['ReferencedSOPSequence'],
+        ValueTypeValues.CONTAINER: ['ContinuityOfContent'],
+        ValueTypeValues.DATE: ['Date'],
+        ValueTypeValues.DATETIME: ['DateTime'],
+        ValueTypeValues.IMAGE: ['ReferencedSOPSequence'],
+        ValueTypeValues.NUM: [
+            'MeasuredValueSequence',
+            'MeasurementUnitsCodeSequence',
+        ],
+        ValueTypeValues.PNAME: ['PersonName'],
+        ValueTypeValues.SCOORD: ['GraphicType', 'GraphicData'],
+        ValueTypeValues.SCOORD3D: ['GraphicType', 'GraphicData'],
+        ValueTypeValues.TCOORD: ['TemporalRangeType'],
+        ValueTypeValues.TIME: ['Time'],
+        ValueTypeValues.TEXT: ['TextValue'],
+        ValueTypeValues.UIDREF: ['UID'],
+    }
+    for attr in required_attrs[value_type]:
+        if not hasattr(dataset, attr):
+            raise AttributeError(
+                'Dataset is not an SR Content Item with value type '
+                f'"{value_type.value}" because it lacks required '
+                f'attribute "{attr}".'
+            )
+
+
+def _get_content_item_class(value_type: ValueTypeValues) -> type:
+    python_types = {
+        ValueTypeValues.CODE: CodeContentItem,
+        ValueTypeValues.COMPOSITE: CompositeContentItem,
+        ValueTypeValues.CONTAINER: ContainerContentItem,
+        ValueTypeValues.DATE: DateContentItem,
+        ValueTypeValues.DATETIME: DateTimeContentItem,
+        ValueTypeValues.IMAGE: ImageContentItem,
+        ValueTypeValues.NUM: NumContentItem,
+        ValueTypeValues.PNAME: PnameContentItem,
+        ValueTypeValues.SCOORD: ScoordContentItem,
+        ValueTypeValues.SCOORD3D: Scoord3DContentItem,
+        ValueTypeValues.TCOORD: TcoordContentItem,
+        ValueTypeValues.TIME: TimeContentItem,
+        ValueTypeValues.TEXT: TextContentItem,
+        ValueTypeValues.UIDREF: UIDRefContentItem,
+    }
+    return python_types[value_type]
 
 
 class ContentItem(Dataset):
@@ -64,10 +142,55 @@ class ContentItem(Dataset):
         else:
             super(ContentItem, self).__setattr__(name, value)
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ContentItem':
+        """Construct instance of appropriate subtype from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item
+
+        Returns
+        -------
+        highdicom.sr.value_types.ContentItem
+            Content Item
+
+        """
+        value_type = ValueTypeValues(dataset.ValueType)
+        content_item_cls = _get_content_item_class(value_type)
+        return content_item_cls.from_dataset(dataset)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ContentItem':
+        required_attrs = [
+            'ValueType',
+            'ConceptNameCodeSequence',
+            'RelationshipType',
+        ]
+        for attr in required_attrs:
+            if not hasattr(dataset, attr):
+                raise AttributeError(
+                    'Dataset is not an SR Content Item because it lacks '
+                    f'required attribute "{attr}".'
+                )
+        item = deepcopy(dataset)
+        item.__class__ = cls
+        if hasattr(dataset, 'ContentSequence'):
+            item.ContentSequence = ContentSequence.from_sequence(
+                dataset.ContentSequence
+            )
+        return item
+
     @property
     def name(self) -> CodedConcept:
         """CodedConcept: coded name of the content item"""
-        return self.ConceptNameCodeSequence[0]
+        ds = self.ConceptNameCodeSequence[0]
+        return CodedConcept(
+            value=ds.CodeValue,
+            scheme_designator=ds.CodingSchemeDesignator,
+            meaning=ds.CodeMeaning
+        )
 
     @property
     def value_type(self) -> str:
@@ -78,9 +201,9 @@ class ContentItem(Dataset):
         return self.ValueType
 
     @property
-    def relationship_type(self) -> str:
-        """str: type of relationship the content item has with its parent
-        (see `highdicom.sr.enum.RelationshipTypeValues`)
+    def relationship_type(self) -> Union[str, None]:
+        """Union[str, None]: type of relationship the content item has with
+        its parent (see `highdicom.sr.enum.RelationshipTypeValues`)
 
         """
         return getattr(self, 'RelationshipType', None)
@@ -169,6 +292,38 @@ class ContentSequence(DataElementSequence):
             )
         super(ContentSequence, self).insert(position, item)
 
+    @classmethod
+    def from_sequence(cls, sequence: Sequence[Dataset]) -> 'ContentSequence':
+        """Construct instance from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items
+
+        Returns
+        -------
+        highdicom.sr.value_types.ContentSequence
+            Content Sequence containing SR Content Items
+
+        """
+        content_items = []
+        for i, dataset in enumerate(sequence):
+            if not isinstance(dataset, Dataset):
+                raise TypeError(
+                    f'Item #{i + 1} of sequence is not an SR Content Item.'
+                )
+            try:
+                value_type = ValueTypeValues(dataset.ValueType)
+            except TypeError:
+                raise ValueError(
+                    f'Item #{i + 1} of sequence is not an SR Content Item '
+                    f'because it has unknown Value Type "{dataset.ValueType}".'
+                )
+            content_item_cls = _get_content_item_class(value_type)
+            content_items.append(content_item_cls.from_dataset(dataset))
+        return cls(content_items)
+
 
 class CodeContentItem(ContentItem):
 
@@ -207,7 +362,30 @@ class CodeContentItem(ContentItem):
     @property
     def value(self) -> CodedConcept:
         """highdicom.sr.coding.CodedConcept: coded concept"""
-        return self.ConceptCodeSequence[0]
+        ds = self.ConceptCodeSequence[0]
+        return CodedConcept(
+            value=ds.CodeValue,
+            scheme_designator=ds.CodingSchemeDesignator,
+            meaning=ds.CodeMeaning
+        )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type CODE
+
+        Returns
+        -------
+        highdicom.sr.value_types.CodeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.CODE)
+        return super(CodeContentItem, cls)._from_dataset(dataset)
 
 
 class PnameContentItem(ContentItem):
@@ -243,6 +421,24 @@ class PnameContentItem(ContentItem):
         """str: person name"""
         return self.PersonName
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
+        """Construct instance from existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type PNAME
+
+        Returns
+        -------
+        highdicom.sr.value_types.PnameContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.PNAME)
+        return super(PnameContentItem, cls)._from_dataset(dataset)
+
 
 class TextContentItem(ContentItem):
 
@@ -276,6 +472,24 @@ class TextContentItem(ContentItem):
     def value(self) -> str:
         """str: text value"""
         return self.TextValue
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TextContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TEXT
+
+        Returns
+        -------
+        highdicom.sr.value_types.TextContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TEXT)
+        return super(TextContentItem, cls)._from_dataset(dataset)
 
 
 class TimeContentItem(ContentItem):
@@ -323,6 +537,24 @@ class TimeContentItem(ContentItem):
                 continue
         raise ValueError(f'Could not decode time value "{self.Time}"')
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TimeContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TIME
+
+        Returns
+        -------
+        highdicom.sr.value_types.TimeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TIME)
+        return super(TimeContentItem, cls)._from_dataset(dataset)
+
 
 class DateContentItem(ContentItem):
 
@@ -357,6 +589,24 @@ class DateContentItem(ContentItem):
         """datetime.date: date"""
         fmt = '%Y-%m-%d'
         return datetime.datetime.strptime(self.Date.isoformat(), fmt).date()
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'DateContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type DATE
+
+        Returns
+        -------
+        highdicom.sr.value_types.DateContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.DATE)
+        return super(DateContentItem, cls)._from_dataset(dataset)
 
 
 class DateTimeContentItem(ContentItem):
@@ -411,6 +661,24 @@ class DateTimeContentItem(ContentItem):
                 continue
         raise ValueError(f'Could not decode datetime value "{self.DateTime}"')
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'DateTimeContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type DATETIME
+
+        Returns
+        -------
+        highdicom.sr.value_types.DateTimeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.DATETIME)
+        return super(DateTimeContentItem, cls)._from_dataset(dataset)
+
 
 class UIDRefContentItem(ContentItem):
 
@@ -444,6 +712,24 @@ class UIDRefContentItem(ContentItem):
     def value(self) -> str:
         """str: UID"""
         return str(self.UID)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type UIDREF
+
+        Returns
+        -------
+        highdicom.sr.value_types.UIDRefContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.UIDREF)
+        return super(UIDRefContentItem, cls)._from_dataset(dataset)
 
 
 class NumContentItem(ContentItem):
@@ -534,6 +820,24 @@ class NumContentItem(ContentItem):
         item = self.MeasuredValueSequence[0]
         return item.MeasurementUnitsCodeSequence[0]
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type NUM
+
+        Returns
+        -------
+        highdicom.sr.value_types.NumContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.NUM)
+        return super(NumContentItem, cls)._from_dataset(dataset)
+
 
 class ContainerContentItem(ContentItem):
 
@@ -584,6 +888,24 @@ class ContainerContentItem(ContentItem):
         except (AttributeError, IndexError):
             return None
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ContainerContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type CONTAINER
+
+        Returns
+        -------
+        highdicom.sr.value_types.ContainerContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.CONTAINER)
+        return super(ContainerContentItem, cls)._from_dataset(dataset)
+
 
 class CompositeContentItem(ContentItem):
 
@@ -624,6 +946,24 @@ class CompositeContentItem(ContentItem):
         """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
         item = self.ReferencedSOPSequence[0]
         return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type COMPOSITE
+
+        Returns
+        -------
+        highdicom.sr.value_types.CompositeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.COMPOSITE)
+        return super(CompositeContentItem, cls)._from_dataset(dataset)
 
 
 class ImageContentItem(ContentItem):
@@ -681,6 +1021,24 @@ class ImageContentItem(ContentItem):
         """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
         item = self.ReferencedSOPSequence[0]
         return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type IMAGE
+
+        Returns
+        -------
+        highdicom.sr.value_types.ImageContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.IMAGE)
+        return super(ImageContentItem, cls)._from_dataset(dataset)
 
 
 class ScoordContentItem(ContentItem):
@@ -786,6 +1144,24 @@ class ScoordContentItem(ContentItem):
         n_points = len(graphic_data) / 2
         return np.array(np.array_split(graphic_data, n_points))
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.value_types.ScoordContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.SCOORD)
+        return super(ScoordContentItem, cls)._from_dataset(dataset)
+
 
 class Scoord3DContentItem(ContentItem):
 
@@ -875,6 +1251,24 @@ class Scoord3DContentItem(ContentItem):
         n_points = len(graphic_data) / 3
         return np.array(np.array_split(graphic_data, n_points))
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD3D
+
+        Returns
+        -------
+        highdicom.sr.value_types.Scoord3DContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.SCOORD3D)
+        return super(Scoord3DContentItem, cls)._from_dataset(dataset)
+
 
 class TcoordContentItem(ContentItem):
 
@@ -946,3 +1340,21 @@ class TcoordContentItem(ContentItem):
                 return self.ReferencedTimeOffsets
             except AttributeError:
                 return self.ReferencedDateTime
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TCOORD
+
+        Returns
+        -------
+        highdicom.sr.value_types.TcoordContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TCOORD)
+        return super(TcoordContentItem, cls)._from_dataset(dataset)
