@@ -1,5 +1,6 @@
 import unittest
 from pydicom import FileDataset, Dataset
+from pydicom.dataelem import DataElement
 from pydicom.uid import generate_uid
 from highdicom.legacy import sop
 from datetime import datetime, timedelta
@@ -176,6 +177,145 @@ class DicomGenerator:
         return out
 
 
+class TestDicomHelper(unittest.TestCase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Build data element for all value representations:
+        # vrs = [
+        #     'AE', 'AS', 'AT', 'CS', 'DA', 'DS', 'DT', 'FL', 'FD', 'IS', 'LO',
+        #     'LT', 'OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'PN', 'SH', 'SL', 'SQ',
+        #     'SS', 'ST', 'SV', 'TM', 'UC', 'UI', 'UL', 'UN', 'UR',
+        #     'US', 'UT', 'UV']
+        self.data = {
+            "UL": [
+                # Keyword: (0008, 0000)
+                DataElement(524288, "UL", 506),
+                DataElement(524288, "UL", 506),
+                DataElement(524288, "UL", 6),
+            ],
+            "CS": [
+                # Keyword: (0008, 0005) SpecificCharacterSet
+                DataElement(524293, "CS", "ISO_IR 100"),
+                DataElement(524293, "CS", "ISO_IR 100"),
+                DataElement(524293, "CS", "ISO_IR 00"),
+            ],
+            "UI": [
+                # Keyword: (0008, 0016) SOPClassUID
+                DataElement(524310, "UI", "1.2.840.10008.5.1.4.1.1.1"),
+                DataElement(524310, "UI", "1.2.840.10008.5.1.4.1.1.1"),
+                DataElement(524310, "UI", "1.2.840.10008.5.1.4.1.1."),
+            ],
+            "DA": [
+                # Keyword: (0008, 0020) StudyDate
+                DataElement(524320, "DA", "19950809"),
+                DataElement(524320, "DA", "19950809"),
+                DataElement(524320, "DA", "9950809"),
+            ],
+            "TM": [
+                # Keyword: (0008, 0030) StudyTime
+                DataElement(524336, "TM", "100044"),
+                DataElement(524336, "TM", "100044"),
+                DataElement(524336, "TM", "00044"),
+            ],
+            "US": [
+                # Keyword: (0008, 0040) DataSetType
+                DataElement(524352, "US", 0),
+                DataElement(524352, "US", 0),
+                DataElement(524352, "US", 1),
+            ],
+            "LO": [
+                # Keyword: (0008, 0041) DataSetSubtype
+                DataElement(524353, "LO", "IMA NONE"),
+                DataElement(524353, "LO", "IMA NONE"),
+                DataElement(524353, "LO", "IMA ONE"),
+            ],
+            "SH": [
+                # Keyword: (0008, 0050) AccessionNumber
+                DataElement(524368, "SH", "1157687691469610"),
+                DataElement(524368, "SH", "1157687691469610"),
+                DataElement(524368, "SH", "157687691469610"),
+            ],
+            "PN": [
+                # Keyword: (0008, 0090) ReferringPhysicianName
+                DataElement(524432, "PN", "Dr Alpha"),
+                DataElement(524432, "PN", "Dr Alpha"),
+                DataElement(524432, "PN", "Dr Beta"),
+            ],
+            "ST": [
+                # Keyword: (0008, 2111) DerivationDescription
+                DataElement(532753, "ST", "G0.9D#1.60+0.00,R4R0.5,,D2B0.6,,,"),
+                DataElement(532753, "ST", "G0.9D#1.60+0.00,R4R0.5,,D2B0.6,,,"),
+                DataElement(532753, "ST", "G0.9D#1.60+0.00,R4R0.5,,D2B0.,,,"),
+            ],
+            "UN": [
+                # Keyword: (0013, 0000)
+                DataElement(1245184, "UN", b'\x00\x00\x00'),
+                DataElement(1245184, "UN", b'\x00\x00\x00'),
+                DataElement(1245184, "UN", b'\x00\x00\x01'),
+            ],
+            "DS": [
+                # Keyword: (0018, 0060) KVP
+                DataElement(1572960, "DS", 110),
+                DataElement(1572960, "DS", 110),
+                DataElement(1572960, "DS", 10),
+            ],
+            "IS": [
+                # Keyword: (0018, 1150) ExposureTime
+                DataElement(1577296, "IS", 32),
+                DataElement(1577296, "IS", 32),
+                DataElement(1577296, "IS", 2),
+            ],
+            "AS": [
+                # Keyword: (0010, 1010) PatientAge
+                DataElement(1052688, "AS", "075Y"),
+                DataElement(1052688, "AS", "075Y"),
+                DataElement(1052688, "AS", "75Y"),
+            ],
+            "OW": [
+                # Keyword: (7fe0, 0010) PixelData
+                DataElement(2145386512, "OW", b'\x00\x00\x00\x00\x00\x00'),
+                DataElement(2145386512, "OW", b'\x00\x00\x00\x00\x00\x00'),
+                DataElement(2145386512, "OW", b'\x00\x00\x00\x00\x00\x01'),
+            ],
+            "SS": [
+                # Keyword: (0028, 0106) SmallestImagePixelValue
+                DataElement(2621702, "SS", 0),
+                DataElement(2621702, "SS", 0),
+                DataElement(2621702, "SS", 1),
+            ],
+            "DT": [
+                # Keyword: (0008, 002a) AcquisitionDateTime
+                DataElement(524330, "DT", "20030922101033.000000"),
+                DataElement(524330, "DT", "20030922101033.000000"),
+                DataElement(524330, "DT", "20030922101033.00000"),
+            ],
+            "LT": [
+                # Keyword: (0018, 7006) DetectorDescription
+                DataElement(1601542, "LT", "DETECTOR VERSION 1.0 MTFCOMP 1.0"),
+                DataElement(1601542, "LT", "DETECTOR VERSION 1.0 MTFCOMP 1.0"),
+                DataElement(1601542, "LT", "DETECTOR VERSION 1.0 MTFCOMP 1."),
+            ],
+            "OB": [
+                # Keyword: (0029, 1131)
+                DataElement(2691377, "OB", b'4.0.701169981 '),
+                DataElement(2691377, "OB", b'4.0.701169981 '),
+                DataElement(2691377, "OB", b'4.0.01169981 '),
+            ],
+            "AT": [
+                # Keyword: (0028, 0009) FrameIncrementPointer
+                DataElement(2621449, "AT", 5505152),
+                DataElement(2621449, "AT", 5505152),
+                DataElement(2621449, "AT", 505152),
+            ],
+        }
+
+    def test_attribute_equality(self) -> None:
+        for vr, [v1, v2, v3] in self.data.items():
+            assert sop._DicomHelper.isequal(v1.value, v2.value) is True
+            assert sop._DicomHelper.isequal(v1.value, v3.value) is False
+
+
 class TestFrameSetCollection(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -186,7 +326,7 @@ class TestFrameSetCollection(unittest.TestCase):
         for i in range(1, 10):
             data = data_generator.generate_mixed_framesets(
                 Modality.CT, i, True, True)
-            fset_collection = sop.FrameSetCollection(data)
+            fset_collection = sop._FrameSetCollection(data)
             assert len(fset_collection.frame_sets) == i
 
     def test_frameset_framecount_detection(self) -> None:
@@ -194,7 +334,7 @@ class TestFrameSetCollection(unittest.TestCase):
             data_generator = DicomGenerator(i)
             data = data_generator.generate_mixed_framesets(
                 Modality.CT, 1, True, True)
-            fset_collection = sop.FrameSetCollection(data)
+            fset_collection = sop._FrameSetCollection(data)
             assert len(fset_collection.frame_sets) == 1
             assert len(fset_collection.frame_sets[0].frames) == i
 
@@ -227,7 +367,7 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     data_generator = DicomGenerator(i)
                     data = data_generator.generate_mixed_framesets(
                         Modality(j), 1, True, True)
-                    fset_collection = sop.FrameSetCollection(data)
+                    fset_collection = sop._FrameSetCollection(data)
                     assert len(fset_collection.frame_sets) == 1
                     assert len(fset_collection.frame_sets[0].frames) == i
                     convertor = LegacyConverterClass(
