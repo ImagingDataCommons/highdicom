@@ -9,12 +9,11 @@ from datetime import datetime, timedelta
 from copy import deepcopy
 
 from numpy import log10, array, ceil
-from pydicom.datadict import tag_for_keyword, dictionary_VR, keyword_for_tag
+from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataset import Dataset
 from pydicom.tag import Tag, BaseTag
 from pydicom.dataelem import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
-from pydicom.multival import MultiValue
 from pydicom.valuerep import DT, DA, TM
 from pydicom.uid import UID
 
@@ -22,6 +21,7 @@ from highdicom.base import SOPClass
 from highdicom._iods import IOD_MODULE_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 from highdicom.spatial import _GeometryOfSlice
+from highdicom.utils import FrameSetCollection
 
 
 logger = logging.getLogger(__name__)
@@ -42,368 +42,6 @@ _SOP_CLASS_UID_IOD_KEY_MAP = {
     '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
     '1.2.840.10008.5.1.4.1.1.128.1': 'legacy-converted-enhanced-pet-image',
 }
-
-
-class _DicomHelper:
-
-    """A class for checking dicom tags and comparing dicom attributes"""
-
-    @staticmethod
-    def istag_file_meta_information_group(t: BaseTag) -> bool:
-        return t.group == 0x0002
-
-    @staticmethod
-    def istag_repeating_group(t: BaseTag) -> bool:
-        g = t.group
-        return (g >= 0x5000 and g <= 0x501e) or\
-            (g >= 0x6000 and g <= 0x601e)
-
-    @staticmethod
-    def istag_group_length(t: BaseTag) -> bool:
-        return t.element == 0
-
-    @staticmethod
-    def isequal(v1: Any, v2: Any, float_tolerance: float = 1.0e-5) -> bool:
-        from pydicom.valuerep import DSfloat
-
-        def is_equal_float(x1: float, x2: float) -> bool:
-            return abs(x1 - x2) < float_tolerance
-        if type(v1) != type(v2):
-            return False
-        if isinstance(v1, DataElementSequence):
-            for item1, item2 in zip(v1, v2):
-                if not _DicomHelper.isequal_dicom_dataset(item1, item2):
-                    return False
-        if not isinstance(v1, MultiValue):
-            v11 = [v1]
-            v22 = [v2]
-        else:
-            v11 = v1
-            v22 = v2
-        if len(v11) != len(v22):
-            return False
-        for xx, yy in zip(v11, v22):
-            if isinstance(xx, DSfloat) or isinstance(xx, float):
-                if not is_equal_float(xx, yy):
-                    return False
-            else:
-                if xx != yy:
-                    return False
-        return True
-
-    @staticmethod
-    def isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
-        """Checks if two dicom dataset have the same value in all attributes
-
-        Parameters
-        ----------
-        ds1: pydicom.dataset.Dataset
-            1st dicom dataset
-        ds2: pydicom.dataset.Dataset
-            2nd dicom dataset
-
-        Returns
-        -------
-        True if dicom datasets are equal otherwise False
-
-        """
-        if type(ds1) != type(ds2):
-            return False
-        if not isinstance(ds1, Dataset):
-            return False
-        for k1, elem1 in ds1.items():
-            if k1 not in ds2:
-                return False
-            elem2 = ds2[k1]
-            if not _DicomHelper.isequal(elem2.value, elem1.value):
-                return False
-        return True
-
-    @staticmethod
-    def tag2kwstr(tg: BaseTag) -> str:
-        """Converts tag to keyword and (group, element) form"""
-        return '{}-{:32.32s}'.format(
-            str(tg), keyword_for_tag(tg))
-
-
-class FrameSet:
-
-    """
-
-        A class containing the dicom frames that hold equal distinguishing
-        attributes to detect all perframe and shared dicom attributes
-    """
-
-    def __init__(
-            self,
-            single_frame_list: List[Dataset],
-            distinguishing_tags: List[BaseTag],
-        ) -> None:
-        """
-
-        Parameters
-        ----------
-        single_frame_list: List[pydicom.dataset.Dataset]
-            list of single frames that have equal distinguising attributes
-        distinguishing_tags: List[pydicom.tag.BaseTag]
-            list of distinguishing attributes tags
-
-        """
-        self._frames = single_frame_list
-        self._distinguishing_attributes_tags = distinguishing_tags
-        tmp = [
-            tag_for_keyword('AcquisitionDateTime'),
-            tag_for_keyword('AcquisitionDate'),
-            tag_for_keyword('AcquisitionTime'),
-            tag_for_keyword('SpecificCharacterSet')]
-        self._excluded_from_perframe_tags =\
-            self._distinguishing_attributes_tags + tmp
-        self._perframe_tags: List[BaseTag] = []
-        self._shared_tags: List[BaseTag] = []
-        self._find_per_frame_and_shared_tags()
-
-    @property
-    def frames(self) -> List[Dataset]:
-        return self._frames[:]
-
-    @property
-    def distinguishing_attributes_tags(self) -> List[Tag]:
-        return self._distinguishing_attributes_tags[:]
-
-    @property
-    def excluded_from_perframe_tags(self) -> List[Tag]:
-        return self._excluded_from_perframe_tags[:]
-
-    @property
-    def perframe_tags(self) -> List[Tag]:
-        return self._perframe_tags[:]
-
-    @property
-    def shared_tags(self) -> List[Tag]:
-        return self._shared_tags[:]
-
-    @property
-    def series_instance_uid(self) -> UID:
-        """Returns the series instance uid of the FrameSet"""
-        return self._frames[0].SeriesInstanceUID
-
-    @property
-    def study_instance_uid(self) -> UID:
-        """Returns the study instance uid of the FrameSet"""
-        return self._frames[0].StudyInstanceUID
-
-    def get_sop_instance_uid_list(self) -> list:
-        """Returns a list containing all SOPInstanceUID of the FrameSet"""
-        output_list = [f.SOPInstanceUID for f in self._frames]
-        return output_list
-
-    def get_sop_class_uid(self) -> UID:
-        """Returns the sop class uid of the FrameSet"""
-        return self._frames[0].SOPClassUID
-
-    def _find_per_frame_and_shared_tags(self) -> None:
-        """Detects and collects all shared and perframe attributes"""
-        rough_shared: dict = {}
-        sfs = self.frames
-        for ds in sfs:
-            for ttag, elem in ds.items():
-                if (not ttag.is_private and not
-                    _DicomHelper.istag_file_meta_information_group(ttag) and not
-                        _DicomHelper.istag_repeating_group(ttag) and not
-                        _DicomHelper.istag_group_length(ttag) and not
-                        self._istag_excluded_from_perframe(ttag) and
-                        ttag != tag_for_keyword('PixelData')):
-                    elem = ds[ttag]
-                    if ttag not in self._perframe_tags:
-                        self._perframe_tags.append(ttag)
-                    if ttag in rough_shared:
-                        rough_shared[ttag].append(elem.value)
-                    else:
-                        rough_shared[ttag] = [elem.value]
-        to_be_removed_from_shared = []
-        for ttag, v in rough_shared.items():
-            v = rough_shared[ttag]
-            if len(v) < len(self.frames):
-                to_be_removed_from_shared.append(ttag)
-            else:
-                all_values_are_equal = all(
-                    _DicomHelper.isequal(v_i, v[0]) for v_i in v)
-                if not all_values_are_equal:
-                    to_be_removed_from_shared.append(ttag)
-        for t in to_be_removed_from_shared:
-            del rough_shared[t]
-        for t, v in rough_shared.items():
-            self._shared_tags.append(t)
-            self._perframe_tags.remove(t)
-
-    def _istag_excluded_from_perframe(self, t: BaseTag) -> bool:
-        return t in self._excluded_from_perframe_tags
-
-
-class FrameSetCollection:
-
-    """A class to extract framesets based on distinguishing dicom attributes"""
-
-    def __init__(self, single_frame_list: Sequence[Dataset]) -> None:
-        """Forms framesets based on a list of distinguishing attributes.
-        The list of "distinguishing" attributes that are used to determine
-        commonality is currently fixed, and includes the unique identifying
-        attributes at the Patient, Study, Equipment levels, the Modality and
-        SOP Class, and ImageType as well as the characteristics of the Pixel
-        Data, and those attributes that for cross-sectional images imply
-        consistent sampling, such as ImageOrientationPatient, PixelSpacing and
-        SliceThickness, and in addition AcquisitionContextSequence and
-        BurnedInAnnotation.
-
-        Parameters
-        ----------
-        single_frame_list: Sequence[pydicom.dataset.Dataset]
-            list of mixed or non-mixed single frame dicom images
-
-        Notes
-        -----
-        Note that Series identification, specifically SeriesInstanceUID is NOT
-        a distinguishing attribute; i.e. FrameSets may span Series
-
-        """
-        self.mixed_frames = single_frame_list
-        self.mixed_frames_copy = self.mixed_frames[:]
-        self._distinguishing_attribute_keywords = [
-            'PatientID',
-            'PatientName',
-            'StudyInstanceUID',
-            'FrameOfReferenceUID',
-            'Manufacturer',
-            'InstitutionName',
-            'InstitutionAddress',
-            'StationName',
-            'InstitutionalDepartmentName',
-            'ManufacturerModelName',
-            'DeviceSerialNumber',
-            'SoftwareVersions',
-            'GantryID',
-            'PixelPaddingValue',
-            'Modality',
-            'ImageType',
-            'BurnedInAnnotation',
-            'SOPClassUID',
-            'Rows',
-            'Columns',
-            'BitsStored',
-            'BitsAllocated',
-            'HighBit',
-            'PixelRepresentation',
-            'PhotometricInterpretation',
-            'PlanarConfiguration',
-            'SamplesPerPixel',
-            'ProtocolName',
-            'ImageOrientationPatient',
-            'PixelSpacing',
-            'SliceThickness',
-            'AcquisitionContextSequence']
-        self._frame_sets: List[FrameSet] = []
-        frame_counts = []
-        frameset_counter = 0
-        while len(self.mixed_frames_copy) != 0:
-            frameset_counter += 1
-            x = self._find_all_similar_to_first_datasets()
-            self._frame_sets.append(FrameSet(x[0], x[1]))
-            frame_counts.append(len(x[0]))
-            # log information
-            logger.debug(
-                f"Frameset({frameset_counter:02d}) "
-                "including {len(x[0]):03d} frames")
-            logger.debug('\t Distinguishing tags:')
-            for dg_i, dg_tg in enumerate(x[1], 1):
-                logger.debug(
-                    f'\t\t{dg_i:02d}/{len(x[1])})\t{str(dg_tg)}-'
-                    '{keyword_for_tag(dg_tg):32.32s} = '
-                    '{str(x[0][0][dg_tg].value):32.32s}')
-            logger.debug('\t dicom datasets in this frame set:')
-            for dicom_i, dicom_ds in enumerate(x[0], 1):
-                logger.debug(
-                    f'\t\t{dicom_i}/{len(x[0])})\t '
-                    '{dicom_ds["SOPInstanceUID"]}')
-        frames = ''
-        for i, f_count in enumerate(frame_counts, 1):
-            frames += '{: 2d}){:03d}\t'.format(i, f_count)
-        frames = '{: 2d} frameset(s) out of all {: 3d} instances:'.format(
-            len(frame_counts), len(self.mixed_frames)) + frames
-        logger.info(frames)
-        self._excluded_from_perframe_tags = {}
-        for kwkw in self._distinguishing_attribute_keywords:
-            self._excluded_from_perframe_tags[tag_for_keyword(kwkw)] = False
-        excluded_kws = [
-            'AcquisitionDateTime'
-            'AcquisitionDate'
-            'AcquisitionTime'
-            'SpecificCharacterSet'
-        ]
-        for kwkw in excluded_kws:
-            self._excluded_from_perframe_tags[tag_for_keyword(kwkw)] = False
-
-    def _find_all_similar_to_first_datasets(self) -> tuple:
-        """Takes the fist instance from mixed-frames and finds all dicom images
-        that have the same distinguishing attributes.
-
-        """
-        similar_ds: List[Dataset] = [self.mixed_frames_copy[0]]
-        distinguishing_tags_existing = []
-        distinguishing_tags_missing = []
-        self.mixed_frames_copy = self.mixed_frames_copy[1:]
-        for kw in self._distinguishing_attribute_keywords:
-            tg = tag_for_keyword(kw)
-            if tg in similar_ds[0]:
-                distinguishing_tags_existing.append(tg)
-            else:
-                distinguishing_tags_missing.append(tg)
-        logger_msg = set()
-        for ds in self.mixed_frames_copy:
-            all_equal = True
-            for tg in distinguishing_tags_missing:
-                if tg in ds:
-                    logger_msg.add(
-                        '{} is missing in all but {}'.format(
-                            _DicomHelper.tag2kwstr(tg), ds['SOPInstanceUID']))
-                    all_equal = False
-                    break
-            if not all_equal:
-                continue
-            for tg in distinguishing_tags_existing:
-                ref_val = similar_ds[0][tg].value
-                if tg not in ds:
-                    all_equal = False
-                    break
-                new_val = ds[tg].value
-                if not _DicomHelper.isequal(ref_val, new_val):
-                    logger_msg.add(
-                        'Inequality on distinguishing '
-                        'attribute{} -> {} != {} \n series uid = {}'.format(
-                            _DicomHelper.tag2kwstr(tg), ref_val, new_val,
-                            ds.SeriesInstanceUID))
-                    all_equal = False
-                    break
-            if all_equal:
-                similar_ds.append(ds)
-        for msg_ in logger_msg:
-            logger.info(msg_)
-        for ds in similar_ds:
-            if ds in self.mixed_frames_copy:
-                self.mixed_frames_copy = [
-                    nds for nds in self.mixed_frames_copy if nds != ds]
-        return (similar_ds, distinguishing_tags_existing)
-
-    @property
-    def distinguishing_attribute_keywords(self) -> List[str]:
-        """Returns the list of all distinguising attributes found."""
-
-        return self._distinguishing_attribute_keywords[:]
-
-    @property
-    def frame_sets(self) -> List[FrameSet]:
-        """Returns the list of all FrameSets found."""
-
-        return self._frame_sets
 
 
 class _CommonLegacyConvertedEnhanceImage(SOPClass):
@@ -512,7 +150,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         for item in sorted(self._legacy_datasets, key=sort_key):
             new_ds.append(item)
 
-        # self = multi_frame_output
         self._module_excepted_list: dict = {
          "patient": [],
          "clinical-trial-subject": [],
@@ -825,7 +462,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 module,
                 excepted_attributes=except_at,
                 check_not_to_be_empty=False,
-                check_not_to_be_perframe=True)  # don't check the perframe set
+                check_not_to_be_perframe=True)
 
     def _add_module_to_mf_enhanced_common_image(self) -> None:
         """Copies/adds an `enhanced_common_image` multiframe module to
@@ -869,7 +506,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
         if tag_for_keyword('PresentationLUTShape') not in self._perframe_tags:
             # actually should really invert the pixel data if MONOCHROME1,
-            #           since only MONOCHROME2 is permitted : (
+            #           since only MONOCHROME2 is permitted :(
             # also, do not need to check if PhotometricInterpretation is
             #           per-frame, since a distinguishing attribute
             phmi_kw = 'PhotometricInterpretation'
@@ -905,7 +542,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         the current SOPClass from its single frame source.
 
         """
-        # David's code doesn't hold anything for this module ... should ask him
         kw = 'ContentQualification'
         tg = tag_for_keyword(kw)
         elem = self._get_or_create_attribute(
@@ -926,7 +562,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         if 'ResonantNucleus' not in self:
             # derive from ImagedNucleus, which is the one used in legacy MR
             #  IOD, but does not have a standard list of defined terms ...
-            #  (could check these : ()
+            #  (could check these :()
             self._copy_attrib_if_present(
                 self._legacy_datasets[0],
                 self,
@@ -1107,7 +743,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
              module_name,
              excepted_attributes=excepted_a,
              check_not_to_be_empty=False,
-             check_not_to_be_perframe=True)  # don't check the perframe set
+             check_not_to_be_perframe=True)
 
     def _add_module_to_dataset_frame_anatomy(
             self,
@@ -1128,8 +764,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             from a perframe/shared functional group sequence.
 
         """
-        # David's code is more complicated than mine
-        # Should check it out later.
         fa_seq_tg = tag_for_keyword('FrameAnatomySequence')
         item = Dataset()
         self._copy_attrib_if_present(source, item, 'AnatomicRegionSequence',
@@ -1523,9 +1157,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                         break
                 if not containes_localizer:
                     value = "HU"
-            # elif modality == 'PT':
-                # value = 'US' if 'Units' not in source\
-                #     else source['Units'].value
             else:
                 value = 'US'
             tg = tag_for_keyword('RescaleType')
@@ -1928,10 +1559,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 slice_thickness_v = 0.0
             else:
                 slice_thickness_v = curr_frame['SliceThickness'].value
-            # slice_location_v = None \
-            #     if 'SliceLocation' not in curr_frame\
-            #     else curr_frame['SliceLocation'].value
-
             if (image_orientation_patient_v is not None and
                     image_position_patient_v is not None and
                     pixel_spacing_v is not None):
@@ -2074,8 +1701,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 source, 'AcquisitionTime', self.earliest_time)
             d = acquisition_date_a.value
             t = acquisition_time_a.value
-            # frame_acquisition_date_time_a.value = (DT(d.strftime('%Y%m%d') +
-            #                                     t.strftime('%H%M%S')))
             frame_acquisition_date_time_a.value = DT(str(d) + str(t))
         if frame_acquisition_date_time_a.value > self.earliest_date_time:
             if (frame_acquisition_date_time_a.value <
@@ -2090,8 +1715,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                     trigger_time_in_millisecond = int(trigger_time_a.value)
                     if trigger_time_in_millisecond > 0:
                         t_delta = timedelta(trigger_time_in_millisecond)
-                        # this is so ridiculous. I'm not able to convert
-                        #      the DT to datetime (cast to superclass)
                         d_t = datetime.combine(
                             frame_acquisition_date_time_a.value.date(),
                             frame_acquisition_date_time_a.value.time())
@@ -2149,9 +1772,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
     def _is_other_word_vr_pixel_data(self, vr: str) -> bool:
         """checks if `PixelData` dicom value representation is OW."""
         return vr[0] == 'O' and vr[1] == 'W'
-    # def _has(self, tags: dict) -> bool:        """
-    #     image_position_patient_tg = tag_for_keyword('ImagePositionPatient')
-    #     return image_position_patient_tg in tags
 
     def _copy_data_pixel_data(
             self,
@@ -2557,7 +2177,8 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sort_key=sort_key
+            sort_key=sort_key,
+            **kwargs
         )
         self._add_build_blocks_for_ct()
         self._convert2multiframe()
@@ -2614,7 +2235,8 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sort_key=sort_key
+            sort_key=sort_key,
+            **kwargs
         )
         self._add_build_blocks_for_pet()
         self._convert2multiframe()
@@ -2671,7 +2293,8 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sort_key=sort_key
+            sort_key=sort_key,
+            **kwargs
         )
         self._add_build_blocks_for_mr()
         self._convert2multiframe()
