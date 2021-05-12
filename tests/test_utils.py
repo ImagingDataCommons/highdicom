@@ -131,7 +131,6 @@ def test_should_raise_error_when_3d_param_is_missing():
         )
 
 
-
 class TestDicomHelper(unittest.TestCase):
 
     def setUp(self) -> None:
