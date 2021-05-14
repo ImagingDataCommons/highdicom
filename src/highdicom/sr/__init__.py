@@ -51,7 +51,7 @@ from highdicom.sr.templates import (
     TimePointContext,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
-from highdicom.sr.utils import find_content_items
+from highdicom.sr import utils
 from highdicom.sr.value_types import (
     ContentSequence,
     CodeContentItem,
@@ -102,7 +102,6 @@ __all__ = [
     'DateContentItem',
     'DateTimeContentItem',
     'DeviceObserverIdentifyingAttributes',
-    'find_content_items',
     'FindingSite',
     'GraphicTypeValues',
     'GraphicTypeValues3D',
@@ -147,6 +146,7 @@ __all__ = [
     'TimePointContext',
     'TrackingIdentifier',
     'UIDRefContentItem',
+    'utils',
     'ValueTypeValues',
     'VolumeSurface',
     'VolumetricROIMeasurementsAndQualitativeEvaluations',

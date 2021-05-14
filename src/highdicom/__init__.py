@@ -2,7 +2,7 @@ from highdicom import legacy
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
-from highdicom.color import ColorManager
+from highdicom import color
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     IssuerOfIdentifier,
@@ -15,42 +15,31 @@ from highdicom.content import (
     SpecimenSampling,
     SpecimenStaining,
 )
-from highdicom.frame import decode_frame, encode_frame
-from highdicom.io import ImageFileReader
-from highdicom.spatial import (
-    ImageToReferenceTransformer,
-    ReferenceToImageTransformer,
-)
+from highdicom import frame
+from highdicom import io
+from highdicom import spatial
 from highdicom.uid import UID
-from highdicom.utils import (
-    tile_pixel_matrix,
-    compute_plane_position_tiled_full,
-    compute_plane_position_slide_per_frame,
-)
+from highdicom import utils
 
 __all__ = [
     'AlgorithmIdentificationSequence',
-    'ColorManager',
-    'compute_plane_position_slide_per_frame',
-    'compute_plane_position_tiled_full',
-    'decode_frame',
-    'encode_frame',
-    'ImageFileReader',
-    'ImageToReferenceTransformer',
+    'color',
+    'frame',
+    'io',
     'IssuerOfIdentifier',
     'legacy',
     'PixelMeasuresSequence',
     'PlanePositionSequence',
     'PlaneOrientationSequence',
-    'ReferenceToImageTransformer',
     'sc',
     'seg',
+    'spatial',
     'SpecimenCollection',
     'SpecimenDescription',
     'SpecimenPreparationStep',
     'SpecimenSampling',
     'SpecimenStaining',
     'sr',
-    'tile_pixel_matrix',
     'UID',
+    'utils',
 ]
