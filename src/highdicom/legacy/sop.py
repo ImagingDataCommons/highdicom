@@ -7,6 +7,8 @@ import logging
 from typing import Any, List, Union, Callable, Sequence, Optional, Dict, Tuple
 from datetime import datetime, timedelta
 from copy import deepcopy
+from collections import defaultdict
+from sys import float_info
 
 from numpy import log10, array, ceil
 from pydicom.datadict import tag_for_keyword, dictionary_VR, keyword_for_tag
@@ -15,7 +17,7 @@ from pydicom.tag import Tag, BaseTag
 from pydicom.dataelem import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.multival import MultiValue
-from pydicom.valuerep import DT, DA, TM
+from pydicom.valuerep import DT, DA, TM, DSfloat
 from pydicom.uid import UID
 
 from highdicom.base import SOPClass
@@ -64,8 +66,6 @@ class _DicomHelper:
 
     @staticmethod
     def isequal(v1: Any, v2: Any, float_tolerance: float = 1.0e-5) -> bool:
-        from pydicom.valuerep import DSfloat
-
         def is_equal_float(x1: float, x2: float) -> bool:
             return abs(x1 - x2) < float_tolerance
         if type(v1) != type(v2):
@@ -144,7 +144,7 @@ class _FrameSet:
         Parameters
         ----------
         single_frame_list: List[pydicom.dataset.Dataset]
-            list of single frames that have equal distinguising attributes
+            list of single frames that have equal distinguishing attributes
         distinguishing_tags: List[pydicom.tag.BaseTag]
             list of distinguishing attributes tags
 
@@ -203,7 +203,9 @@ class _FrameSet:
 
     def _find_per_frame_and_shared_tags(self) -> None:
         """Detects and collects all shared and perframe attributes"""
-        rough_shared: dict = {}
+        rough_shared: Dict[BaseTag, List[DataElement]] = defaultdict(list)
+        sh_tgs = set()
+        pf_tgs = set()
         sfs = self.frames
         for ds in sfs:
             for ttag, elem in ds.items():
@@ -213,28 +215,23 @@ class _FrameSet:
                         _DicomHelper.istag_group_length(ttag) and not
                         self._istag_excluded_from_perframe(ttag) and
                         ttag != tag_for_keyword('PixelData')):
+                    # Since elem could be a RawDataElement so __getattr__ is
+                    # safer and gives DataElement type as output
                     elem = ds[ttag]
-                    if ttag not in self._perframe_tags:
-                        self._perframe_tags.append(ttag)
-                    if ttag in rough_shared:
-                        rough_shared[ttag].append(elem.value)
-                    else:
-                        rough_shared[ttag] = [elem.value]
-        to_be_removed_from_shared = []
+                    pf_tgs.add(ttag)
+                    rough_shared[ttag].append(elem.value)
+        sh_tgs = set(rough_shared.keys())
         for ttag, v in rough_shared.items():
-            v = rough_shared[ttag]
             if len(v) < len(self.frames):
-                to_be_removed_from_shared.append(ttag)
+                sh_tgs.remove(ttag)
             else:
                 all_values_are_equal = all(
                     _DicomHelper.isequal(v_i, v[0]) for v_i in v)
                 if not all_values_are_equal:
-                    to_be_removed_from_shared.append(ttag)
-        for t in to_be_removed_from_shared:
-            del rough_shared[t]
-        for t, v in rough_shared.items():
-            self._shared_tags.append(t)
-            self._perframe_tags.remove(t)
+                    sh_tgs.remove(ttag)
+        pf_tgs -= sh_tgs
+        self._shared_tags = list(sh_tgs)
+        self._perframe_tags = list(pf_tgs)
 
     def _istag_excluded_from_perframe(self, t: BaseTag) -> bool:
         return t in self._excluded_from_perframe_tags
@@ -306,23 +303,29 @@ class _FrameSetCollection:
         frameset_counter = 0
         while len(self.mixed_frames_copy) != 0:
             frameset_counter += 1
-            x = self._find_all_similar_to_first_datasets()
-            self._frame_sets.append(_FrameSet(x[0], x[1]))
-            frame_counts.append(len(x[0]))
+            ds_list, distinguishing_tgs = \
+                self._find_all_similar_to_first_datasets()
+            # removing similar datasets from mixed frames
+            for ds in ds_list:
+                if ds in self.mixed_frames_copy:
+                    self.mixed_frames_copy = [
+                        nds for nds in self.mixed_frames_copy if nds != ds]
+            self._frame_sets.append(_FrameSet(ds_list, distinguishing_tgs))
+            frame_counts.append(len(ds_list))
             # log information
             logger.debug(
                 f"Frameset({frameset_counter:02d}) "
-                "including {len(x[0]):03d} frames")
+                "including {len(ds_list):03d} frames")
             logger.debug('\t Distinguishing tags:')
-            for dg_i, dg_tg in enumerate(x[1], 1):
+            for dg_i, dg_tg in enumerate(distinguishing_tgs, 1):
                 logger.debug(
-                    f'\t\t{dg_i:02d}/{len(x[1])})\t{str(dg_tg)}-'
+                    f'\t\t{dg_i:02d}/{len(distinguishing_tgs)})\t{str(dg_tg)}-'
                     '{keyword_for_tag(dg_tg):32.32s} = '
-                    '{str(x[0][0][dg_tg].value):32.32s}')
+                    '{str(ds_list[0][dg_tg].value):32.32s}')
             logger.debug('\t dicom datasets in this frame set:')
-            for dicom_i, dicom_ds in enumerate(x[0], 1):
+            for dicom_i, dicom_ds in enumerate(ds_list, 1):
                 logger.debug(
-                    f'\t\t{dicom_i}/{len(x[0])})\t '
+                    f'\t\t{dicom_i}/{len(ds_list)})\t '
                     '{dicom_ds["SOPInstanceUID"]}')
         frames = ''
         for i, f_count in enumerate(frame_counts, 1):
@@ -342,9 +345,16 @@ class _FrameSetCollection:
         for kwkw in excluded_kws:
             self._excluded_from_perframe_tags[tag_for_keyword(kwkw)] = False
 
-    def _find_all_similar_to_first_datasets(self) -> tuple:
+    def _find_all_similar_to_first_datasets(
+            self) -> Tuple[List[Dataset], List[BaseTag]]:
         """Takes the fist instance from mixed-frames and finds all dicom images
         that have the same distinguishing attributes.
+
+        Returns
+        -------
+        Tuple[List[pydicom.dataset.Dataset], List[pydicom.tag.BaseTag]]
+            a pair of similar datasets and the corresponding list of
+            distinguishing tags
 
         """
         similar_ds: List[Dataset] = [self.mixed_frames_copy[0]]
@@ -387,26 +397,20 @@ class _FrameSetCollection:
                 similar_ds.append(ds)
         for msg_ in logger_msg:
             logger.info(msg_)
-        for ds in similar_ds:
-            if ds in self.mixed_frames_copy:
-                self.mixed_frames_copy = [
-                    nds for nds in self.mixed_frames_copy if nds != ds]
         return (similar_ds, distinguishing_tags_existing)
 
     @property
     def distinguishing_attribute_keywords(self) -> List[str]:
-        """Returns the list of all distinguising attributes found."""
-
+        """Returns the list of all distinguishing attributes found."""
         return self._distinguishing_attribute_keywords[:]
 
     @property
     def frame_sets(self) -> List[_FrameSet]:
         """Returns the list of all FrameSets found."""
-
         return self._frame_sets
 
 
-class _CommonLegacyConvertedEnhanceImage(SOPClass):
+class _CommonLegacyConvertedEnhancedImage(SOPClass):
 
     """SOP class for common Legacy Converted Enhanced instances."""
 
@@ -451,7 +455,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 'than one multiframe collection')
         frame_set = all_framesets.frame_sets[0]
         if sort_key is None:
-            sort_key = _CommonLegacyConvertedEnhanceImage.default_sort_key
+            sort_key = _CommonLegacyConvertedEnhancedImage.default_sort_key
         super().__init__(
             study_instance_uid=ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -488,12 +492,12 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         self._perframe_functional_groups = DataElementSequence()
         for i in range(0, len(legacy_datasets)):
             item = Dataset()
-            self._perframe_functional_groups.append(item)
+        self._perframe_functional_groups = [
+            Dataset() for _ in range(len(legacy_datasets))]
         tg = tag_for_keyword('PerFrameFunctionalGroupsSequence')
         self[tg] = DataElement(tg, 'SQ', self._perframe_functional_groups)
         self._shared_functional_groups = DataElementSequence()
-        item = Dataset()
-        self._shared_functional_groups.append(item)
+        self._shared_functional_groups.append(Dataset())
         tg = tag_for_keyword('SharedFunctionalGroupsSequence')
         self[tg] = DataElement(tg, 'SQ', self._shared_functional_groups)
         self._distinguishing_attributes_tags = self._get_tag_used_dictionary(
@@ -506,13 +510,13 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             frame_set.shared_tags)
         self.excluded_from_functional_groups_tags = {
             tag_for_keyword('SpecificCharacterSet'): False}
-        self.__build_blocks: List[Any] = []
+        self._build_blocks: List[Any] = []
 
         new_ds = []
         for item in sorted(self._legacy_datasets, key=sort_key):
             new_ds.append(item)
 
-        self._module_excepted_list: dict = {
+        self._module_excepted_list: Dict[str, List[str]] = {
          "patient": [],
          "clinical-trial-subject": [],
          "general-study":
@@ -737,7 +741,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             A new DataElement created.
 
         """
-        if kw is str:
+        if isinstance(kw, str):
             tg = tag_for_keyword(kw)
         else:
             tg = kw
@@ -745,7 +749,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             a = deepcopy(src[kw])
         else:
             a = DataElement(tg, dictionary_VR(tg), default)
-        from pydicom.valuerep import DT, TM, DA
         if a.VR == 'DA' and isinstance(a.value, str):
             try:
                 d_tmp = DA(a.value)
@@ -809,17 +812,16 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         the current SOPClass from its single frame source.
 
         """
-        module_and_excepted_at = {
-         "image-pixel":
-         [
-            "ColorSpace",
-            "PixelDataProviderURL",
-            "ExtendedOffsetTable",
-            "ExtendedOffsetTableLengths",
-            "PixelData"
-         ]
+        module_and_excepted_attr = {
+            "image-pixel": [
+                "ColorSpace",
+                "PixelDataProviderURL",
+                "ExtendedOffsetTable",
+                "ExtendedOffsetTableLengths",
+                "PixelData"
+            ]
         }
-        for module, except_at in module_and_excepted_at.items():
+        for module, except_at in module_and_excepted_attr.items():
             self._add_module(
                 module,
                 excepted_attributes=except_at,
@@ -845,7 +847,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 ref_dataset, self, kw,
                 check_not_to_be_perframe=True,
                 check_not_to_be_empty=False)
-        sum_compression_ratio: float = 0
+        sum_compression_ratio = 0.0
         c_ratio_tag = tag_for_keyword('LossyImageCompressionRatio')
         if tag_for_keyword('LossyImageCompression') in self._shared_tags and \
                 tag_for_keyword(
@@ -874,14 +876,14 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             phmi_kw = 'PhotometricInterpretation'
             phmi_a = self._get_or_create_attribute(
                 self._legacy_datasets[0], phmi_kw, "MONOCHROME2")
-            LUT_shape_default = "INVERTED" if phmi_a.value == 'MONOCHROME1'\
+            lut_shape_default = "INVERTED" if phmi_a.value == 'MONOCHROME1'\
                 else "IDENTITY"
-            LUT_shape_a = self._get_or_create_attribute(
+            lut_shape_a = self._get_or_create_attribute(
                 self._legacy_datasets[0],
                 'PresentationLUTShape',
-                LUT_shape_default)
-            if not LUT_shape_a.is_empty:
-                self['PresentationLUTShape'] = LUT_shape_a
+                lut_shape_default)
+            if not lut_shape_a.is_empty:
+                self['PresentationLUTShape'] = lut_shape_a
         # Icon Image Sequence - always discard these
 
     def _add_module_to_mf_contrast_bolus(self) -> None:
@@ -931,30 +933,19 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 "ImagedNucleus",
                 check_not_to_be_perframe=True,
                 check_not_to_be_empty=True)
-        self._copy_attrib_if_present(
-            self._legacy_datasets[0],
-            self,
+        attr_to_bo_copied = [
             "KSpaceFiltering",
-            check_not_to_be_perframe=True,
-            check_not_to_be_empty=True)
-        self._copy_attrib_if_present(
-            self._legacy_datasets[0],
-            self,
             "MagneticFieldStrength",
-            check_not_to_be_perframe=True,
-            check_not_to_be_empty=True)
-        self._copy_attrib_if_present(
-            self._legacy_datasets[0],
-            self,
             "ApplicableSafetyStandardAgency",
-            check_not_to_be_perframe=True,
-            check_not_to_be_empty=True)
-        self._copy_attrib_if_present(
-            self._legacy_datasets[0],
-            self,
             "ApplicableSafetyStandardDescription",
-            check_not_to_be_perframe=True,
-            check_not_to_be_empty=True)
+        ]
+        for attr in attr_to_bo_copied:
+            self._copy_attrib_if_present(
+                self._legacy_datasets[0],
+                self,
+                attr,
+                check_not_to_be_perframe=True,
+                check_not_to_be_empty=True)
 
     def _add_module_to_mf_acquisition_context(self) -> None:
         """Copies/adds an `acquisition_context` multiframe module to
@@ -971,7 +962,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
     def _get_value_for_frame_type(
             self,
             attrib: DataElement,
-        ) -> Union[list, None]:
+        ) -> Optional[List[str]]:
         """Guesses the appropriate FrameType attribute value from ImageType.
 
         Parameters
@@ -981,7 +972,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
         Returns
         -------
-        Union[list, None]
+        Optional[List[str]]
             A new list of FrameType value is returned. If attrib is not of type
             DataElement None is returned.
 
@@ -1497,8 +1488,8 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                                      'RescaleIntercept',
                                      check_not_to_be_perframe=False,
                                      check_not_to_be_empty=False)
-        haveValuesSoAddType = ('RescaleSlope' in item or
-                               'RescaleIntercept' in item)
+        have_values_so_add_type = ('RescaleSlope' in item or
+                                   'RescaleIntercept' in item)
         self._copy_attrib_if_present(source,
                                      item,
                                      'RescaleType',
@@ -1507,17 +1498,15 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         value = ''
         modality = '' if 'Modality' not in source\
             else source["Modality"].value
-        if haveValuesSoAddType:
+        if have_values_so_add_type:
             value = 'US'
             if modality == 'CT':
-                containes_localizer = False
+                contains_localizer = False
                 image_type_v = [] if 'ImageType' not in source\
                     else source['ImageType'].value
-                for i in image_type_v:
-                    if i == 'LOCALIZER':
-                        containes_localizer = True
-                        break
-                if not containes_localizer:
+                contains_localizer = any(
+                    i == 'LOCALIZER' for i in image_type_v)
+                if not contains_localizer:
                     value = "HU"
             else:
                 value = 'US'
@@ -1548,10 +1537,11 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             self._add_module_to_dataset_pixel_value_transformation(
                 self._legacy_datasets[0], item)
         elif self._has_pixel_value_transformation(self._perframe_tags):
-            for i in range(0, len(self._legacy_datasets)):
-                item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_pixel_value_transformation(
-                    self._legacy_datasets[i], item)
+            for item, legacy in zip(
+                self._perframe_functional_groups,
+                self._legacy_datasets
+            ):
+                self._add_module_to_dataset_referenced_image(legacy, item)
 
     def _has_referenced_image(self, tags: Dict[BaseTag, bool]) -> bool:
         """returns true if attributes specific to
@@ -1725,7 +1715,6 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
         """
         ltg = tag_for_keyword("LargestImagePixelValue")
-        from sys import float_info
         lval = float_info.min
         if ltg in self._perframe_tags:
             for frame in self._legacy_datasets:
@@ -1900,27 +1889,23 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
     def _build_slices_geometry_frame_content(self) -> None:
         """Instantiates an object of _GeometryOfSlice for each slice."""
-        frame_count = len(self._legacy_datasets)
-        for i in range(0, frame_count):
-            curr_frame = self._legacy_datasets[i]
+        for curr_frame in self._legacy_datasets:
             if 'ImagePositionPatient' not in curr_frame:
                 image_position_patient_v = None
             else:
-                image_position_patient_v =\
-                    curr_frame['ImagePositionPatient'].value
+                image_position_patient_v = curr_frame.ImagePositionPatient
             if 'ImageOrientationPatient' not in curr_frame:
                 image_orientation_patient_v = None
             else:
-                image_orientation_patient_v =\
-                    curr_frame['ImageOrientationPatient'].value
+                image_orientation_patient_v = curr_frame.ImageOrientationPatient
             if 'PixelSpacing' not in curr_frame:
                 pixel_spacing_v = None
             else:
-                pixel_spacing_v = curr_frame['PixelSpacing'].value
+                pixel_spacing_v = curr_frame.PixelSpacing
             if 'SliceThickness' not in curr_frame:
                 slice_thickness_v = 0.0
             else:
-                slice_thickness_v = curr_frame['SliceThickness'].value
+                slice_thickness_v = curr_frame.SliceThickness
             if (image_orientation_patient_v is not None and
                     image_position_patient_v is not None and
                     pixel_spacing_v is not None):
@@ -1937,35 +1922,26 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
                 self._slices.append(_GeometryOfSlice(row, col,
                                     tpl, voxel_spacing))
             else:
-                logger.error(
+                logger.warning(
                     "Error in geometry. One or more required "
                     "attributes are not available")
-                logger.error(
+                logger.warning(
                     "\tImageOrientationPatient ="
                     f" {image_orientation_patient_v}")
-                logger.error(
+                logger.warning(
                     "\tImagePositionPatient ="
                     f" {image_position_patient_v}")
-                logger.error(f"\tPixelSpacing = {pixel_spacing_v}")
+                logger.warning(f"\tPixelSpacing = {pixel_spacing_v}")
                 self._slices = []  # clear the slices
                 break
 
     def _are_all_slices_parallel_frame_content(self) -> bool:
         """Returns true if all slices are parallel otherwise, false."""
-        slice_count = len(self._slices)
-        if slice_count >= 2:
-            last_slice = self._slices[0]
-            for i in range(1, slice_count):
-                curr_slice = self._slices[i]
-                if not _GeometryOfSlice.are_parallel(
-                        curr_slice, last_slice, self._tolerance):
-                    return False
-                last_slice = curr_slice
-            return True
-        elif slice_count == 1:
-            return True
-        else:
-            return False
+        return all(
+            _GeometryOfSlice.are_parallel(
+                sl, self._slices[0], self._tolerance)
+            for sl in self._slices
+        )
 
     def _add_stack_info_frame_content(self) -> None:
         """Adds stack info to the FrameContentSequence dicom attribute."""
@@ -2165,7 +2141,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         des.extend(src)
 
     def _add_module_to_mf_pixel_data(self) -> None:
-        """Copies/add`s a pixel_data` multiframe module to
+        """Copies/adds a `pixel_data` multiframe module to
         the current SOPClass from its single frame source.
 
         """
@@ -2179,10 +2155,10 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         self._number_of_pixels_per_frame = row * col
         self._number_of_pixels = row * col * self._frame_count
         kw = "PixelData"
-        for i in range(0, len(self._legacy_datasets)):
-            if kw not in self._legacy_datasets[i]:
+        for legacy_ds in self._legacy_datasets:
+            if kw not in legacy_ds:
                 continue
-            pixel_data_a = self._legacy_datasets[i][kw]
+            pixel_data_a = legacy_ds[kw]
             if self._is_other_byte_vr_pixel_data(pixel_data_a.VR):
                 if len(self._word_data) != 0:
                     raise TypeError(
@@ -2212,8 +2188,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
         """
         default_atrs = ["Acquisition", "Series", "Study"]
-        for i in range(0, len(self._legacy_datasets)):
-            src = self._legacy_datasets[i]
+        for src in self._legacy_datasets:
             default_date = self.farthest_future_date
             for def_atr in default_atrs:
                 at_tg = tag_for_keyword(def_atr + "Date")
@@ -2360,16 +2335,16 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         """
         out: tuple = tuple()
         if 'SeriesNumber' in x:
-            out += (x['SeriesNumber'].value, )
+            out += (x.SeriesNumber, )
         if 'InstanceNumber' in x:
-            out += (x['InstanceNumber'].value, )
+            out += (x.InstanceNumber, )
         if 'SOPInstanceUID' in x:
-            out += (x['SOPInstanceUID'].value, )
+            out += (x.SOPInstanceUID, )
         return out
 
     def _clear_build_blocks(self) -> None:
         """Clears the array containing all methods for multiframe conversion"""
-        self.__build_blocks = []
+        self._build_blocks = []
 
     def _add_common_ct_pet_mr_build_blocks(self) -> None:
         """Arranges common methods for multiframe conversion and
@@ -2398,7 +2373,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             [self._add_module_to_mf_unassigned_shared, None],
         ]
         for b in blocks:
-            self.__build_blocks.append(b)
+            self._build_blocks.append(b)
 
     def _add_ct_specific_build_blocks(self) -> None:
         """Arranges CT specific methods for multiframe conversion and
@@ -2414,7 +2389,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             [self._add_module_to_mf_contrast_bolus, None],
         ]
         for b in blocks:
-            self.__build_blocks.append(b)
+            self._build_blocks.append(b)
 
     def _add_mr_specific_build_blocks(self) -> None:
         """Arranges MRI specific methods for multiframe conversion and
@@ -2430,7 +2405,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             [self._add_module_to_mf_contrast_bolus, None],
         ]
         for b in blocks:
-            self.__build_blocks.append(b)
+            self._build_blocks.append(b)
 
     def _add_pet_specific_build_blocks(self) -> None:
         """Arranges PET specific methods for multiframe conversion and
@@ -2445,7 +2420,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
             [self._add_module_to_mf_enhanced_pet_image, None],
         ]
         for b in blocks:
-            self.__build_blocks.append(b)
+            self._build_blocks.append(b)
 
     def _add_build_blocks_for_mr(self) -> None:
         """Arranges all methods necessary for MRI multiframe conversion and
@@ -2480,7 +2455,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
 
         """
         logger.debug('Start singleframe to multiframe conversion')
-        for fun, args in self.__build_blocks:
+        for fun, args in self._build_blocks:
             if not args:
                 fun()
             else:
@@ -2488,7 +2463,7 @@ class _CommonLegacyConvertedEnhanceImage(SOPClass):
         logger.debug('Conversion succeeded')
 
 
-class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
+class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
 
     """SOP class for Legacy Converted Enhanced CT Image instances."""
 
@@ -2546,7 +2521,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhanceImage):
         self._convert2multiframe()
 
 
-class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
+class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
 
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
@@ -2604,7 +2579,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhanceImage):
         self._convert2multiframe()
 
 
-class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhanceImage):
+class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
 
     """SOP class for Legacy Converted Enhanced MR Image instances."""
 

@@ -93,7 +93,7 @@ class DicomGenerator:
                     'ORIGINAL', 'PRIMARY', 'RECON', 'EMISSION']
             tmp_dataset.PixelSpacing = [
                 self._pixel_spacing, self._pixel_spacing]
-            tmp_dataset.PatientName = 'John^Doe'
+            tmp_dataset.PatientName = 'Doe^John'
             tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
             tmp_dataset.SOPClassUID = sop_classes[system][1]
             tmp_dataset.SOPInstanceUID = generate_uid()
@@ -312,8 +312,8 @@ class TestDicomHelper(unittest.TestCase):
 
     def test_attribute_equality(self) -> None:
         for vr, [v1, v2, v3] in self.data.items():
-            assert sop._DicomHelper.isequal(v1.value, v2.value) is True
-            assert sop._DicomHelper.isequal(v1.value, v3.value) is False
+            assert sop._DicomHelper.isequal(v1.value, v2.value)
+            assert not sop._DicomHelper.isequal(v1.value, v3.value)
 
 
 class TestFrameSetCollection(unittest.TestCase):
