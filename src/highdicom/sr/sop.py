@@ -352,13 +352,21 @@ class _SR(SOPClass):
     @property
     def content(self) -> ContentSequence:
         """highdicom.sr.value_types.ContentSequence: SR document content"""
-        root_container_item = self.ContentSequence[0]
+        root_item = Dataset()
+        root_item.ConceptNameCodeSequence = self.ConceptNameCodeSequence
+        root_item.ContentSequence = self.ContentSequence
+        root_item.ValueType = self.ValueType
+        root_item.ContinuityOfContent = self.ContinuityOfContent
+        root_item.RelationshipType = None
         try:
-            tid_item = root_container_item.ContentTemplateSequence[0]
+            root_item.ContentTemplateSequence = self.ContentTemplateSequence
+            tid_item = self.ContentTemplateSequence[0]
             if tid_item.TemplateIdentifier == '1500':
-                return MeasurementReport.from_sequence(self.ContentSequence)
+                return MeasurementReport.from_sequence([root_item])
+            else:
+                return ContentSequence.from_sequence([root_item])
         except AttributeError:
-            return ContentSequence.from_sequence(self.ContentSequence)
+            return ContentSequence.from_sequence([root_item])
 
 
 class EnhancedSR(_SR):
@@ -635,7 +643,7 @@ class ComprehensiveSR(_SR):
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
         sop_instance = deepcopy(dataset)
-        sop_instance.__class__ == cls
+        sop_instance.__class__ = cls
         return sop_instance
 
 
@@ -774,5 +782,5 @@ class Comprehensive3DSR(_SR):
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
         sop_instance = deepcopy(dataset)
-        sop_instance.__class__ == cls
+        sop_instance.__class__ = cls
         return sop_instance
