@@ -44,11 +44,11 @@ def _assert_value_type(
 
     """
     if not hasattr(dataset, 'ValueType'):
-        raise AttributeError('Dataset is not an SR Content Item.')
+        raise AttributeError('Dataset is not an SR Content Item:\n{dataset}.')
     if not dataset.ValueType == value_type.value:
         raise ValueError(
             'Dataset is not an SR Content Item with value type '
-            f'"{value_type.value}".'
+            f'"{value_type.value}":\n{dataset}'
         )
     required_attrs = {
         ValueTypeValues.CODE: ['ConceptCodeSequence'],
@@ -57,10 +57,7 @@ def _assert_value_type(
         ValueTypeValues.DATE: ['Date'],
         ValueTypeValues.DATETIME: ['DateTime'],
         ValueTypeValues.IMAGE: ['ReferencedSOPSequence'],
-        ValueTypeValues.NUM: [
-            'MeasuredValueSequence',
-            'MeasurementUnitsCodeSequence',
-        ],
+        ValueTypeValues.NUM: ['MeasuredValueSequence'],
         ValueTypeValues.PNAME: ['PersonName'],
         ValueTypeValues.SCOORD: ['GraphicType', 'GraphicData'],
         ValueTypeValues.SCOORD3D: ['GraphicType', 'GraphicData'],
@@ -74,7 +71,7 @@ def _assert_value_type(
             raise AttributeError(
                 'Dataset is not an SR Content Item with value type '
                 f'"{value_type.value}" because it lacks required '
-                f'attribute "{attr}".'
+                f'attribute "{attr}":\n{dataset}'
             )
 
 
@@ -166,7 +163,6 @@ class ContentItem(Dataset):
         required_attrs = [
             'ValueType',
             'ConceptNameCodeSequence',
-            'RelationshipType',
         ]
         for attr in required_attrs:
             if not hasattr(dataset, attr):
@@ -311,14 +307,21 @@ class ContentSequence(DataElementSequence):
         for i, dataset in enumerate(sequence):
             if not isinstance(dataset, Dataset):
                 raise TypeError(
-                    f'Item #{i + 1} of sequence is not an SR Content Item.'
+                    f'Item #{i + 1} of sequence is not an SR Content Item:\n'
+                    f'{dataset}'
                 )
             try:
                 value_type = ValueTypeValues(dataset.ValueType)
             except TypeError:
                 raise ValueError(
                     f'Item #{i + 1} of sequence is not an SR Content Item '
-                    f'because it has unknown Value Type "{dataset.ValueType}".'
+                    f'because it has unknown Value Type "{dataset.ValueType}":'
+                    f'\n{dataset}'
+                )
+            if not hasattr(dataset, 'RelationshipType'):
+                raise AttributeError(
+                    'Dataset is not an SR Content Item because it lacks '
+                    f'required attribute "RelationshipType":\n{dataset}'
                 )
             content_item_cls = _get_content_item_class(value_type)
             content_items.append(content_item_cls.from_dataset(dataset))

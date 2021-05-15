@@ -2729,6 +2729,9 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._ref_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
+        self._sr_document = dcmread(
+            str(data_dir.joinpath('test_files', 'sr_document.dcm'))
+        )
 
         self._series_instance_uid = generate_uid()
         self._series_number = 3
@@ -2835,6 +2838,12 @@ class TestComprehensive3DSR(unittest.TestCase):
             assert report.CurrentRequestedProcedureEvidenceSequence
         unref_evd_items = report.PertinentOtherEvidenceSequence
         assert len(unref_evd_items) == 1
+
+    def test_from_dataset(self):
+        report = Comprehensive3DSR.from_dataset(self._sr_document)
+        assert isinstance(report, Comprehensive3DSR)
+        assert isinstance(report.content, ContentSequence)
+        assert isinstance(report.content, MeasurementReport)
 
     def test_evidence_duplication(self):
         report = Comprehensive3DSR(

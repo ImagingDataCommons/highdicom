@@ -279,36 +279,3 @@ class SOPClass(Dataset):
 
         """
         self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
-
-    @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SOPClass':
-        try:
-            inst = cls(
-                study_instance_uid=dataset.StudyInstanceUID,
-                series_instance_uid=dataset.SeriesInstanceUID,
-                series_number=dataset.SeriesNumber,
-                sop_instance_uid=dataset.SOPInstanceUID,
-                sop_class_uid=dataset.SOPClassUID,
-                instance_number=dataset.InstanceNumber,
-                manufacturer=dataset.Manufacturer,
-                modality=dataset.Modality,
-                transfer_syntax_uid=dataset.file_meta.TransferSyntaxUID,
-                patient_id=dataset.PatientID,
-                patient_name=dataset.PatientName,
-                patient_birth_date=dataset.PatientBirthDate,
-                patient_sex=dataset.PatientSex,
-                accession_number=dataset.AccessionNumber,
-                study_id=dataset.StudyID,
-                study_date=dataset.StudyDate,
-                study_time=dataset.StudyTime,
-                referring_physician_name=dataset.ReferringPhysicianName
-            )
-        except AttributeError as error:
-            raise AttributeError(
-                'Required attribute missing: {}'.format(error)
-            )
-        if inst.SOPClassUID != dataset.SOPClassUID:
-            raise AttributeError(
-                'Incorrect SOP Class UID for type "{}".'.format(cls.__name__)
-            )
-        return inst
