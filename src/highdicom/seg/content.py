@@ -1,4 +1,5 @@
 """Data Elements that are specific to the Segmentation IOD."""
+from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -168,69 +169,130 @@ class SegmentDescription(Dataset):
             Segment description.
 
         """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
         check_required_attributes(
             dataset,
             module='segmentation-image',
             base_path=['SegmentSequence']
         )
-        dataset.__class__ = SegmentDescription
-        return dataset
+        desc = deepcopy(dataset)
+        desc.__class__ = cls
+
+        # Convert sub sequences to highdicom types
+        desc.SegmentedPropertyCategoryCodeSequence = [
+            CodedConcept.from_dataset(
+                desc.SegmentedPropertyCategoryCodeSequence[0]
+            )
+        ]
+        desc.SegmentedPropertyTypeCodeSequence = [
+            CodedConcept.from_dataset(
+                desc.SegmentedPropertyTypeCodeSequence[0]
+            )
+        ]
+        if hasattr(desc, 'SegmentationAlgorithmIdentificationSequence'):
+            desc.SegmentationAlgorithmIdentificationSequence = \
+                AlgorithmIdentificationSequence.from_sequence(
+                    desc.SegmentationAlgorithmIdentificationSequence
+                )
+        if hasattr(desc, 'AnatomicRegionSequence'):
+            desc.AnatomicRegionSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.AnatomicRegionSequence
+            ]
+        if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
+            desc.PrimaryAnatomicStructureSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.PrimaryAnatomicStructureSequence
+            ]
+        return desc
+
+    @property
+    def segment_number(self) -> int:
+        """int: Number of the segment."""
+        return self.SegmentNumber
+
+    @property
+    def segment_label(self) -> str:
+        """str: Label of the segment."""
+        return self.SegmentLabel
 
     @property
     def segmented_property_category(self)-> CodedConcept:
-        code_seq = self.SegmentedPropertyCategoryCodeSequence[0]
-        scheme_version = getattr(code_seq, 'CodingSchemeVersion', None)
-        return CodedConcept(
-            value=code_seq.CodeValue,
-            scheme_designator=code_seq.CodingSchemeDesignator,
-            meaning=code_seq.CodeMeaning,
-            scheme_version=scheme_version
-        )
+        """highdicom.sr.coding.CodedConcept:
+            Category of the property the segment represents.
+
+        """
+        return self.SegmentedPropertyCategoryCodeSequence[0]
 
     @property
     def segmented_property_type(self)-> CodedConcept:
-        code_seq = self.SegmentedPropertyTypeCodeSequence[0]
-        scheme_version = getattr(code_seq, 'CodingSchemeVersion', None)
-        return CodedConcept(
-            value=code_seq.CodeValue,
-            scheme_designator=code_seq.CodingSchemeDesignator,
-            meaning=code_seq.CodeMeaning,
-            scheme_version=scheme_version
-        )
+        """highdicom.sr.coding.CodedConcept:
+            Type of the property the segment represents.
+
+        """
+        return self.SegmentedPropertyTypeCodeSequence[0]
 
     @property
     def algorithm_type(self) -> SegmentAlgorithmTypeValues:
+        """highdicom.seg.enum.SegmentAlgorithmTypeValues:
+            Type of algorithm used to create the segment.
+
+        """
         return SegmentAlgorithmTypeValues(self.SegmentAlgorithmType)
 
     @property
-    def tracking_id(self) -> Optional[str]:
-        if 'TrackingID' in self:
-            return self.TrackingID
+    def algorithm_identification(
+        self
+    ) -> Optional[AlgorithmIdentificationSequence]:
+        """Optional[highdicom.content.AlgorithmIdentificationSequence]
+            Information useful for identification of the algorithm, if any.
+
+        """
+        if hasattr(self, 'SegmentationAlgorithmIdentificationSequence'):
+            return self.SegmentationAlgorithmIdentificationSequence
         return None
 
     @property
     def tracking_uid(self) -> Optional[str]:
+        """Optional[str]:
+            Tracking unique identifier for the segment, if any.
+
+        """
         if 'TrackingUID' in self:
             return self.TrackingUID
         return None
 
     @property
-    def segment_number(self) -> int:
-        return self.SegmentNumber
+    def tracking_id(self) -> Optional[str]:
+        """Optional[str]: Tracking identifier for the segment, if any."""
+        if 'TrackingID' in self:
+            return self.TrackingID
+        return None
 
-    #@property
-    #def anatomic_regions(self) -> List[CodedConcept]:
-    #    pass
+    @property
+    def anatomic_regions(self) -> List[CodedConcept]:
+        """List[highdicom.sr.coding.CodedConcept]:
+            List of anatomic regions into which the segment falls.
+            May be empty.
 
-    #@property
-    #def primary_anatomic_structures(self) -> List[CodedConcept]:
-    #    pass
+        """
+        if not hasattr(self, 'AnatomicRegionSequence'):
+            return []
+        return self.AnatomicRegionSequence
 
-    #@property
-    #def algorithm_identification(self) -> Optional[
-    #            AlgorithmIdentificationSequence
-    #        ]:
-    #    pass
+    @property
+    def primary_anatomic_structures(self) -> List[CodedConcept]:
+        """List[highdicom.sr.coding.CodedConcept]:
+            List of anatomic anatomic structures the segment represents.
+            May be empty.
+
+        """
+        if not hasattr(self, 'PrimaryAnatomicStructureSequence'):
+            return []
+        return self.PrimaryAnatomicStructureSequence
 
 
 class DimensionIndexSequence(DataElementSequence):

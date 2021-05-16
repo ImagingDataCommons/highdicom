@@ -1,4 +1,5 @@
 """Module for the SOP class of the Segmentation IOD."""
+from copy import deepcopy
 import logging
 import numpy as np
 from operator import eq
@@ -953,23 +954,28 @@ class Segmentation(SOPClass):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
         # Checks on integrity of input dataset
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
             raise ValueError(
                 'Dataset is not a Segmentation.'
             )
-        dataset.__class__ = Segmentation
+        seg = deepcopy(dataset)
+        seg.__class__ = cls
 
-        dataset._source_images = None
-        dataset._source_plane_orientation = None
-        sf_groups = dataset.SharedFunctionalGroupsSequence[0]
+        seg._source_images = None
+        seg._source_plane_orientation = None
+        sf_groups = seg.SharedFunctionalGroupsSequence[0]
         plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
         if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
-            dataset._coordinate_system = CoordinateSystemNames.SLIDE
-            dataset._plane_orientation = plane_ori_seq.ImageOrientationSlide
+            seg._coordinate_system = CoordinateSystemNames.SLIDE
+            seg._plane_orientation = plane_ori_seq.ImageOrientationSlide
         elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
-            dataset._coordinate_system = CoordinateSystemNames.PATIENT
-            dataset._plane_orientation = plane_ori_seq.ImageOrientationPatient
+            seg._coordinate_system = CoordinateSystemNames.PATIENT
+            seg._plane_orientation = plane_ori_seq.ImageOrientationPatient
         else:
             raise ValueError(
                 'Expected Plane Orientation Sequence to have either '
@@ -977,19 +983,22 @@ class Segmentation(SOPClass):
                 'attribute.'
             )
 
-        for i, segment in enumerate(dataset.SegmentSequence, 1):
+        for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
                 raise ValueError(
                     'Segments are expected to start at 1 and be consecutive '
                     'integers.'
                 )
-        dataset._segment_inventory = {
-            s.SegmentNumber for s in dataset.SegmentSequence
+        seg._segment_inventory = {
+            s.SegmentNumber for s in seg.SegmentSequence
         }
+        seg.SegmentSequence = [
+            SegmentDescription.from_dataset(ds) for ds in seg.SegmentSequence
+        ]
 
-        dataset._build_luts()
+        seg._build_luts()
 
-        return dataset
+        return seg
 
     def _build_luts(self) -> None:
 

@@ -1,5 +1,6 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
@@ -20,6 +21,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom.module_utils import check_required_attributes
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
@@ -47,7 +49,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             Version of the algorithm
         source: str, optional
             Source of the algorithm, e.g. name of the algorithm manufacturer
-        parameters: Dict[str: str], optional
+        parameters: Dict[str, str], optional
             Name and actual value of the parameters with which the algorithm
             was invoked
 
@@ -72,6 +74,86 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 for key, value in parameters.items()
             ])
         self.append(item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'AlgorithmIdentificationSequence':
+        """Construct instance from an existing data element sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Data element sequence representing the
+            AlgorithmIdentificationSequence Sequence.
+
+        Returns
+        -------
+        highdicom.seg.content.AlgorithmIdentificationSequence
+            Algorithm identification sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence should be of type pydicom.sequence.Sequence.'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence should contain a single item.')
+        check_required_attributes(
+            sequence[0],
+            module='segmentation-image',
+            base_path=[
+                'SegmentSequence',
+                'SegmentationAlgorithmIdentificationSequence'
+            ]
+        )
+        algo_id_sequence = deepcopy(sequence)
+        algo_id_sequence.__class__ = cls
+        return algo_id_sequence
+
+    @property
+    def name(self) -> str:
+        """str: Name of the algorithm."""
+        return self[0].AlgorithmName
+
+    @property
+    def family(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: Kind of the algorithm family."""
+        return CodedConcept.from_dataset(
+            self[0].AlgorithmFamilyCodeSequence[0]
+        )
+
+    @property
+    def version(self) -> str:
+        """str: Version of the algorithm."""
+        return self[0].AlgorithmVersion
+
+    @property
+    def source(self) -> Optional[str]:
+        """Optional[str]:
+               Source of the algorithm, e.g. name of the algorithm
+               manufacturer, if any
+
+        """
+        return getattr(self[0], 'AlgorithmSource', None)
+
+    @property
+    def parameters(self) -> Optional[Dict[str, str]]:
+        """Optional[Dict[str, str]]:
+               Dictionary mapping algorithm parameter names to values,
+               if any
+
+        """
+        if not hasattr(self[0], 'AlgorithmParameters'):
+            return None
+        parameters = {}
+        for param in self[0].AlgorithmParameters.split(','):
+            split = param.split('=')
+            if len(split) != 2:
+                raise AttributeError('Malformed parameter string')
+            parameters[split[0]] = split[1]
+        return parameters
 
 
 class PixelMeasuresSequence(DataElementSequence):

@@ -79,6 +79,46 @@ class CodedConcept(Dataset):
         """
         return not (self == other)
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CodedConcept':
+        """Construct a CodedConcept from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a coded concept.
+
+        Returns
+        -------
+        highdicom.sr.coding.CodedConcept:
+            Coded concept representation of the dataset.
+
+        Raises
+        ------
+        TypeError:
+            If the passed dataset is not a pydicom dataset.
+        AttributeError:
+            If the dataset does not contain the required elements for a
+            coded concept.
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be a pydicom.dataset.Dataset.'
+            )
+        for kw in ['CodeValue', 'CodeMeaning', 'CodingSchemeDesignator']:
+            if not hasattr(dataset, kw):
+                raise AttributeError(
+                    'Dataset does not contain the following attribute '
+                    f'required for coded concepts: {attr}.'
+                )
+        return cls(
+            value=dataset.CodeValue,
+            scheme_designator=dataset.CodingSchemeDesignator,
+            meaning=dataset.CodeMeaning,
+            scheme_version=getattr(dataset, 'CodingSchemeVersion', None)
+        )
+
     @property
     def value(self) -> str:
         """str: value of either `CodeValue`, `LongCodeValue` or `URNCodeValue`
