@@ -15,6 +15,7 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.utils import compute_plane_position_slide_per_frame
+from highdicom.module_utils import check_required_attributes
 
 
 class SegmentDescription(Dataset):
@@ -151,6 +152,85 @@ class SegmentDescription(Dataset):
                 )
                 for structure in primary_anatomic_structures
             ]
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SegmentDescription':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an item of the Segment Sequence.
+
+        Returns
+        -------
+        highdicom.seg.content.SegmentDescription
+            Segment description.
+
+        """
+        check_required_attributes(
+            dataset,
+            module='segmentation-image',
+            base_path=['SegmentSequence']
+        )
+        dataset.__class__ = SegmentDescription
+        return dataset
+
+    @property
+    def segmented_property_category(self)-> CodedConcept:
+        code_seq = self.SegmentedPropertyCategoryCodeSequence[0]
+        scheme_version = getattr(code_seq, 'CodingSchemeVersion', None)
+        return CodedConcept(
+            value=code_seq.CodeValue,
+            scheme_designator=code_seq.CodingSchemeDesignator,
+            meaning=code_seq.CodeMeaning,
+            scheme_version=scheme_version
+        )
+
+    @property
+    def segmented_property_type(self)-> CodedConcept:
+        code_seq = self.SegmentedPropertyTypeCodeSequence[0]
+        scheme_version = getattr(code_seq, 'CodingSchemeVersion', None)
+        return CodedConcept(
+            value=code_seq.CodeValue,
+            scheme_designator=code_seq.CodingSchemeDesignator,
+            meaning=code_seq.CodeMeaning,
+            scheme_version=scheme_version
+        )
+
+    @property
+    def algorithm_type(self) -> SegmentAlgorithmTypeValues:
+        return SegmentAlgorithmTypeValues(self.SegmentAlgorithmType)
+
+    @property
+    def tracking_id(self) -> Optional[str]:
+        if 'TrackingID' in self:
+            return self.TrackingID
+        return None
+
+    @property
+    def tracking_uid(self) -> Optional[str]:
+        if 'TrackingUID' in self:
+            return self.TrackingUID
+        return None
+
+    @property
+    def segment_number(self) -> int:
+        return self.SegmentNumber
+
+    #@property
+    #def anatomic_regions(self) -> List[CodedConcept]:
+    #    pass
+
+    #@property
+    #def primary_anatomic_structures(self) -> List[CodedConcept]:
+    #    pass
+
+    #@property
+    #def algorithm_identification(self) -> Optional[
+    #            AlgorithmIdentificationSequence
+    #        ]:
+    #    pass
 
 
 class DimensionIndexSequence(DataElementSequence):
