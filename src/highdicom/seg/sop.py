@@ -1334,10 +1334,11 @@ class Segmentation(SOPClass):
         pixel array will always lie in the range ``0`` to
         ``len(segment_numbers)`` inclusive.
         """
-        if combine_segments and not self.is_binary():
-            raise ValueError(
-                'Cannot combine segments if the segmentation is not binary'
-            )
+        if combine_segments:
+            if self.segmentation_type != SegmentationTypeValues.BINARY:
+                raise ValueError(
+                    'Cannot combine segments if the segmentation is not binary'
+                )
 
         # If no source frames were specified, use all source frames
         if source_frames is None:
@@ -1438,4 +1439,4 @@ class Segmentation(SOPClass):
     # List segmented property for tracking id and vice versa
     # Correct for spatial ordering of source frames?
     # Optimize combine_segments to exploit sparse nature of array
-    # Ensure output array cannot be used to change value of pixel_array
+    # Implement from_dataset from DimensionIndexSequence
