@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydicom import Dataset
 
@@ -84,7 +84,7 @@ def check_required_attributes(
     for p in base_path:
         try:
             tree = tree['attributes'][p]
-        except:
+        except KeyError:
             raise AttributeError(f"Invalid base path: {base_path}.")
 
     # Define recursive function

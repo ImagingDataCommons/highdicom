@@ -191,6 +191,51 @@ class PixelMeasuresSequence(DataElementSequence):
             item.SpacingBetweenSlices = spacing_between_slices
         self.append(item)
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PixelMeasuresSequence':
+        """Create a PixelMeasuresSequence from an existing Sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        PixelMeasuresSequence:
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            pixel measures sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        req_kws = ['SliceThickness', 'PixelSpacing']
+        if not all(hasattr(sequence[0], kw) for kw in req_kws):
+            raise AttributeError(
+                'Sequence does not have the required attributes for '
+                'a Pixel Measures Sequence.'
+            )
+
+        pixel_measures = deepcopy(sequence)
+        pixel_measures.__class__ = cls
+        return pixel_measures
+
 
 class PlanePositionSequence(DataElementSequence):
 
@@ -294,6 +339,53 @@ class PlanePositionSequence(DataElementSequence):
                 ]),
             )
 
+    @classmethod
+    def from_sequence(cls, sequence: DataElementSequence) -> 'PlanePositionSequence':
+        """Create a PlanePositionSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        PlanePositionSequence:
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane position sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImagePositionPatient'):
+            check_required_attributes(
+                dataset=sequence[0],
+                module='segmentation-multi-frame-functional-groups',
+                base_path=[
+                    'PerFrameFunctionalGroupsSequence',
+                    'PlanePositionSlideSequence'
+                ]
+            )
+
+        plane_position = deepcopy(sequence)
+        plane_position.__class__ = cls
+        return plane_position
+
 
 class PlaneOrientationSequence(DataElementSequence):
 
@@ -373,6 +465,50 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         else:
             return False
+
+    @classmethod
+    def from_sequence(cls, sequence: DataElementSequence) -> 'PlaneOrientationSequence':
+        """Create a PlaneOrientationSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        PlaneOrientationSequence:
+            Plane orientation sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane orientation sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImageOrientationPatient'):
+            if not hasattr(sequence[0], 'ImageOrientationSlide'):
+                raise AttributeError(
+                    'The sequence does not contain required attributes for '
+                    'either the PATIENT or SLIDE coordinate system.'
+                )
+
+        plane_orientation = deepcopy(sequence)
+        plane_orientation.__class__ = cls
+        return plane_orientation
 
 
 class IssuerOfIdentifier(Dataset):

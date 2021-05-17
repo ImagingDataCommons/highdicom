@@ -4,7 +4,9 @@ import logging
 import numpy as np
 from operator import eq
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, Optional, Set, Sequence, Union, Tuple
+from typing import (
+    Any, Dict, Iterable, List, Optional, Set, Sequence, Union, Tuple
+)
 
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
@@ -37,8 +39,10 @@ from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
     SegmentsOverlapValues,
-    SpatialLocationsPreservedValues
+    SpatialLocationsPreservedValues,
+    SegmentAlgorithmTypeValues,
 )
+from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name
 
@@ -992,9 +996,47 @@ class Segmentation(SOPClass):
         seg._segment_inventory = {
             s.SegmentNumber for s in seg.SegmentSequence
         }
+
+        # Convert contained items to highdicom types
+        # Segment descriptions
         seg.SegmentSequence = [
             SegmentDescription.from_dataset(ds) for ds in seg.SegmentSequence
         ]
+
+        # Shared functional group elements
+        if hasattr(sf_groups, 'PlanePositionSequence'):
+            plane_pos = PlanePositionSequence.from_sequence(
+                sf_groups.PlanePositionSequence
+            )
+            sf_groups.PlanePositionSequence = plane_pos
+        if hasattr(sf_groups, 'PlaneOrientationSequence'):
+            plane_ori = PlaneOrientationSequence.from_sequence(
+                sf_groups.PlaneOrientationSequence
+            )
+            sf_groups.PlaneOrientationSequence = plane_ori
+        if hasattr(sf_groups, 'PixelMeasuresSequence'):
+            pixel_measures = PixelMeasuresSequence.from_sequence(
+                sf_groups.PixelMeasuresSequence
+            )
+            sf_groups.PixelMeasuresSequence = pixel_measures
+
+        # Per-frame functional group items
+        for pffg_item in seg.PerFrameFunctionalGroupsSequence:
+            if hasattr(pffg_item, 'PlanePositionSequence'):
+                plane_pos = PlanePositionSequence.from_sequence(
+                    pffg_item.PlanePositionSequence
+                )
+                pffg_item.PlanePositionSequence = plane_pos
+            if hasattr(pffg_item, 'PlaneOrientationSequence'):
+                plane_ori = PlaneOrientationSequence.from_sequence(
+                    pffg_item.PlaneOrientationSequence
+                )
+                pffg_item.PlaneOrientationSequence = plane_ori
+            if hasattr(pffg_item, 'PixelMeasuresSequence'):
+                pixel_measures = PixelMeasuresSequence.from_sequence(
+                    pffg_item.PixelMeasuresSequence
+                )
+                pffg_item.PixelMeasuresSequence = pixel_measures
 
         seg._build_luts()
 
@@ -1068,10 +1110,16 @@ class Segmentation(SOPClass):
             if 'TrackingUID' in seg_info:
                 self.tracking_uid_lut[seg_info.TrackingUID].append(n)
 
-    def is_binary(self) -> bool:
-        return (
-            self.SegmentationType ==
-            SegmentationTypeValues.BINARY.value
+    @property
+    def segmentation_type(self) -> SegmentationTypeValues:
+        return SegmentationTypeValues(self.SegmentationType)
+
+    @property
+    def segmentation_fractional_type(
+        self
+    ) -> SegmentationFractionalTypeValues:
+        return SegmentationFractionalTypeValues(
+            self.SegmentationFractionalType
         )
 
     def iter_segments(self):
@@ -1086,7 +1134,10 @@ class Segmentation(SOPClass):
         # Do not assume segments are sorted (although they should be)
         return sorted(list(self.segment_description_lut.keys()))
 
-    def get_segment_description(self, segment_number: int) -> Dataset:
+    def get_segment_description(
+        self,
+        segment_number: int
+    ) -> SegmentDescription:
 
         if segment_number < 1:
             raise ValueError(f'{segment_number} is an invalid segment number')
@@ -1097,119 +1148,52 @@ class Segmentation(SOPClass):
             )
         return self.segment_description_lut[segment_number]
 
-    @classmethod
-    def _coded_concept_sequence_to_code(
-        cls,
-        coded_concept: Dataset
-    ) -> Code:
-        scheme_version = (
-            coded_concept.CodingSchemeVersion
-            if 'CodingSchemeVersion' in coded_concept else None
-        )
-        return Code(
-            value=coded_concept.CodeValue,
-            meaning=coded_concept.CodeMeaning,
-            scheme_designator=coded_concept.CodingSchemeDesignator,
-            scheme_version=scheme_version
-        )
-
-    def get_segmented_property_category_code(
+    def get_segment_numbers(
         self,
-        segment_number: int
-    ) -> Code:
-        seg_desc = self.segment_description_lut[segment_number]
-        return self._coded_concept_sequence_to_code(
-            seg_desc.SegmentedPropertyCategoryCodeSequence[0]
-        )
-
-    def get_segmented_property_type_code(self, segment_number: int) -> Code:
-        seg_desc = self.segment_description_lut[segment_number]
-        return self._coded_concept_sequence_to_code(
-            seg_desc.SegmentedPropertyTypeCodeSequence[0]
-        )
-
-    def get_segment_number_property_mapping(
-        self
-    ) -> Dict[int, Tuple[Code, Code]]:
-        return {
-            n:
-            (
-                self.get_segmented_property_category_code(n),
-                self.get_segmented_property_type_code(n)
-            )
-            for n in self.segment_numbers
-        }
-
-    def get_segment_numbers_for_segmented_property(
-        self,
-        segmented_property_category: Union[Code, CodedConcept, None] = None,
-        segmented_property_type: Union[Code, CodedConcept, None] = None,
+        segment_label: Optional[str] = None,
+        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
+        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
+        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None,
+        tracking_uid: Optional[str] = None,
+        tracking_id: Optional[str] = None,
     ) -> List[int]:
-        if (
-            segmented_property_category is None and
-            segmented_property_type is None
-        ):
-            raise TypeError(
-                "At least one of the segmented_property_category and "
-                "segmented_property_type must be provided."
+        filter_funcs = []
+        if segment_label is not None:
+            filter_funcs.append(
+                lambda desc: desc.segment_label == segment_label
             )
-        if isinstance(segmented_property_category, CodedConcept):
-            segmented_property_category = self._coded_concept_sequence_to_code(
-                segmented_property_category
+        if segmented_property_category is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_category == segmented_property_category
             )
-        if isinstance(segmented_property_type, CodedConcept):
-            segmented_property_type = self._coded_concept_sequence_to_code(
-                segmented_property_type
+        if segmented_property_type is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_type == segmented_property_type
+            )
+        if algorithm_type is not None:
+            algo_type = SegmentAlgorithmTypeValues(algorithm_type)
+            filter_funcs.append(
+                lambda desc:
+                SegmentAlgorithmTypeValues(desc.algorithm_type) == algo_type
+            )
+        if tracking_uid is not None:
+            filter_funcs.append(
+                lambda desc: desc.tracking_uid == tracking_uid
+            )
+        if tracking_id is not None:
+            filter_funcs.append(
+                lambda desc: desc.tracking_id == tracking_id
             )
 
-        matched_segment_numbers: List[int] = []
+        matches = [
+            desc.segment_number
+            for desc in self.SegmentSequence
+            if all(f(desc) for f in filter_funcs)
+        ]
 
-        for n in self.segment_numbers:
-            category_match = (
-                segmented_property_category ==
-                self.get_segmented_property_category_code(n)
-            )
-            type_match = (
-                segmented_property_type ==
-                self.get_segmented_property_type_code(n)
-            )
-
-            if category_match and type_match:
-                matched_segment_numbers.append(n)
-
-        return matched_segment_numbers
-
-    def get_segment_tracking_id(self, segment_number: int) -> Optional[str]:
-        seg_info = self.segment_description_lut[segment_number]
-        if 'TrackingID' in seg_info:
-            return self.segment_description_lut[segment_number].TrackingID
-        return None
-
-    def get_segment_tracking_uid(self, segment_number: int) -> Optional[str]:
-        seg_info = self.segment_description_lut[segment_number]
-        if 'TrackingUID' in seg_info:
-            return self.segment_description_lut[segment_number].TrackingUID
-        return None
-
-    def get_segment_numbers_for_tracking_id(
-        self,
-        tracking_id: str
-    ) -> List[int]:
-        if tracking_id not in self.tracking_id_lut:
-            raise KeyError(
-                'No segment found matching specified tracking ID'
-            )
-        return self.tracking_id_lut[tracking_id]
-
-    def get_segment_numbers_for_tracking_uid(
-        self,
-        tracking_uid: str
-    ) -> List[int]:
-        if tracking_uid not in self.tracking_uid_lut:
-            raise KeyError(
-                'No segment found matching specified tracking UID'
-            )
-        return self.tracking_uid_lut[tracking_uid]
+        return matches
 
     def get_tracking_ids(self) -> List[str]:
         return list(self.tracking_id_lut.keys())
@@ -1438,7 +1422,6 @@ class Segmentation(SOPClass):
         return pixel_array
 
     # TODO
-    # Shift segment information getters to SegmentDescription
     # Multi-frame source image
         # Segs with a single frame
         # Allow binary fractional segs to combine segments
@@ -1456,4 +1439,3 @@ class Segmentation(SOPClass):
     # Correct for spatial ordering of source frames?
     # Optimize combine_segments to exploit sparse nature of array
     # Ensure output array cannot be used to change value of pixel_array
-

@@ -110,7 +110,7 @@ class CodedConcept(Dataset):
             if not hasattr(dataset, kw):
                 raise AttributeError(
                     'Dataset does not contain the following attribute '
-                    f'required for coded concepts: {attr}.'
+                    f'required for coded concepts: {kw}.'
                 )
         return cls(
             value=dataset.CodeValue,

@@ -220,7 +220,7 @@ class SegmentDescription(Dataset):
         return self.SegmentLabel
 
     @property
-    def segmented_property_category(self)-> CodedConcept:
+    def segmented_property_category(self) -> CodedConcept:
         """highdicom.sr.coding.CodedConcept:
             Category of the property the segment represents.
 
@@ -228,7 +228,7 @@ class SegmentDescription(Dataset):
         return self.SegmentedPropertyCategoryCodeSequence[0]
 
     @property
-    def segmented_property_type(self)-> CodedConcept:
+    def segmented_property_type(self) -> CodedConcept:
         """highdicom.sr.coding.CodedConcept:
             Type of the property the segment represents.
 
@@ -433,7 +433,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         else:
             raise ValueError(
-                f'Unknown coordinate system "{self._coordinat_system}"'
+                f'Unknown coordinate system "{self._coordinate_system}"'
             )
 
     def get_plane_positions_of_image(
