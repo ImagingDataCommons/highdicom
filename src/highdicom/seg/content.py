@@ -291,7 +291,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         else:
             raise ValueError(
-                f'Unknown coordinate system "{self._coordinat_system}"'
+                f'Unknown coordinate system "{self._coordinate_system}"'
             )
 
     def get_plane_positions_of_image(

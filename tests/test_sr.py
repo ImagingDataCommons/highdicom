@@ -2637,6 +2637,8 @@ class TestComprehensiveSR(unittest.TestCase):
         )
         ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
         assert len(ref_evd_items) == 1
+        with pytest.raises(AttributeError):
+            assert report.PertinentOtherEvidenceSequence
 
     def test_evidence_missing(self):
         ref_dataset = deepcopy(self._ref_dataset)
