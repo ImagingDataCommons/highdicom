@@ -17,18 +17,10 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
 
     from pathlib import Path
 
+    import highdicom as hd
     import numpy as np
     from pydicom.sr.codedict import codes
     from pydicom.filereader import dcmread
-    from pydicom.uid import generate_uid
-
-    from highdicom.content import AlgorithmIdentificationSequence
-    from highdicom.seg.content import SegmentDescription
-    from highdicom.seg.enum import (
-        SegmentAlgorithmTypeValues,
-        SegmentationTypeValues
-    )
-    from highdicom.seg.sop import Segmentation
 
     # Path to directory containing single-frame legacy CT Image instances
     # stored as PS3.10 files
@@ -50,33 +42,33 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
     mask[1:-1, 10:-10, 100:-100] = True
 
     # Describe the algorithm that created the segmentation
-    algorithm_identification = AlgorithmIdentificationSequence(
+    algorithm_identification = hd.AlgorithmIdentificationSequence(
         name='test',
         version='v1.0',
         family=codes.cid7162.ArtificialIntelligence
     )
 
     # Describe the segment
-    description_segment_1 = SegmentDescription(
+    description_segment_1 = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='first segment',
         segmented_property_category=codes.cid7150.Tissue,
         segmented_property_type=codes.cid7166.ConnectiveTissue,
-        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
-        tracking_uid=generate_uid(),
+        tracking_uid=hd.UID(),
         tracking_id='test segmentation of computed tomography image'
     )
 
     # Create the Segmentation instance
-    seg_dataset = Segmentation(
+    seg_dataset = hd.seg.Segmentation(
         source_images=image_datasets,
         pixel_array=mask,
-        segmentation_type=SegmentationTypeValues.BINARY,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
         segment_descriptions=[description_segment_1],
-        series_instance_uid=generate_uid(),
+        series_instance_uid=hd.UID(),
         series_number=2,
-        sop_instance_uid=generate_uid(),
+        sop_instance_uid=hd.UID(),
         instance_number=1,
         manufacturer='Manufacturer',
         manufacturer_model_name='Model',
@@ -95,18 +87,10 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
 
     from pathlib import Path
 
+    import highdicom as hd
     import numpy as np
     from pydicom.sr.codedict import codes
     from pydicom.filereader import dcmread
-    from pydicom.uid import generate_uid
-
-    from highdicom.content import AlgorithmIdentificationSequence
-    from highdicom.seg.content import SegmentDescription
-    from highdicom.seg.enum import (
-        SegmentAlgorithmTypeValues,
-        SegmentationTypeValues
-    )
-    from highdicom.seg.sop import Segmentation
 
     # Path to multi-frame SM image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -118,21 +102,21 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     mask = np.max(image_dataset.pixel_array, axis=3) > 1
 
     # Describe the algorithm that created the segmentation
-    algorithm_identification = AlgorithmIdentificationSequence(
+    algorithm_identification = hd.AlgorithmIdentificationSequence(
         name='test',
         version='v1.0',
         family=codes.cid7162.ArtificialIntelligence
     )
 
     # Describe the segment
-    description_segment_1 = SegmentDescription(
+    description_segment_1 = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='first segment',
         segmented_property_category=codes.cid7150.Tissue,
         segmented_property_type=codes.cid7166.ConnectiveTissue,
-        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
-        tracking_uid=generate_uid(),
+        tracking_uid=hd.UID(),
         tracking_id='test segmentation of slide microscopy image'
     )
 
@@ -140,11 +124,11 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     seg_dataset = Segmentation(
         source_images=[image_dataset],
         pixel_array=mask,
-        segmentation_type=SegmentationTypeValues.BINARY,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
         segment_descriptions=[description_segment_1],
-        series_instance_uid=generate_uid(),
+        series_instance_uid=hd.UID(),
         series_number=2,
-        sop_instance_uid=generate_uid(),
+        sop_instance_uid=hd.UID(),
         instance_number=1,
         manufacturer='Manufacturer',
         manufacturer_model_name='Model',
@@ -165,9 +149,8 @@ Iterating over segments in a segmentation image instance:
 
     from pathlib import Path
 
+    import highdicom as hd
     from pydicom.filereader import dcmread
-
-    from highdicom.seg.utils import iter_segments
 
     # Path to multi-frame SEG image instance stored as PS3.10 file
     seg_file = Path('/path/to/seg/file')
@@ -177,7 +160,7 @@ Iterating over segments in a segmentation image instance:
 
     # Iterate over segments and print the information about the frames
     # that encode the segment across different image positions
-    for frames, frame_descriptions, description in iter_segments(seg_dataset):
+    for frames, frame_descriptions, description in hd.seg.utils.iter_segments(seg_dataset):
         print(frames.shape)
         print(
             set([
@@ -201,29 +184,10 @@ image:
 
     from pathlib import Path
 
+    import highdicom as hd
     import numpy as np
-    from pydicom.uid import generate_uid
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
-
-    from highdicom.sr.content import (
-        FindingSite,
-        ImageRegion3D,
-    )
-    from highdicom.sr.enum import GraphicTypeValues3D
-    from highdicom.sr.sop import Comprehensive3DSR
-    from highdicom.sr.templates import (
-        DeviceObserverIdentifyingAttributes,
-        Measurement,
-        MeasurementProperties,
-        MeasurementReport,
-        ObservationContext,
-        ObserverContext,
-        PersonObserverIdentifyingAttributes,
-        PlanarROIMeasurementsAndQualitativeEvaluations,
-        TrackingIdentifier,
-    )
-    from highdicom.sr.value_types import CodedConcept
 
     # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -233,27 +197,27 @@ image:
 
     # Describe the context of reported observations: the person that reported
     # the observations and the device that was used to make the observations
-    observer_person_context = ObserverContext(
+    observer_person_context = hd.sr.ObserverContext(
         observer_type=codes.DCM.Person,
-        observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+        observer_identifying_attributes=hd.sr.PersonObserverIdentifyingAttributes(
             name='Foo'
         )
     )
-    observer_device_context = ObserverContext(
+    observer_device_context = hd.sr.ObserverContext(
         observer_type=codes.DCM.Device,
-        observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
-            uid=generate_uid()
+        observer_identifying_attributes=hd.sr.DeviceObserverIdentifyingAttributes(
+            uid=hd.UID()
         )
     )
-    observation_context = ObservationContext(
+    observation_context = hd.sr.ObservationContext(
         observer_person_context=observer_person_context,
         observer_device_context=observer_device_context,
     )
 
     # Describe the image region for which observations were made
     # (in physical space based on the frame of reference)
-    referenced_region = ImageRegion3D(
-        graphic_type=GraphicTypeValues3D.POLYGON,
+    referenced_region = hd.sr.ImageRegion3D(
+        graphic_type=hd.sr.GraphicTypeValues3D.POLYGON,
         graphic_data=np.array([
             (165.0, 200.0, 134.0),
             (170.0, 200.0, 134.0),
@@ -276,11 +240,11 @@ image:
     measurements = [
         Measurement(
             name=codes.SCT.AreaOfDefinedRegion,
-            tracking_identifier=TrackingIdentifier(uid=generate_uid()),
+            tracking_identifier=hd.sr.TrackingIdentifier(uid=generate_uid()),
             value=1.7,
             unit=codes.UCUM.SquareMillimeter,
-            properties=MeasurementProperties(
-                normality=CodedConcept(
+            properties=hd.sr.MeasurementProperties(
+                normality=hd.sr.CodedConcept(
                     value="17621005",
                     meaning="Normal",
                     scheme_designator="SCT"
@@ -290,9 +254,9 @@ image:
         )
     ]
     imaging_measurements = [
-        PlanarROIMeasurementsAndQualitativeEvaluations(
+        hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=TrackingIdentifier(
-                uid=generate_uid(),
+                uid=hd.UID(),
                 identifier='Planar ROI Measurements'
             ),
             referenced_region=referenced_region,
@@ -303,19 +267,19 @@ image:
     ]
 
     # Create the report content
-    measurement_report = MeasurementReport(
+    measurement_report = hd.sr.MeasurementReport(
         observation_context=observation_context,
         procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
         imaging_measurements=imaging_measurements
     )
 
     # Create the Structured Report instance
-    sr_dataset = Comprehensive3DSR(
+    sr_dataset = hd.sr.Comprehensive3DSR(
         evidence=[image_dataset],
         content=measurement_report[0],
         series_number=1,
-        series_instance_uid=generate_uid(),
-        sop_instance_uid=generate_uid(),
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
         instance_number=1,
         manufacturer='Manufacturer'
     )
@@ -334,12 +298,9 @@ Finding relevant content in the nested SR content tree:
 
     from pathlib import Path
 
+    import highdicom as hd
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
-
-    from highdicom.sr.enum import ValueTypeValues, RelationshipTypeValues
-    from highdicom.sr.utils import find_content_items
-
 
     # Path to SR document instance stored as PS3.10 file
     document_file = Path('/path/to/document/file')
@@ -348,7 +309,7 @@ Finding relevant content in the nested SR content tree:
     sr_dataset = dcmread(str(document_file))
 
     # Find all content items that may contain other content items.
-    containers = find_content_items(
+    containers = hd.sr.utils.find_content_items(
         dataset=sr_dataset,
         relationship_type=RelationshipTypeValues.CONTAINS
     )
@@ -358,14 +319,14 @@ Finding relevant content in the nested SR content tree:
     # to TID 1500 "Measurment Report"
     if sr_dataset.ContentTemplateSequence[0].TemplateIdentifier == 'TID1500':
         # Determine who made the observations reported in the document
-        observers = find_content_items(
+        observers = hd.sr.utils.find_content_items(
             dataset=sr_dataset,
             name=codes.DCM.PersonObserverName
         )
         print(observers)
 
         # Find all imaging measurements reported in the document
-        measurements = find_content_items(
+        measurements = hd.sr.utils.find_content_items(
             dataset=sr_dataset,
             name=codes.DCM.ImagingMeasurements,
             recursive=True
@@ -373,7 +334,7 @@ Finding relevant content in the nested SR content tree:
         print(measurements)
 
         # Find all findings reported in the document
-        findings = find_content_items(
+        findings = hd.sr.utils.find_content_items(
             dataset=sr_dataset,
             name=codes.DCM.Finding,
             recursive=True
@@ -382,7 +343,7 @@ Finding relevant content in the nested SR content tree:
 
         # Find regions of interest (ROI) described in the document
         # in form of spatial coordinates (SCOORD)
-        regions = find_content_items(
+        regions = hd.sr.utils.find_content_items(
             dataset=sr_dataset,
             value_type=ValueTypeValues.SCOORD,
             recursive=True

@@ -6,8 +6,8 @@ import pytest
 from pydicom import dcmread
 from pydicom.uid import generate_uid, RLELossless
 
-from highdicom.content import SpecimenDescription
-from highdicom.sc.sop import SCImage
+from highdicom import SpecimenDescription
+from highdicom.sc import SCImage
 
 
 class TestSCImage(unittest.TestCase):

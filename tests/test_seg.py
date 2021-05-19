@@ -15,23 +15,23 @@ from pydicom.uid import (
     RLELossless,
 )
 
-from highdicom.content import (
+from highdicom import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
 )
 from highdicom.enum import CoordinateSystemNames
-from highdicom.seg.content import (
+from highdicom.seg import (
     DimensionIndexSequence,
     SegmentDescription,
 )
-from highdicom.seg.enum import (
+from highdicom.seg import (
     SegmentAlgorithmTypeValues,
     SegmentsOverlapValues,
     SegmentationTypeValues,
 )
-from highdicom.seg.sop import Segmentation
+from highdicom.seg import Segmentation
 from highdicom.seg.utils import iter_segments
 
 

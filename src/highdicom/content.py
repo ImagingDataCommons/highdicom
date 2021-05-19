@@ -41,7 +41,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         ----------
         name: str
             Name of the algorithm
-        family: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        family: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Kind of algorithm family
         version: str
             Version of the algorithm
@@ -175,7 +175,7 @@ class PlanePositionSequence(DataElementSequence):
 
         Parameters
         ----------
-        other: highdicom.content.PlanePositionSequence
+        other: highdicom.PlanePositionSequence
             Plane position of other image that should be compared
 
         Returns
@@ -255,7 +255,7 @@ class PlaneOrientationSequence(DataElementSequence):
 
         Parameters
         ----------
-        other: highdicom.content.PlaneOrientationSequence
+        other: highdicom.PlaneOrientationSequence
             Plane position of other image that should be compared
 
         Returns
@@ -338,7 +338,7 @@ class SpecimenCollection(ContentSequence):
         """
         Parameters
         ----------
-        procedure: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        procedure: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Procedure used to collect the examined specimen
 
         """  # noqa
@@ -368,13 +368,13 @@ class SpecimenSampling(ContentSequence):
         """
         Parameters
         ----------
-        method: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        method: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Method used to sample the examined specimen from a parent specimen
         parent_specimen_id: str
             Identifier of the parent specimen
-        parent_specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        parent_specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Type of the parent specimen
-        issuer_of_parent_specimen_id: highdicom.content.IssuerOfIdentifier, optional
+        issuer_of_parent_specimen_id: highdicom.IssuerOfIdentifier, optional
             Issuer who created the parent specimen
 
         """  # noqa
@@ -423,7 +423,7 @@ class SpecimenStaining(ContentSequence):
         """
         Parameters
         ----------
-        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]]
+        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
             Substances used to stain examined specimen(s)
 
         """  # noqa
@@ -467,18 +467,18 @@ class SpecimenPreparationStep(ContentSequence):
         ----------
         specimen_id: str
             Identifier of the processed specimen
-        processing_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        processing_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Type of processing
-        processing_procedure: Union[highdicom.content.SpecimenCollection, highdicom.content.SpecimenSampling, highdicom.content.SpecimenStaining]
+        processing_procedure: Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling, highdicom.SpecimenStaining]
             Procedure used during processing
         processing_datetime: datetime.datetime, optional
             Datetime of processing
-        processing_description: Union[str, pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept], optional
+        processing_description: Union[str, pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Description of processing
-        issuer_of_specimen_id: highdicom.content.IssuerOfIdentifier, optional
-        fixative: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept], optional
+        issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
+        fixative: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Fixative used during processing
-        embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept], optional
+        embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Embedding medium used during processing
 
         """  # noqa
@@ -566,10 +566,10 @@ class SpecimenDescription(Dataset):
             provided either in form of text or in form of spatial x, y, z
             coordinates specifying the position (offset) relative to the
             three-dimensional slide coordinate system
-        specimen_preparation_steps: Sequence[highdicom.content.SpecimenPreparationStep], optional
+        specimen_preparation_steps: Sequence[highdicom.SpecimenPreparationStep], optional
             Steps that were applied during the preparation of the examined
             specimen in the laboratory prior to image acquisition
-        issuer_of_specimen_id: highdicom.content.IssuerOfIdentifier, optional
+        issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
             Description of the issuer of the specimen identifier
 
         """  # noqa

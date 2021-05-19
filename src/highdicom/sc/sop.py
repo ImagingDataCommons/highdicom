@@ -158,9 +158,9 @@ class SCImage(SOPClass):
         container_identifier: str, optional
             Identifier of the container holding the specimen (required if
             `coordinate_system` is ``"SLIDE"``)
-        issuer_of_container_identifier: highdicom.content.IssuerOfIdentifier, optional
+        issuer_of_container_identifier: highdicom.IssuerOfIdentifier, optional
             Issuer of `container_identifier`
-        specimen_descriptions: Sequence[highdicom.content.SpecimenDescriptions], optional
+        specimen_descriptions: Sequence[highdicom.SpecimenDescriptions], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
         transfer_syntax_uid: str, optional

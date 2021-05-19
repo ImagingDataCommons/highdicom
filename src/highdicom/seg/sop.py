@@ -113,9 +113,9 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segmentation_type: Union[str, highdicom.seg.enum.SegmentationTypeValues]
+        segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
-        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
+        segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
             with the corresponding segment number is used to describe each segment.
@@ -135,7 +135,7 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
-        fractional_type: Union[str, highdicom.seg.enum.SegmentationFractionalTypeValues], optional
+        fractional_type: Union[str, highdicom.seg.SegmentationFractionalTypeValues], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
         max_fractional_value: int, optional
@@ -156,12 +156,12 @@ class Segmentation(SOPClass):
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
             same pixel measures as the source image(s).
-        plane_orientation: highdicom.content.PlaneOrientationSequence, optional
+        plane_orientation: highdicom.PlaneOrientationSequence, optional
             Orientation of planes in `pixel_array` relative to axes of
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image as the
             same plane orientation as the source image(s).
-        plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
+        plane_positions: Sequence[highdicom.PlanePositionSequence], optional
             Position of each plane in `pixel_array` in the three-dimensional
             patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image has the
@@ -467,12 +467,12 @@ class Segmentation(SOPClass):
             the column dimension, which are defined in the three-dimensional
             slide coordinate system by the direction cosines encoded by the
             *Image Orientation (Slide)* attribute).
-        segment_descriptions: Sequence[highdicom.seg.content.SegmentDescription]
+        segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
             with the corresponding segment number is used to describe each
             segment.
-        plane_positions: Sequence[highdicom.content.PlanePositionSequence], optional
+        plane_positions: Sequence[highdicom.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
 
