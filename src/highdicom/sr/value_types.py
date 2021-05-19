@@ -66,7 +66,7 @@ class ContentItem(Dataset):
 
     @property
     def name(self) -> CodedConcept:
-        """CodedConcept: coded name of the content item"""
+        """highdicom.sr.CodedConcept: coded name of the content item"""
         return self.ConceptNameCodeSequence[0]
 
     @property

@@ -307,7 +307,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        List[PlanePositionSequence]
+        List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
         """
@@ -348,7 +348,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        List[PlanePositionSequence]
+        List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
         """
@@ -376,7 +376,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Parameters
         ----------
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane position of frames in a multi-frame image or in a series of
             single-frame images
 

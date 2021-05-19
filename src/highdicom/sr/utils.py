@@ -121,8 +121,8 @@ def find_content_items(
 def get_coded_name(item: Dataset) -> CodedConcept:
     """Gets the concept name of a SR Content Item.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     item: pydicom.dataset.Dataset
         Content Item
 
@@ -150,8 +150,8 @@ def get_coded_name(item: Dataset) -> CodedConcept:
 def get_coded_value(item: Dataset) -> CodedConcept:
     """Gets the value of a SR Content Item with Value Type CODE.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     item: pydicom.dataset.Dataset
         Content Item
 
