@@ -110,9 +110,9 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         ----------
         value: Union[int, float], optional
             offset in time from a particular event of significance
-        unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             unit of time, e.g., "Days" or "Seconds"
-        event_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        event_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
@@ -204,7 +204,7 @@ class SourceImageForMeasurement(ImageContentItem):
 
         Returns
         -------
-        highdicom.sr.content.SourceImageForMeasurement
+        highdicom.sr.SourceImageForMeasurement
             Content item representing a reference to the image dataset
 
         """
@@ -286,7 +286,7 @@ class SourceImageForRegion(ImageContentItem):
 
         Returns
         -------
-        highdicom.sr.content.SourceImageForRegion
+        highdicom.sr.SourceImageForRegion
             Content item representing a reference to the image dataset
 
         """
@@ -368,7 +368,7 @@ class SourceImageForSegmentation(ImageContentItem):
 
         Returns
         -------
-        highdicom.sr.content.SourceImageForSegmentation
+        highdicom.sr.SourceImageForSegmentation
             Content item representing a reference to the image dataset
 
         """
@@ -424,7 +424,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
 
         Returns
         -------
-        highdicom.sr.content.SourceSeriesForSegmentation
+        highdicom.sr.SourceSeriesForSegmentation
             Content item representing a reference to the image dataset
 
         """
@@ -452,21 +452,21 @@ class ImageRegion(ScoordContentItem):
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, str]
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
             name of the graphic type
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
         source_image: highdicom.sr.template.SourceImageForRegion
             source image to which `graphic_data` relates
-        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretationValues, str], optional
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
-            (``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``) or
+            (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
-            (``highdicom.sr.enum.PixelOriginInterpretationValues.FRAME``)
+            (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
             of the source image
-            (default: ``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``)
+            (default: ``highdicom.sr.PixelOriginInterpretationValues.VOLUME``)
 
         """  # noqa
         graphic_type = GraphicTypeValues(graphic_type)
@@ -516,7 +516,7 @@ class ImageRegion3D(Scoord3DContentItem):
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
@@ -566,16 +566,16 @@ class VolumeSurface(Scoord3DContentItem):
         """
         Parameters
         ----------
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: Sequence[Sequence[int]]
             ordered set of (row, column, frame) coordinate pairs
         frame_of_reference_uid: str
             unique identifier of the frame of reference within which the
             coordinates are defined
-        source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
+        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
             source images for segmentation
-        source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional
+        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
             source series for segmentation
 
         Note
@@ -660,7 +660,7 @@ class RealWorldValueMap(CompositeContentItem):
 
         Returns
         -------
-        highdicom.sr.content.RealWorldValueMap
+        highdicom.sr.RealWorldValueMap
             Content item representing a reference to the image dataset
 
         """
@@ -686,13 +686,13 @@ class FindingSite(CodeContentItem):
         """
         Parameters
         ----------
-        anatomic_location: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        anatomic_location: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
-        laterality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        laterality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded laterality
             (see `CID 244 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_244.html>`_
             "Laterality" for options)
-        topographical_modifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
         """  # noqa
@@ -757,7 +757,7 @@ class ReferencedSegmentationFrame(ContentSequence):
             number of the segment to which the refernce applies
         frame_number: int
             number of the frame to which the reference applies
-        source_image: highdicom.sr.content.SourceImageForSegmentation
+        source_image: highdicom.sr.SourceImageForSegmentation
             source image for segmentation
 
         """
@@ -801,7 +801,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         Returns
         -------
-        highdicom.sr.content.ReferencedSegment
+        highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
         Notes
@@ -940,9 +940,9 @@ class ReferencedSegment(ContentSequence):
         frame_numbers: Sequence[int], optional
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
-        source_images: Sequence[highdicom.sr.content.SourceImageForSegmentation], optional
+        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
             source images for segmentation
-        source_series: highdicom.sr.content.SourceSeriesForSegmentation, optional
+        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
             source series for segmentation
 
         Note
@@ -1010,7 +1010,7 @@ class ReferencedSegment(ContentSequence):
 
         Returns
         -------
-        highdicom.sr.content.ReferencedSegment
+        highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
         Notes

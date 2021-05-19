@@ -7,6 +7,10 @@ from highdicom.seg.enum import (
     SpatialLocationsPreservedValues,
     SegmentsOverlapValues,
 )
+from highdicom.seg.content import (
+    SegmentDescription,
+    DimensionIndexSequence,
+)
 from highdicom.seg import utils
 
 SOP_CLASS_UIDS = {

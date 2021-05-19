@@ -14,8 +14,8 @@ from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid, UID
 from pydicom.valuerep import DA, DS, DT, TM
 
-from highdicom.sr.coding import CodedConcept
-from highdicom.sr.content import (
+from highdicom.sr import CodedConcept
+from highdicom.sr import (
     FindingSite,
     ImageRegion,
     ImageRegion3D,
@@ -29,14 +29,14 @@ from highdicom.sr.content import (
     SourceSeriesForSegmentation,
     VolumeSurface,
 )
-from highdicom.sr.enum import (
+from highdicom.sr import (
     GraphicTypeValues,
     GraphicTypeValues3D,
     RelationshipTypeValues,
     ValueTypeValues,
 )
 from highdicom.sr.utils import find_content_items
-from highdicom.sr.value_types import (
+from highdicom.sr import (
     CodeContentItem,
     ContainerContentItem,
     CompositeContentItem,
@@ -50,12 +50,12 @@ from highdicom.sr.value_types import (
     TimeContentItem,
     UIDRefContentItem,
 )
-from highdicom.sr.sop import (
+from highdicom.sr import (
     ComprehensiveSR,
     Comprehensive3DSR,
     EnhancedSR,
 )
-from highdicom.sr.templates import (
+from highdicom.sr import (
     AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
     Measurement,

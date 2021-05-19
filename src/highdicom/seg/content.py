@@ -47,32 +47,32 @@ class SegmentDescription(Dataset):
             Number of the segment.
         segment_label: str
             Label of the segment
-        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
             (see `CID 7150 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7150.html>`_
             "Segmentation Property Categories")
-        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
             (see `CID 7151 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7151.html>`_
             "Segmentation Property Types")
-        algorithm_type: Union[str, highdicom.seg.enum.SegmentAlgorithmTypeValues]
+        algorithm_type: Union[str, highdicom.seg.SegmentAlgorithmTypeValues]
             Type of algorithm
-        algorithm_identification: highdicom.content.AlgorithmIdentificationSequence, optional
+        algorithm_identification: highdicom.AlgorithmIdentificationSequence, optional
             Information useful for identification of the algorithm, such
             as its name or version. Required unless the algorithm type is `MANUAL`
         tracking_uid: str, optional
             Unique tracking identifier (universally unique)
         tracking_id: str, optional
             Tracking identifier (unique only with the domain of use)
-        anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
+        anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
             (see `CID 4 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4.html>`_
             "Anatomic Region", `CID 4031 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4031.html>`_ "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
-        primary_anatomic_structures: Sequence[Union[highdicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]], optional
+        primary_anatomic_structures: Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 
@@ -307,7 +307,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        List[PlanePositionSequence]
+        List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
         """
@@ -348,7 +348,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        List[PlanePositionSequence]
+        List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
         """
@@ -376,7 +376,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         Parameters
         ----------
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane position of frames in a multi-frame image or in a series of
             single-frame images
 

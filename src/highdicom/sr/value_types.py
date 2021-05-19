@@ -36,11 +36,11 @@ class ContentItem(Dataset):
         """
         Parameters
         ----------
-        value_type: Union[str, highdicom.sr.enum.ValueTypeValues]
+        value_type: Union[str, highdicom.sr.ValueTypeValues]
             type of value encoded in a content item
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded name or an enumerated item representing a coded name
-        relationship_type: Union[str, highdicom.sr.enum.RelationshipTypeValues], optional
+        relationship_type: Union[str, highdicom.sr.RelationshipTypeValues], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -66,13 +66,13 @@ class ContentItem(Dataset):
 
     @property
     def name(self) -> CodedConcept:
-        """CodedConcept: coded name of the content item"""
+        """highdicom.sr.CodedConcept: coded name of the content item"""
         return self.ConceptNameCodeSequence[0]
 
     @property
     def value_type(self) -> str:
         """str: type of the content item
-        (see `highdicom.sr.value_types.ValueTypeValues`)
+        (see `highdicom.sr.ValueTypeValues`)
 
         """
         return self.ValueType
@@ -80,7 +80,7 @@ class ContentItem(Dataset):
     @property
     def relationship_type(self) -> str:
         """str: type of relationship the content item has with its parent
-        (see `highdicom.sr.enum.RelationshipTypeValues`)
+        (see `highdicom.sr.RelationshipTypeValues`)
 
         """
         return getattr(self, 'RelationshipType', None)
@@ -112,7 +112,7 @@ class ContentSequence(DataElementSequence):
 
         Returns
         -------
-        highdicom.sr.value_types.ContentSequence[highdicom.sr.value_types.ContentItem]
+        highdicom.sr.ContentSequence[highdicom.sr.ContentItem]
             matched content items
 
         """
@@ -126,7 +126,7 @@ class ContentSequence(DataElementSequence):
 
         Parameters
         ----------
-        item: highdicom.sr.value_types.ContentItem
+        item: highdicom.sr.ContentItem
             content item
 
         """
@@ -143,7 +143,7 @@ class ContentSequence(DataElementSequence):
 
         Parameters
         ----------
-        items: Sequence[highdicom.sr.value_types.ContentItem]
+        items: Sequence[highdicom.sr.ContentItem]
             content items
 
         """
@@ -157,7 +157,7 @@ class ContentSequence(DataElementSequence):
         ----------
         position: int
             index position
-        item: highdicom.sr.value_types.ContentItem
+        item: highdicom.sr.ContentItem
             content item
 
         """
@@ -185,11 +185,11 @@ class CodeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded value or an enumerated item representing a coded value
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -220,11 +220,11 @@ class PnameContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, pydicom.valuerep.PersonName]
             name of the person
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -249,11 +249,11 @@ class TextContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: str
             description of the concept in free text
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """ # noqa
@@ -278,11 +278,11 @@ class TimeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.time, pydicom.valuerep.TM]
             time
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -307,11 +307,11 @@ class DateContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.date, pydicom.valuerep.DA]
             date
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -336,11 +336,11 @@ class DateTimeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[str, datetime.datetime, pydicom.valuerep.DT]
             datetime
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -365,11 +365,11 @@ class UIDRefContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[pydicom.uid.UID, str]
             unique identifier
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -396,19 +396,19 @@ class NumContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         value: Union[int, float], optional
             numeric value
-        unit: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded units of measurement (see `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
             "Abstract Multi-dimensional Image Model Component Units")
-        qualifier: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
             (see `CID 42 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_42.html>`_
             "Numeric Value Qualifier" for options)
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         Note
@@ -469,7 +469,7 @@ class ContainerContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         is_content_continous: bool, optional
             whether contained content items are logically linked in a
@@ -510,13 +510,13 @@ class CompositeContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         referenced_sop_class_uid: Union[pydicom.uid.UID, str]
             SOP Class UID of the referenced object
         referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
             SOP Instance UID of the referenced object
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -551,7 +551,7 @@ class ImageContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
         referenced_sop_class_uid: Union[pydicom.uid.UID, str]
             SOP Class UID of the referenced image object
@@ -563,7 +563,7 @@ class ImageContentItem(ContentItem):
         referenced_segment_numbers: Union[int, Sequence[int]], optional
             number of segment(s) to which the refernce applies in case of a
             segmentation image
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -607,22 +607,22 @@ class ScoordContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, str]
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.int]
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        pixel_origin_interpretation: Union[highdicom.sr.enum.PixelOriginInterpretationValues, str]
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str]
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
-            (``highdicom.sr.enum.PixelOriginInterpretationValues.VOLUME``) or
+            (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
-            (``highdicom.sr.enum.PixelOriginInterpretationValues.FRAME``)
+            (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
         fiducial_uid: Union[pydicom.uid.UID, str, None], optional
             unique identifier for the content item
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -702,9 +702,9 @@ class Scoord3DContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues3D, str]
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
             name of the graphic type
         graphic_data: numpy.ndarray[numpy.float]
             array of spatial coordinates, where each row of the array
@@ -714,7 +714,7 @@ class Scoord3DContentItem(ContentItem):
             coordinates are defined
         fiducial_uid: str, optional
             unique identifier for the content item
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -775,9 +775,9 @@ class TcoordContentItem(ContentItem):
         """
         Parameters
         ----------
-        name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        temporal_range_type: Union[highdicom.sr.enum.TemporalRangeTypeValues, str]
+        temporal_range_type: Union[highdicom.sr.TemporalRangeTypeValues, str]
             name of the temporal range type
         referenced_sample_positions: Sequence[int], optional
             one-based relative sample position of acquired time points
@@ -786,7 +786,7 @@ class TcoordContentItem(ContentItem):
             seconds after start of the acquisition of the time series
         referenced_date_time: Sequence[datetime.datetime], optional
             absolute time points
-        relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
         """  # noqa
