@@ -29,6 +29,7 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
+from highdicom.errors import DicomComplianceError
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.seg.content import (
@@ -958,6 +959,20 @@ class Segmentation(SOPClass):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
+        """Create a Segmentation object from an existing pydicom dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Pydicom dataset representing a SEG image.
+
+        Returns
+        -------
+        highdicom.seg.Segmentation
+            Representation of the supplied dataset as a highdicom
+            Segmentation.
+
+        """
         if not isinstance(dataset, Dataset):
             raise TypeError(
                 'Dataset must be of type pydicom.dataset.Dataset.'
@@ -981,7 +996,7 @@ class Segmentation(SOPClass):
             seg._coordinate_system = CoordinateSystemNames.PATIENT
             seg._plane_orientation = plane_ori_seq.ImageOrientationPatient
         else:
-            raise ValueError(
+            raise DicomComplianceError(
                 'Expected Plane Orientation Sequence to have either '
                 'ImageOrientationSlide or ImageOrientationPatient '
                 'attribute.'
@@ -989,10 +1004,11 @@ class Segmentation(SOPClass):
 
         for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
-                raise ValueError(
+                raise DicomComplianceError(
                     'Segments are expected to start at 1 and be consecutive '
                     'integers.'
                 )
+
         seg._segment_inventory = {
             s.SegmentNumber for s in seg.SegmentSequence
         }
@@ -1049,10 +1065,6 @@ class Segmentation(SOPClass):
             ref_ins.ReferencedSOPInstanceUID for ref_ins in
             ref_series.ReferencedInstanceSequence
         ])
-        self.segment_description_lut = {
-            int(item.SegmentNumber): item
-            for item in self.SegmentSequence
-        }
 
         segnum_col_data = []
         source_frame_col_data = []
@@ -1098,26 +1110,22 @@ class Segmentation(SOPClass):
         self.lut_seg_col = 0
         self.lut_src_col = 1
 
-        # Build LUT from tracking ID -> segment numbers
-        self.tracking_id_lut: Dict[str, List[int]] = defaultdict(list)
-        for n, seg_info in self.segment_description_lut.items():
-            if 'TrackingID' in seg_info:
-                self.tracking_id_lut[seg_info.TrackingID].append(n)
-
-        # Build LUT from tracking UID -> segment numbers
-        self.tracking_uid_lut: Dict[str, int] = defaultdict(list)
-        for n, seg_info in self.segment_description_lut.items():
-            if 'TrackingUID' in seg_info:
-                self.tracking_uid_lut[seg_info.TrackingUID].append(n)
-
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
+        """highdicom.seg.SegmentationTypeValues: Segmentation type."""
         return SegmentationTypeValues(self.SegmentationType)
 
     @property
     def segmentation_fractional_type(
         self
-    ) -> SegmentationFractionalTypeValues:
+    ) -> Optional[SegmentationFractionalTypeValues]:
+        """
+        highdicom.seg.SegmentationFractionalTypeValues:
+            Segmentation fractional type.
+
+        """
+        if not hasattr(self, 'SegmentationFractionalType'):
+            return None
         return SegmentationFractionalTypeValues(
             self.SegmentationFractionalType
         )
@@ -1127,28 +1135,39 @@ class Segmentation(SOPClass):
 
     @property
     def number_of_segments(self) -> int:
+        """int: The number of segments in this SEG image."""
         return len(self.SegmentSequence)
 
     @property
-    def segment_numbers(self) -> List[int]:
-        # Do not assume segments are sorted (although they should be)
-        return sorted(list(self.segment_description_lut.keys()))
+    def segment_numbers(self) -> range:
+        """range: The segment numbers present in the SEG image as a range."""
+        return range(1, self.number_of_segments + 1)
 
     def get_segment_description(
         self,
         segment_number: int
     ) -> SegmentDescription:
+        """Get segment description for a segment.
 
-        if segment_number < 1:
-            raise ValueError(f'{segment_number} is an invalid segment number')
+        Parameters
+        ----------
+        segment_number: int
+            Segment number for the segment, as a 1-based index.
 
-        if segment_number not in self.segment_description_lut:
-            raise KeyError(
-                f'No segment number {segment_number} found in dataset'
+        Returns
+        -------
+        highdicom.seg.SegmentDescription
+            Description of the given segment.
+
+        """
+        if segment_number < 1 or segment_number > self.number_of_segments:
+            raise IndexError(
+                f'{segment_number} is an invalid segment number for this '
+                'dataset.'
             )
-        return self.segment_description_lut[segment_number]
+        return self.SegmentSequence[segment_number - 1]
 
-    def get_segment_numbers(
+    def search_segments(
         self,
         segment_label: Optional[str] = None,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
@@ -1157,6 +1176,32 @@ class Segmentation(SOPClass):
         tracking_uid: Optional[str] = None,
         tracking_id: Optional[str] = None,
     ) -> List[int]:
+        """Get a list of segment numbers matching provided criteria.
+
+        Any number of optional filters may be provided. A segment must match
+        all provided filters to be included in the returned list.
+
+        Parameters
+        ----------
+        segment_label: Optional[str]
+            Segment label filter to apply.
+        segmented_property_category: Optional[Union[Code, CodedConcept]]
+            Segmented property category filter to apply.
+        segmented_property_type: Optional[Union[Code, CodedConcept]]
+            Segmented property type filter to apply.
+        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]]
+            Segmented property type filter to apply.
+        tracking_uid: Optional[str]
+            Tracking unique identifier filter to apply.
+        tracking_id: Optional[str]
+            Tracking identifier filter to apply.
+
+        Returns
+        -------
+        List[int]
+            List of all segment numbers matching the provided criteria.
+
+        """
         filter_funcs = []
         if segment_label is not None:
             filter_funcs.append(
@@ -1195,11 +1240,35 @@ class Segmentation(SOPClass):
 
         return matches
 
-    def get_tracking_ids(self) -> List[str]:
-        return list(self.tracking_id_lut.keys())
+    def all_tracking_ids(self) -> Set[str]:
+        """Get all unique tracking identifiers in this SEG image.
 
-    def get_tracking_uids(self) -> List[str]:
-        return list(self.tracking_uid_lut.keys())
+        Returns
+        -------
+        Set[str]
+            All unique tracking identifiers referenced in segment descriptions
+            in this SEG image.
+
+        """
+        return {
+            desc.tracking_id for desc in self.SegmentSequence
+            if desc.tracking_id is not None
+        }
+
+    def all_tracking_uids(self) -> Set[str]:
+        """Get all unique tracking unique identifiers in this SEG image.
+
+        Returns
+        -------
+        Set[str]
+            All unique tracking unique identifiers referenced in segment
+            descriptions in this SEG image.
+
+        """
+        return {
+            desc.tracking_uid for desc in self.SegmentSequence
+            if desc.tracking_uid is not None
+        }
 
     def _get_src_fm_index(self, sop_instance_uid: str) -> int:
         ind = np.argwhere(self.source_sop_instance_uids == sop_instance_uid)
