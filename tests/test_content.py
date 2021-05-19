@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import pytest
 
-from highdicom.content import (
+from highdicom import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,

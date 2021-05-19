@@ -23,14 +23,14 @@ def find_content_items(
     ----------
     dataset: pydicom.dataset.Dataset
         SR document instance
-    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
         Coded name that items should have
-    value_type: Union[highdicom.sr.enum.ValueTypeValues, str], optional
+    value_type: Union[highdicom.sr.ValueTypeValues, str], optional
         Type of value that items should have
-        (e.g. ``highdicom.sr.enum.ValueTypeValues.CONTAINER``)
-    relationship_type: Union[highdicom.sr.enum.RelationshipTypeValues, str], optional
+        (e.g. ``highdicom.sr.ValueTypeValues.CONTAINER``)
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
         Type of relationship that items should have with its parent
-        (e.g. ``highdicom.sr.enum.RelationshipTypeValues.CONTAINS``)
+        (e.g. ``highdicom.sr.RelationshipTypeValues.CONTAINS``)
     recursive: bool, optional
         Whether search should be performed recursively, i.e. whether contained
         child content items should also be queried
@@ -128,7 +128,7 @@ def get_coded_name(item: Dataset) -> CodedConcept:
 
     Returns
     -------
-    highdicom.sr.coding.CodedConcept
+    highdicom.sr.CodedConcept
         Concept name
 
     """
@@ -157,7 +157,7 @@ def get_coded_value(item: Dataset) -> CodedConcept:
 
     Returns
     -------
-    highdicom.sr.coding.CodedConcept
+    highdicom.sr.CodedConcept
         Value
 
     """

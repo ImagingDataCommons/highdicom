@@ -52,7 +52,7 @@ class CodedConcept(Dataset):
 
         Parameters
         ----------
-        other: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        other: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             code
 
         Returns

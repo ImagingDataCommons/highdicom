@@ -93,7 +93,7 @@ class SOPClass(Dataset):
             Name of the referring physician
         content_qualification: Union[str, highdicom.enum.ContentQualificationValues], optional
             Indicator of content qualification
-        coding_schemes: Sequence[highdicom.sr.coding.CodingSchemeIdentificationItem], optional
+        coding_schemes: Sequence[highdicom.sr.CodingSchemeIdentificationItem], optional
             private or public coding schemes that are not part of the
             DICOM standard
         series_description: str, optional

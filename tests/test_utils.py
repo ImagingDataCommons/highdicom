@@ -1,6 +1,6 @@
 import pytest
 
-from highdicom.content import PlanePositionSequence
+from highdicom import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.utils import compute_plane_position_tiled_full
 

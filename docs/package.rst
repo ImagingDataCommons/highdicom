@@ -23,15 +23,6 @@ highdicom.color module
    :undoc-members:
    :show-inheritance:
 
-highdicom.content module
-++++++++++++++++++++++++
-
-.. automodule:: highdicom.content
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
 highdicom.enum module
 +++++++++++++++++++++
 
@@ -68,15 +59,6 @@ highdicom.spatial module
    :undoc-members:
    :show-inheritance:
 
-highdicom.uid module
-++++++++++++++++++++++
-
-.. automodule:: highdicom.uid
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
 highdicom.utils module
 ++++++++++++++++++++++
 
@@ -99,49 +81,12 @@ highdicom.legacy package
    :show-inheritance:
 
 
-highdicom.legacy.sop module
-+++++++++++++++++++++++++++
-
-.. automodule:: highdicom.legacy.sop
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-
 .. _highdicom-seg-subpackage:
 
 highdicom.seg package
 ---------------------
 
 .. automodule:: highdicom.seg
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.seg.content module
-++++++++++++++++++++++++++++
-
-.. automodule:: highdicom.seg.content
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.seg.enum module
-+++++++++++++++++++++++++
-
-.. automodule:: highdicom.seg.enum
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.seg.sop module
-++++++++++++++++++++++++
-
-.. automodule:: highdicom.seg.sop
    :members:
    :special-members: __call__
    :undoc-members:
@@ -167,42 +112,6 @@ highdicom.sr package
    :undoc-members:
    :show-inheritance:
 
-highdicom.sr.coding module
-++++++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.coding
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sr.content module
-+++++++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.content
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sr.enum module
-++++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.enum
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sr.sop module
-+++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.sop
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
 highdicom.sr.utils module
 +++++++++++++++++++++++++
 
@@ -212,49 +121,12 @@ highdicom.sr.utils module
    :undoc-members:
    :show-inheritance:
 
-highdicom.sr.templates module
-+++++++++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.templates
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sr.value\_types module
-++++++++++++++++++++++++++++++++
-
-.. automodule:: highdicom.sr.value_types
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-
 .. _highdicom-sc-subpackage:
 
 highdicom.sc package
 ---------------------
 
 .. automodule:: highdicom.sc
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sc.enum module
-+++++++++++++++++++++++++
-
-.. automodule:: highdicom.sc.enum
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
-highdicom.sc.sop module
-++++++++++++++++++++++++
-
-.. automodule:: highdicom.sc.sop
    :members:
    :special-members: __call__
    :undoc-members:

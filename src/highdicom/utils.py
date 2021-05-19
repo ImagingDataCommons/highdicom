@@ -103,7 +103,7 @@ def compute_plane_position_tiled_full(
 
     Returns
     -------
-    highdicom.content.PlanePositionSequence
+    highdicom.PlanePositionSequence
         Positon of the plane in the slide coordinate system
 
     Raises
@@ -160,7 +160,7 @@ def compute_plane_position_slide_per_frame(
 
     Returns
     -------
-    List[highdicom.content.PlanePositionSequence]
+    List[highdicom.PlanePositionSequence]
         Plane Position Sequence per frame
 
     Raises
