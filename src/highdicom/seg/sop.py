@@ -1,5 +1,6 @@
 """Module for the SOP class of the Segmentation IOD."""
 from copy import deepcopy
+from collections import OrderedDict
 import logging
 import numpy as np
 from operator import eq
@@ -10,6 +11,7 @@ from typing import (
 
 from pydicom.dataset import Dataset
 from pydicom.encaps import decode_data_sequence, encapsulate
+from pydicom.multival import MultiValue
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import (
@@ -49,6 +51,9 @@ from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
+
+
+_NO_FRAME_REF_VALUE = -1
 
 
 class Segmentation(SOPClass):
@@ -1058,57 +1063,133 @@ class Segmentation(SOPClass):
 
         return seg
 
+    def _build_ref_instance_lut(self) -> None:
+        # Map sop uid to tuple (study uid, series uid, sop uid)
+        self._ref_ins_lut = OrderedDict()
+        if hasattr(self, 'ReferencedSeriesSequence'):
+            for ref_series in self.ReferencedSeriesSequence:
+                for ref_ins in ref_series.ReferencedInstanceSequence:
+                    self._ref_ins_lut[ref_ins.ReferencedSOPInstanceUID] = (
+                        self.StudyInstanceUID,
+                        ref_series.SeriesInstanceUID,
+                        ref_ins.ReferencedSOPInstanceUID
+                    )
+        other_studies_kw = 'StudiesContainingOtherReferencedInstancesSequence'
+        if hasattr(self, other_studies_kw):
+            for ref_study in getattr(self, other_studies_kw):
+                for ref_series in ref_study.ReferencedSeriesSequence:
+                    for ref_ins in ref_series.ReferencedInstanceSequence:
+                        self._ref_ins_lut[ref_ins.ReferencedSOPInstanceUID] = (
+                            ref_study.StudyInstanceUID,
+                            ref_series.SeriesInstanceUID,
+                            ref_ins.ReferencedSOPInstanceUID
+                        )
+
+        self._source_sop_instance_uids = np.array(list(self._ref_ins_lut.keys()))
+
     def _build_luts(self) -> None:
 
-        ref_series = self.ReferencedSeriesSequence[0]
-        self.source_sop_instance_uids = np.array([
-            ref_ins.ReferencedSOPInstanceUID for ref_ins in
-            ref_series.ReferencedInstanceSequence
-        ])
+        self._build_ref_instance_lut()
 
         segnum_col_data = []
+        source_instance_col_data = []
         source_frame_col_data = []
 
+        # Create a list of source images and check for spatial locations
+        # preserved and that there is a single source frame per seg frame
+        locations_preserved = []
+        self._single_source_frame_per_seg_frame = True
         for frame_item in self.PerFrameFunctionalGroupsSequence:
             # Get segment number for this frame
-            seg_no = frame_item.SegmentIdentificationSequence[0].\
-                    ReferencedSegmentNumber
-            segnum_col_data.append(int(seg_no))
+            seg_id_seg = frame_item.SegmentIdentificationSequence[0]
+            seg_num = seg_id_seg.ReferencedSegmentNumber
+            segnum_col_data.append(int(seg_num))
 
-            source_images = []
+            frame_source_instances = []
+            frame_source_frames = []
             for der_im in frame_item.DerivationImageSequence:
                 for src_im in der_im.SourceImageSequence:
-                    if 'SpatialLocationsPreserved' in src_im:
-                        if eq(
-                            src_im.SpatialLocationsPreserved,
-                            SpatialLocationsPreservedValues.NO.value
-                        ):
-                            raise RuntimeError(
-                                'Segmentation dataset specifies that spatial '
-                                'locations are not preserved'
+                    frame_source_instances.append(
+                        src_im.ReferencedSOPInstanceUID
+                    )
+                    if hasattr(src_im, 'SpatialLocationsPreserved'):
+                        locations_preserved.append(
+                            SpatialLocationsPreservedValues(
+                                src_im.SpatialLocationsPreserved
                             )
-                    source_images.append(src_im.ReferencedSOPInstanceUID)
-            if len(set(source_images)) == 0:
-                raise RuntimeError(
-                    'Could not find source image information for '
-                    'segmentation frames'
-                )
-            if len(set(source_images)) > 1:
-                raise RuntimeError(
-                    "Multiple source images found for segmentation frames"
-                )
-            src_fm_ind = self._get_src_fm_index(source_images[0])
-            source_frame_col_data.append(src_fm_ind)
+                        )
+                    else:
+                        locations_preserved.append(
+                            SpatialLocationsPreservedValues.UNKNOWN
+                        )
 
-        # Frame LUT is a 2D numpy array with two columns
+                    if hasattr(src_im, 'ReferencedFrameNumber'):
+                        if isinstance(
+                            src_im.ReferencedFrameNumber,
+                            MultiValue
+                        ):
+                            frame_source_frames.extend(
+                                [
+                                    int(f)
+                                    for f in src_im.ReferencedFrameNumber
+                                ]
+                            )
+                        else:
+                            frame_source_frames.append(
+                                int(src_im.ReferencedFrameNumber)
+                            )
+                    else:
+                        frame_source_frames.append(_NO_FRAME_REF_VALUE)
+
+            if (
+                len(set(frame_source_instances)) != 1 or
+                len(set(frame_source_frames)) != 1
+            ):
+                self._single_source_frame_per_seg_frame = False
+            else:
+                ref_instance_uid = frame_source_instances[0]
+                if ref_instance_uid not in self._source_sop_instance_uids:
+                    raise DicomComplianceError(
+                        f'SOP instance {ref_instance_uid} referenced in the '
+                        'source image sequence is not included in the '
+                        'Referenced Series Sequence or Studies Containing '
+                        'Other Referenced Instances Sequence.'
+                    )
+                src_fm_ind = self._get_src_fm_index(frame_source_instances[0])
+                source_instance_col_data.append(src_fm_ind)
+                source_frame_col_data.append(frame_source_frames[0])
+
+        # Summarise
+        if any(
+            v == SpatialLocationsPreservedValues.NO
+            for v in locations_preserved
+        ):
+            self._locations_preserved = SpatialLocationsPreservedValues.NO
+        elif all(
+            v == SpatialLocationsPreservedValues.YES
+            for v in locations_preserved
+        ):
+            self._locations_preserved = SpatialLocationsPreservedValues.YES
+        else:
+            self._locations_preserved = SpatialLocationsPreservedValues.UNKNOWN
+
+        # Frame LUT is a 2D numpy array with three columns
         # Row i represents frame i of the segmentation dataset
-        # The two columns represent the segment number and the source frame
-        # index in the source_sop_instance_uids list
+        # The three columns represent the segment number, the source frame
+        # index in the source_sop_instance_uids list, and the source frame
+        # number (if applicable)
         # This allows for fairly efficient querying by any of the three
-        # variables: seg frame number, source frame number, segment number
-        self.frame_lut = np.array([segnum_col_data, source_frame_col_data]).T
-        self.lut_seg_col = 0
-        self.lut_src_col = 1
+        # variables: seg frame number, source instance/frame number, segment
+        # number
+        if self._single_source_frame_per_seg_frame:
+            self._frame_lut = np.array([
+                segnum_col_data,
+                source_instance_col_data,
+                source_frame_col_data
+            ]).T
+            self._lut_seg_col = 0
+            self._lut_src_instance_col = 1
+            self._lut_src_frame_col = 2
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -1167,7 +1248,7 @@ class Segmentation(SOPClass):
             )
         return self.SegmentSequence[segment_number - 1]
 
-    def search_segments(
+    def search_for_segments(
         self,
         segment_label: Optional[str] = None,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
@@ -1270,8 +1351,42 @@ class Segmentation(SOPClass):
             if desc.tracking_uid is not None
         }
 
+    def all_segmented_property_categories(self) -> List[CodedConcept]:
+        """Get all unique segmented property categories in this SEG image.
+
+        Returns
+        -------
+        List[CodedConcept]
+            All unique segmented property categories referenced in segment
+            descriptions in this SEG image.
+
+        """
+        categories = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_category not in categories:
+                categories.append(desc.segmented_property_category)
+
+        return categories
+
+    def all_segmented_property_types(self) -> List[CodedConcept]:
+        """Get all unique segmented property types in this SEG image.
+
+        Returns
+        -------
+        List[CodedConcept]
+            All unique segmented property types referenced in segment
+            descriptions in this SEG image.
+
+        """
+        types = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_type not in types:
+                types.append(desc.segmented_property_type)
+
+        return types
+
     def _get_src_fm_index(self, sop_instance_uid: str) -> int:
-        ind = np.argwhere(self.source_sop_instance_uids == sop_instance_uid)
+        ind = np.argwhere(self._source_sop_instance_uids == sop_instance_uid)
         if len(ind) == 0:
             raise KeyError(
                 f'No such source frame: {sop_instance_uid}'
@@ -1324,8 +1439,150 @@ class Segmentation(SOPClass):
             self.frame_lut[:, self.lut_seg_col] == segment_number,
             self.lut_src_col
         ]
-        source_frame_uids = self.source_sop_instance_uids[source_frame_indices]
+        source_frame_uids = self._source_sop_instance_uids[source_frame_indices]
         return source_frame_uids.tolist()
+
+    def _get_pixels_by_seg_frame(
+        self,
+        seg_frames_matrix: np.ndarray,
+        segment_numbers: np.array,
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> np.ndarray:
+        """
+
+        seg_frames_matrix: np.ndarray
+            Two dimensional numpy array containing integers. Each row of the
+            array corresponds to a frame (0th dimension) of the output array.
+            Each column of the array corresponds to a segment of the output
+            array. Elements specify the frame numbers of the segmentation
+            image that contain the pixel data for that output frame and
+            segment. A value of -1 signifies that there is no pixel data
+            for that frame/segment combination.
+        segment_numbers: np.ndarray
+            One dimensional numpy array containing segment numbers
+            corresponding to the columns of the seg frames matrix.
+
+        """
+        if combine_segments:
+            if self.segmentation_type != SegmentationTypeValues.BINARY:
+                raise ValueError(
+                    'Cannot combine segments if the segmentation is not binary'
+                )
+
+        # Checks on input array
+        if seg_frames_matrix.ndim != 2:
+            raise ValueError('Seg frames matrix must be a 2D array.')
+        if not issubclass(seg_frames_matrix.dtype.type, np.integer):
+            raise TypeError(
+                'Seg frames matrix must have an integer data type.'
+            )
+
+        if seg_frames_matrix.min() < -1:
+            raise ValueError(
+                'Seg frames matrix may not contain negative values other than '
+                '-1.'
+            )
+        if seg_frames_matrix.max() > self.NumberOfFrames:
+            raise ValueError(
+                'Seg frames matrix contains values outside the range of '
+                'segmentation frames in the image.'
+            )
+
+        if segment_numbers.shape != (seg_frames_matrix.shape[1], ):
+            raise ValueError(
+                'Segment numbers array does not match the shape of the '
+                'seg frames matrix.'
+            )
+
+        if (
+            segment_numbers.min() < 1 or
+            segment_numbers.max() > self.number_of_segments
+        ):
+            raise ValueError(
+                'Segment numbers array contains invalid values.'
+                '-1.'
+            )
+
+        # Initialize empty pixel array
+        pixel_array = np.zeros(
+            (
+                seg_frames_matrix.shape[0],
+                self.Rows,
+                self.Columns,
+                seg_frames_matrix.shape[1]
+            ),
+            self.pixel_array.dtype
+        )
+
+        # Loop through output frames
+        for out_frm, frm_row in enumerate(seg_frames_matrix):
+            # Loop through segmentation frames
+            for out_seg, seg_frame_num in enumerate(frm_row):
+                if seg_frame_num >= 1:
+                    seg_frame_ind = seg_frame_num.item() - 1
+                    # Copy data to to output array
+                    if self.pixel_array.ndim == 2:
+                        # Special case with a single segmentation frame
+                        pixel_array[out_frm, :, :, out_seg] = \
+                            self.pixel_array
+                    else:
+                        pixel_array[out_frm, :, :, out_seg] = \
+                            self.pixel_array[seg_frame_ind, :, :]
+
+        if combine_segments:
+            # Check for overlap by summing over the segments dimension
+            if np.any(pixel_array.sum(axis=-1) > 1):
+                raise RuntimeError(
+                    'Segments cannot be combined because they overlap'
+                )
+
+            # Scale the array by the segment number using broadcasting
+            if relabel:
+                pixel_value_map = np.arange(1, len(segment_numbers) + 1)
+            else:
+                pixel_value_map = segment_numbers
+            scaled_array = pixel_array * pixel_value_map.reshape(1, 1, 1, -1)
+
+            # Combine segments by taking maximum down final dimension
+            max_array = scaled_array.max(axis=-1)
+            pixel_array = max_array
+
+        return pixel_array
+
+    def get_pixels_by_source_frame(
+        source_sop_instance_uids: Sequence[str],
+        source_frame_numbers: Optional[Sequence[int]] = None,
+        segment_numbers: Optional[Iterable[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        assert_locations_preserved: bool = False
+    ):
+        if self._locations_preserved == SpatialLocationsPreservedValues.NO:
+            raise RuntimeError(
+                'Indexing via source frames is not permissible since this '
+                'image specifies that spatial locations are not preserved '
+                'in the course of deriving the segmentation from the source '
+                'image.'
+            )
+        if eq(
+            self._locations_preserved,
+            SpatialLocationsPreservedValues.UNKNOWN
+        ):
+            raise RuntimeError(
+                'Indexing via source frames is not permissible since this '
+                'image does not specify that spatial locations are preserved '
+                'in the course of deriving the segmentation from the source '
+                'image. If you are confident that spatial locations are '
+                'preserved, you may override this behavior with the '
+                "'assert_locations_preserved' parameter."
+            )
+
+        if not self._single_source_frame_per_seg_frame:
+            raise RuntimeError(
+                'Indexing via source frames is not permissible since some '
+                'frames in the segmentation specify multiple source frames.'
+            )
 
     def get_pixels(
         self,
@@ -1370,7 +1627,7 @@ class Segmentation(SOPClass):
         has been specified, then ``pixel_array[i, ...]`` represents the
         segmentation of ``source_frames[i]``. If ``source_frames`` was not
         specified, then ``pixel_array[i, ...]`` represents the segmentation of
-        ``parser.source_sop_instance_uids[i]``.
+        ``parser._source_sop_instance_uids[i]``.
         The next two dimensions are the rows and columns of the frames,
         respectively.
         When ``combine_segments`` is ``False`` (the default behavior), the
@@ -1411,7 +1668,7 @@ class Segmentation(SOPClass):
 
         # If no source frames were specified, use all source frames
         if source_frames is None:
-            source_frames = self.source_sop_instance_uids
+            source_frames = self._source_sop_instance_uids
 
         # If no segments were specified, use all segments
         if segment_numbers is None:
@@ -1509,3 +1766,6 @@ class Segmentation(SOPClass):
     # Correct for spatial ordering of source frames?
     # Optimize combine_segments to exploit sparse nature of array
     # Implement from_dataset from DimensionIndexSequence
+    # Allowing indexing from multiple source series
+    # Index by spatial location
+    # Get fill pixel array with metadata
