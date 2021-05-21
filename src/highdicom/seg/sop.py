@@ -3,7 +3,6 @@ from copy import deepcopy
 from collections import OrderedDict
 import logging
 import numpy as np
-from operator import eq
 from collections import defaultdict
 from typing import (
     Any, Dict, Iterable, List, Optional, Set, Sequence, Union, Tuple
@@ -31,7 +30,7 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
-from highdicom.errors import DicomComplianceError
+from highdicom.errors import DicomAttributeError
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.seg.content import (
@@ -1001,7 +1000,7 @@ class Segmentation(SOPClass):
             seg._coordinate_system = CoordinateSystemNames.PATIENT
             seg._plane_orientation = plane_ori_seq.ImageOrientationPatient
         else:
-            raise DicomComplianceError(
+            raise DicomAttributeError(
                 'Expected Plane Orientation Sequence to have either '
                 'ImageOrientationSlide or ImageOrientationPatient '
                 'attribute.'
@@ -1009,7 +1008,7 @@ class Segmentation(SOPClass):
 
         for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
-                raise DicomComplianceError(
+                raise DicomAttributeError(
                     'Segments are expected to start at 1 and be consecutive '
                     'integers.'
                 )
@@ -1085,7 +1084,9 @@ class Segmentation(SOPClass):
                             ref_ins.ReferencedSOPInstanceUID
                         )
 
-        self._source_sop_instance_uids = np.array(list(self._ref_ins_lut.keys()))
+        self._source_sop_instance_uids = np.array(
+            list(self._ref_ins_lut.keys())
+        )
 
     def _build_luts(self) -> None:
 
@@ -1149,14 +1150,14 @@ class Segmentation(SOPClass):
             else:
                 ref_instance_uid = frame_source_instances[0]
                 if ref_instance_uid not in self._source_sop_instance_uids:
-                    raise DicomComplianceError(
+                    raise DicomAttributeError(
                         f'SOP instance {ref_instance_uid} referenced in the '
                         'source image sequence is not included in the '
                         'Referenced Series Sequence or Studies Containing '
                         'Other Referenced Instances Sequence.'
                     )
-                src_fm_ind = self._get_src_fm_index(frame_source_instances[0])
-                source_instance_col_data.append(src_fm_ind)
+                src_uid_ind = self._get_src_uid_index(frame_source_instances[0])
+                source_instance_col_data.append(src_uid_ind)
                 source_frame_col_data.append(frame_source_frames[0])
 
         # Summarise
@@ -1164,18 +1165,19 @@ class Segmentation(SOPClass):
             v == SpatialLocationsPreservedValues.NO
             for v in locations_preserved
         ):
-            self._locations_preserved = SpatialLocationsPreservedValues.NO
+            Type = Optional[SpatialLocationsPreservedValues]
+            self._locations_preserved: Type = SpatialLocationsPreservedValues.NO
         elif all(
             v == SpatialLocationsPreservedValues.YES
             for v in locations_preserved
         ):
             self._locations_preserved = SpatialLocationsPreservedValues.YES
         else:
-            self._locations_preserved = SpatialLocationsPreservedValues.UNKNOWN
+            self._locations_preserved = None
 
         # Frame LUT is a 2D numpy array with three columns
         # Row i represents frame i of the segmentation dataset
-        # The three columns represent the segment number, the source frame
+        # The three columns represent the segment number, the source uid
         # index in the source_sop_instance_uids list, and the source frame
         # number (if applicable)
         # This allows for fairly efficient querying by any of the three
@@ -1385,7 +1387,7 @@ class Segmentation(SOPClass):
 
         return types
 
-    def _get_src_fm_index(self, sop_instance_uid: str) -> int:
+    def _get_src_uid_index(self, sop_instance_uid: str) -> int:
         ind = np.argwhere(self._source_sop_instance_uids == sop_instance_uid)
         if len(ind) == 0:
             raise KeyError(
@@ -1397,7 +1399,7 @@ class Segmentation(SOPClass):
         self,
         source_sop_instance_uid: str
     ) -> List[int]:
-        src_ind = self._get_src_fm_index(source_sop_instance_uid)
+        src_ind = self._get_src_uid_index(source_sop_instance_uid)
         seg_frames = np.where(
             self.frame_lut[:, self.lut_src_col] == src_ind
         )[0]
@@ -1407,7 +1409,7 @@ class Segmentation(SOPClass):
         self,
         source_sop_instance_uid: str
     ) -> List[int]:
-        src_ind = self._get_src_fm_index(source_sop_instance_uid)
+        src_ind = self._get_src_uid_index(source_sop_instance_uid)
         segments = self.frame_lut[
             self.frame_lut[:, self.lut_src_col] == src_ind,
             self.lut_seg_col
@@ -1550,39 +1552,178 @@ class Segmentation(SOPClass):
 
         return pixel_array
 
+    def get_source_sop_instances(self):
+        return [self._ref_ins_lut[sop_uid] for sop_uid in self._ref_ins_lut]
+
     def get_pixels_by_source_frame(
+        self,
         source_sop_instance_uids: Sequence[str],
         source_frame_numbers: Optional[Sequence[int]] = None,
         segment_numbers: Optional[Iterable[int]] = None,
         combine_segments: bool = False,
         relabel: bool = False,
-        assert_locations_preserved: bool = False
+        assert_locations_preserved: bool = False,
+        assert_missing_frames_are_empty: bool = True
     ):
-        if self._locations_preserved == SpatialLocationsPreservedValues.NO:
+        # Checks that it is possible to index using source frames in this
+        # dataset
+        if self._locations_preserved is None:
+            if not assert_locations_preserved:
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since this '
+                    'image does not specify that spatial locations are '
+                    'preserved in the course of deriving the segmentation from'
+                    'the source image. If you are confident that spatial '
+                    'locations are preserved, you may override this behavior '
+                    "with the 'assert_locations_preserved' parameter."
+                )
+        elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
             raise RuntimeError(
                 'Indexing via source frames is not permissible since this '
                 'image specifies that spatial locations are not preserved '
                 'in the course of deriving the segmentation from the source '
                 'image.'
             )
-        if eq(
-            self._locations_preserved,
-            SpatialLocationsPreservedValues.UNKNOWN
-        ):
-            raise RuntimeError(
-                'Indexing via source frames is not permissible since this '
-                'image does not specify that spatial locations are preserved '
-                'in the course of deriving the segmentation from the source '
-                'image. If you are confident that spatial locations are '
-                'preserved, you may override this behavior with the '
-                "'assert_locations_preserved' parameter."
-            )
-
         if not self._single_source_frame_per_seg_frame:
             raise RuntimeError(
                 'Indexing via source frames is not permissible since some '
                 'frames in the segmentation specify multiple source frames.'
             )
+
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+        if len(source_sop_instance_uids) == 0:
+            raise ValueError(
+                'Source SOP instance UIDs may not be empty.'
+            )
+
+        if source_frame_numbers is None:
+            # Initialize seg frame numbers matrix with value signifying
+            # "empty" (-1)
+            rows = len(source_sop_instance_uids)
+            cols = len(segment_numbers)
+            seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+
+            # Sub-matrix of the LUT used for indexing by instance and
+            # segment number
+            query_cols = [self._lut_src_instance_col, self._lut_seg_col]
+            lut = self._frame_lut[:, query_cols]
+
+            # Check for uniqueness
+            if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+                raise RuntimeError(
+                    'Source SOP instance UIDs and segment numbers do not '
+                    'uniquely identify frames of the segmentation image.'
+                )
+
+            # Build the segmentation frame matrix
+            for r, sop_uid in enumerate(source_sop_instance_uids):
+                # Check whether this source UID exists in the LUT
+                try:
+                    src_uid_ind = self._get_src_uid_index(sop_uid)
+                except KeyError as e:
+                    if assert_missing_frames_are_empty:
+                        continue
+                    else:
+                        msg = (
+                            f'SOP Instance UID {sop_uid} does not match any '
+                            'referenced source frames. To return an empty '
+                            'segmentation mask in this situation, use the '
+                            "'assert_missing_frames_are_empty' parameter."
+                        )
+                        raise KeyError(msg) from e
+
+                # Iterate over segment numbers for this source instance
+                for c, seg_num in enumerate(segment_numbers):
+                    # Use LUT to find the segmentation frame containing
+                    # the source frame and segment number
+                    qry = np.array([src_uid_ind, seg_num])
+                    seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
+                    if len(seg_frm_indices) == 1:
+                        seg_frames[r, c] = seg_frm_indices[0] + 1
+                    elif len(seg_frm_indices) > 0:
+                        # This should never happen due to earlier checks
+                        # on unique rows
+                        raise RuntimeError(
+                            'An unexpected error was encountered during '
+                            'indexing of the segmentation image. Please '
+                            'file a bug report with the highdicom repository.'
+                        )
+                    # else no segmentation frame found, assume this frame
+                    # is empty and leave the entry in seg_frames as -1
+
+        else:
+            if len(source_sop_instance_uids) != 1:
+                raise ValueError(
+                    'Only a single source SOP instance UID may be specified '
+                    'when frame numbers are specified.'
+                )
+            rows = len(source_frame_numbers)
+            cols = len(segment_numbers)
+            seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+
+            # Create the sub-matrix of the look up table that indexes
+            # by frame number and segment number within this
+            # instance
+            src_uid_ind = self._get_src_uid_index(source_sop_instance_uids[0])
+            col = self._lut_src_instance_col
+            lut_instance_mask = self._frame_lut[:, col] == src_uid_ind
+            lut = self._frame_lut[lut_instance_mask, :]
+            query_cols = [self._lut_src_frame_col, self._lut_seg_col]
+            lut = lut[:, query_cols]
+
+            if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+                raise RuntimeError(
+                    'Source frame numbers and segment numbers do not '
+                    'uniquely identify frames of the segmentation image.'
+                )
+
+            # Build the segmentation frame matrix
+            for r, src_frm_num in enumerate(source_frame_numbers):
+                # Check whether this source frame exists in the LUT
+                if src_frm_num not in lut[:, 1]:
+                    if assert_missing_frames_are_empty:
+                        continue
+                    else:
+                        msg = (
+                            f'Source frame number {src_frm_num} does not '
+                            'match any referenced source frame. To return '
+                            'an empty segmentation mask in this situation, '
+                            "use the 'assert_missing_frames_are_empty' "
+                            'parameter.'
+                        )
+                        raise KeyError(msg)
+
+                # Iterate over segment numbers for this source frame
+                for c, seg_num in enumerate(segment_numbers):
+                    # Use LUT to find the segmentation frame containing
+                    # the source frame and segment number
+                    qry = np.array([src_frm_num, seg_num])
+                    seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
+                    if len(seg_frm_indices) == 1:
+                        seg_frames[r, c] = seg_frm_indices[0] + 1
+                    elif len(seg_frm_indices) > 0:
+                        # This should never happen due to earlier checks
+                        # on unique rows
+                        raise RuntimeError(
+                            'An unexpected error was encountered during '
+                            'indexing of the segmentation image. Please '
+                            'file a bug report with the highdicom repository.'
+                        )
+                    # else no segmentation frame found, assume this frame
+                    # is empty and leave the entry in seg_frames as -1
+
+        return self._get_pixels_by_seg_frame(
+            seg_frames_matrix=seg_frames,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+        )
 
     def get_pixels(
         self,
@@ -1762,7 +1903,6 @@ class Segmentation(SOPClass):
     # Lazy decoding of segmentation frames
     # Should functions raise error or return empty lists?
     # Standardize method names
-    # List segmented property for tracking id and vice versa
     # Correct for spatial ordering of source frames?
     # Optimize combine_segments to exploit sparse nature of array
     # Implement from_dataset from DimensionIndexSequence
