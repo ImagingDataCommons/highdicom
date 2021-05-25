@@ -2721,6 +2721,93 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         # TODO: how to do R-INFERRED FROM relationship?
         self.append(value_item)
 
+class ImageLibraryEntry(Template):
+
+    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
+     Image Library Entry"""  # noqa: E501
+
+    def __init__(
+        self,
+        modality: Union[Code, CodedConcept],
+        frame_of_reference_uid: str,
+        pixel_data_rows: int,
+        pixel_data_columns: int,
+        descriptors: Sequence[ContentItem]
+    ) -> None:
+        """
+        Parameters
+        ----------
+        modality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+            Modality
+        frame_of_reference_uid: str
+            Frame of Reference UID
+        pixel_data_rows: int
+            Number of rows in pixel data frames
+        pixel_data_columns: int
+            Number of rows in pixel data frames
+        descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
+            Additional SR Content Items that should be included
+
+        """  # noqa
+        super().__init__()
+        modality_item = CodeContentItem(
+            name=CodedConcept(
+                value='121139',
+                meaning='Modality',
+                scheme_designator='DCM'
+            ),
+            value=modality,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+        )
+        self.append(modality_item)
+        frame_of_reference_uid_item = UIDRefContentItem(
+            name=CodedConcept(
+                value='112227',
+                meaning='Frame of Reference UID',
+                scheme_designator='DCM'
+            ),
+            value=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+        )
+        self.append(frame_of_reference_uid_item)
+        pixel_data_rows_item = NumContentItem(
+            name=CodedConcept(
+                value='110910',
+                meaning='Pixel Data Rows',
+                scheme_designator='DCM'
+            ),
+            value=pixel_data_rows,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
+        )
+        self.append(pixel_data_rows_item)
+        pixel_data_cols_item = NumContentItem(
+            name=CodedConcept(
+                value='110911',
+                meaning='Pixel Data Columns',
+                scheme_designator='DCM'
+            ),
+            value=pixel_data_columns,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
+        )
+        self.append(pixel_data_cols_item)
+        for item in descriptors:
+            if not isinstance(item, ContentItem):
+                raise TypeError(
+                    'Image Library Entry Descriptor must have type ContentItem.'
+                )
+            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTENT.value
+            self.append(item)
+
 
 class MeasurementReport(Template):
 
@@ -2746,7 +2833,9 @@ class MeasurementReport(Template):
         title: Optional[Union[CodedConcept, Code]] = None,
         language_of_content_item_and_descendants: Optional[
             LanguageOfContentItemAndDescendants
-        ] = None
+        ] = None,
+        image_library_entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
+
     ):
         """
 
@@ -2812,7 +2901,7 @@ class MeasurementReport(Template):
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             item.ContentSequence.append(procedure_item)
-        image_library_item = ImageLibrary()
+        image_library_item = ImageLibrary(image_library_entries)
         item.ContentSequence.extend(image_library_item)
 
         num_arguments_provided = sum([
@@ -3293,92 +3382,6 @@ class MeasurementReport(Template):
         return sequences
 
 
-class ImageLibraryEntry(Template):
-
-    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
-     Image Library Entry"""  # noqa: E501
-
-    def __init__(
-        self,
-        modality: Union[Code, CodedConcept],
-        frame_of_reference_uid: str,
-        pixel_data_rows: int,
-        pixel_data_columns: int,
-        descriptors: Sequence[ContentItem]
-    ) -> None:
-        """
-        Parameters
-        ----------
-        modality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
-            Modality
-        frame_of_reference_uid: str
-            Frame of Reference UID
-        pixel_data_rows: int
-            Number of rows in pixel data frames
-        pixel_data_columns: int
-            Number of rows in pixel data frames
-        descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
-            Additional SR Content Items that should be included
-
-        """  # noqa
-        super().__init__()
-        modality_item = CodeContentItem(
-            name=CodedConcept(
-                value='121139',
-                meaning='Modality',
-                scheme_designator='DCM'
-            ),
-            value=modality,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
-        )
-        self.append(modality_item)
-        frame_of_reference_uid_item = UIDRefContentItem(
-            name=CodedConcept(
-                value='112227',
-                meaning='Frame of Reference UID',
-                scheme_designator='DCM'
-            ),
-            value=frame_of_reference_uid,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
-        )
-        self.append(frame_of_reference_uid_item)
-        pixel_data_rows_item = NumContentItem(
-            name=CodedConcept(
-                value='110910',
-                meaning='Pixel Data Rows',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_rows,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
-        )
-        self.append(pixel_data_rows_item)
-        pixel_data_cols_item = NumContentItem(
-            name=CodedConcept(
-                value='110911',
-                meaning='Pixel Data Columns',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_columns,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
-        )
-        self.append(pixel_data_cols_item)
-        for item in descriptors:
-            if not isinstance(item, ContentItem):
-                raise TypeError(
-                    'Image Library Entry Descriptor must have type ContentItem.'
-                )
-            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTENT.value
-            self.append(item)
 
 
 class ImageLibrary(Template):
