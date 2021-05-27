@@ -1207,26 +1207,28 @@ class Segmentation(SOPClass):
         # This allows for fairly efficient querying by any of the three
         # variables: seg frame number, source instance/frame number, segment
         # number
-        if self._single_source_frame_per_seg_frame:
-            # Include columns related
-            col_data = [
-                segnum_col_data,
-                source_instance_col_data,
-                source_frame_col_data
-            ]
-            self._lut_seg_col = 0
-            self._lut_src_instance_col = 1
-            self._lut_src_frame_col = 2
-        else:
-            self._lut_seg_col = 0
-            col_data = [segnum_col_data]
+        # Column for segment number
+        self._lut_seg_col = 0
+        col_data = [segnum_col_data]
 
+        # Columns for other dimension index values
         self._lut_dim_ind_cols = {
             ptr: i for ptr, i in enumerate(self._dim_ind_pointers, len(col_data))
         }
         col_data += [
             indices for indices in dim_index_col_data.values()
         ]
+
+        # Columns related to source frames, if they are usable for indexing
+        if self._single_source_frame_per_seg_frame:
+            self._lut_src_instance_col = len(col_data)
+            self._lut_src_frame_col = len(col_data) + 1
+            col_data += [
+                source_instance_col_data,
+                source_frame_col_data
+            ]
+
+        # Build LUT from columns
         self._frame_lut = np.array(col_data).T
 
     @property
@@ -2103,7 +2105,7 @@ class Segmentation(SOPClass):
         ----------
         dimension_index_values: Sequence[Sequence[int]]
             TODO
-        dimension_index_pointers: Optional[Sequence[int]
+        dimension_index_pointers: Optional[Sequence[TODO]]
             TODO
         segment_numbers: Optional[Sequence[int]]
             Sequence containing segment numbers to include. If unspecified,
@@ -2171,7 +2173,7 @@ class Segmentation(SOPClass):
             self._dim_ind_pointers.index(ptr)
             for ptr in dimension_index_pointers
         ]
-        lut = lut[:, query_cols]
+        lut = self._frame_lut[:, query_cols + [self._lut_seg_col]]
 
         if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
             raise RuntimeError(
@@ -2182,25 +2184,22 @@ class Segmentation(SOPClass):
 
         # Build the segmentation frame matrix
         for r, ind_vals in enumerate(dimension_index_values):
-            # Check whether this source frame exists in the LUT
-            if src_frm_num not in lut[:, 1]:
-                if assert_missing_frames_are_empty:
-                    continue
-                else:
-                    msg = (
-                        f'Source frame number {src_frm_num} does not '
-                        'match any referenced source frame. To return '
-                        'an empty segmentation mask in this situation, '
-                        "use the 'assert_missing_frames_are_empty' "
-                        'parameter.'
-                    )
-                    raise KeyError(msg)
+            # TODO Check whether any frame exists in the LUT with these indices
+            if len(ind_vals) != len(dimension_index_pointers):
+                raise ValueError(
+                    'Number of provided indices does not match the expected'
+                    'number.'
+                )
+            if not all(v > 0 for v in ind_vals):
+                raise ValueError(
+                    'Indices are 1 based and must be greater than 1.'
+                )
 
             # Iterate over segment numbers for this source frame
             for c, seg_num in enumerate(segment_numbers):
                 # Use LUT to find the segmentation frame containing
-                # the source frame and segment number
-                qry = np.array([src_frm_num, seg_num])
+                # the index values and segment number
+                qry = np.array(ind_vals + [seg_num])
                 seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
                 if len(seg_frm_indices) == 1:
                     seg_frames[r, c] = seg_frm_indices[0] + 1
@@ -2216,6 +2215,7 @@ class Segmentation(SOPClass):
                 # assume this frame is empty and leave the entry in seg_frames
                 # as -1
 
+        print(seg_frames)
         return self._get_pixels_by_seg_frame(
             seg_frames_matrix=seg_frames,
             segment_numbers=np.array(segment_numbers),
