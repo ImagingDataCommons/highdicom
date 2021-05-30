@@ -32,7 +32,6 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
-from highdicom.errors import DicomAttributeError
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.seg.content import (
@@ -1003,7 +1002,7 @@ class Segmentation(SOPClass):
             seg._coordinate_system = CoordinateSystemNames.PATIENT
             seg._plane_orientation = plane_ori_seq.ImageOrientationPatient
         else:
-            raise DicomAttributeError(
+            raise AttributeError(
                 'Expected Plane Orientation Sequence to have either '
                 'ImageOrientationSlide or ImageOrientationPatient '
                 'attribute.'
@@ -1011,7 +1010,7 @@ class Segmentation(SOPClass):
 
         for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
-                raise DicomAttributeError(
+                raise AttributeError(
                     'Segments are expected to start at 1 and be consecutive '
                     'integers.'
                 )
@@ -1203,7 +1202,7 @@ class Segmentation(SOPClass):
             else:
                 ref_instance_uid = frame_source_instances[0]
                 if ref_instance_uid not in self._source_sop_instance_uids:
-                    raise DicomAttributeError(
+                    raise AttributeError(
                         f'SOP instance {ref_instance_uid} referenced in the '
                         'source image sequence is not included in the '
                         'Referenced Series Sequence or Studies Containing '
