@@ -16,7 +16,7 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.utils import compute_plane_position_slide_per_frame
-from highdicom.module_utils import check_required_attributes
+from highdicom._module_utils import check_required_attributes
 
 
 class SegmentDescription(Dataset):

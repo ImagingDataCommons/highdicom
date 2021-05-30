@@ -21,7 +21,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
-from highdicom.module_utils import check_required_attributes
+from highdicom._module_utils import check_required_attributes
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
