@@ -5,14 +5,14 @@ from pydicom.valuerep import PersonName
 
 
 def check_person_name(person_name: Union[str, PersonName]) -> None:
-    """Check for potential problems with person name strings.
+    """Check for problems with person name strings.
 
-    The DICOM Person Name (PN) value representation has a specific format
-    with multiple components (family name, given name, middle name, prefix,
-    suffix) separated by caret characters ('^'), where any number of components
-    and their caret separators may be missing. Unfortunately it is both easy to
-    make mistake when constructing names with this format, and impossible to
-    check for certain whether it has been done correctly.
+    The DICOM Person Name (PN) value representation has a specific format with
+    multiple components (family name, given name, middle name, prefix, suffix)
+    separated by caret characters ('^'), where any number of components may be
+    missing and trailing caret separators may be omitted. Unfortunately it is
+    both easy to make a mistake when constructing names with this format, and
+    impossible to check for certain whether it has been done correctly.
 
     This function checks for strings representing person names that have a high
     likelihood of having been encoded incorrectly and raises an exception if
@@ -23,10 +23,10 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
 
     Note
     ----
-    A name consisting of only a family name component is valid
-    according to the standard but will be disallowed by this function. However
-    if necessary, such a name can be still be encoded by adding a trailing
-    caret character to disambiguate the meaning.
+    A name consisting of only a family name component (e.g. ``'Bono'``) is
+    valid according to the standard but will be disallowed by this function.
+    However if necessary, such a name can be still be encoded by adding a
+    trailing caret character to disambiguate the meaning (e.g. ``'Bono^'``).
 
     Parameters
     ----------
@@ -55,5 +55,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
             'Construct a person name according to the format in described '
             f'in {name_url}, or, in pydicom 2.2.0 or later, use the '
             'pydicom.valuerep.PersonName.from_named_components() method '
-            'to construct the person name correctly.'
+            'to construct the person name correctly. If a single-component '
+            'name is really intended, add a trailing caret character to '
+            'disambiguate the name.'
         )

@@ -1467,7 +1467,7 @@ class TestSegmentation(unittest.TestCase):
         fractional_type = 'OCCUPANCY'
         max_fractional_value = 100
         content_description = 'bla bla bla'
-        content_creator_name = 'Me Myself'
+        content_creator_name = 'Family^Given'
         series_description = 'My First Segmentation'
         instance = Segmentation(
             source_images=[self._ct_image],

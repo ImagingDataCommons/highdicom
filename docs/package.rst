@@ -59,6 +59,15 @@ highdicom.spatial module
    :undoc-members:
    :show-inheritance:
 
+highdicom.valuerep module
++++++++++++++++++++++++++
+
+.. automodule:: highdicom.valuerep
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
 highdicom.utils module
 ++++++++++++++++++++++
 

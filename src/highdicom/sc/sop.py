@@ -9,7 +9,7 @@ from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import DA, TM
+from pydicom.valuerep import DA, PersonName, TM
 from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
@@ -32,6 +32,7 @@ from highdicom.enum import (
 from highdicom.frame import encode_frame
 from highdicom.sc.enum import ConversionTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
@@ -59,14 +60,14 @@ class SCImage(SOPClass):
             instance_number: int,
             manufacturer: str,
             patient_id: Optional[str] = None,
-            patient_name: Optional[str] = None,
+            patient_name: Optional[Union[str, PersonName]] = None,
             patient_birth_date: Optional[str] = None,
             patient_sex: Optional[str] = None,
             accession_number: Optional[str] = None,
             study_id: str = None,
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
-            referring_physician_name: Optional[str] = None,
+            referring_physician_name: Optional[Union[str, PersonName]] = None,
             pixel_spacing: Optional[Tuple[int, int]] = None,
             laterality: Optional[Union[str, LateralityValues]] = None,
             patient_orientation: Optional[
@@ -126,7 +127,7 @@ class SCImage(SOPClass):
             as `institution_name`)
         patient_id: str, optional
            ID of the patient (medical record number)
-        patient_name: str, optional
+        patient_name: Optional[Union[str, PersonName]], optional
            Name of the patient
         patient_birth_date: str, optional
            Patient's birth date
@@ -140,7 +141,7 @@ class SCImage(SOPClass):
            Date of study creation
         study_time: Union[str, datetime.time], optional
            Time of study creation
-        referring_physician_name: str, optional
+        referring_physician_name: Optional[Union[str, PersonName]], optional
             Name of the referring physician
         pixel_spacing: Tuple[int, int], optional
             Physical spacing in millimeter between pixels along the row and
@@ -181,6 +182,12 @@ class SCImage(SOPClass):
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported'
             )
+
+        # Check names
+        if patient_name is not None:
+            check_person_name(patient_name)
+        if referring_physician_name is not None:
+            check_person_name(referring_physician_name)
 
         super().__init__(
             study_instance_uid=study_instance_uid,

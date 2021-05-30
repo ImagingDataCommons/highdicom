@@ -7,7 +7,7 @@ from typing import Any, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
-from pydicom.valuerep import DT
+from pydicom.valuerep import DT, PersonName
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
     Comprehensive3DSRStorage,
@@ -18,6 +18,7 @@ from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.utils import find_content_items
+from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class _SR(SOPClass):
         is_verified: bool = False,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
+        verifying_observer_name: Optional[Union[str, PersonName]] = None,
         verifying_organization: Optional[str] = None,
         performed_procedure_codes: Optional[
             Sequence[Union[Code, CodedConcept]]
@@ -90,11 +91,11 @@ class _SR(SOPClass):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Optional[Union[str, PersonName]], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+            Name of the organization that verified the SR document
             (required if `is_verified`)
         performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
@@ -166,6 +167,7 @@ class _SR(SOPClass):
                 )
             self.VerificationFlag = 'VERIFIED'
             observer_item = Dataset()
+            check_person_name(verifying_observer_name)
             observer_item.VerifyingObserverName = verifying_observer_name
             observer_item.VerifyingOrganization = verifying_organization
             observer_item.VerificationDateTime = DT(now)
@@ -371,7 +373,7 @@ class EnhancedSR(_SR):
         is_verified: bool = False,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
+        verifying_observer_name: Optional[Union[str, PersonName]] = None,
         verifying_organization: Optional[str] = None,
         performed_procedure_codes: Optional[
             Sequence[Union[Code, CodedConcept]]
@@ -417,11 +419,11 @@ class EnhancedSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Optional[Union[str, PersonName]], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+            Name of the organization that verified the SR document
             (required if `is_verified`)
         performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
@@ -499,7 +501,7 @@ class ComprehensiveSR(_SR):
             is_verified: bool = False,
             institution_name: Optional[str] = None,
             institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
+            verifying_observer_name: Optional[Union[str, PersonName]] = None,
             verifying_organization: Optional[str] = None,
             performed_procedure_codes: Optional[
                 Sequence[Union[Code, CodedConcept]]
@@ -545,11 +547,11 @@ class ComprehensiveSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Optional[Union[str, PersonName]], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+            Name of the organization that verified the SR document
             (required if `is_verified`)
         performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document
@@ -627,7 +629,7 @@ class Comprehensive3DSR(_SR):
             is_verified: bool = False,
             institution_name: Optional[str] = None,
             institutional_department_name: Optional[str] = None,
-            verifying_observer_name: Optional[str] = None,
+            verifying_observer_name: Optional[Union[str, PersonName]] = None,
             verifying_organization: Optional[str] = None,
             performed_procedure_codes: Optional[
                 Sequence[Union[Code, CodedConcept]]
@@ -673,11 +675,11 @@ class Comprehensive3DSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Optional[Union[str, PersonName]], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+            Name of the organization that verified the SR document
             (required if `is_verified`)
         performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
             Codes of the performed procedures that resulted in the SR document

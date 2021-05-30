@@ -16,6 +16,7 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.sr.codedict import codes
+from pydicom.valuerep import PersonName
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -35,6 +36,7 @@ from highdicom.seg.enum import (
     SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
+from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,7 @@ class Segmentation(SOPClass):
             ] = SegmentationFractionalTypeValues.PROBABILITY,
             max_fractional_value: int = 255,
             content_description: Optional[str] = None,
-            content_creator_name: Optional[str] = None,
+            content_creator_name: Optional[Union[str, PersonName]] = None,
             transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
@@ -143,7 +145,7 @@ class Segmentation(SOPClass):
             a pixel represents a given segment
         content_description: str, optional
             Description of the segmentation
-        content_creator_name: str, optional
+        content_creator_name: Optional[Union[str, PersonName]], optional
             Name of the creator of the segmentation
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
@@ -311,6 +313,8 @@ class Segmentation(SOPClass):
         self.PixelRepresentation = 0
         self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
+        if content_creator_name is not None:
+            check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
 
         segmentation_type = SegmentationTypeValues(segmentation_type)
