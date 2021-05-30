@@ -81,11 +81,12 @@ def check_required_attributes(
     # Construct tree once and re-use in all recursive calls
     tree = construct_module_tree(module)
 
-    for p in base_path:
-        try:
-            tree = tree['attributes'][p]
-        except KeyError:
-            raise AttributeError(f"Invalid base path: {base_path}.")
+    if base_path is not None:
+        for p in base_path:
+            try:
+                tree = tree['attributes'][p]
+            except KeyError:
+                raise AttributeError(f"Invalid base path: {base_path}.")
 
     # Define recursive function
     def check(
@@ -112,8 +113,8 @@ def check_required_attributes(
                     )
             if recursive:
                 sequence_exists = (
-                    'attributes' in subtree['attributes'][kw]
-                    and hasattr(dataset, kw)
+                    'attributes' in subtree['attributes'][kw] and
+                    hasattr(dataset, kw)
                 )
                 if required or (sequence_exists and check_optional_sequences):
                     # Recurse down to the next level of the tree, if it exists
@@ -155,7 +156,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
     """
     if module not in MODULE_ATTRIBUTE_MAP:
         raise AttributeError(f"No such module found: '{module}'.")
-    tree = {'attributes': {}}
+    tree: Dict[str, Any] = {'attributes': {}}
     for item in MODULE_ATTRIBUTE_MAP[module]:
         location = tree['attributes']
         for p in item['path']:

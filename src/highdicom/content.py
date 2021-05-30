@@ -340,7 +340,10 @@ class PlanePositionSequence(DataElementSequence):
             )
 
     @classmethod
-    def from_sequence(cls, sequence: DataElementSequence) -> 'PlanePositionSequence':
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlanePositionSequence':
         """Create a PlanePositionSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
@@ -467,7 +470,10 @@ class PlaneOrientationSequence(DataElementSequence):
             return False
 
     @classmethod
-    def from_sequence(cls, sequence: DataElementSequence) -> 'PlaneOrientationSequence':
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlaneOrientationSequence':
         """Create a PlaneOrientationSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
