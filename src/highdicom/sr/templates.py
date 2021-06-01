@@ -23,6 +23,7 @@ from highdicom.sr.value_types import (
     ContentItem,
     ContentSequence,
     NumContentItem,
+    PnameContentItem,
     TextContentItem,
     UIDRefContentItem,
 )
@@ -529,7 +530,7 @@ class PersonObserverIdentifyingAttributes(Template):
 
         """  # noqa
         super().__init__()
-        name_item = TextContentItem(
+        name_item = PnameContentItem(
             name=CodedConcept(
                 value='121008',
                 meaning='Person Observer Name',

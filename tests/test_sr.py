@@ -12,7 +12,7 @@ from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid, UID
-from pydicom.valuerep import DA, DS, DT, TM
+from pydicom.valuerep import DA, DS, DT, TM, PersonName
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
@@ -44,6 +44,7 @@ from highdicom.sr import (
     DateTimeContentItem,
     ImageContentItem,
     NumContentItem,
+    PnameContentItem,
     ScoordContentItem,
     Scoord3DContentItem,
     TextContentItem,
@@ -476,6 +477,36 @@ class TestContentItem(unittest.TestCase):
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
 
+    def test_pname_content_item(self):
+        name = codes.DCM.PersonObserverName
+        value = 'Doe^John'
+        i = PnameContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert i.PersonName == 'Doe^John'
+
+    def test_pname_content_item_from_person_name(self):
+        name = codes.DCM.PersonObserverName
+        value = PersonName('Doe^John')
+        i = PnameContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert i.PersonName == 'Doe^John'
+
+    def test_pname_content_item_invalid_name(self):
+        name = codes.DCM.PersonObserverName
+        value = 'John Doe'  # invalid name format
+        with pytest.raises(ValueError):
+            PnameContentItem(
+                name=name,
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            )
+
     def test_container_item_construction(self):
         name = codes.DCM.ImagingMeasurementReport
         tid = '1500'
@@ -718,7 +749,7 @@ class TestObservationContext(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._person_name = 'Foo Bar'
+        self._person_name = 'Bar^Foo'
         self._device_uid = generate_uid()
         self._specimen_uid = generate_uid()
         self._observer_person_context = ObserverContext(
@@ -753,7 +784,7 @@ class TestObservationContext(unittest.TestCase):
         assert item.ConceptCodeSequence[0] == codes.cid270.Person
         item = self._observer_person_context[1]
         assert item.ConceptNameCodeSequence[0].CodeValue == '121008'
-        assert item.TextValue == self._person_name
+        assert item.PersonName == self._person_name
         # device
         assert len(self._observer_device_context) == 2
         item = self._observer_device_context[0]
@@ -774,6 +805,45 @@ class TestObservationContext(unittest.TestCase):
 
     def test_content_length(self):
         assert len(self._observation_context) == 6
+
+
+class TestPersonObserverIdentifyingAttributes(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._person_name = 'Doe^John'
+        self._invalid_name = 'John Doe'
+        self._login_name = 'jd123'
+        self._organization_name = 'The General Hospital'
+        self._role_in_organization = codes.DCM.Surgeon
+        self._role_in_procedure = codes.DCM.PerformingPhysician
+
+    def test_construction(self):
+        observer = PersonObserverIdentifyingAttributes(
+            name=self._person_name
+        )
+        assert observer[0].PersonName == self._person_name
+
+    def test_construction_all(self):
+        seq = PersonObserverIdentifyingAttributes(
+            name=self._person_name,
+            login_name=self._login_name,
+            organization_name=self._organization_name,
+            role_in_organization=self._role_in_organization,
+            role_in_procedure=self._role_in_procedure
+        )
+        assert len(seq) == 5
+        assert seq[0].PersonName == self._person_name
+        assert seq[1].TextValue == self._login_name
+        assert seq[2].TextValue == self._organization_name
+        assert seq[3].ConceptCodeSequence[0] == self._role_in_organization
+        assert seq[4].ConceptCodeSequence[0] == self._role_in_procedure
+
+    def test_construction_invalid(self):
+        with pytest.raises(ValueError):
+            PersonObserverIdentifyingAttributes(
+                name=self._invalid_name
+            )
 
 
 class TestFindingSiteOptional(unittest.TestCase):
@@ -2067,7 +2137,7 @@ class TestMeasurementReport(unittest.TestCase):
         self._observer_person_context = ObserverContext(
             observer_type=codes.cid270.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo Bar'
+                name='Bar^Foo'
             )
         )
         self._observer_device_context = ObserverContext(
@@ -2159,7 +2229,7 @@ class TestEnhancedSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(
@@ -2277,7 +2347,7 @@ class TestComprehensiveSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(
@@ -2477,7 +2547,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(
