@@ -2972,12 +2972,12 @@ class TestImageLibraryEntry(unittest.TestCase):
         content_date_item = DateContentItem(
             name=codes.DCM.ContentDate,
             value=content_date,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         content_time_item = TimeContentItem(
             name=codes.DCM.ContentTime,
             value=content_time,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         entry = ImageLibraryEntry(
             modality=modality,
