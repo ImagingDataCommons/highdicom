@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
-import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
@@ -2721,6 +2720,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         # TODO: how to do R-INFERRED FROM relationship?
         self.append(value_item)
 
+
 class ImageLibraryEntry(Template):
 
     """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
@@ -2834,8 +2834,9 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Optional[
             LanguageOfContentItemAndDescendants
         ] = None,
-        image_library_entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
-
+        image_library_entries: Optional[
+            Sequence[Sequence[ImageLibraryEntry]]
+        ] = None
     ):
         """
 
@@ -3380,8 +3381,6 @@ class MeasurementReport(Template):
                     sequences.append(seq)
 
         return sequences
-
-
 
 
 class ImageLibrary(Template):
