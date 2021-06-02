@@ -2757,7 +2757,7 @@ class ImageLibraryEntry(Template):
                 scheme_designator='DCM'
             ),
             value=modality,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(modality_item)
         frame_of_reference_uid_item = UIDRefContentItem(
@@ -2767,7 +2767,7 @@ class ImageLibraryEntry(Template):
                 scheme_designator='DCM'
             ),
             value=frame_of_reference_uid,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(frame_of_reference_uid_item)
         pixel_data_rows_item = NumContentItem(
@@ -2777,7 +2777,7 @@ class ImageLibraryEntry(Template):
                 scheme_designator='DCM'
             ),
             value=pixel_data_rows,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
                 meaning='Pixels',
@@ -2792,7 +2792,7 @@ class ImageLibraryEntry(Template):
                 scheme_designator='DCM'
             ),
             value=pixel_data_columns,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTENT,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
                 meaning='Pixels',
@@ -2805,7 +2805,7 @@ class ImageLibraryEntry(Template):
                 raise TypeError(
                     'Image Library Entry Descriptor must have type ContentItem.'
                 )
-            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTENT.value
+            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTEXT.value
             self.append(item)
 
 
@@ -3414,7 +3414,7 @@ class ImageLibrary(Template):
             for group in entries:
                 group_item = ContainerContentItem(
                     name=CodedConcept(
-                        value='26200',
+                        value='126200',
                         meaning='Image Library Group',
                         scheme_designator='DCM'
                     ),
