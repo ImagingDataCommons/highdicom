@@ -91,7 +91,7 @@ class _SR(SOPClass):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Optional[Union[str, PersonName]], optional
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
@@ -419,7 +419,7 @@ class EnhancedSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Optional[Union[str, PersonName]], optional
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
@@ -547,7 +547,7 @@ class ComprehensiveSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Optional[Union[str, PersonName]], optional
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
@@ -675,7 +675,7 @@ class Comprehensive3DSR(_SR):
         institutional_department_name: str, optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Optional[Union[str, PersonName]], optional
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
         verifying_organization: str, optional
