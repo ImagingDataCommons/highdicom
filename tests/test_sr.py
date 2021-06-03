@@ -59,7 +59,8 @@ from highdicom.sr import (
 from highdicom.sr import (
     AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
-    ImageLibraryEntry,
+    ImageLibrary,
+    ImageLibraryEntryDescriptors,
     Measurement,
     MeasurementStatisticalProperties,
     MeasurementProperties,
@@ -2957,7 +2958,7 @@ class TestSRUtilities(unittest.TestCase):
         assert len(items) == 6
 
 
-class TestImageLibraryEntry(unittest.TestCase):
+class TestImageLibraryEntryDescriptors(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -2979,29 +2980,52 @@ class TestImageLibraryEntry(unittest.TestCase):
             value=content_time,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
-        entry = ImageLibraryEntry(
+        group = ImageLibraryEntryDescriptors(
             modality=modality,
             frame_of_reference_uid=frame_of_reference_uid,
             pixel_data_rows=pixel_data_rows,
             pixel_data_columns=pixel_data_columns,
-            descriptors=[content_date_item, content_time_item]
+            additional_descriptors=[content_date_item, content_time_item]
         )
-        assert len(entry) == 6
-        assert isinstance(entry[0], CodeContentItem)
-        assert entry[0].name == codes.DCM.Modality
-        assert entry[0].value == modality
-        assert isinstance(entry[1], UIDRefContentItem)
-        assert entry[1].name == codes.DCM.FrameOfReferenceUID
-        assert entry[1].value == frame_of_reference_uid
-        assert isinstance(entry[2], NumContentItem)
-        assert entry[2].name == codes.DCM.PixelDataRows
-        assert entry[2].value == pixel_data_rows
-        assert isinstance(entry[3], NumContentItem)
-        assert entry[3].name == codes.DCM.PixelDataColumns
-        assert entry[3].value == pixel_data_columns
-        assert isinstance(entry[4], DateContentItem)
-        assert entry[4].name == codes.DCM.ContentDate
-        assert entry[4].value == content_date
-        assert isinstance(entry[5], TimeContentItem)
-        assert entry[5].name == codes.DCM.ContentTime
-        assert entry[5].value == content_time
+        assert len(group) == 6
+        assert isinstance(group[0], CodeContentItem)
+        assert group[0].name == codes.DCM.Modality
+        assert group[0].value == modality
+        assert isinstance(group[1], UIDRefContentItem)
+        assert group[1].name == codes.DCM.FrameOfReferenceUID
+        assert group[1].value == frame_of_reference_uid
+        assert isinstance(group[2], NumContentItem)
+        assert group[2].name == codes.DCM.PixelDataRows
+        assert group[2].value == pixel_data_rows
+        assert isinstance(group[3], NumContentItem)
+        assert group[3].name == codes.DCM.PixelDataColumns
+        assert group[3].value == pixel_data_columns
+        assert isinstance(group[4], DateContentItem)
+        assert group[4].name == codes.DCM.ContentDate
+        assert group[4].value == content_date
+        assert isinstance(group[5], TimeContentItem)
+        assert group[5].name == codes.DCM.ContentTime
+        assert group[5].value == content_time
+
+
+class TestImageLibrary(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+    def test_construction(self):
+        modality = codes.cid29.SlideMicroscopy
+        frame_of_reference_uid = '1.2.3'
+        pixel_data_rows = 10
+        pixel_data_columns = 20
+        descriptor_items = ImageLibraryEntryDescriptors(
+            modality=modality,
+            frame_of_reference_uid=frame_of_reference_uid,
+            pixel_data_rows=pixel_data_rows,
+            pixel_data_columns=pixel_data_columns,
+        )
+        library_items = ImageLibrary(groups=[descriptor_items])
+        assert len(library_items) == 1
+        library_group_item = library_items[0].ContentSequence[0]
+        assert len(library_group_item.ContentSequence) == len(descriptor_items)
+        assert library_group_item.name == codes.DCM.ImageLibraryGroup

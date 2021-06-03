@@ -2721,10 +2721,10 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         self.append(value_item)
 
 
-class ImageLibraryEntry(Template):
+class ImageLibraryEntryDescriptors(Template):
 
-    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
-     Image Library Entry"""  # noqa: E501
+    """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
+     Image Library Entry Descriptors"""  # noqa: E501
 
     def __init__(
         self,
@@ -2732,7 +2732,7 @@ class ImageLibraryEntry(Template):
         frame_of_reference_uid: str,
         pixel_data_rows: int,
         pixel_data_columns: int,
-        descriptors: Sequence[ContentItem]
+        additional_descriptors: Optional[Sequence[ContentItem]] = None
     ) -> None:
         """
         Parameters
@@ -2745,7 +2745,7 @@ class ImageLibraryEntry(Template):
             Number of rows in pixel data frames
         pixel_data_columns: int
             Number of rows in pixel data frames
-        descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
+        additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
             Additional SR Content Items that should be included
 
         """  # noqa
@@ -2800,13 +2800,16 @@ class ImageLibraryEntry(Template):
             )
         )
         self.append(pixel_data_cols_item)
-        for item in descriptors:
-            if not isinstance(item, ContentItem):
-                raise TypeError(
-                    'Image Library Entry Descriptor must have type ContentItem.'
-                )
-            item.RelationshipType = RelationshipTypeValues.HAS_ACQ_CONTEXT.value
-            self.append(item)
+        if additional_descriptors is not None:
+            for item in additional_descriptors:
+                if not isinstance(item, ContentItem):
+                    raise TypeError(
+                        'Image Library Entry Descriptor must have type '
+                        'ContentItem.'
+                    )
+                relationship_type = RelationshipTypeValues.HAS_ACQ_CONTEXT
+                item.RelationshipType = relationship_type.value
+                self.append(item)
 
 
 class MeasurementReport(Template):
@@ -2834,8 +2837,8 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Optional[
             LanguageOfContentItemAndDescendants
         ] = None,
-        image_library_entries: Optional[
-            Sequence[Sequence[ImageLibraryEntry]]
+        image_library_groups: Optional[
+            Sequence[ImageLibraryEntryDescriptors]
         ] = None
     ):
         """
@@ -2862,6 +2865,8 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: highdicom.sr.LanguageOfContentItemAndDescendants, optional
             specification of the language of report content items
             (defaults to English)
+        image_library_groups: Sequence[highdicom.sr.ImageLibraryEntry]
+            Entry descriptors for each image library group
 
         Note
         ----
@@ -2902,7 +2907,7 @@ class MeasurementReport(Template):
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             item.ContentSequence.append(procedure_item)
-        image_library_item = ImageLibrary(image_library_entries)
+        image_library_item = ImageLibrary(image_library_groups)
         item.ContentSequence.extend(image_library_item)
 
         num_arguments_provided = sum([
@@ -3390,13 +3395,13 @@ class ImageLibrary(Template):
 
     def __init__(
         self,
-        entries: Optional[Sequence[Sequence[ImageLibraryEntry]]] = None
+        groups: Optional[Sequence[ImageLibraryEntryDescriptors]] = None
     ) -> None:
         """
         Parameters
         ----------
-        entries: Sequence[Sequence[highdicom.sr.templates.ImageLibraryEntry]]
-            Image library entries per image library group
+        groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptros]]
+            Entry descriptors for each image library group
 
         """
         super().__init__()
@@ -3409,8 +3414,8 @@ class ImageLibrary(Template):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         library_item.ContentSequence = ContentSequence()
-        if entries is not None:
-            for group in entries:
+        if groups is not None:
+            for descriptor_items in groups:
                 group_item = ContainerContentItem(
                     name=CodedConcept(
                         value='126200',
@@ -3419,15 +3424,14 @@ class ImageLibrary(Template):
                     ),
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
-                group_item.ContentSequence = ContentSequence()
+                group_item.ContentSequence = descriptor_items
                 # The Image Library Entry template contains the individual
                 # Image Library Entry Descriptors content items.
-                for descriptor_items in group:
-                    if not isinstance(descriptor_items, ImageLibraryEntry):
-                        raise TypeError(
-                            'Image library entries must have type '
-                            '"ImageLibraryEntry".'
-                        )
-                    group_item.ContentSequence.extend(descriptor_items)
+                if not isinstance(descriptor_items,
+                                  ImageLibraryEntryDescriptors):
+                    raise TypeError(
+                        'Image library group items must have type '
+                        '"ImageLibraryEntry".'
+                    )
                 library_item.ContentSequence.append(group_item)
         self.append(library_item)
