@@ -15,6 +15,7 @@ from highdicom.sr.content import (
     ReferencedSegment,
     ReferencedSegmentationFrame,
     SourceImageForMeasurement,
+    QualitativeEvaluation
 )
 from highdicom.sr.enum import RelationshipTypeValues
 from highdicom.sr.value_types import (
@@ -1227,7 +1228,9 @@ class MeasurementsAndQualitativeEvaluations(Template):
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
+        qualitative_evaluations: Optional[
+            Sequence[Union[CodeContentItem, QualitativeEvaluation]]
+        ] = None
     ):
         """
 
@@ -1254,7 +1257,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
             Description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             Numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
+        qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
             Coded name-value pairs that describe measurements in qualitative
             terms
 
@@ -1362,7 +1365,13 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 if not isinstance(evaluation, CodeContentItem):
                     raise TypeError(
                         'Items of argument "qualitative_evaluations" must have '
-                        'type CodeContentItem.'
+                        'type CodeContentItem or QualitativeEvaluation.'
+                    )
+                rel_type = RelationshipTypeValues(evaluation.relationship_type)
+                if rel_type != RelationshipTypeValues.CONTAINS:
+                    raise ValueError(
+                        'Evaluations are expected to have relationship type '
+                        '"CONTAINS" with their parent.'
                     )
                 group_item.ContentSequence.append(evaluation)
         self.append(group_item)
@@ -1392,7 +1401,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[Union[CodeContentItem, QualitativeEvaluation]]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -1426,7 +1437,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
+        qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
@@ -1538,7 +1549,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[Union[CodeContentItem, QualitativeEvaluation]]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -1570,7 +1583,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             measurements for a region of interest
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
+        qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a region of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
@@ -1643,7 +1656,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[Union[CodeContentItem, QualitativeEvaluation]]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -1677,7 +1692,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             measurements for a volume of interest
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
+        qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
             coded name-value (question-answer) pairs that describe the
             measurements in qualitative terms for a volume of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional

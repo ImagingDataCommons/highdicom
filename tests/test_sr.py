@@ -67,6 +67,7 @@ from highdicom.sr import (
     ObserverContext,
     PersonObserverIdentifyingAttributes,
     PlanarROIMeasurementsAndQualitativeEvaluations,
+    QualitativeEvaluation,
     SubjectContext,
     SubjectContextSpecimen,
     SubjectContextDevice,
@@ -1938,13 +1939,13 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
         self._qualitative_evaluations = [
-            CodeContentItem(
+            QualitativeEvaluation(
                 CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+                codes.SCT.Yes
             )
         ]
 
@@ -2056,13 +2057,13 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
         self._qualitative_evaluations = [
-            CodeContentItem(
+            QualitativeEvaluation(
                 CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+                codes.SCT.Yes
             )
         ]
 

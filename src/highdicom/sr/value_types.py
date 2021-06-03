@@ -1,6 +1,7 @@
 """DICOM structured reporting content item value types."""
 import datetime
 from typing import Any, List, Optional, Sequence, Union
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -55,7 +56,14 @@ class ContentItem(Dataset):
         if isinstance(name, Code):
             name = CodedConcept(*name)
         self.ConceptNameCodeSequence = [name]
-        if relationship_type is not None:
+        if relationship_type is None:
+            warnings.warn(
+                'Constructing a content specifying a relationship type '
+                'is deprecated behaviour and will be removed in a future '
+                'version of highdicom.',
+                DeprecationWarning
+            )
+        else:
             relationship_type = RelationshipTypeValues(relationship_type)
             self.RelationshipType = relationship_type.value
 
