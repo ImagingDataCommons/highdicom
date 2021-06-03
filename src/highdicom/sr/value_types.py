@@ -58,9 +58,9 @@ class ContentItem(Dataset):
         self.ConceptNameCodeSequence = [name]
         if relationship_type is None:
             warnings.warn(
-                'Constructing a content specifying a relationship type '
-                'is deprecated behaviour and will be removed in a future '
-                'version of highdicom.',
+                'Constructing a content item without specifying a '
+                'relationship type is deprecated behaviour and will be '
+                'removed in a future version of highdicom.',
                 DeprecationWarning
             )
         else:

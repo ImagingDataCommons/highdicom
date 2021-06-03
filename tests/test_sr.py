@@ -128,7 +128,8 @@ class TestMeasurementStatisticalProperties(unittest.TestCase):
             NumContentItem(
                 name=self._value_name,
                 value=self._value_number,
-                unit=self._value_unit
+                unit=self._value_unit,
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
         ]
         self._description = 'Population of Foo'
@@ -254,41 +255,44 @@ class TestContentItem(unittest.TestCase):
     def test_code_item_construction(self):
         name = codes.SCT.FindingSite
         value = codes.SCT.Abdomen
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = CodeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'CODE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.ConceptCodeSequence[0] == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_text_item_construction(self):
         name = codes.DCM.TrackingIdentifier
         value = '1234'
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = TextContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'TEXT'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.TextValue == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_time_item_construction_from_string(self):
         name = codes.DCM.StudyTime
         value = '1530'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = TimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_time_item_construction_from_string_malformatted(self):
         name = codes.DCM.StudyTime
@@ -296,69 +300,76 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(ValueError):
             TimeContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT,
             )
 
     def test_time_item_construction_from_time(self):
         name = codes.DCM.StudyTime
         value = datetime.now().time()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = TimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_date_item_construction_from_string(self):
         name = codes.DCM.StudyDate
         value = '20190821'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_date_item_construction_from_string_malformatted(self):
         name = codes.DCM.StudyDate
         value = 'abcd'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         with pytest.raises(ValueError):
             DateContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=rel_type
             )
 
     def test_date_item_construction_from_time(self):
         name = codes.DCM.StudyTime
         value = datetime.now().date()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_datetime_item_construction_from_string(self):
         name = codes.DCM.ImagingStartDatetime
         value = '20190821-15:30'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateTimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_datetime_item_construction_from_string_malformatted(self):
         name = codes.DCM.ImagingStartDatetime
@@ -366,34 +377,37 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(ValueError):
             DateTimeContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
 
     def test_datetime_item_construction_from_datetime(self):
         name = codes.DCM.ImagingStartDatetime
         value = datetime.now()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateTimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_uidref_item_construction_from_string(self):
         name = codes.DCM.SeriesInstanceUID
         value = '1.2.3.4.5.6'
+        rel_type = RelationshipTypeValues.INFERRED_FROM
         i = UIDRefContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'UIDREF'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.UID == UID(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_uidref_item_construction_wrong_value_type(self):
         name = codes.DCM.SeriesInstanceUID
@@ -401,30 +415,34 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(TypeError):
             UIDRefContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.INFERRED_FROM
             )
 
     def test_uidref_item_construction_from_uid(self):
         name = codes.DCM.SeriesInstanceUID
         value = UID('1.2.3.4.5.6')
+        rel_type = RelationshipTypeValues.INFERRED_FROM
         i = UIDRefContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'UIDREF'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.UID == UID(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_num_item_construction_from_integer(self):
         name = codes.SCT.Area
         value = 100
         unit = Code('um2', 'UCUM', 'Square Micrometer')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
             value=value,
-            unit=unit
+            unit=unit,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
@@ -435,8 +453,7 @@ class TestContentItem(unittest.TestCase):
             assert value_item.FloatingPointValue
         assert unit_code_item.CodeValue == unit.value
         assert unit_code_item.CodingSchemeDesignator == unit.scheme_designator
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         with pytest.raises(AttributeError):
             assert i.NumericValueQualifierCodeSequence
 
@@ -444,10 +461,12 @@ class TestContentItem(unittest.TestCase):
         name = codes.SCT.Area
         value = 100.0
         unit = Code('um2', 'UCUM', 'Square Micrometer')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
             value=value,
-            unit=unit
+            unit=unit,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
@@ -457,24 +476,24 @@ class TestContentItem(unittest.TestCase):
         assert value_item.FloatingPointValue == value
         assert unit_code_item.CodeValue == unit.value
         assert unit_code_item.CodingSchemeDesignator == unit.scheme_designator
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         with pytest.raises(AttributeError):
             assert i.NumericValueQualifierCodeSequence
 
     def test_num_item_construction_from_qualifier_code(self):
         name = codes.SCT.Area
         qualifier = Code('114000', 'SCT', 'Not a number')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
-            qualifier=qualifier
+            qualifier=qualifier,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
         with pytest.raises(AttributeError):
             assert i.MeasuredValueSequence
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
 
@@ -513,7 +532,8 @@ class TestContentItem(unittest.TestCase):
         tid = '1500'
         i = ContainerContentItem(
             name=name,
-            template_id=tid
+            template_id=tid,
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         assert i.ValueType == 'CONTAINER'
         assert i.ConceptNameCodeSequence[0] == name
@@ -530,6 +550,7 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'COMPOSITE'
         assert i.ConceptNameCodeSequence[0] == name
@@ -545,6 +566,7 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'IMAGE'
         assert i.ConceptNameCodeSequence[0] == name
@@ -565,7 +587,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_frame_numbers=frame_numbers
+            referenced_frame_numbers=frame_numbers,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -583,7 +606,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_frame_numbers=frame_number
+            referenced_frame_numbers=frame_number,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -601,7 +625,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_segment_numbers=segment_number
+            referenced_segment_numbers=segment_number,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -619,7 +644,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            pixel_origin_interpretation=pixel_origin_interpretation
+            pixel_origin_interpretation=pixel_origin_interpretation,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
@@ -638,7 +664,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            pixel_origin_interpretation=pixel_origin_interpretation
+            pixel_origin_interpretation=pixel_origin_interpretation,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
@@ -658,7 +685,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            frame_of_reference_uid=frame_of_reference_uid
+            frame_of_reference_uid=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
@@ -679,7 +707,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            frame_of_reference_uid=frame_of_reference_uid
+            frame_of_reference_uid=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
