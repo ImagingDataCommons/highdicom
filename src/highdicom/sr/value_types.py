@@ -18,6 +18,7 @@ from highdicom.sr.enum import (
     TemporalRangeTypeValues,
     ValueTypeValues,
 )
+from highdicom.valuerep import check_person_name
 
 
 class ContentItem(Dataset):
@@ -231,6 +232,7 @@ class PnameContentItem(ContentItem):
         super(PnameContentItem, self).__init__(
             ValueTypeValues.PNAME, name, relationship_type
         )
+        check_person_name(value)
         self.PersonName = PersonName(value)
 
 
