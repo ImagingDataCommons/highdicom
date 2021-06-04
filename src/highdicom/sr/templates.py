@@ -1694,8 +1694,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         measurements: Sequence[highdicom.sr.Measurement], optional
             measurements for a volume of interest
         qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
-            coded name-value (question-answer) pairs that describe the
-            measurements in qualitative terms for a volume of interest
+            coded name-value (question-answer) pairs that describe
+            qualitative evaluations of a volume of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
