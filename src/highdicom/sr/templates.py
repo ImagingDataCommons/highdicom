@@ -1367,8 +1367,10 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'Items of argument "qualitative_evaluations" must have '
                         'type CodeContentItem or QualitativeEvaluation.'
                     )
-                rel_type = RelationshipTypeValues(evaluation.relationship_type)
-                if rel_type != RelationshipTypeValues.CONTAINS:
+                rel_type = evaluation.relationship_type
+                expected_rel_type = RelationshipTypeValues.CONTAINS
+                if rel_type is None or \
+                   RelationshipTypeValues(rel_type) != expected_rel_type:
                     raise ValueError(
                         'Evaluations are expected to have relationship type '
                         '"CONTAINS" with their parent.'
