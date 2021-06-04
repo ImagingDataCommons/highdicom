@@ -1977,6 +1977,17 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 codes.SCT.Yes
             )
         ]
+        self._evaluations_wrong_rel_type = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes,
+                RelationshipTypeValues.HAS_PROPERTIES
+            )
+        ]
 
     def test_construction_with_region(self):
         PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -2027,6 +2038,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
                 referenced_segment=self._segment
+            )
+
+    def test_constructed_with_wrong_rel_type(self):
+        with pytest.raises(ValueError):
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_region=self._region,
+                qualitative_evaluations=self._evaluations_wrong_rel_type
             )
 
 
@@ -2095,6 +2114,17 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 codes.SCT.Yes
             )
         ]
+        self._evaluations_wrong_rel_type = [
+            CodeContentItem(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes,
+                RelationshipTypeValues.HAS_PROPERTIES
+            )
+        ]
 
     def test_constructed_with_regions(self):
         self._measurements = VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -2157,6 +2187,14 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 tracking_identifier=self._tracking_identifier,
                 referenced_regions=self._regions,
                 referenced_volume_surface=self._regions
+            )
+
+    def test_constructed_with_wrong_rel_type(self):
+        with pytest.raises(ValueError):
+            VolumetricROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_regions=self._regions,
+                qualitative_evaluations=self._evaluations_wrong_rel_type
             )
 
 
