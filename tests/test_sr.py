@@ -16,66 +16,59 @@ from pydicom.valuerep import DA, DS, DT, TM
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
-    FindingSite,
-    ImageRegion,
-    ImageRegion3D,
-    LongitudinalTemporalOffsetFromEvent,
-    RealWorldValueMap,
-    ReferencedSegment,
-    ReferencedSegmentationFrame,
-    SourceImageForRegion,
-    SourceImageForMeasurement,
-    SourceImageForSegmentation,
-    SourceSeriesForSegmentation,
-    VolumeSurface,
-)
-from highdicom.sr import (
-    GraphicTypeValues,
-    GraphicTypeValues3D,
-    RelationshipTypeValues,
-    ValueTypeValues,
-)
-from highdicom.sr.utils import find_content_items
-from highdicom.sr import (
+    AlgorithmIdentification,
     CodeContentItem,
     ContainerContentItem,
     ContentSequence,
+    ComprehensiveSR,
+    Comprehensive3DSR,
     CompositeContentItem,
     DateContentItem,
     DateTimeContentItem,
-    ImageContentItem,
-    NumContentItem,
-    ScoordContentItem,
-    Scoord3DContentItem,
-    TextContentItem,
-    TimeContentItem,
-    UIDRefContentItem,
-)
-from highdicom.sr import (
-    ComprehensiveSR,
-    Comprehensive3DSR,
-    EnhancedSR,
-)
-from highdicom.sr import (
-    AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
+    EnhancedSR,
+    FindingSite,
+    GraphicTypeValues,
+    GraphicTypeValues3D,
+    ImageContentItem,
     ImageLibrary,
     ImageLibraryEntryDescriptors,
+    ImageRegion,
+    ImageRegion3D,
+    LongitudinalTemporalOffsetFromEvent,
     Measurement,
     MeasurementStatisticalProperties,
     MeasurementProperties,
     MeasurementReport,
+    NumContentItem,
     ObservationContext,
     ObserverContext,
     PersonObserverIdentifyingAttributes,
     PlanarROIMeasurementsAndQualitativeEvaluations,
+    PixelOriginInterpretationValues,
+    RealWorldValueMap,
+    ReferencedSegment,
+    ReferencedSegmentationFrame,
+    RelationshipTypeValues,
+    ScoordContentItem,
+    Scoord3DContentItem,
+    SourceImageForRegion,
+    SourceImageForMeasurement,
+    SourceImageForSegmentation,
+    SourceSeriesForSegmentation,
     SubjectContext,
     SubjectContextSpecimen,
     SubjectContextDevice,
+    TextContentItem,
+    TimeContentItem,
     TimePointContext,
     TrackingIdentifier,
+    UIDRefContentItem,
+    ValueTypeValues,
+    VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
+from highdicom.sr.utils import find_content_items
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:
@@ -84,6 +77,80 @@ def _build_coded_concept_dataset(code: Code) -> Dataset:
     ds.CodingSchemeDesignator = code[1]
     ds.CodeMeaning = code[2]
     return ds
+
+
+class TestImageRegion(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+    def test_construction_ct_image(self):
+        source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2',
+            referenced_sop_instance_uid=generate_uid()
+        )
+        graphic_type = GraphicTypeValues.POINT
+        graphic_data = np.array([[1.0, 1.0]])
+        region = ImageRegion(
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            source_image=source_image
+        )
+        assert region.graphic_type == graphic_type
+        assert region.GraphicType == graphic_type.value
+        np.testing.assert_array_equal(region.value, graphic_data)
+        assert region.GraphicData[0] == graphic_data[0][0]
+        assert region.GraphicData[1] == graphic_data[0][1]
+        with pytest.raises(AttributeError):
+            region.PixelOriginInterpretation
+
+    def test_construction_sm_image_without_pixel_origin_interpretation(self):
+        source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.77.1.6',
+            referenced_sop_instance_uid=generate_uid()
+        )
+        graphic_type = GraphicTypeValues.POINT
+        graphic_data = np.array([[1.0, 1.0]])
+        region = ImageRegion(
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            source_image=source_image
+        )
+        assert region.PixelOriginInterpretation == \
+            PixelOriginInterpretationValues.VOLUME.value
+
+    def test_construction_sm_image_with_pixel_origin_interpretation(self):
+        source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.77.1.6',
+            referenced_sop_instance_uid=generate_uid(),
+            referenced_frame_numbers=[1, 2]
+        )
+        graphic_type = GraphicTypeValues.POINT
+        graphic_data = np.array([[1.0, 1.0]])
+        pixel_origin_interpretation = PixelOriginInterpretationValues.FRAME
+        region = ImageRegion(
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            source_image=source_image,
+            pixel_origin_interpretation=pixel_origin_interpretation
+        )
+        region.PixelOriginInterpretation == pixel_origin_interpretation.value
+
+    def test_construction_sm_image_with_wrong_pixel_origin_interpretation(self):
+        source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.77.1.6',
+            referenced_sop_instance_uid=generate_uid(),
+        )
+        graphic_type = GraphicTypeValues.POINT
+        graphic_data = np.array([[1.0, 1.0]])
+        pixel_origin_interpretation = PixelOriginInterpretationValues.FRAME
+        with pytest.raises(ValueError):
+            ImageRegion(
+                graphic_type=graphic_type,
+                graphic_data=graphic_data,
+                source_image=source_image,
+                pixel_origin_interpretation=pixel_origin_interpretation
+            )
 
 
 class TestAlgorithmIdentification(unittest.TestCase):

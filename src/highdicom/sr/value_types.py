@@ -1062,7 +1062,7 @@ class ScoordContentItem(ContentItem):
         pixel_origin_interpretation: Union[
             str,
             PixelOriginInterpretationValues
-        ],
+        ] = None,
         fiducial_uid: Optional[Union[str, UID]] = None,
         relationship_type: Optional[
             Union[str, RelationshipTypeValues]
@@ -1078,7 +1078,7 @@ class ScoordContentItem(ContentItem):
         graphic_data: numpy.ndarray[numpy.int]
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str]
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
@@ -1086,7 +1086,7 @@ class ScoordContentItem(ContentItem):
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
         fiducial_uid: Union[pydicom.uid.UID, str, None], optional
             unique identifier for the content item
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item
 
         """  # noqa
@@ -1094,9 +1094,6 @@ class ScoordContentItem(ContentItem):
             ValueTypeValues.SCOORD, name, relationship_type
         )
         graphic_type = GraphicTypeValues(graphic_type)
-        pixel_origin_interpretation = PixelOriginInterpretationValues(
-            pixel_origin_interpretation
-        )
         self.GraphicType = graphic_type.value
 
         if graphic_type == GraphicTypeValues.POINT:
@@ -1136,7 +1133,11 @@ class ScoordContentItem(ContentItem):
                 )
         # Flatten list of coordinate pairs
         self.GraphicData = graphic_data.flatten().tolist()
-        self.PixelOriginInterpretation = pixel_origin_interpretation.value
+        if pixel_origin_interpretation is not None:
+            pixel_origin_interpretation = PixelOriginInterpretationValues(
+                pixel_origin_interpretation
+            )
+            self.PixelOriginInterpretation = pixel_origin_interpretation.value
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
 

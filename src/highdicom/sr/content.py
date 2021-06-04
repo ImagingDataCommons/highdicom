@@ -2,7 +2,10 @@
 from typing import Optional, Sequence, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom._storage_sopclass_uids import (
+    SegmentationStorage,
+    VLWholeSlideMicroscopyImageStorage
+)
 from pydicom.dataset import Dataset
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
@@ -149,11 +152,11 @@ class SourceImageForMeasurement(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -231,11 +234,11 @@ class SourceImageForRegion(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -313,11 +316,11 @@ class SourceImageForSegmentation(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> None:
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -460,7 +463,7 @@ class ImageRegion(ScoordContentItem):
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        source_image: highdicom.sr.template.SourceImageForRegion
+        source_image: highdicom.sr.SourceImageForRegion
             source image to which `graphic_data` relates
         pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
@@ -481,8 +484,6 @@ class ImageRegion(ScoordContentItem):
             raise TypeError(
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
-        if pixel_origin_interpretation is None:
-            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
             if (not hasattr(source_image, 'ReferencedFrameNumber') or
                     source_image.ReferencedFrameNumber is None):
@@ -490,6 +491,11 @@ class ImageRegion(ScoordContentItem):
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
                 )
+        ref_sop_instance_item = source_image.ReferencedSOPSequence[0]
+        ref_sop_class_uid = ref_sop_instance_item.ReferencedSOPClassUID
+        if (ref_sop_class_uid == VLWholeSlideMicroscopyImageStorage and
+                pixel_origin_interpretation is None):
+            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         super().__init__(
             name=CodedConcept(
                 value='111030',
