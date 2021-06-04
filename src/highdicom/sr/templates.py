@@ -1258,8 +1258,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         measurements: Sequence[highdicom.sr.Measurement], optional
             Numeric measurements
         qualitative_evaluations: Sequence[Union[highdicom.sr.CodeContentItem, highdicom.sr.QualitativeEvaluation]], optional
-            Coded name-value pairs that describe measurements in qualitative
-            terms
+            Coded name-value pairs that describe qualitative evaluations
 
         """  # noqa
         super().__init__()
