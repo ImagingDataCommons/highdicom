@@ -58,7 +58,7 @@ def find_content_items(
         if value_type is None:
             return True
         value_type = ValueTypeValues(value_type)
-        return item.value_type == value_type.value
+        return item.value_type == value_type
 
     def has_relationship_type(
             item: ContentItem,
@@ -69,7 +69,7 @@ def find_content_items(
         if getattr(item, 'relationship_type', None) is None:
             return False
         relationship_type = RelationshipTypeValues(relationship_type)
-        return item.relationship_type == relationship_type.value
+        return item.relationship_type == relationship_type
 
     if not hasattr(dataset, 'ContentSequence'):
         raise AttributeError(

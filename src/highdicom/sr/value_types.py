@@ -79,20 +79,23 @@ class ContentItem(Dataset):
         return self.ConceptNameCodeSequence[0]
 
     @property
-    def value_type(self) -> str:
-        """str: type of the content item
+    def value_type(self) -> ValueTypeValues:
+        """ValueTypeValues: type of the content item
         (see `highdicom.sr.ValueTypeValues`)
 
         """
-        return self.ValueType
+        return ValueTypeValues(self.ValueType)
 
     @property
-    def relationship_type(self) -> str:
-        """str: type of relationship the content item has with its parent
-        (see `highdicom.sr.RelationshipTypeValues`)
+    def relationship_type(self) -> Optional[RelationshipTypeValues]:
+        """RelationshipTypeValues: type of relationship the content item has
+        with its parent (see `highdicom.sr.RelationshipTypeValues`)
 
         """
-        return getattr(self, 'RelationshipType', None)
+        if hasattr(self, 'RelationshipType'):
+            return RelationshipTypeValues(self.RelationshipType)
+        else:
+            return None
 
 
 class ContentSequence(DataElementSequence):
