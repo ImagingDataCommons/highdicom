@@ -59,7 +59,7 @@ class ContentItem(Dataset):
         if relationship_type is None:
             warnings.warn(
                 'Constructing a content item without specifying a '
-                'relationship type is deprecated behaviour and will be '
+                'relationship type is deprecated behavior and will be '
                 'removed in a future version of highdicom.',
                 DeprecationWarning
             )
