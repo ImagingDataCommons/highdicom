@@ -404,6 +404,17 @@ class Segmentation(SOPClass):
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
 
+        if is_multiframe:
+            self._source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_image(
+                    self._source_images[0]
+                )
+        else:
+            self._source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_series(
+                    self._source_images
+                )
+
         shared_func_groups.PixelMeasuresSequence = pixel_measures
         shared_func_groups.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [shared_func_groups]
@@ -635,32 +646,13 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
-        src_image = self._source_images[0]
-        is_multiframe = hasattr(src_image, 'NumberOfFrames')
-        if is_multiframe:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_image(
-                    src_image
-                )
-        else:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_series(
-                    self._source_images
-                )
-
         if plane_positions is None:
-            if pixel_array.shape[0] != len(source_plane_positions):
-                if is_multiframe:
-                    raise ValueError(
-                        'Number of frames in pixel array does not match number '
-                        ' of frames in source image.'
-                    )
-                else:
-                    raise ValueError(
-                        'Number of frames in pixel array does not match number '
-                        'of source images.'
-                    )
-            plane_positions = source_plane_positions
+            if pixel_array.shape[0] != len(self._source_plane_positions):
+                raise ValueError(
+                    'Number of frames in pixel array does not match number '
+                    'of source image frames.'
+                )
+            plane_positions = self._source_plane_positions
         else:
             if pixel_array.shape[0] != len(plane_positions):
                 raise ValueError(
@@ -673,7 +665,7 @@ class Segmentation(SOPClass):
 
         are_spatial_locations_preserved = (
             all(
-                plane_positions[i] == source_plane_positions[i]
+                plane_positions[i] == self._source_plane_positions[i]
                 for i in range(len(plane_positions))
             ) and
             self._plane_orientation == self._source_plane_orientation
