@@ -3,6 +3,7 @@ from typing import List, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
+from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues, RelationshipTypeValues
@@ -174,3 +175,35 @@ def get_coded_value(item: Dataset) -> CodedConcept:
         meaning=value.CodeMeaning,
         scheme_version=value.get('CodingSchemeVersion', None)
     )
+
+
+def get_coded_modality(item: Dataset) -> str:
+    """
+    Gets the coded value of the modality from the dataset's SOPClassUID. The
+    SOPClassUIDs are defined here:
+    http://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html
+    and the coded values are described here:
+    http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_29.html
+
+    Parameters
+    ----------
+    item: pydicom.dataset.Dataset
+        Content Item
+
+    Returns
+    -------
+    codes.cid29 Acquisition Modality
+        str
+    """  # noqa: E501
+    sopinstance_to_modalty_map: dict[str, str] = {
+        # TODO: Many more items to add
+        '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
+        '1.2.840.10008.5.1.4.1.1.2': codes.cid29.ComputedTomography,
+        '1.2.840.10008.5.1.4.1.1.4': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.77.1.2': codes.cid29.SlideMicroscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy
+    }
+    if item.SOPClassUID in sopinstance_to_modalty_map.keys():
+        return sopinstance_to_modalty_map[item.SOPClassUID]
+    else:
+        return None
