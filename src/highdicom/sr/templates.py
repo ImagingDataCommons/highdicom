@@ -3680,12 +3680,12 @@ class ImageLibrary(Template):
             for dataset in datasets:
                 library_item_entry = ImageLibraryEntryDescriptors(dataset)
                 group_item = ContainerContentItem(
-                    name = CodedConcept(
-                    value = '126200',
-                    meaning = 'Image Library Group',
-                    scheme_designator = 'DCM'
+                    name=CodedConcept(
+                        value='126200',
+                        meaning='Image Library Group',
+                        scheme_designator='DCM'
                     ),
-                relationship_type = RelationshipTypeValues.CONTAINS
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 group_item.ContentSequence = ContentSequence()
                 group_item.ContentSequence.extend(library_item_entry)
