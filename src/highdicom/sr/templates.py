@@ -33,6 +33,7 @@ from highdicom.sr.value_types import (
     ContainerContentItem,
     ContentItem,
     ContentSequence,
+    ImageContentItem,
     NumContentItem,
     TextContentItem,
     UIDRefContentItem,
@@ -3685,7 +3686,12 @@ class ImageLibrary(Template):
                 group_item.ContentSequence = ContentSequence()
                 group_item.ContentSequence.extend(library_item_entry)
 
-                image = SourceImageForMeasurement(
+                image = ImageContentItem(
+                    name=CodedConcept(
+                        value='121112',
+                        meaning='Source of Measurement',
+                        scheme_designator='DCM'
+                    ),
                     referenced_sop_instance_uid=dataset.SOPInstanceUID,
                     referenced_sop_class_uid=dataset.SOPClassUID
                 )
