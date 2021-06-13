@@ -2723,8 +2723,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         # TODO: how to do R-INFERRED FROM relationship?
         self.append(value_item)
 
-#  Need to put back in TID 1601
-#
+
 class ImageLibraryEntryDescriptors(Template):
 
     """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
@@ -3612,6 +3611,7 @@ class MeasurementReport(Template):
 
         return sequences
 
+
 class ImageLibraryEntry(Template):
 
     """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
@@ -3628,12 +3628,7 @@ class ImageLibraryEntry(Template):
             Image to include in ImageLibrary
         """  # noqa
         super().__init__()
-        image = SourceImageForMeasurement(
-            referenced_sop_instance_uid=dataset.SOPInstanceUID,
-            referenced_sop_class_uid=dataset.SOPClassUID
-        )
 
-        self.append(image)
         library_item_entry = ImageLibraryEntryDescriptors(dataset)
         group_item = ContainerContentItem(
             name=CodedConcept(
@@ -3689,5 +3684,14 @@ class ImageLibrary(Template):
                 )
                 group_item.ContentSequence = ContentSequence()
                 group_item.ContentSequence.extend(library_item_entry)
+
+                image = SourceImageForMeasurement(
+                    referenced_sop_instance_uid=dataset.SOPInstanceUID,
+                    referenced_sop_class_uid=dataset.SOPClassUID
+                )
+
+                """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
+                     Image Library Entry"""  # noqa: E501
                 library_item.ContentSequence.append(group_item)
+                library_item.ContentSequence.append(image)
         self.append(library_item)
