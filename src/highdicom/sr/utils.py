@@ -195,7 +195,7 @@ def get_coded_modality(item: Dataset) -> str:
     codes.cid29 Acquisition Modality
         str
     """  # noqa: E501
-    sopinstance_to_modalty_map: dict[str, str] = {
+    sopclass_to_modalty_map: dict[str, str] = {
         # TODO: Many more items to add
         '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
         '1.2.840.10008.5.1.4.1.1.2': codes.cid29.ComputedTomography,
@@ -203,7 +203,7 @@ def get_coded_modality(item: Dataset) -> str:
         '1.2.840.10008.5.1.4.1.1.77.1.2': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy
     }
-    if item.SOPClassUID in sopinstance_to_modalty_map.keys():
-        return sopinstance_to_modalty_map[item.SOPClassUID]
+    if item.SOPClassUID in sopclass_to_modalty_map.keys():
+        return sopclass_to_modalty_map[item.SOPClassUID]
     else:
         return None
