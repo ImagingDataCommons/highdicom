@@ -3612,6 +3612,42 @@ class MeasurementReport(Template):
 
         return sequences
 
+class ImageLibraryEntry(Template):
+
+    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
+     Image Library Entry"""  # noqa: E501
+
+    def __init__(
+        self,
+        dataset: Dataset,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        dataset: Dataset
+            Image to include in ImageLibrary
+        """  # noqa
+        super().__init__()
+        image = SourceImageForMeasurement(
+            referenced_sop_instance_uid=dataset.SOPInstanceUID,
+            referenced_sop_class_uid=dataset.SOPClassUID
+        )
+
+        self.append(image)
+        library_item_entry = ImageLibraryEntryDescriptors(dataset)
+        group_item = ContainerContentItem(
+            name=CodedConcept(
+                value='126200',
+                meaning='Image Library Group',
+                scheme_designator='DCM'
+            ),
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+        # $$$
+        group_item.ContentSequence = library_item_entry
+        self.append(group_item)
+
 
 class ImageLibrary(Template):
 
@@ -3630,6 +3666,7 @@ class ImageLibrary(Template):
 
         """
         super().__init__()
+
         library_item = ContainerContentItem(
             name=CodedConcept(
                 value='111028',
@@ -3641,23 +3678,16 @@ class ImageLibrary(Template):
         library_item.ContentSequence = ContentSequence()
         if datasets is not None:
             for dataset in datasets:
-                item = ContentSequence()
                 library_item_entry = ImageLibraryEntryDescriptors(dataset)
                 group_item = ContainerContentItem(
-                    name=CodedConcept(
-                        value='126200',
-                        meaning='Image Library Group',
-                        scheme_designator='DCM'
+                    name = CodedConcept(
+                    value = '126200',
+                    meaning = 'Image Library Group',
+                    scheme_designator = 'DCM'
                     ),
-                    relationship_type=RelationshipTypeValues.CONTAINS
+                relationship_type = RelationshipTypeValues.CONTAINS
                 )
-                image = SourceImageForMeasurement(
-                    referenced_sop_instance_uid=dataset.SOPInstanceUID,
-                    referenced_sop_class_uid=dataset.SOPClassUID
-                )
-# $$$
-                item.ContentSequence.extend(image)
-                item.extend(library_item_entry)
-                #group_item.ContentSequence = library_item_entry
-                library_item.ContentSequence.append(item)
+                group_item.ContentSequence = ContentSequence()
+                group_item.ContentSequence.extend(library_item_entry)
+                library_item.ContentSequence.append(group_item)
         self.append(library_item)
