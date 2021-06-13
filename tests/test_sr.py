@@ -37,6 +37,7 @@ from highdicom.sr import (
 )
 from highdicom.sr.utils import find_content_items
 from highdicom.sr import (
+    ContentSequence,
     CodeContentItem,
     ContainerContentItem,
     CompositeContentItem,
@@ -725,6 +726,92 @@ class TestContentSequence(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self._item = CodeContentItem(
+            name=codes.SCT.FindingSite,
+            value=codes.SCT.Abdomen,
+            relationship_type=RelationshipTypeValues.HAS_PROPERTIES
+        )
+        self._item_no_rel = CodeContentItem(
+            name=codes.SCT.FindingSite,
+            value=codes.SCT.Abdomen
+        )
+        self._root_item = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+            template_id='1500'
+        )
+        self._root_item_with_rel = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+            template_id='1500',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+    def test_append(self):
+        seq = ContentSequence()
+        seq.append(self._item)
+
+    def test_extend(self):
+        seq = ContentSequence()
+        seq.extend([self._item])
+
+    def test_insert(self):
+        seq = ContentSequence()
+        seq.insert(0, self._item)
+
+    def test_construct(self):
+        ContentSequence([self._item])
+
+    def test_append_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.append(self._item_no_rel)
+
+    def test_extend_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.extend([self._item_no_rel])
+
+    def test_insert_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.insert(0, self._item_no_rel)
+
+    def test_construct_with_no_relationship(self):
+        with pytest.raises(AttributeError):
+            ContentSequence([self._item_no_rel])
+
+    def test_append_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.append(self._root_item)
+
+    def test_extend_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.extend([self._root_item])
+
+    def test_insert_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.insert(0, self._root_item)
+
+    def test_construct_root_item(self):
+        ContentSequence([self._root_item], is_root=True)
+
+    def test_append_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.append(self._root_item_with_rel)
+
+    def test_extend_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.extend([self._root_item_with_rel])
+
+    def test_insert_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.insert(0, self._root_item_with_rel)
+
+    def test_construct_root_with_relationship(self):
+        with pytest.raises(AttributeError):
+            ContentSequence([self._root_item_with_rel], is_root=True)
 
 
 class TestSubjectContextDevice(unittest.TestCase):

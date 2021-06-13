@@ -43,16 +43,23 @@ class Template(ContentSequence):
 
     """Abstract base class for a DICOM SR template."""
 
-    def __init__(self, items: Optional[Sequence[ContentItem]] = None) -> None:
+    def __init__(
+        self,
+        items: Optional[Sequence[ContentItem]] = None,
+        is_root: bool = False
+    ) -> None:
         """
 
         Parameters
         ----------
         items: Sequence[ContentItem], optional
             content items
+        is_root: bool
+            Whether this template exists at the root of the SR document
+            content tree.
 
         """
-        super().__init__(items)
+        super().__init__(items, is_root=is_root)
 
 
 class AlgorithmIdentification(Template):
@@ -1846,7 +1853,6 @@ class MeasurementReport(Template):
         shall be specified.
 
         """ # noqa
-        super().__init__()
         if title is None:
             title = codes.cid7021.ImagingMeasurementReport
         if not isinstance(title, (CodedConcept, Code, )):
@@ -1855,8 +1861,7 @@ class MeasurementReport(Template):
             )
         item = ContainerContentItem(
             name=title,
-            template_id='1500',
-            relationship_type=RelationshipTypeValues.CONTAINS
+            template_id='1500'
         )
         item.ContentSequence = ContentSequence()
         if language_of_content_item_and_descendants is None:
@@ -1953,7 +1958,7 @@ class MeasurementReport(Template):
                 '"imaging_measurements", "derived_imaging_measurements".'
             )
         item.ContentSequence.append(container_item)
-        self.append(item)
+        super().__init__([item], is_root=True)
 
 
 class ImageLibrary(Template):
