@@ -1385,13 +1385,12 @@ class Segmentation(SOPClass):
                 lambda desc: desc.tracking_id == tracking_id
             )
 
-        matches = [
+        return [
             desc.segment_number
             for desc in self.SegmentSequence
             if all(f(desc) for f in filter_funcs)
         ]
 
-        return matches
 
     def search_for_tracking_ids(
         self,
@@ -1675,7 +1674,7 @@ class Segmentation(SOPClass):
 
         return pixel_array
 
-    def get_source_sop_instances(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
+    def get_source_instance_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
         """Get UIDs for all source SOP instances referenced in the dataset.
 
         Returns

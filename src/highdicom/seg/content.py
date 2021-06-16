@@ -212,12 +212,12 @@ class SegmentDescription(Dataset):
     @property
     def segment_number(self) -> int:
         """int: Number of the segment."""
-        return self.SegmentNumber
+        return int(self.SegmentNumber)
 
     @property
     def segment_label(self) -> str:
         """str: Label of the segment."""
-        return self.SegmentLabel
+        return str(self.SegmentLabel)
 
     @property
     def segmented_property_category(self) -> CodedConcept:
