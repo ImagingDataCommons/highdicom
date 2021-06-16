@@ -1158,3 +1158,31 @@ class ReferencedSegment(ContentSequence):
             source_images=source_images if source_images else None,
             source_series=source_series
         )
+
+
+class QualitativeEvaluation(CodeContentItem):
+
+    """Content item for coded name-value pairs that describe qualitative
+    evaluations.
+
+    """
+
+    def __init__(
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[Code, CodedConcept]
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            concept name
+        value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            coded value or an enumerated item representing a coded value
+
+        """  # noqa
+        super().__init__(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )

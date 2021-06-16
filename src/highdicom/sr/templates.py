@@ -1,5 +1,6 @@
 """DICOM structured reporting templates."""
 from typing import Optional, Sequence, Union
+import warnings
 
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
@@ -15,6 +16,7 @@ from highdicom.sr.content import (
     ReferencedSegment,
     ReferencedSegmentationFrame,
     SourceImageForMeasurement,
+    QualitativeEvaluation
 )
 from highdicom.sr.enum import RelationshipTypeValues
 from highdicom.sr.value_types import (
@@ -41,16 +43,23 @@ class Template(ContentSequence):
 
     """Abstract base class for a DICOM SR template."""
 
-    def __init__(self, items: Optional[Sequence[ContentItem]] = None) -> None:
+    def __init__(
+        self,
+        items: Optional[Sequence[ContentItem]] = None,
+        is_root: bool = False
+    ) -> None:
         """
 
         Parameters
         ----------
         items: Sequence[ContentItem], optional
             content items
+        is_root: bool
+            Whether this template exists at the root of the SR document
+            content tree.
 
         """
-        super().__init__(items)
+        super().__init__(items, is_root=is_root)
 
 
 class AlgorithmIdentification(Template):
@@ -1254,9 +1263,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
             Description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             Numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
-            Coded name-value pairs that describe measurements in qualitative
-            terms
+        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+            Coded name-value pairs that describe qualitative evaluations
 
         """  # noqa
         super().__init__()
@@ -1362,8 +1370,25 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 if not isinstance(evaluation, CodeContentItem):
                     raise TypeError(
                         'Items of argument "qualitative_evaluations" must have '
-                        'type CodeContentItem.'
+                        'type QualitativeEvaluation.'
                     )
+                if not isinstance(evaluation, QualitativeEvaluation):
+                    warnings.warn(
+                        'Passing items of type CodeContentItem as '
+                        'qualitative evaluations deprecated behavior and '
+                        'will be removed in a future version of highdicom.'
+                        'Use items of type highdicom.sr.QualitativeEvaluation '
+                        'instead.',
+                        DeprecationWarning
+                    )
+                    rel_type = evaluation.relationship_type
+                    expected_rel_type = RelationshipTypeValues.CONTAINS
+                    if rel_type is None or \
+                       RelationshipTypeValues(rel_type) != expected_rel_type:
+                        raise ValueError(
+                            'Evaluations are expected to have relationship '
+                            'types "CONTAINS" with their parent.'
+                        )
                 group_item.ContentSequence.append(evaluation)
         self.append(group_item)
 
@@ -1426,9 +1451,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
-            coded name-value (question-answer) pairs that describe the
-            measurements in qualitative terms
+        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+            coded name-value (question-answer) pairs that describe
+            qualitative evaluations
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
@@ -1538,7 +1563,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -1570,9 +1595,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             measurements for a region of interest
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
-            coded name-value (question-answer) pairs that describe the
-            measurements in qualitative terms for a region of interest
+        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+            coded name-value (question-answer) pairs that describe
+            qualitative evaluations of a region of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
@@ -1643,7 +1668,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Union[CodedConcept, Code]] = None,
+        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -1677,9 +1702,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
             measurements for a volume of interest
-        qualitative_evaluations: Sequence[highdicom.sr.CodeContentItem], optional
-            coded name-value (question-answer) pairs that describe the
-            measurements in qualitative terms for a volume of interest
+        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+            coded name-value (question-answer) pairs that describe
+            qualitative evaluations of a volume of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
@@ -1828,7 +1853,6 @@ class MeasurementReport(Template):
         shall be specified.
 
         """ # noqa
-        super().__init__()
         if title is None:
             title = codes.cid7021.ImagingMeasurementReport
         if not isinstance(title, (CodedConcept, Code, )):
@@ -1934,7 +1958,7 @@ class MeasurementReport(Template):
                 '"imaging_measurements", "derived_imaging_measurements".'
             )
         item.ContentSequence.append(container_item)
-        self.append(item)
+        super().__init__([item], is_root=True)
 
 
 class ImageLibrary(Template):
