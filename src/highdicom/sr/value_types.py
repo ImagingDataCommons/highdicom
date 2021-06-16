@@ -31,9 +31,7 @@ class ContentItem(Dataset):
         self,
         value_type: Union[str, ValueTypeValues],
         name: Union[Code, CodedConcept],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None]
     ) -> None:
         """
         Parameters
@@ -242,7 +240,7 @@ class CodeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[Code, CodedConcept],
-        relationship_type: Union[str, RelationshipTypeValues] = None,
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
         """
         Parameters
@@ -281,7 +279,7 @@ class PnameContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, PersonName],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -315,7 +313,7 @@ class TextContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: str,
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -348,7 +346,7 @@ class TimeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.time, TM],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -381,7 +379,7 @@ class DateContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.date, DA],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -414,7 +412,7 @@ class DateTimeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.datetime, DT],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -447,7 +445,7 @@ class UIDRefContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -482,7 +480,7 @@ class NumContentItem(ContentItem):
         value: Optional[Union[int, float]] = None,
         unit: Optional[Union[Code, CodedConcept]] = None,
         qualifier: Optional[Union[Code, CodedConcept]] = None,
-        relationship_type: Union[str, RelationshipTypeValues] = None,
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
         """
         Parameters
@@ -559,7 +557,7 @@ class ContainerContentItem(ContentItem):
         name: Union[Code, CodedConcept],
         is_content_continuous: bool = True,
         template_id: Optional[str] = None,
-        relationship_type: Optional[Union[str, RelationshipTypeValues]] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -598,7 +596,7 @@ class CompositeContentItem(ContentItem):
         name: Union[Code, CodedConcept],
         referenced_sop_class_uid: Union[str, UID],
         referenced_sop_instance_uid: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ):
         """
         Parameters
@@ -703,7 +701,7 @@ class ScoordContentItem(ContentItem):
             PixelOriginInterpretationValues
         ],
         fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -802,7 +800,7 @@ class Scoord3DContentItem(ContentItem):
         graphic_data: np.ndarray,
         frame_of_reference_uid: Union[str, UID],
         fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -881,7 +879,7 @@ class TcoordContentItem(ContentItem):
         referenced_sample_positions: Optional[Sequence[int]] = None,
         referenced_time_offsets: Optional[Sequence[float]] = None,
         referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
-        relationship_type: Union[str, RelationshipTypeValues] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
