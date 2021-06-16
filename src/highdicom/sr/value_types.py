@@ -571,7 +571,7 @@ class ContainerContentItem(ContentItem):
             continuous manner or separate items (default: ``True``)
         template_id: str, optional
             SR template identifier
-        relationship_type: Optional[Union[str, RelationshipTypeValues]], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item. 
 
         """  # noqa E501
