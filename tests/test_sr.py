@@ -813,6 +813,17 @@ class TestContentSequence(unittest.TestCase):
         with pytest.raises(AttributeError):
             ContentSequence([self._root_item_with_rel], is_root=True)
 
+    def test_content_item_setattr(self):
+        # Integration test that setting a ContentItem's content sequence
+        # should be possible if the items have relationships
+        self._root_item.ContentSequence = [self._item]
+
+    def test_content_item_setattr_with_no_relationship(self):
+        # Integration test that setting a ContentItem's content sequence
+        # triggers the relevant relationship_type checks
+        with pytest.raises(AttributeError):
+            self._root_item.ContentSequence = [self._item_no_rel]
+
 
 class TestSubjectContextDevice(unittest.TestCase):
 
