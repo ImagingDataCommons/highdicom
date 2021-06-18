@@ -3692,7 +3692,8 @@ class ImageLibrary(Template):
                                 scheme_designator='SCT'
                             ),
                     referenced_sop_instance_uid=dataset.SOPInstanceUID,
-                    referenced_sop_class_uid=dataset.SOPClassUID
+                    referenced_sop_class_uid=dataset.SOPClassUID,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
 
                 # Add descriptors nested under the entry
