@@ -3646,8 +3646,8 @@ class ImageLibraryEntry(Template):
 
 
 class ImageLibrary(Template):
-
     """`TID 1600 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1600>`_
+
      Image Library"""  # noqa: E501
 
     def __init__(
@@ -3659,7 +3659,6 @@ class ImageLibrary(Template):
         ----------
         groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptros]]
             Entry descriptors for each image library group
-
         """
         super().__init__()
 
@@ -3673,31 +3672,37 @@ class ImageLibrary(Template):
         )
         library_item.ContentSequence = ContentSequence()
         if datasets is not None:
+            # We will use just one group
+            group_item = ContainerContentItem(
+                name=CodedConcept(
+                    value='126200',
+                    meaning='Image Library Group',
+                    scheme_designator='DCM'
+                ),
+                relationship_type=RelationshipTypeValues.CONTAINS
+            )
+            group_item.ContentSequence = ContentSequence()
             for dataset in datasets:
-                library_item_entry = ImageLibraryEntryDescriptors(dataset)
-                group_item = ContainerContentItem(
+                # Create TID 1601 Image Library Entry
+                # represents a single image
+                entry = ImageContentItem(
                     name=CodedConcept(
-                        value='126200',
-                        meaning='Image Library Group',
-                        scheme_designator='DCM'
-                    ),
-                    relationship_type=RelationshipTypeValues.CONTAINS
-                )
-                group_item.ContentSequence = ContentSequence()
-                group_item.ContentSequence.extend(library_item_entry)
-
-                image = ImageContentItem(
-                    name=CodedConcept(
-                        value='121112',
-                        meaning='Source of Measurement',
-                        scheme_designator='DCM'
-                    ),
+                                value='260753009',
+                                meaning='Source',
+                                scheme_designator='SCT'
+                            ),
                     referenced_sop_instance_uid=dataset.SOPInstanceUID,
                     referenced_sop_class_uid=dataset.SOPClassUID
                 )
 
-                """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
-                     Image Library Entry"""  # noqa: E501
-                library_item.ContentSequence.append(group_item)
-                library_item.ContentSequence.append(image)
+                # Add descriptors nested under the entry
+                descriptors = ImageLibraryEntryDescriptors(dataset)
+                entry.ContentSequence = ContentSequence()
+                entry.ContentSequence.extend(descriptors)
+
+                # Add the entry to the group
+                group_item.ContentSequence.append(entry)
+
+            # Add the group to the library
+            library_item.ContentSequence.append(group_item)
         self.append(library_item)
