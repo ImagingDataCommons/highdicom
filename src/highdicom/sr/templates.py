@@ -3687,10 +3687,10 @@ class ImageLibrary(Template):
                 # represents a single image
                 entry = ImageContentItem(
                     name=CodedConcept(
-                                value='260753009',
-                                meaning='Source',
-                                scheme_designator='SCT'
-                            ),
+                        value='260753009',
+                        meaning='Source',
+                        scheme_designator='SCT'
+                    ),
                     referenced_sop_instance_uid=dataset.SOPInstanceUID,
                     referenced_sop_class_uid=dataset.SOPClassUID,
                     relationship_type=RelationshipTypeValues.CONTAINS
