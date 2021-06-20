@@ -259,9 +259,85 @@ def get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.130': codes.cid29.PositronEmissionTomography,
         '1.2.840.10008.5.1.4.1.1.128.1': codes.cid29.PositronEmissionTomography,
         '1.2.840.10008.5.1.4.1.1.481.1': codes.cid29.RTImage
-
     }
     if sop_class_uid in sopclass_to_modalty_map.keys():
         return sopclass_to_modalty_map[sop_class_uid]
     else:
         return None
+
+
+def is_dicom_image(sop_class_uid: str) -> bool:
+    """
+    Returns true if the SOPClass is an image, false otherwise.
+    """
+    sop_class_uids = {
+        # CR Image Storage
+        '1.2.840.10008.5.1.4.1.1.1',
+        # Digital X-Ray Image Storage – for Presentation
+        '1.2.840.10008.5.1.4.1.1.1.1',
+        # Digital X-Ray Image Storage – for Processing
+        '1.2.840.10008.5.1.4.1.1.1.1.1',
+        # Digital Mammography X-Ray Image Storage – for Presentation
+        '1.2.840.10008.5.1.4.1.1.1.2',
+        # Digital Mammography X-Ray Image Storage – for Processing
+        '1.2.840.10008.5.1.4.1.1.1.2.1',
+        # Digital Intra – oral X-Ray Image Storage – for Presentation
+        '1.2.840.10008.5.1.4.1.1.1.3',
+        # Digital Intra – oral X-Ray Image Storage – for Processing
+        '1.2.840.10008.5.1.4.1.1.1.3.1',
+        # X-Ray Angiographic Image Storage
+        '1.2.840.10008.5.1.4.1.1.12.1',
+        # Enhanced XA Image Storage
+        '1.2.840.10008.5.1.4.1.1.12.1.1',
+        # X-Ray Radiofluoroscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.12.2',
+        # Enhanced XRF Image Storage
+        '1.2.840.10008.5.1.4.1.1.12.2.1',
+        # CT Image Storage
+        '1.2.840.10008.5.1.4.1.1.2',
+        # Enhanced CT Image Storage
+        '1.2.840.10008.5.1.4.1.1.2.1',
+        # NM Image Storage
+        '1.2.840.10008.5.1.4.1.1.20',
+        # Ultrasound Multiframe Image Storage
+        '1.2.840.10008.5.1.4.1.1.3.1',
+        # MR Image Storage
+        '1.2.840.10008.5.1.4.1.1.4',
+        # Enhanced MR Image Storage
+        '1.2.840.10008.5.1.4.1.1.4.1',
+        # Radiation Therapy Image Storage
+        '1.2.840.10008.5.1.4.1.1.481.1',
+        # Ultrasound Image Storage
+        '1.2.840.10008.5.1.4.1.1.6.1',
+        # Secondary Capture Image Storage
+        '1.2.840.10008.5.1.4.1.1.7',
+        # Multiframe Single Bit Secondary Capture Image Storage
+        '1.2.840.10008.5.1.4.1.1.7.1',
+        # Multiframe Grayscale Byte Secondary Capture Image Storage
+        '1.2.840.10008.5.1.4.1.1.7.2',
+        # Multiframe Grayscale Word Secondary Capture Image Storage
+        '1.2.840.10008.5.1.4.1.1.7.3',
+        # Multiframe True Color Secondary Capture Image Storage
+        '1.2.840.10008.5.1.4.1.1.7.4',
+        # VL endoscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.1',
+        # Video Endoscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.1.1',
+        # VL Microscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.2',
+        # Video Microscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.2.1',
+        # VL Slide-Coordinates Microscopic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.3',
+        # VL Photographic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.4',
+        # Video Photographic Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.4.1',
+        # Ophthalmic Photography 8-Bit Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.5.1',
+        # Ophthalmic Photography 16-Bit Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.5.2',
+        # VL Whole Slide Microscopy Image Storage
+        '1.2.840.10008.5.1.4.1.1.77.1.6'
+    }
+    return sop_class_uid in sop_class_uids

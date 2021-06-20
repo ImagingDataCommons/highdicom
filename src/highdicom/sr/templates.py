@@ -27,7 +27,8 @@ from highdicom.uid import UID
 from highdicom.sr.utils import (
     find_content_items,
     get_coded_name,
-    get_coded_modality)
+    get_coded_modality,
+    is_dicom_image)
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
@@ -2751,10 +2752,10 @@ class ImageLibraryEntryDescriptors(Template):
 
         """  # noqa: E501
         super().__init__()
-        modality = get_coded_modality(dataset)
+        modality = get_coded_modality(dataset.SOPClassUID)
         if not modality:
             raise ValueError(f'Dataset has an unsupported SOPClassUID {dataset.SOPClassUID}')  # noqa: E501
-        if not self._is_dicom_image(dataset):
+        if not is_dicom_image(dataset.SOPClassUID):
             raise ValueError(f'Dataset of modality {modality} is not a DICOM image')  # noqa: E501
 
         modality_item = CodeContentItem(
@@ -2823,6 +2824,24 @@ class ImageLibraryEntryDescriptors(Template):
                 relationship_type = RelationshipTypeValues.HAS_ACQ_CONTEXT
                 item.RelationshipType = relationship_type.value
                 self.append(item)
+
+    def _generate_projection_radiography_descriptors(self, dataset: Dataset) \
+            -> Sequence[ContentItem]:
+        """
+        Generates TID 1603 Image Library Descriptors for projection
+        radiography modalities.
+        :param dataset: A pydicom Dataset of a projection radiology image.
+        :return: List of content item elements for cross-sectional descriptors.
+        """
+        descriptors = []
+        """
+        Not yet implemented. It appears that different modalities have
+        different attributes in ImageView and subsequent elements.
+        Although the coded values are relatively clear in some cases
+        (see CID 4010) it isn't clear where in the input dataset this
+        value can be obtained.
+        """
+        return descriptors
 
     def _generate_cross_sectional_descriptors(self, dataset: Dataset) \
             -> Sequence[ContentItem]:
@@ -3025,17 +3044,8 @@ class ImageLibraryEntryDescriptors(Template):
     def _is_cross_sectional(self, ds: Dataset):
         return ds.Modality in ['CT', 'MR', 'PT']
 
-    def _is_dicom_image(self, ds: Dataset):
-        # TODO: should this function be located here or in sop.py?
-        # TODO: There are 65 'Image Storage' SOPClassUIDs - include them all?
-        # Note that non-image data will throw errors in the code since
-        # they will lack the Rows and Columns attributes.
-        sop_class_uids = {
-            '1.2.840.10008.5.1.4.1.1.2',  # CT Image Storage
-            '1.2.840.10008.5.1.4.1.1.4',  # MR Image Storage
-            # &etc
-        }
-        return ds.SOPClassUID in sop_class_uids
+    def _is_projection_radiography(self, ds: Dataset):
+        return ds.Modality in ['CR', 'DX', 'IO', 'MG', 'PX', 'RF', 'RG', 'XA']
 
 
 class MeasurementReport(Template):
@@ -3640,7 +3650,6 @@ class ImageLibraryEntry(Template):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
 
-        # $$$
         group_item.ContentSequence = library_item_entry
         self.append(group_item)
 
@@ -3685,7 +3694,7 @@ class ImageLibrary(Template):
             for dataset in datasets:
                 # Create TID 1601 Image Library Entry
                 # represents a single image
-                entry = ImageContentItem(
+                image_item = ImageContentItem(
                     name=CodedConcept(
                         value='260753009',
                         meaning='Source',
@@ -3698,11 +3707,11 @@ class ImageLibrary(Template):
 
                 # Add descriptors nested under the entry
                 descriptors = ImageLibraryEntryDescriptors(dataset)
-                entry.ContentSequence = ContentSequence()
-                entry.ContentSequence.extend(descriptors)
+                image_item.ContentSequence = ContentSequence()
+                image_item.ContentSequence.extend(descriptors)
 
                 # Add the entry to the group
-                group_item.ContentSequence.append(entry)
+                group_item.ContentSequence.append(image_item)
 
             # Add the group to the library
             library_item.ContentSequence.append(group_item)
