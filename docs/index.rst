@@ -10,6 +10,7 @@ Documentation of the highdicom package
    usage
    development
    conformance
+   citation
    license
    package
 
