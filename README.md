@@ -5,10 +5,24 @@
 # High DICOM
 
 A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations and image analysis results.
+It currently provides tools for creating and decoding the following DICOM information object definitions (IODs):
+* Segmentation images
+* Structured Reports
+* Secondary Capture images
+* Legacy Converted Enhanced CT/PET/MR images (e.g. for single frame to multi-frame conversion)
 
 ## Documentation
 
 Please refer to the online documentation at [highdicom.readthedocs.io](https://highdicom.readthedocs.io), which includes installation instructions, a user guide with examples, a developer guide, and complete documentation of the application programming interface of the `highdicom` package.
+
+## Citation
+
+For more information about the motivation of the library and the design of highdicom's API, please see the following article:
+
+> [Highdicom: A Python library for standardized encoding of image annotations and machine learning model outputs in pathology and radiology](https://arxiv.org/abs/2106.07806)
+> C.P. Bridge, C. Gorman, S. Pieper, S.W. Doyle, J.K. Lennerz, J. Kalpathy-Cramer, D.A. Clunie, A.Y. Fedorov, and M.D. Herrmann
+
+If you use highdicom in your research, please cite the above article.
 
 ## Support
 
