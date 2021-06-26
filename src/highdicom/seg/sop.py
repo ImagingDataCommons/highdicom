@@ -1392,7 +1392,7 @@ class Segmentation(SOPClass):
         ]
 
 
-    def search_for_tracking_ids(
+    def get_tracking_ids(
         self,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
         segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
@@ -1443,7 +1443,7 @@ class Segmentation(SOPClass):
             all(f(desc) for f in filter_funcs)
         })
 
-    def search_for_tracking_uids(
+    def get_tracking_uids(
         self,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
         segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
