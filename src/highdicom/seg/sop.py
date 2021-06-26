@@ -1284,6 +1284,17 @@ class Segmentation(SOPClass):
         )
 
     def iter_segments(self):
+        """Iterates over segments in this segmentation image.
+
+        Returns
+        -------
+        Iterator[Tuple[numpy.ndarray, Tuple[pydicom.dataset.Dataset, ...], pydicom.dataset.Dataset]]
+            For each segment in the Segmentation image instance, provides the
+            Pixel Data frames representing the segment, items of the Per-Frame
+            Functional Groups Sequence describing the individual frames, and
+            the item of the Segment Sequence describing the segment
+
+        """  # noqa
         return iter_segments(self)
 
     @property
