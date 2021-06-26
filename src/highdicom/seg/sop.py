@@ -1320,7 +1320,7 @@ class Segmentation(SOPClass):
             )
         return self.SegmentSequence[segment_number - 1]
 
-    def search_for_segments(
+    def get_segment_numbers(
         self,
         segment_label: Optional[str] = None,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
@@ -1708,7 +1708,7 @@ class Segmentation(SOPClass):
         """
         return self._dim_ind_pointers[:]
 
-    def dimension_indices_are_unique(
+    def are_dimension_indices_unique(
         self,
         dimension_index_pointers: Sequence[Union[int, BaseTag]]
     ) -> bool:
@@ -2311,7 +2311,7 @@ class Segmentation(SOPClass):
         >>>     tag_for_keyword('ColumnPositionInTotalImagePixelMatrix'),
         >>>     tag_for_keyword('RowPositionInTotalImagePixelMatrix')
         >>> ]
-        >>> assert seg.dimension_indices_are_unique(tags)  # True
+        >>> assert seg.are_dimension_indices_unique(tags)  # True
         >>>
         >>> # It is therefore possible to index using just this subset of
         >>> # dimension indices
