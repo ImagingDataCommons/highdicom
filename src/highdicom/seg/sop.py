@@ -1015,6 +1015,13 @@ class Segmentation(SOPClass):
                     'integers.'
                 )
 
+        for i, s in enumerate(seg.SegmentSequence, 1):
+            if s.SegmentNumber != i:
+                raise ValueError(
+                    'Segment numbers in the segmentation image must start at '
+                    '1 and increase by 1 with the segments sequence.'
+                )
+        # Needed for compatibility with add_segments
         seg._segment_inventory = {
             s.SegmentNumber for s in seg.SegmentSequence
         }
