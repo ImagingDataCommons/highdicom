@@ -1271,7 +1271,7 @@ class Segmentation(SOPClass):
     @property
     def segmentation_fractional_type(
         self
-    ) -> Optional[SegmentationFractionalTypeValues]:
+    ) -> Union[SegmentationFractionalTypeValues, None]:
         """
         highdicom.seg.SegmentationFractionalTypeValues:
             Segmentation fractional type.

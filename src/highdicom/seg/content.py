@@ -246,7 +246,7 @@ class SegmentDescription(Dataset):
     @property
     def algorithm_identification(
         self
-    ) -> Optional[AlgorithmIdentificationSequence]:
+    ) -> Union[AlgorithmIdentificationSequence, None]:
         """Optional[highdicom.AlgorithmIdentificationSequence]
             Information useful for identification of the algorithm, if any.
 
@@ -256,7 +256,7 @@ class SegmentDescription(Dataset):
         return None
 
     @property
-    def tracking_uid(self) -> Optional[str]:
+    def tracking_uid(self) -> Union[str, None]:
         """Optional[str]:
             Tracking unique identifier for the segment, if any.
 
@@ -266,7 +266,7 @@ class SegmentDescription(Dataset):
         return None
 
     @property
-    def tracking_id(self) -> Optional[str]:
+    def tracking_id(self) -> Union[str, None]:
         """Optional[str]: Tracking identifier for the segment, if any."""
         if 'TrackingID' in self:
             return self.TrackingID
