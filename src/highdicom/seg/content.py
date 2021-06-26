@@ -165,7 +165,7 @@ class SegmentDescription(Dataset):
 
         Returns
         -------
-        highdicom.seg.content.SegmentDescription
+        highdicom.seg.SegmentDescription
             Segment description.
 
         """
@@ -221,7 +221,7 @@ class SegmentDescription(Dataset):
 
     @property
     def segmented_property_category(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept:
+        """highdicom.sr.CodedConcept:
             Category of the property the segment represents.
 
         """
@@ -229,7 +229,7 @@ class SegmentDescription(Dataset):
 
     @property
     def segmented_property_type(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept:
+        """highdicom.sr.CodedConcept:
             Type of the property the segment represents.
 
         """
@@ -237,7 +237,7 @@ class SegmentDescription(Dataset):
 
     @property
     def algorithm_type(self) -> SegmentAlgorithmTypeValues:
-        """highdicom.seg.enum.SegmentAlgorithmTypeValues:
+        """highdicom.seg.SegmentAlgorithmTypeValues:
             Type of algorithm used to create the segment.
 
         """
@@ -247,7 +247,7 @@ class SegmentDescription(Dataset):
     def algorithm_identification(
         self
     ) -> Optional[AlgorithmIdentificationSequence]:
-        """Optional[highdicom.content.AlgorithmIdentificationSequence]
+        """Optional[highdicom.AlgorithmIdentificationSequence]
             Information useful for identification of the algorithm, if any.
 
         """
@@ -274,7 +274,7 @@ class SegmentDescription(Dataset):
 
     @property
     def anatomic_regions(self) -> List[CodedConcept]:
-        """List[highdicom.sr.coding.CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
             List of anatomic regions into which the segment falls.
             May be empty.
 
@@ -285,7 +285,7 @@ class SegmentDescription(Dataset):
 
     @property
     def primary_anatomic_structures(self) -> List[CodedConcept]:
-        """List[highdicom.sr.coding.CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
             List of anatomic anatomic structures the segment represents.
             May be empty.
 
