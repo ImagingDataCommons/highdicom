@@ -151,7 +151,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         for param in self[0].AlgorithmParameters.split(','):
             split = param.split('=')
             if len(split) != 2:
-                raise AttributeError('Malformed parameter string')
+                raise ValueError('Malformed parameter string')
             parameters[split[0]] = split[1]
         return parameters
 

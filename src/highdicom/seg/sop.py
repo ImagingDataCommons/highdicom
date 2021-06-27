@@ -14,7 +14,7 @@ from pydicom.encaps import decode_data_sequence, encapsulate
 from pydicom.multival import MultiValue
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.util import get_expected_length
-from pydicom.tag import BaseTag
+from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -1118,7 +1118,6 @@ class Segmentation(SOPClass):
         index values.
 
         """
-
         self._build_ref_instance_lut()
 
         segnum_col_data = []
@@ -1409,18 +1408,23 @@ class Segmentation(SOPClass):
             if all(f(desc) for f in filter_funcs)
         ]
 
-
     def get_tracking_ids(
         self,
         segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
         segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
         algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None
-    ) -> List[str]:
+    ) -> List[Tuple[str, UID]]:
         """Get all unique tracking identifiers in this SEG image.
 
         Any number of optional filters may be provided. A segment must match
         all provided filters to be included in the returned list.
 
+        The tracking IDs and the accompanying tracking UIDs are returned
+        in a list of tuples.
+
+        Note that the order of the returned list is not significant and will
+        not in general match the order of segments.
+
         Parameters
         ----------
         segmented_property_category: Optional[Union[Code, CodedConcept]], optional
@@ -1432,9 +1436,10 @@ class Segmentation(SOPClass):
 
         Returns
         -------
-        List[str]
-            All unique tracking identifiers referenced in segment descriptions
-            in this SEG image that match all provided filters.
+        List[Tuple[str, UID]]
+            List of all unique (tracking_id, tracking_uid) tuples that are
+            referenced in segment descriptions in this SEG image that match
+            all provided filters.
 
         """  # noqa: E501
         filter_funcs = []
@@ -1456,62 +1461,13 @@ class Segmentation(SOPClass):
             )
 
         return list({
-            desc.tracking_id for desc in self.SegmentSequence
+            (desc.tracking_id, UID(desc.tracking_uid))
+            for desc in self.SegmentSequence
             if desc.tracking_id is not None and
             all(f(desc) for f in filter_funcs)
         })
 
-    def get_tracking_uids(
-        self,
-        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
-        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None
-    ) -> List[str]:
-        """Get all unique tracking unique identifiers in this SEG image.
-
-        Any number of optional filters may be provided. A segment must match
-        all provided filters to be included in the returned list.
-
-        Parameters
-        ----------
-        segmented_property_category: Optional[Union[Code, CodedConcept]], optional
-            Segmented property category filter to apply.
-        segmented_property_type: Optional[Union[Code, CodedConcept]], optional
-            Segmented property type filter to apply.
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]], optional
-            Segmented property type filter to apply.
-
-        Returns
-        -------
-        List[str]
-            All unique tracking unique identifiers referenced in segment
-            in this SEG image that match all provided filters.
-
-        """  # noqa: E501
-        filter_funcs = []
-        if segmented_property_category is not None:
-            filter_funcs.append(
-                lambda desc:
-                desc.segmented_property_category == segmented_property_category
-            )
-        if segmented_property_type is not None:
-            filter_funcs.append(
-                lambda desc:
-                desc.segmented_property_type == segmented_property_type
-            )
-        if algorithm_type is not None:
-            algo_type = SegmentAlgorithmTypeValues(algorithm_type)
-            filter_funcs.append(
-                lambda desc:
-                SegmentAlgorithmTypeValues(desc.algorithm_type) == algo_type
-            )
-
-        return list({
-            desc.tracking_uid for desc in self.SegmentSequence
-            if desc.tracking_uid is not None and
-            all(f(desc) for f in filter_funcs)
-        })
-
+    @property
     def segmented_property_categories(self) -> List[CodedConcept]:
         """Get all unique segmented property categories in this SEG image.
 
@@ -1529,6 +1485,7 @@ class Segmentation(SOPClass):
 
         return categories
 
+    @property
     def segmented_property_types(self) -> List[CodedConcept]:
         """Get all unique segmented property types in this SEG image.
 
@@ -1629,7 +1586,6 @@ class Segmentation(SOPClass):
         ):
             raise ValueError(
                 'Segment numbers array contains invalid values.'
-                '-1.'
             )
 
         # Initialize empty pixel array
@@ -1692,7 +1648,7 @@ class Segmentation(SOPClass):
 
         return pixel_array
 
-    def get_source_instance_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
+    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
         """Get UIDs for all source SOP instances referenced in the dataset.
 
         Returns
@@ -2160,7 +2116,7 @@ class Segmentation(SOPClass):
         # Build the segmentation frame matrix
         for r, src_frm_num in enumerate(source_frame_numbers):
             # Check whether this source frame exists in the LUT
-            if src_frm_num not in lut[:, 1]:
+            if src_frm_num not in lut[:, 0]:
                 if assert_missing_frames_are_empty:
                     continue
                 else:
@@ -2171,7 +2127,7 @@ class Segmentation(SOPClass):
                         "use the 'assert_missing_frames_are_empty' "
                         'parameter.'
                     )
-                    raise KeyError(msg)
+                    raise ValueError(msg)
 
             # Iterate over segment numbers for this source frame
             for c, seg_num in enumerate(segment_numbers):
@@ -2353,13 +2309,17 @@ class Segmentation(SOPClass):
                     if kw == '':
                         kw = '<no keyword>'
                     raise KeyError(
-                        f'Tag {ptr} ({kw}) is not used as a dimension index '
-                        'in this image.'
+                        f'Tag {Tag(ptr)} ({kw}) is not used as a dimension '
+                        'index in this image.'
                     )
 
         if len(dimension_index_values) == 0:
             raise ValueError(
                 'Dimension index values should not be empty.'
+            )
+        if len(dimension_index_pointers) == 0:
+            raise ValueError(
+                'Dimension index pointers should not be empty.'
             )
         rows = len(dimension_index_values)
         cols = len(segment_numbers)
@@ -2384,7 +2344,7 @@ class Segmentation(SOPClass):
         for r, ind_vals in enumerate(dimension_index_values):
             if len(ind_vals) != len(dimension_index_pointers):
                 raise ValueError(
-                    'Number of provided indices does not match the expected'
+                    'Number of provided indices does not match the expected '
                     'number.'
                 )
             if not all(v > 0 for v in ind_vals):
