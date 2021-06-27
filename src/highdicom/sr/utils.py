@@ -177,6 +177,10 @@ def get_coded_value(item: Dataset) -> CodedConcept:
     )
 
 
+HighDicomCodes = {
+    "OT": Code(value='1000', scheme_designator="HIGHDICOM", meaning="Modality type OT"),
+}
+
 def get_coded_modality(sop_class_uid: str) -> Code:
     """
     Gets the coded value of the modality from the dataset's SOPClassUID. The
@@ -214,7 +218,11 @@ def get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.4.4': codes.cid29.MagneticResonance,
         '1.2.840.10008.5.1.4.1.1.6.1': codes.cid29.Ultrasound,
         '1.2.840.10008.5.1.4.1.1.6.2': codes.cid29.Ultrasound,
-        #  Skipping Secondary Capture - not an acquisition modality.
+        '1.2.840.10008.5.1.4.1.1.7': HighDicomCodes['OT'],
+        '1.2.840.10008.5.1.4.1.1.7.1': HighDicomCodes['OT'],
+        '1.2.840.10008.5.1.4.1.1.7.2': HighDicomCodes['OT'],
+        '1.2.840.10008.5.1.4.1.1.7.3': HighDicomCodes['OT'],
+        '1.2.840.10008.5.1.4.1.1.7.4': HighDicomCodes['OT'],
         '1.2.840.10008.5.1.4.1.1.9.1.1': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.2': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.3': codes.cid29.Electrocardiography,
