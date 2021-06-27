@@ -31,6 +31,7 @@ from highdicom.seg import (
     SegmentAlgorithmTypeValues,
     SegmentsOverlapValues,
     SegmentationTypeValues,
+    SegmentationFractionalTypeValues,
 )
 from highdicom.seg import Segmentation
 from highdicom.seg.utils import iter_segments
@@ -1680,10 +1681,44 @@ class TestSegmentationParsing(unittest.TestCase):
             self._sm_control_seg_ds
         )
 
+        self._ct_binary_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary.dcm'
+        )
+        self._ct_binary_seg = Segmentation.from_dataset(
+            self._ct_binary_seg_ds
+        )
+
+        self._ct_binary_overlap_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary_overlap.dcm'
+        )
+        self._ct_binary_overlap_seg = Segmentation.from_dataset(
+            self._ct_binary_overlap_seg_ds
+        )
+
+        self._ct_binary_fractional_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary_fractional.dcm'
+        )
+        self._ct_binary_fractional_seg = Segmentation.from_dataset(
+            self._ct_binary_fractional_seg_ds
+        )
+
+        self._ct_true_fractional_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_true_fractional.dcm'
+        )
+        self._ct_true_fractional_seg = Segmentation.from_dataset(
+            self._ct_true_fractional_seg_ds
+        )
+        self._ct_segs = [
+            self._ct_binary_seg,
+            self._ct_binary_fractional_seg,
+            self._ct_true_fractional_seg
+        ]
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
     def test_properties(self):
+        # SM segs
         seg_type = self._sm_control_seg.segmentation_type
         assert seg_type == SegmentationTypeValues.BINARY
         assert self._sm_control_seg.segmentation_fractional_type is None
@@ -1695,6 +1730,30 @@ class TestSegmentationParsing(unittest.TestCase):
         assert seg_category == codes.SCT.Tissue
         seg_property = self._sm_control_seg.segmented_property_types[0]
         assert seg_property == codes.SCT.ConnectiveTissue
+
+        # CT segs
+        for seg in self._ct_segs:
+            seg_type = seg.segmentation_type
+            assert seg.number_of_segments == 1
+            assert seg.segment_numbers == range(1, 2)
+
+            assert len(seg.segmented_property_categories) == 1
+            seg_category = seg.segmented_property_categories[0]
+            assert seg_category == codes.SCT.Tissue
+            seg_property = seg.segmented_property_types[0]
+            assert seg_property == codes.SCT.Bone
+
+        seg_type = self._ct_binary_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.BINARY
+        seg_type = self._ct_binary_fractional_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.FRACTIONAL
+        seg_type = self._ct_true_fractional_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.FRACTIONAL
+
+        frac_type = self._ct_binary_fractional_seg.segmentation_fractional_type
+        assert frac_type == SegmentationFractionalTypeValues.PROBABILITY
+        frac_type = self._ct_true_fractional_seg.segmentation_fractional_type
+        assert frac_type == SegmentationFractionalTypeValues.PROBABILITY
 
     def test_get_source_image_uids(self):
         uids = self._sm_control_seg.get_source_image_uids()
@@ -2040,6 +2099,188 @@ class TestSegmentationParsing(unittest.TestCase):
             self._sm_control_seg.get_pixels_by_dimension_index_values(
                 dimension_index_values=ind_values,
                 segment_numbers=[-1]
+            )
+
+    def test_get_pixels_by_source_instances(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+            self._ct_binary_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_with_segments(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+        segment_numbers = [1]
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            segment_numbers=segment_numbers
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+            len(segment_numbers)
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_invalid(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Empty SOP uids
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=[],
+            )
+        # Empty SOP uids
+        with pytest.raises(KeyError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=['1.2.3.4'],
+            )
+        # Empty segments
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                segment_numbers=[]
+            )
+        # Invalid segments
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                segment_numbers=[0]
+            )
+
+    def test_get_pixels_by_source_instances_binary_fractional(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_fractional_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_binary_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_fractional_seg.Rows,
+            self._ct_binary_fractional_seg.Columns,
+            self._ct_binary_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.array([0.0, 1.0]))
+
+        pixels = self._ct_binary_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_fractional_seg.Rows,
+            self._ct_binary_fractional_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.array([0.0, 1.0]))
+
+    def test_get_pixels_by_source_instances_true_fractional(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_true_fractional_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_true_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_true_fractional_seg.Rows,
+            self._ct_true_fractional_seg.Columns,
+            self._ct_true_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert pixels.max() <= 1.0
+        assert pixels.min() >= 0.0
+        assert len(np.unique(pixels)) > 2
+
+        # Without fractional rescaling
+        pixels = self._ct_true_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            rescale_fractional=False
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_true_fractional_seg.Rows,
+            self._ct_true_fractional_seg.Columns,
+            self._ct_true_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert pixels.max() == 128
+        assert len(np.unique(pixels)) > 2
+
+        # Can't combine segments with a true fractional segmentation
+        with pytest.raises(ValueError):
+            self._ct_true_fractional_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                combine_segments=True
+            )
+
+    def test_get_pixels_by_source_instances_overlap(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_overlap_seg.Rows,
+            self._ct_binary_overlap_seg.Columns,
+            self._ct_binary_overlap_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        with pytest.raises(RuntimeError):
+            self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                combine_segments=True
             )
 
 

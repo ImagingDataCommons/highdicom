@@ -1517,6 +1517,7 @@ class Segmentation(SOPClass):
         segment_numbers: np.ndarray,
         combine_segments: bool = False,
         relabel: bool = False,
+        rescale_fractional: bool = True
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -1548,6 +1549,13 @@ class Segmentation(SOPClass):
             ``len(segment_numbers)`` (inclusive) accoring to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
 
         Returns
         -------
@@ -1614,10 +1622,26 @@ class Segmentation(SOPClass):
                         pixel_array[out_frm, :, :, out_seg] = \
                             self.pixel_array[seg_frame_ind, :, :]
 
+        if rescale_fractional:
+            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                if pixel_array.max() > self.MaximumFractionalValue:
+                    raise RuntimeError(
+                        'Segmentation image contains values greater than the '
+                        'MaximumFractionalValue recorded in the dataset.'
+                    )
+                max_val = self.MaximumFractionalValue
+                pixel_array = pixel_array.astype(np.float32) / max_val
+
         if combine_segments:
             # Check whether segmentation is binary, or fractional with only
             # binary values
             if self.segmentation_type != SegmentationTypeValues.BINARY:
+                if not rescale_fractional:
+                    raise ValueError(
+                        'In order to combine segments of a FRACTIONAL '
+                        'segmentation image, rescale_fractional must be '
+                        'set to True.'
+                    )
                 is_binary = np.isin(
                     np.unique(pixel_array),
                     np.array([0.0, 1.0]),
@@ -1793,7 +1817,8 @@ class Segmentation(SOPClass):
         combine_segments: bool = False,
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
-        assert_missing_frames_are_empty: bool = False
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -1880,6 +1905,13 @@ class Segmentation(SOPClass):
             source frames are not referenced in the source image. To override
             this behavior and return a segmentation frame of all zeros for such
             frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
 
         Returns
         -------
@@ -1897,6 +1929,11 @@ class Segmentation(SOPClass):
         if len(segment_numbers) == 0:
             raise ValueError(
                 'Segment numbers may not be empty.'
+            )
+        if isinstance(source_sop_instance_uids, str):
+            raise TypeError(
+                'source_sop_instance_uids should be a sequence of UIDs, not a '
+                'single UID'
             )
         if len(source_sop_instance_uids) == 0:
             raise ValueError(
@@ -1963,6 +2000,7 @@ class Segmentation(SOPClass):
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
+            rescale_fractional=rescale_fractional
         )
 
     def get_pixels_by_source_frame(
@@ -1973,7 +2011,8 @@ class Segmentation(SOPClass):
         combine_segments: bool = False,
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
-        assert_missing_frames_are_empty: bool = False
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -2065,6 +2104,13 @@ class Segmentation(SOPClass):
             source frames are not referenced in the source image. To override
             this behavior and return a segmentation frame of all zeros for such
             frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
 
         Returns
         -------
@@ -2154,6 +2200,7 @@ class Segmentation(SOPClass):
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
+            rescale_fractional=rescale_fractional
         )
 
     def get_pixels_by_dimension_index_values(
@@ -2163,7 +2210,8 @@ class Segmentation(SOPClass):
         segment_numbers: Optional[Sequence[int]] = None,
         combine_segments: bool = False,
         relabel: bool = False,
-        assert_missing_frames_are_empty: bool = False
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
     ):
         """Get a pixel array for a list of dimension index values.
 
@@ -2253,6 +2301,13 @@ class Segmentation(SOPClass):
             source frames are not referenced in the source image. To override
             this behavior and return a segmentation frame of all zeros for such
             frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
 
         Returns
         -------
@@ -2393,4 +2448,5 @@ class Segmentation(SOPClass):
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
+            rescale_fractional=rescale_fractional
         )
