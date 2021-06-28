@@ -2755,8 +2755,8 @@ class ImageLibraryEntryDescriptors(Template):
         modality = get_coded_modality(dataset.SOPClassUID)
         if not modality:
             raise ValueError(f'Dataset has an unsupported SOPClassUID {dataset.SOPClassUID}')  # noqa: E501
-        if not is_dicom_image(dataset.SOPClassUID):
-            raise ValueError(f'Dataset of modality {modality} is not a DICOM image')  # noqa: E501
+        if not is_dicom_image(dataset):
+            raise ValueError(f'Dataset with SOPInstanceUID {dataset.SOPInstanceUID} is not a DICOM image')  # noqa: E501
 
         modality_item = CodeContentItem(
             name=CodedConcept(
