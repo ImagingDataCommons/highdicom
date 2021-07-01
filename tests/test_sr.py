@@ -2429,7 +2429,7 @@ class TestMeasurementReport(unittest.TestCase):
         assert len(device_subject_contexts) == 0
 
         # Imaging Measurements
-        planar_rois = template.get_planar_roi_measurements()
+        planar_rois = template.get_planar_roi_measurement_groups()
         assert len(planar_rois) == 1
         roi = planar_rois[0]
         assert isinstance(

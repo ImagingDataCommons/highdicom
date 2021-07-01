@@ -184,6 +184,7 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
+        self._content = content
         for tag, value in content.items():
             self[tag] = value
 
@@ -349,24 +350,52 @@ class _SR(SOPClass):
         unref_items = self._create_references(unref_group)
         return (ref_items, unref_items)
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> Dataset:
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Comprehensive SR document
+
+        Returns
+        -------
+        highdicom.sr.sop._SR
+            SR document
+
+        """
+        if not hasattr(dataset, 'ContentSequence'):
+            raise ValueError('Dataset is not an SR document.')
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ = cls
+
+        root_item = Dataset()
+        root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
+        root_item.ContentSequence = dataset.ContentSequence
+        root_item.ValueType = dataset.ValueType
+        root_item.ContinuityOfContent = dataset.ContinuityOfContent
+        root_item.RelationshipType = None
+        try:
+            root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
+            tid_item = dataset.ContentTemplateSequence[0]
+            if tid_item.TemplateIdentifier == '1500':
+                sop_instance._content = MeasurementReport.from_sequence(
+                    [root_item]
+                )
+            else:
+                sop_instance._content = ContentSequence.from_sequence(
+                    [root_item]
+                )
+        except AttributeError:
+            sop_instance._content = ContentSequence.from_sequence([root_item])
+
+        return sop_instance
+
     @property
     def content(self) -> ContentSequence:
         """highdicom.sr.value_types.ContentSequence: SR document content"""
-        root_item = Dataset()
-        root_item.ConceptNameCodeSequence = self.ConceptNameCodeSequence
-        root_item.ContentSequence = self.ContentSequence
-        root_item.ValueType = self.ValueType
-        root_item.ContinuityOfContent = self.ContinuityOfContent
-        root_item.RelationshipType = None
-        try:
-            root_item.ContentTemplateSequence = self.ContentTemplateSequence
-            tid_item = self.ContentTemplateSequence[0]
-            if tid_item.TemplateIdentifier == '1500':
-                return MeasurementReport.from_sequence([root_item])
-            else:
-                return ContentSequence.from_sequence([root_item])
-        except AttributeError:
-            return ContentSequence.from_sequence([root_item])
+        return self._content
 
 
 class EnhancedSR(_SR):
@@ -642,8 +671,9 @@ class ComprehensiveSR(_SR):
         """
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
-        sop_instance = deepcopy(dataset)
+        sop_instance = super().from_dataset(dataset)
         sop_instance.__class__ = cls
+
         return sop_instance
 
 
@@ -781,6 +811,6 @@ class Comprehensive3DSR(_SR):
         """
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
-        sop_instance = deepcopy(dataset)
+        sop_instance = super().from_dataset(dataset)
         sop_instance.__class__ = cls
         return sop_instance
