@@ -3136,7 +3136,7 @@ class MeasurementReport(Template):
             subject_contexts.append(context)
         return subject_contexts
 
-    def get_planar_roi_measurements(
+    def get_planar_roi_measurement_groups(
         self,
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
@@ -3227,7 +3227,7 @@ class MeasurementReport(Template):
 
         return sequences
 
-    def get_volumetric_roi_measurements(
+    def get_volumetric_roi_measurement_groups(
         self,
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
@@ -3314,7 +3314,7 @@ class MeasurementReport(Template):
 
         return sequences
 
-    def get_image_measurments(
+    def get_image_measurment_groups(
         self,
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
