@@ -3330,9 +3330,9 @@ class MeasurementReport(Template):
         ----------
         tracking_uid: str, optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding
-        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
 
         Returns
