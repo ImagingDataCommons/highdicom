@@ -218,6 +218,18 @@ class ContentSequence(DataElementSequence):
         items: Optional[Sequence] = None,
         is_root: bool = False
     ) -> None:
+        """
+
+        Parameters
+        ----------
+        items: Union[Sequence[highdicom.sr.ContentItem], None], optional
+            SR Content items
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
+
+        """
         self._is_root = is_root
         if items is not None:
             for i in items:
@@ -344,13 +356,21 @@ class ContentSequence(DataElementSequence):
         super(ContentSequence, self).insert(position, item)
 
     @classmethod
-    def from_sequence(cls, sequence: Sequence[Dataset]) -> 'ContentSequence':
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset],
+        is_root: bool = False
+    ) -> 'ContentSequence':
         """Construct instance from a sequence of datasets.
 
         Parameters
         ----------
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -378,9 +398,10 @@ class ContentSequence(DataElementSequence):
                     f'Item #{i} of sequence is not an SR Content Item:\n'
                     f'{dataset}'
                 )
-            if not hasattr(dataset, 'RelationshipType'):
+            if not hasattr(dataset, 'RelationshipType') and not is_root:
                 raise AttributeError(
-                    'Dataset is not an SR Content Item because it lacks '
+                    'Item #{i} of sequence is not a value SR Content Item '
+                    'because it is not a root item and lacks the otherwise '
                     f'required attribute "RelationshipType":\n{dataset}'
                 )
             content_item_cls = _get_content_item_class(value_type)
