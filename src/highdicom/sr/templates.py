@@ -3010,7 +3010,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        highdicom.sr.templates.MeasurementsReport
+        highdicom.sr.MeasurementsReport
             Content Sequence containing root CONTAINER SR Content Item
 
         """
