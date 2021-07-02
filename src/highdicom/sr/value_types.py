@@ -1276,7 +1276,7 @@ class Scoord3DContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.Scoord3DContentItem
+        highdicom.sr.Scoord3DContentItem
             Content Item
 
         """
