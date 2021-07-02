@@ -961,7 +961,7 @@ class CompositeContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.CompositeContentItem
+        highdicom.sr.CompositeContentItem
             Content Item
 
         """
