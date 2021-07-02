@@ -3097,7 +3097,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        List[highdicom.sr.templates.SubjectContext]
+        List[highdicom.sr.SubjectContext]
            Subject contexts
 
         """  # noqa
