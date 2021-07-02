@@ -2260,7 +2260,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         )
         if len(matches) > 0:
             return [FindingSite.from_dataset(m) for m in matches]
-        return None
+        return []
 
     @property
     def measurements(self) -> List[NumContentItem]:
