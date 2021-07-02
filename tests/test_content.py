@@ -9,7 +9,7 @@ from highdicom import (
 )
 
 
-class TestPlanePosititionSequence(TestCase):
+class TestPlanePositionSequence(TestCase):
 
     def test_construction_slide(self):
         coordinate_system = 'SLIDE'
