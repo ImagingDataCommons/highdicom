@@ -2,6 +2,8 @@
 import datetime
 from copy import deepcopy
 from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Union
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -19,6 +21,7 @@ from highdicom.sr.enum import (
     ValueTypeValues,
 )
 from highdicom.uid import UID
+from highdicom.valuerep import check_person_name
 
 
 def _assert_value_type(
@@ -104,9 +107,7 @@ class ContentItem(Dataset):
         self,
         value_type: Union[str, ValueTypeValues],
         name: Union[Code, CodedConcept],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None]
     ) -> None:
         """
         Parameters
@@ -189,34 +190,62 @@ class ContentItem(Dataset):
         )
 
     @property
-    def value_type(self) -> str:
-        """str: type of the content item
+    def value_type(self) -> ValueTypeValues:
+        """ValueTypeValues: type of the content item
         (see `highdicom.sr.ValueTypeValues`)
 
         """
-        return self.ValueType
+        return ValueTypeValues(self.ValueType)
 
     @property
-    def relationship_type(self) -> str:
-        """str: type of relationship the content item has with its parent
-        (see `highdicom.sr.RelationshipTypeValues`)
+    def relationship_type(self) -> Optional[RelationshipTypeValues]:
+        """RelationshipTypeValues: type of relationship the content item has
+        with its parent (see `highdicom.sr.RelationshipTypeValues`)
 
         """
-        return getattr(self, 'RelationshipType', None)
+        if hasattr(self, 'RelationshipType'):
+            return RelationshipTypeValues(self.RelationshipType)
+        else:
+            return None
 
 
 class ContentSequence(DataElementSequence):
 
     """Sequence of DICOM SR Content Items."""
 
-    def __init__(self, items: Optional[Sequence] = None) -> None:
+    def __init__(
+        self,
+        items: Optional[Sequence] = None,
+        is_root: bool = False
+    ) -> None:
+        self._is_root = is_root
         if items is not None:
-            if not all(isinstance(i, ContentItem) for i in items):
-                raise TypeError(
-                    'Items of "{}" must have type ContentItem.'.format(
-                        self.__class__.__name__
+            for i in items:
+                if not isinstance(i, ContentItem):
+                    raise TypeError(
+                        'Items of "{}" must have type ContentItem.'.format(
+                            self.__class__.__name__
+                        )
                     )
-                )
+                if is_root:
+                    if i.relationship_type is not None:
+                        raise AttributeError(
+                            'Items at the root of the content tree must '
+                            'have no relationship type.'
+                        )
+                    if not isinstance(i, ContainerContentItem):
+                        raise TypeError(
+                            'Items at the root of a SR content tree must be '
+                            'container content sequences.'
+                        )
+                else:
+                    if i.relationship_type is None:
+                        raise AttributeError(
+                            'Items to be included in a '
+                            f'{self.__class__.__name__} must have an '
+                            'established relationship type.'
+                        )
+
         super(ContentSequence, self).__init__(items)
 
     def __setitem__(self, position: int, item: ContentItem) -> None:
@@ -255,6 +284,19 @@ class ContentSequence(DataElementSequence):
                     self.__class__.__name__
                 )
             )
+        if self._is_root:
+            if item.relationship_type is not None:
+                raise AttributeError(
+                    f'Items to be appended to a {self.__class__.__name__} '
+                    'that is the root of the SR content tree must not have '
+                    'relationship type.'
+                )
+        else:
+            if item.relationship_type is None:
+                raise AttributeError(
+                    f'Items to be appended to a {self.__class__.__name__} must '
+                    'have an established relationship type.'
+                )
         super(ContentSequence, self).append(item)
 
     def extend(self, items: Sequence[ContentItem]) -> None:
@@ -286,6 +328,19 @@ class ContentSequence(DataElementSequence):
                     self.__class__.__name__
                 )
             )
+        if self._is_root:
+            if item.relationship_type is not None:
+                raise AttributeError(
+                    f'Items to be included in a {self.__class__.__name__} '
+                    'that is the root of the SR content tree must not have '
+                    'relationship type.'
+                )
+        else:
+            if item.relationship_type is None:
+                raise AttributeError(
+                    f'Items to be inserted into to a {self.__class__.__name__} '
+                    'must have an established relationship type.'
+                )
         super(ContentSequence, self).insert(position, item)
 
     @classmethod
@@ -332,6 +387,14 @@ class ContentSequence(DataElementSequence):
             content_items.append(content_item_cls.from_dataset(dataset))
         return cls(content_items)
 
+    @property
+    def is_root(self) -> bool:
+        """bool: whether the sequence is intended for use at the root of the
+        SR content tree.
+
+        """
+        return self._is_root
+
 
 class CodeContentItem(ContentItem):
 
@@ -341,9 +404,7 @@ class CodeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[Code, CodedConcept],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
         """
         Parameters
@@ -352,10 +413,16 @@ class CodeContentItem(ContentItem):
             concept name
         value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded value or an enumerated item representing a coded value
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(CodeContentItem, self).__init__(
             ValueTypeValues.CODE, name, relationship_type
         )
@@ -404,9 +471,7 @@ class PnameContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, PersonName],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -415,13 +480,20 @@ class PnameContentItem(ContentItem):
             concept name
         value: Union[str, pydicom.valuerep.PersonName]
             name of the person
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(PnameContentItem, self).__init__(
             ValueTypeValues.PNAME, name, relationship_type
         )
+        check_person_name(value)
         self.PersonName = PersonName(value)
 
     @property
@@ -456,9 +528,7 @@ class TextContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: str,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -467,10 +537,16 @@ class TextContentItem(ContentItem):
             concept name
         value: str
             description of the concept in free text
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """ # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(TextContentItem, self).__init__(
             ValueTypeValues.TEXT, name, relationship_type
         )
@@ -508,9 +584,7 @@ class TimeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.time, TM],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -519,10 +593,16 @@ class TimeContentItem(ContentItem):
             concept name
         value: Union[str, datetime.time, pydicom.valuerep.TM]
             time
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(TimeContentItem, self).__init__(
             ValueTypeValues.TIME, name, relationship_type
         )
@@ -572,9 +652,7 @@ class DateContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.date, DA],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -583,10 +661,16 @@ class DateContentItem(ContentItem):
             concept name
         value: Union[str, datetime.date, pydicom.valuerep.DA]
             date
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(DateContentItem, self).__init__(
             ValueTypeValues.DATE, name, relationship_type
         )
@@ -625,9 +709,7 @@ class DateTimeContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, datetime.datetime, DT],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -636,10 +718,16 @@ class DateTimeContentItem(ContentItem):
             concept name
         value: Union[str, datetime.datetime, pydicom.valuerep.DT]
             datetime
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(DateTimeContentItem, self).__init__(
             ValueTypeValues.DATETIME, name, relationship_type
         )
@@ -696,9 +784,7 @@ class UIDRefContentItem(ContentItem):
         self,
         name: Union[Code, CodedConcept],
         value: Union[str, UID],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -707,10 +793,16 @@ class UIDRefContentItem(ContentItem):
             concept name
         value: Union[highdicom.UID, str]
             unique identifier
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(UIDRefContentItem, self).__init__(
             ValueTypeValues.UIDREF, name, relationship_type
         )
@@ -750,9 +842,7 @@ class NumContentItem(ContentItem):
         value: Union[int, float],
         unit: Union[Code, CodedConcept],
         qualifier: Optional[Union[Code, CodedConcept]] = None,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
         """
         Parameters
@@ -769,10 +859,16 @@ class NumContentItem(ContentItem):
             numeric value, e.g., reason for absence of numeric value
             (see `CID 42 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_42.html>`_
             "Numeric Value Qualifier" for options)
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """ # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(NumContentItem, self).__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
@@ -864,9 +960,7 @@ class ContainerContentItem(ContentItem):
         name: Union[Code, CodedConcept],
         is_content_continuous: bool = True,
         template_id: Optional[str] = None,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -878,10 +972,10 @@ class ContainerContentItem(ContentItem):
             continuous manner or separate items (default: ``True``)
         template_id: str, optional
             SR template identifier
-        relationship_type: str, optional
-            type of relationship with parent content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            type of relationship with parent content item. 
 
-        """
+        """  # noqa E501
         super(ContainerContentItem, self).__init__(
             ValueTypeValues.CONTAINER, name, relationship_type
         )
@@ -932,9 +1026,7 @@ class CompositeContentItem(ContentItem):
         name: Union[Code, CodedConcept],
         referenced_sop_class_uid: Union[str, UID],
         referenced_sop_instance_uid: Union[str, UID],
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ):
         """
         Parameters
@@ -945,10 +1037,16 @@ class CompositeContentItem(ContentItem):
             SOP Class UID of the referenced object
         referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced object
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(CompositeContentItem, self).__init__(
             ValueTypeValues.COMPOSITE, name, relationship_type
         )
@@ -1002,9 +1100,7 @@ class ImageContentItem(ContentItem):
         referenced_segment_numbers: Optional[
             Union[int, Sequence[int]]
         ] = None,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
         """
         Parameters
@@ -1021,10 +1117,16 @@ class ImageContentItem(ContentItem):
         referenced_segment_numbers: Union[int, Sequence[int]], optional
             number of segment(s) to which the refernce applies in case of a
             segmentation image
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(ImageContentItem, self).__init__(
             ValueTypeValues.IMAGE, name, relationship_type
         )
@@ -1087,9 +1189,7 @@ class ScoordContentItem(ContentItem):
             PixelOriginInterpretationValues
         ] = None,
         fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -1109,10 +1209,16 @@ class ScoordContentItem(ContentItem):
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
         fiducial_uid: Union[highdicom.UID, str, None], optional
             unique identifier for the content item
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(ScoordContentItem, self).__init__(
             ValueTypeValues.SCOORD, name, relationship_type
         )
@@ -1211,9 +1317,7 @@ class Scoord3DContentItem(ContentItem):
         graphic_data: np.ndarray,
         frame_of_reference_uid: Union[str, UID],
         fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Optional[
-            Union[str, RelationshipTypeValues]
-        ] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -1230,10 +1334,16 @@ class Scoord3DContentItem(ContentItem):
             coordinates are defined
         fiducial_uid: str, optional
             unique identifier for the content item
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(Scoord3DContentItem, self).__init__(
             ValueTypeValues.SCOORD3D, name, relationship_type
         )
@@ -1314,7 +1424,7 @@ class TcoordContentItem(ContentItem):
         referenced_sample_positions: Optional[Sequence[int]] = None,
         referenced_time_offsets: Optional[Sequence[float]] = None,
         referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
-        relationship_type: Optional[Union[str, RelationshipTypeValues]] = None
+        relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
         """
         Parameters
@@ -1330,10 +1440,16 @@ class TcoordContentItem(ContentItem):
             seconds after start of the acquisition of the time series
         referenced_date_time: Sequence[datetime.datetime], optional
             absolute time points
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
         """  # noqa
+        if relationship_type is None:
+            warnings.warn(
+                'A future release will require that relationship types be '
+                f'provided for items of type {self.__class__.__name__}.',
+                DeprecationWarning
+            )
         super(TcoordContentItem, self).__init__(
             ValueTypeValues.TCOORD, name, relationship_type
         )

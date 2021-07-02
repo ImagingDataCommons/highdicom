@@ -12,11 +12,33 @@ from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid, UID
-from pydicom.valuerep import DA, DS, DT, TM
+from pydicom.valuerep import DA, DS, DT, TM, PersonName
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
     AlgorithmIdentification,
+    FindingSite,
+    ImageRegion,
+    ImageRegion3D,
+    LongitudinalTemporalOffsetFromEvent,
+    RealWorldValueMap,
+    ReferencedSegment,
+    ReferencedSegmentationFrame,
+    SourceImageForRegion,
+    SourceImageForMeasurement,
+    SourceImageForSegmentation,
+    SourceSeriesForSegmentation,
+    VolumeSurface,
+)
+from highdicom.sr import (
+    GraphicTypeValues,
+    GraphicTypeValues3D,
+    RelationshipTypeValues,
+    ValueTypeValues,
+)
+from highdicom.sr.utils import find_content_items
+from highdicom.sr import (
+    ContentSequence,
     CodeContentItem,
     ContainerContentItem,
     ContentSequence,
@@ -25,6 +47,22 @@ from highdicom.sr import (
     CompositeContentItem,
     DateContentItem,
     DateTimeContentItem,
+    ImageContentItem,
+    NumContentItem,
+    PnameContentItem,
+    ScoordContentItem,
+    Scoord3DContentItem,
+    TextContentItem,
+    TimeContentItem,
+    UIDRefContentItem,
+)
+from highdicom.sr import (
+    ComprehensiveSR,
+    Comprehensive3DSR,
+    EnhancedSR,
+)
+from highdicom.sr import (
+    AlgorithmIdentification,
     DeviceObserverIdentifyingAttributes,
     EnhancedSR,
     FindingSite,
@@ -46,6 +84,7 @@ from highdicom.sr import (
     PersonObserverIdentifyingAttributes,
     PlanarROIMeasurementsAndQualitativeEvaluations,
     PixelOriginInterpretationValues,
+    QualitativeEvaluation,
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
@@ -204,7 +243,8 @@ class TestMeasurementStatisticalProperties(unittest.TestCase):
             NumContentItem(
                 name=self._value_name,
                 value=self._value_number,
-                unit=self._value_unit
+                unit=self._value_unit,
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
         ]
         self._description = 'Population of Foo'
@@ -330,32 +370,34 @@ class TestContentItem(unittest.TestCase):
     def test_code_item_construction(self):
         name = codes.SCT.FindingSite
         value = codes.SCT.Abdomen
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = CodeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'CODE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.ConceptCodeSequence[0] == value
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_text_item_construction(self):
         name = codes.DCM.TrackingIdentifier
         value = '1234'
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = TextContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'TEXT'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.TextValue == value
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_text_item_from_dataset(self):
         name = codes.DCM.TrackingIdentifier
@@ -394,17 +436,18 @@ class TestContentItem(unittest.TestCase):
     def test_time_item_construction_from_string(self):
         name = codes.DCM.StudyTime
         value = '153000'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = TimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type,
         )
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
         assert i.name == CodedConcept(*name)
         assert i.value == datetime.strptime(value, '%H%M%S').time()
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_time_item_construction_from_string_malformatted(self):
         name = codes.DCM.StudyTime
@@ -412,77 +455,84 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(ValueError):
             TimeContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT,
             )
 
     def test_time_item_construction_from_time(self):
         name = codes.DCM.StudyTime
         value = datetime.now().time()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = TimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'TIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Time == TM(value)
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_date_item_construction_from_string(self):
         name = codes.DCM.StudyDate
         value = '20190821'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
         assert i.name == CodedConcept(*name)
         assert i.value == datetime.strptime(value, '%Y%m%d').date()
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_date_item_construction_from_string_malformatted(self):
         name = codes.DCM.StudyDate
         value = 'abcd'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         with pytest.raises(ValueError):
             DateContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=rel_type
             )
 
     def test_date_item_construction_from_time(self):
         name = codes.DCM.StudyTime
         value = datetime.now().date()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATE'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.Date == DA(value)
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_datetime_item_construction_from_string(self):
         name = codes.DCM.ImagingStartDatetime
         value = '20190821153000'
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateTimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
         assert i.name == CodedConcept(*name)
         assert i.value == datetime.strptime(value, '%Y%m%d%H%M%S')
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_datetime_item_construction_from_string_malformatted(self):
         name = codes.DCM.ImagingStartDatetime
@@ -490,38 +540,41 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(ValueError):
             DateTimeContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
 
     def test_datetime_item_construction_from_datetime(self):
         name = codes.DCM.ImagingStartDatetime
         value = datetime.now()
+        rel_type = RelationshipTypeValues.HAS_OBS_CONTEXT
         i = DateTimeContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'DATETIME'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.DateTime == DT(value)
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_uidref_item_construction_from_string(self):
         name = codes.DCM.SeriesInstanceUID
         value = '1.2.3.4.5.6'
+        rel_type = RelationshipTypeValues.INFERRED_FROM
         i = UIDRefContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'UIDREF'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.UID == UID(value)
         assert i.name == CodedConcept(*name)
         assert i.value == value
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_uidref_item_construction_wrong_value_type(self):
         name = codes.DCM.SeriesInstanceUID
@@ -529,30 +582,34 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(TypeError):
             UIDRefContentItem(
                 name=name,
-                value=value
+                value=value,
+                relationship_type=RelationshipTypeValues.INFERRED_FROM
             )
 
     def test_uidref_item_construction_from_uid(self):
         name = codes.DCM.SeriesInstanceUID
         value = UID('1.2.3.4.5.6')
+        rel_type = RelationshipTypeValues.INFERRED_FROM
         i = UIDRefContentItem(
             name=name,
-            value=value
+            value=value,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'UIDREF'
         assert i.ConceptNameCodeSequence[0] == name
         assert i.UID == UID(value)
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
 
     def test_num_item_construction_from_integer(self):
         name = codes.SCT.Area
         value = 100
         unit = Code('um2', 'UCUM', 'Square Micrometer')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
             value=value,
-            unit=unit
+            unit=unit,
+            relationship_type=rel_type
         )
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
@@ -566,8 +623,7 @@ class TestContentItem(unittest.TestCase):
             assert value_item.FloatingPointValue
         assert unit_code_item.CodeValue == unit.value
         assert unit_code_item.CodingSchemeDesignator == unit.scheme_designator
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         with pytest.raises(AttributeError):
             assert i.NumericValueQualifierCodeSequence
 
@@ -575,10 +631,12 @@ class TestContentItem(unittest.TestCase):
         name = codes.SCT.Area
         value = 100.0
         unit = Code('um2', 'UCUM', 'Square Micrometer')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
             value=value,
-            unit=unit
+            unit=unit,
+            relationship_type=rel_type
         )
         assert i.value == value
         assert i.unit == unit
@@ -591,8 +649,7 @@ class TestContentItem(unittest.TestCase):
         assert value_item.FloatingPointValue == value
         assert unit_code_item.CodeValue == unit.value
         assert unit_code_item.CodingSchemeDesignator == unit.scheme_designator
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         with pytest.raises(AttributeError):
             assert i.NumericValueQualifierCodeSequence
 
@@ -601,28 +658,60 @@ class TestContentItem(unittest.TestCase):
         value = 100.0
         unit = Code('um2', 'UCUM', 'Square Micrometer')
         qualifier = Code('114000', 'SCT', 'Not a number')
+        rel_type = RelationshipTypeValues.HAS_PROPERTIES
         i = NumContentItem(
             name=name,
             value=value,
             unit=unit,
-            qualifier=qualifier
+            qualifier=qualifier,
+            relationship_type=rel_type
         )
         assert i.value == value
         assert i.unit == unit
         assert i.qualifier == qualifier
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
-        with pytest.raises(AttributeError):
-            assert i.RelationshipType
+        assert i.RelationshipType == rel_type.value
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
+
+    def test_pname_content_item(self):
+        name = codes.DCM.PersonObserverName
+        value = 'Doe^John'
+        i = PnameContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert i.PersonName == 'Doe^John'
+
+    def test_pname_content_item_from_person_name(self):
+        name = codes.DCM.PersonObserverName
+        value = PersonName('Doe^John')
+        i = PnameContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+        )
+        assert i.PersonName == 'Doe^John'
+
+    def test_pname_content_item_invalid_name(self):
+        name = codes.DCM.PersonObserverName
+        value = 'John Doe'  # invalid name format
+        with pytest.raises(ValueError):
+            PnameContentItem(
+                name=name,
+                value=value,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            )
 
     def test_container_item_construction(self):
         name = codes.DCM.ImagingMeasurementReport
         tid = '1500'
         i = ContainerContentItem(
             name=name,
-            template_id=tid
+            template_id=tid,
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
         assert i.ValueType == 'CONTAINER'
         assert i.ConceptNameCodeSequence[0] == name
@@ -642,6 +731,7 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'COMPOSITE'
         assert i.ConceptNameCodeSequence[0] == name
@@ -659,6 +749,7 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'IMAGE'
         assert i.ConceptNameCodeSequence[0] == name
@@ -681,7 +772,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_frame_numbers=frame_numbers
+            referenced_frame_numbers=frame_numbers,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -699,7 +791,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_frame_numbers=frame_number
+            referenced_frame_numbers=frame_number,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -717,7 +810,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             referenced_sop_class_uid=sop_class_uid,
             referenced_sop_instance_uid=sop_instance_uid,
-            referenced_segment_numbers=segment_number
+            referenced_segment_numbers=segment_number,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         ref_sop_item = i.ReferencedSOPSequence[0]
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
@@ -735,7 +829,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            pixel_origin_interpretation=pixel_origin_interpretation
+            pixel_origin_interpretation=pixel_origin_interpretation,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
@@ -754,7 +849,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            pixel_origin_interpretation=pixel_origin_interpretation
+            pixel_origin_interpretation=pixel_origin_interpretation,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD'
         assert i.ConceptNameCodeSequence[0] == name
@@ -774,7 +870,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            frame_of_reference_uid=frame_of_reference_uid
+            frame_of_reference_uid=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
@@ -795,7 +892,8 @@ class TestContentItem(unittest.TestCase):
             name=name,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            frame_of_reference_uid=frame_of_reference_uid
+            frame_of_reference_uid=frame_of_reference_uid,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM
         )
         assert i.ValueType == 'SCOORD3D'
         assert i.ConceptNameCodeSequence[0] == name
@@ -851,6 +949,103 @@ class TestContentSequence(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self._item = CodeContentItem(
+            name=codes.SCT.FindingSite,
+            value=codes.SCT.Abdomen,
+            relationship_type=RelationshipTypeValues.HAS_PROPERTIES
+        )
+        self._item_no_rel = CodeContentItem(
+            name=codes.SCT.FindingSite,
+            value=codes.SCT.Abdomen
+        )
+        self._root_item = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+            template_id='1500'
+        )
+        self._root_item_with_rel = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+            template_id='1500',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+    def test_append(self):
+        seq = ContentSequence()
+        seq.append(self._item)
+
+    def test_extend(self):
+        seq = ContentSequence()
+        seq.extend([self._item])
+
+    def test_insert(self):
+        seq = ContentSequence()
+        seq.insert(0, self._item)
+
+    def test_construct(self):
+        ContentSequence([self._item])
+
+    def test_append_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.append(self._item_no_rel)
+
+    def test_extend_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.extend([self._item_no_rel])
+
+    def test_insert_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.insert(0, self._item_no_rel)
+
+    def test_construct_with_no_relationship(self):
+        with pytest.raises(AttributeError):
+            ContentSequence([self._item_no_rel])
+
+    def test_append_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.append(self._root_item)
+
+    def test_extend_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.extend([self._root_item])
+
+    def test_insert_root_item(self):
+        seq = ContentSequence([], is_root=True)
+        seq.insert(0, self._root_item)
+
+    def test_construct_root_item(self):
+        ContentSequence([self._root_item], is_root=True)
+
+    def test_append_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.append(self._root_item_with_rel)
+
+    def test_extend_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.extend([self._root_item_with_rel])
+
+    def test_insert_root_item_with_relationship(self):
+        seq = ContentSequence([], is_root=True)
+        with pytest.raises(AttributeError):
+            seq.insert(0, self._root_item_with_rel)
+
+    def test_construct_root_with_relationship(self):
+        with pytest.raises(AttributeError):
+            ContentSequence([self._root_item_with_rel], is_root=True)
+
+    def test_content_item_setattr(self):
+        # Integration test that setting a ContentItem's content sequence
+        # should be possible if the items have relationships
+        self._root_item.ContentSequence = [self._item]
+
+    def test_content_item_setattr_with_no_relationship(self):
+        # Integration test that setting a ContentItem's content sequence
+        # triggers the relevant relationship_type checks
+        with pytest.raises(AttributeError):
+            self._root_item.ContentSequence = [self._item_no_rel]
 
 
 class TestSubjectContextDevice(unittest.TestCase):
@@ -905,7 +1100,7 @@ class TestObservationContext(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._person_name = 'Foo Bar'
+        self._person_name = 'Bar^Foo'
         self._device_uid = generate_uid()
         self._specimen_uid = generate_uid()
         self._observer_person_context = ObserverContext(
@@ -940,7 +1135,7 @@ class TestObservationContext(unittest.TestCase):
         assert item.ConceptCodeSequence[0] == codes.cid270.Person
         item = self._observer_person_context[1]
         assert item.ConceptNameCodeSequence[0].CodeValue == '121008'
-        assert item.TextValue == self._person_name
+        assert item.PersonName == self._person_name
         # device
         assert len(self._observer_device_context) == 2
         item = self._observer_device_context[0]
@@ -961,6 +1156,45 @@ class TestObservationContext(unittest.TestCase):
 
     def test_content_length(self):
         assert len(self._observation_context) == 6
+
+
+class TestPersonObserverIdentifyingAttributes(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._person_name = 'Doe^John'
+        self._invalid_name = 'John Doe'
+        self._login_name = 'jd123'
+        self._organization_name = 'The General Hospital'
+        self._role_in_organization = codes.DCM.Surgeon
+        self._role_in_procedure = codes.DCM.PerformingPhysician
+
+    def test_construction(self):
+        observer = PersonObserverIdentifyingAttributes(
+            name=self._person_name
+        )
+        assert observer[0].PersonName == self._person_name
+
+    def test_construction_all(self):
+        seq = PersonObserverIdentifyingAttributes(
+            name=self._person_name,
+            login_name=self._login_name,
+            organization_name=self._organization_name,
+            role_in_organization=self._role_in_organization,
+            role_in_procedure=self._role_in_procedure
+        )
+        assert len(seq) == 5
+        assert seq[0].PersonName == self._person_name
+        assert seq[1].TextValue == self._login_name
+        assert seq[2].TextValue == self._organization_name
+        assert seq[3].ConceptCodeSequence[0] == self._role_in_organization
+        assert seq[4].ConceptCodeSequence[0] == self._role_in_procedure
+
+    def test_construction_invalid(self):
+        with pytest.raises(ValueError):
+            PersonObserverIdentifyingAttributes(
+                name=self._invalid_name
+            )
 
 
 class TestFindingSiteOptional(unittest.TestCase):
@@ -2055,13 +2289,24 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
         self._qualitative_evaluations = [
+            QualitativeEvaluation(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes
+            )
+        ]
+        self._evaluations_wrong_rel_type = [
             CodeContentItem(
                 CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+                codes.SCT.Yes,
+                RelationshipTypeValues.HAS_PROPERTIES
             )
         ]
 
@@ -2134,6 +2379,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 referenced_segment=self._segment
             )
 
+    def test_constructed_with_wrong_rel_type(self):
+        with pytest.raises(ValueError):
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_region=self._region,
+                qualitative_evaluations=self._evaluations_wrong_rel_type
+            )
+
 
 class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
@@ -2191,13 +2444,24 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
         self._qualitative_evaluations = [
+            QualitativeEvaluation(
+                CodedConcept(
+                    value="RID49502",
+                    meaning="clinically significant prostate cancer",
+                    scheme_designator="RADLEX"
+                ),
+                codes.SCT.Yes
+            )
+        ]
+        self._evaluations_wrong_rel_type = [
             CodeContentItem(
                 CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes, RelationshipTypeValues.CONTAINS
+                codes.SCT.Yes,
+                RelationshipTypeValues.HAS_PROPERTIES
             )
         ]
 
@@ -2282,6 +2546,14 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 referenced_volume_surface=self._regions
             )
 
+    def test_constructed_with_wrong_rel_type(self):
+        with pytest.raises(ValueError):
+            VolumetricROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_regions=self._regions,
+                qualitative_evaluations=self._evaluations_wrong_rel_type
+            )
+
 
 class TestMeasurementReport(unittest.TestCase):
 
@@ -2291,7 +2563,7 @@ class TestMeasurementReport(unittest.TestCase):
         self._observer_person_context = ObserverContext(
             observer_type=codes.cid270.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name=self._person_observer_name
+                name='Bar^Foo'
             )
         )
         self._device_observer_uid = generate_uid()
@@ -2495,7 +2767,7 @@ class TestEnhancedSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(
@@ -2613,7 +2885,7 @@ class TestComprehensiveSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(
@@ -2820,7 +3092,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Foo'
+                name='Bar^Foo'
             )
         )
         observer_device_context = ObserverContext(

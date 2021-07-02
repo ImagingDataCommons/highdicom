@@ -16,6 +16,7 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.sr.codedict import codes
+from pydicom.valuerep import PersonName
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -35,6 +36,7 @@ from highdicom.seg.enum import (
     SegmentsOverlapValues,
 )
 from highdicom.sr.coding import CodedConcept
+from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,7 @@ class Segmentation(SOPClass):
             ] = SegmentationFractionalTypeValues.PROBABILITY,
             max_fractional_value: int = 255,
             content_description: Optional[str] = None,
-            content_creator_name: Optional[str] = None,
+            content_creator_name: Optional[Union[str, PersonName]] = None,
             transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
@@ -143,7 +145,7 @@ class Segmentation(SOPClass):
             a pixel represents a given segment
         content_description: str, optional
             Description of the segmentation
-        content_creator_name: str, optional
+        content_creator_name: Optional[Union[str, PersonName]], optional
             Name of the creator of the segmentation
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
@@ -311,6 +313,8 @@ class Segmentation(SOPClass):
         self.PixelRepresentation = 0
         self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
+        if content_creator_name is not None:
+            check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
 
         segmentation_type = SegmentationTypeValues(segmentation_type)
@@ -403,6 +407,17 @@ class Segmentation(SOPClass):
         dimension_organization.DimensionOrganizationUID = \
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
+
+        if is_multiframe:
+            self._source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_image(
+                    self._source_images[0]
+                )
+        else:
+            self._source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_series(
+                    self._source_images
+                )
 
         shared_func_groups.PixelMeasuresSequence = pixel_measures
         shared_func_groups.PlaneOrientationSequence = plane_orientation
@@ -635,32 +650,13 @@ class Segmentation(SOPClass):
             # be sure whether there is overlap with the existing segments
             self.SegmentsOverlap = SegmentsOverlapValues.UNDEFINED.value
 
-        src_image = self._source_images[0]
-        is_multiframe = hasattr(src_image, 'NumberOfFrames')
-        if is_multiframe:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_image(
-                    src_image
-                )
-        else:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_series(
-                    self._source_images
-                )
-
         if plane_positions is None:
-            if pixel_array.shape[0] != len(source_plane_positions):
-                if is_multiframe:
-                    raise ValueError(
-                        'Number of frames in pixel array does not match number '
-                        ' of frames in source image.'
-                    )
-                else:
-                    raise ValueError(
-                        'Number of frames in pixel array does not match number '
-                        'of source images.'
-                    )
-            plane_positions = source_plane_positions
+            if pixel_array.shape[0] != len(self._source_plane_positions):
+                raise ValueError(
+                    'Number of frames in pixel array does not match number '
+                    'of source image frames.'
+                )
+            plane_positions = self._source_plane_positions
         else:
             if pixel_array.shape[0] != len(plane_positions):
                 raise ValueError(
@@ -673,7 +669,7 @@ class Segmentation(SOPClass):
 
         are_spatial_locations_preserved = (
             all(
-                plane_positions[i] == source_plane_positions[i]
+                plane_positions[i] == self._source_plane_positions[i]
                 for i in range(len(plane_positions))
             ) and
             self._plane_orientation == self._source_plane_orientation
