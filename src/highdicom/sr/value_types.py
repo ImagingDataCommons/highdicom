@@ -742,8 +742,8 @@ class NumContentItem(ContentItem):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        value: Optional[Union[int, float]] = None,
-        unit: Optional[Union[Code, CodedConcept]] = None,
+        value: Union[int, float],
+        unit: Union[Code, CodedConcept],
         qualifier: Optional[Union[Code, CodedConcept]] = None,
         relationship_type: Optional[
             Union[str, RelationshipTypeValues]
@@ -754,9 +754,9 @@ class NumContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[int, float], optional
+        value: Union[int, float]
             numeric value
-        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded units of measurement (see `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
             "Abstract Multi-dimensional Image Model Component Units")
         qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
@@ -767,33 +767,28 @@ class NumContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
 
-        Note
-        ----
-        Either `value` and `unit` or `qualifier` must be specified.
-
         """ # noqa
         super(NumContentItem, self).__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
-        if value is not None:
-            self.MeasuredValueSequence: List[Dataset] = []
-            measured_value_sequence_item = Dataset()
-            if not isinstance(value, (int, float, )):
-                raise TypeError(
-                    'Argument "value" must have type "int" or "float".'
-                )
-            measured_value_sequence_item.NumericValue = value
-            if isinstance(value, float):
-                measured_value_sequence_item.FloatingPointValue = value
-            if not isinstance(unit, (CodedConcept, Code, )):
-                raise TypeError(
-                    'Argument "unit" must have type CodedConcept or Code.'
-                )
-            if isinstance(unit, Code):
-                unit = CodedConcept(*unit)
-            measured_value_sequence_item.MeasurementUnitsCodeSequence = [unit]
-            self.MeasuredValueSequence.append(measured_value_sequence_item)
-        elif qualifier is not None:
+        self.MeasuredValueSequence: List[Dataset] = []
+        measured_value_sequence_item = Dataset()
+        if not isinstance(value, (int, float, )):
+            raise TypeError(
+                'Argument "value" must have type "int" or "float".'
+            )
+        measured_value_sequence_item.NumericValue = value
+        if isinstance(value, float):
+            measured_value_sequence_item.FloatingPointValue = value
+        if not isinstance(unit, (CodedConcept, Code, )):
+            raise TypeError(
+                'Argument "unit" must have type CodedConcept or Code.'
+            )
+        if isinstance(unit, Code):
+            unit = CodedConcept(*unit)
+        measured_value_sequence_item.MeasurementUnitsCodeSequence = [unit]
+        self.MeasuredValueSequence.append(measured_value_sequence_item)
+        if qualifier is not None:
             if not isinstance(qualifier, (CodedConcept, Code, )):
                 raise TypeError(
                     'Argument "qualifier" must have type "CodedConcept" or '
@@ -802,11 +797,6 @@ class NumContentItem(ContentItem):
             if isinstance(qualifier, Code):
                 qualifier = CodedConcept(*qualifier)
             self.NumericValueQualifierCodeSequence = [qualifier]
-        else:
-            raise ValueError(
-                'Either argument "value" or "qualifier" must be specified '
-                'upon creation of NumContentItem.'
-            )
 
     @property
     def value(self) -> Union[int, float]:
