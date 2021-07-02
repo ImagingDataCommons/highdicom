@@ -1324,7 +1324,7 @@ class SubjectContextFetus(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return SubjectContextFetus(**kwargs)
+        return cls(**kwargs)
 
 
 class SubjectContextSpecimen(Template):
