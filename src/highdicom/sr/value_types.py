@@ -818,6 +818,14 @@ class NumContentItem(ContentItem):
         item = self.MeasuredValueSequence[0]
         return item.MeasurementUnitsCodeSequence[0]
 
+    @property
+    def qualifier(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        try:
+            return self.NumericValueQualifierCodeSequence[0]
+        except AttributeError:
+            return None
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
         """Construct instance from an existing dataset.

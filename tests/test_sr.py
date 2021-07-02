@@ -580,6 +580,9 @@ class TestContentItem(unittest.TestCase):
             value=value,
             unit=unit
         )
+        assert i.value == value
+        assert i.unit == unit
+        assert i.qualifier is None
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
         value_item = i.MeasuredValueSequence[0]
@@ -604,6 +607,9 @@ class TestContentItem(unittest.TestCase):
             unit=unit,
             qualifier=qualifier
         )
+        assert i.value == value
+        assert i.unit == unit
+        assert i.qualifier == qualifier
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
         with pytest.raises(AttributeError):
