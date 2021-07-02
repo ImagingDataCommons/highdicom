@@ -902,7 +902,7 @@ class ContainerContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.ContainerContentItem
+        highdicom.sr.ContainerContentItem
             Content Item
 
         """
