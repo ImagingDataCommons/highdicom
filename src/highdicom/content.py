@@ -205,7 +205,7 @@ class PixelMeasuresSequence(DataElementSequence):
 
         Returns
         -------
-        highdicom.PixelMeasuresSequence:
+        highdicom.PixelMeasuresSequence
             Plane position sequence.
 
         Raises
