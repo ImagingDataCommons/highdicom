@@ -1457,7 +1457,7 @@ class SubjectContextSpecimen(Template):
 
         Returns
         -------
-        highdicom.sr.templates.SubjectContextSpecimen
+        highdicom.sr.SubjectContextSpecimen
             Content Sequence containing SR Content Items
 
         """
