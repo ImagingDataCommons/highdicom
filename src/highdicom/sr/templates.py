@@ -975,7 +975,7 @@ class PersonObserverIdentifyingAttributes(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return PersonObserverIdentifyingAttributes(**kwargs)
+        return cls(**kwargs)
 
 
 class DeviceObserverIdentifyingAttributes(Template):
