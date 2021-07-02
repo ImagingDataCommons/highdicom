@@ -3028,7 +3028,7 @@ class MeasurementReport(Template):
             )
         if dataset.ContentTemplateSequence[0].TemplateIdentifier != '1500':
             raise ValueError(
-                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have Template Identifier "1500".'
             )
         instance = ContentSequence.from_sequence(sequence)
