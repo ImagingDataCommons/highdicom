@@ -364,7 +364,7 @@ class CodeContentItem(ContentItem):
 
     @property
     def value(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: coded concept"""
+        """highdicom.sr.CodedConcept: coded concept"""
         ds = self.ConceptCodeSequence[0]
         return CodedConcept(
             value=ds.CodeValue,
