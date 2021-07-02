@@ -3248,7 +3248,7 @@ class MeasurementReport(Template):
             if len(matches) == 0:
                 sequences.append(seq)
             else:
-                if any(matches):
+                if all(matches):
                     sequences.append(seq)
 
         return sequences
@@ -3335,7 +3335,7 @@ class MeasurementReport(Template):
             if len(matches) == 0:
                 sequences.append(seq)
             else:
-                if any(matches):
+                if all(matches):
                     sequences.append(seq)
 
         return sequences
@@ -3408,7 +3408,7 @@ class MeasurementReport(Template):
             if len(matches) == 0:
                 sequences.append(seq)
             else:
-                if any(matches):
+                if all(matches):
                     sequences.append(seq)
 
         return sequences
