@@ -834,7 +834,7 @@ class NumContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.NumContentItem
+        highdicom.sr.NumContentItem
             Content Item
 
         """
