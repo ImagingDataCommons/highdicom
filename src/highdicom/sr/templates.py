@@ -2157,7 +2157,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         dataset = sequence[0]
         if dataset.ValueType != ValueTypeValues.CONTAINER.value:
             raise ValueError(
-                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have Value Type CONTAINER.'
             )
         if get_coded_name(dataset) != codes.DCM.MeasurementGroup:
