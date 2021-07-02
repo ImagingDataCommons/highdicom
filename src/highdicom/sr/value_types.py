@@ -304,17 +304,17 @@ class ContentSequence(DataElementSequence):
 
         """
         content_items = []
-        for i, dataset in enumerate(sequence):
+        for i, dataset in enumerate(sequence, 1):
             if not isinstance(dataset, Dataset):
                 raise TypeError(
-                    f'Item #{i + 1} of sequence is not an SR Content Item:\n'
+                    f'Item #{i} of sequence is not an SR Content Item:\n'
                     f'{dataset}'
                 )
             try:
                 value_type = ValueTypeValues(dataset.ValueType)
             except TypeError:
                 raise ValueError(
-                    f'Item #{i + 1} of sequence is not an SR Content Item '
+                    f'Item #{i} of sequence is not an SR Content Item '
                     f'because it has unknown Value Type "{dataset.ValueType}":'
                     f'\n{dataset}'
                 )
@@ -815,7 +815,7 @@ class NumContentItem(ContentItem):
         try:
             return float(item.FloatingPointValue)
         except AttributeError:
-            return item.NumericValue
+            return float(item.NumericValue)
 
     @property
     def unit(self) -> CodedConcept:
@@ -1276,7 +1276,7 @@ class Scoord3DContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.Scoord3DContentItem
+        highdicom.sr.Scoord3DContentItem
             Content Item
 
         """
@@ -1366,7 +1366,7 @@ class TcoordContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.TcoordContentItem
+        highdicom.sr.TcoordContentItem
             Content Item
 
         """

@@ -194,7 +194,7 @@ def _contains_volumetric_rois(group_item: Dataset) -> bool:
 def _contains_code_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    value: Optional[Union[Code, CodedConcept]]
+    value: Optional[Union[Code, CodedConcept]] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type CODE.
 
@@ -975,7 +975,7 @@ class PersonObserverIdentifyingAttributes(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return PersonObserverIdentifyingAttributes(**kwargs)
+        return cls(**kwargs)
 
 
 class DeviceObserverIdentifyingAttributes(Template):
@@ -1177,7 +1177,7 @@ class DeviceObserverIdentifyingAttributes(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return DeviceObserverIdentifyingAttributes(**kwargs)
+        return cls(**kwargs)
 
 
 class ObserverContext(Template):
@@ -1324,7 +1324,7 @@ class SubjectContextFetus(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return SubjectContextFetus(**kwargs)
+        return cls(**kwargs)
 
 
 class SubjectContextSpecimen(Template):
@@ -1471,7 +1471,7 @@ class SubjectContextSpecimen(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return SubjectContextSpecimen(**kwargs)
+        return cls(**kwargs)
 
 
 class SubjectContextDevice(Template):
@@ -1655,7 +1655,7 @@ class SubjectContextDevice(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return SubjectContextDevice(**kwargs)
+        return cls(**kwargs)
 
 
 class SubjectContext(Template):
@@ -2165,7 +2165,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 'Item #1 of sequence is not an appropropriate SR Content Item '
                 'because it does not have name "Measurement Group".'
             )
-        instance = ContentSequence.from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = cls
         return instance
 
@@ -2983,7 +2983,7 @@ class MeasurementReport(Template):
         item.ContentSequence.append(container_item)
         self.append(item)
 
-    def _find_measurement_groups(self) -> Sequence[ContainerContentItem]:
+    def _find_measurement_groups(self) -> List[ContainerContentItem]:
         root_item = self[0]
         imaging_measurement_items = find_content_items(
             root_item,
@@ -3155,11 +3155,11 @@ class MeasurementReport(Template):
         ----------
         tracking_uid: str, optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding
-        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        graphic_type: Union[highdicom.sr.enum.GraphicTypeValues, highdicom.sr.enum.GraphicTypeValues3D], optional
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
             Graphic type of image region
 
         Returns
@@ -3244,11 +3244,11 @@ class MeasurementReport(Template):
         ----------
         tracking_uid: str, optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding
-        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        graphic_type: highdicom.sr.enum.GraphicTypeValues3D, optional
+        graphic_type: highdicom.sr.GraphicTypeValues3D, optional
             Graphic type of image region
 
         Returns
@@ -3330,9 +3330,9 @@ class MeasurementReport(Template):
         ----------
         tracking_uid: str, optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding
-        finding_site: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
 
         Returns
