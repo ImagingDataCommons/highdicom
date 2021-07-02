@@ -194,7 +194,7 @@ def _contains_volumetric_rois(group_item: Dataset) -> bool:
 def _contains_code_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    value: Optional[Union[Code, CodedConcept]]
+    value: Optional[Union[Code, CodedConcept]] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type CODE.
 
