@@ -1366,7 +1366,7 @@ class TcoordContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.TcoordContentItem
+        highdicom.sr.TcoordContentItem
             Content Item
 
         """
