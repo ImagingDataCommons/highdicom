@@ -1655,7 +1655,7 @@ class SubjectContextDevice(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return SubjectContextDevice(**kwargs)
+        return cls(**kwargs)
 
 
 class SubjectContext(Template):
