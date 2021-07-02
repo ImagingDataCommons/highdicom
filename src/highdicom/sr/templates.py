@@ -2983,7 +2983,7 @@ class MeasurementReport(Template):
         item.ContentSequence.append(container_item)
         self.append(item)
 
-    def _find_measurement_groups(self) -> Sequence[ContainerContentItem]:
+    def _find_measurement_groups(self) -> List[ContainerContentItem]:
         root_item = self[0]
         imaging_measurement_items = find_content_items(
             root_item,
