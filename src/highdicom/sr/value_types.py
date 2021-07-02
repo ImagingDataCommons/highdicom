@@ -815,7 +815,7 @@ class NumContentItem(ContentItem):
         try:
             return float(item.FloatingPointValue)
         except AttributeError:
-            return item.NumericValue
+            return float(item.NumericValue)
 
     @property
     def unit(self) -> CodedConcept:
