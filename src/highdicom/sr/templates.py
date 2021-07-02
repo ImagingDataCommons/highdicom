@@ -42,6 +42,8 @@ DEFAULT_LANGUAGE = CodedConcept(
     meaning='English (United States)'
 )
 
+_REGION_IN_SPACE = Code('130488', 'DCM', 'Region in Space')
+
 
 def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
     """Checks whether a measurement group item contains planar ROIs.
@@ -100,7 +102,7 @@ def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
     )
     regions_in_space_items = find_content_items(
         group_item,
-        name=codes.DCM.RegionInSpace,
+        name=_REGION_IN_SPACE,
         value_type=ValueTypeValues.COMPOSITE,
         relationship_type=RelationshipTypeValues.CONTAINS
     )
@@ -174,7 +176,7 @@ def _contains_volumetric_rois(group_item: Dataset) -> bool:
     )
     regions_in_space_items = find_content_items(
         group_item,
-        name=codes.DCM.RegionInSpace,
+        name=_REGION_IN_SPACE,
         value_type=ValueTypeValues.COMPOSITE,
         relationship_type=RelationshipTypeValues.CONTAINS
     )
