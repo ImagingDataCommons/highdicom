@@ -1164,7 +1164,7 @@ class ScoordContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.ScoordContentItem
+        highdicom.sr.ScoordContentItem
             Content Item
 
         """
