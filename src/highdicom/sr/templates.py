@@ -3164,7 +3164,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        List[highdicom.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations]
+        List[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
         """  # noqa
