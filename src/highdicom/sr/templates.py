@@ -2162,7 +2162,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
             )
         if get_coded_name(dataset) != codes.DCM.MeasurementGroup:
             raise ValueError(
-                'Item #1 of sequence is not an appropropriate SR Content Item '
+                'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have name "Measurement Group".'
             )
         instance = super().from_sequence(sequence)
