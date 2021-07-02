@@ -1096,9 +1096,9 @@ class DeviceObserverIdentifyingAttributes(Template):
             self.append(role_in_procedure_item)
 
     @property
-    def uid(self) -> str:
-        """str: unique device identifier"""
-        return self[0].value
+    def uid(self) -> UID:
+        """highdicom.UID: unique device identifier"""
+        return UID(self[0].value)
 
     @property
     def name(self) -> Union[str, None]:
@@ -2224,8 +2224,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def tracking_uid(self) -> Union[str, None]:
-        """Union[str, None]: tracking unique identifier"""
+    def tracking_uid(self) -> Union[UID, None]:
+        """Union[highdicom.UID, None]: tracking unique identifier"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2233,7 +2233,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
             value_type=ValueTypeValues.UIDREF
         )
         if len(matches) > 0:
-            return matches[0].value
+            return UID(matches[0].value)
         return None
 
     @property
