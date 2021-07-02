@@ -433,7 +433,7 @@ class TrackingIdentifier(Template):
 
         Parameters
         ----------
-        uid: Union[pydicom.uid.UID, str], optional
+        uid: Union[highdicom.UID, str], optional
             globally unique identifier
         identifier: str, optional
             human readable identifier

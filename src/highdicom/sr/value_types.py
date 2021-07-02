@@ -7,7 +7,6 @@ import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
-from pydicom.uid import UID
 from pydicom.valuerep import DA, TM, DT, PersonName
 
 from highdicom.sr.coding import CodedConcept
@@ -19,6 +18,7 @@ from highdicom.sr.enum import (
     TemporalRangeTypeValues,
     ValueTypeValues,
 )
+from highdicom.uid import UID
 
 
 def _assert_value_type(
@@ -705,7 +705,7 @@ class UIDRefContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[pydicom.uid.UID, str]
+        value: Union[highdicom.UID, str]
             unique identifier
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
@@ -718,7 +718,7 @@ class UIDRefContentItem(ContentItem):
 
     @property
     def value(self) -> UID:
-        """pydicom.uid.UID: UID"""
+        """highdicom.UID: UID"""
         return UID(self.UID)
 
     @classmethod
@@ -941,9 +941,9 @@ class CompositeContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced object
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
             type of relationship with parent content item
@@ -958,10 +958,15 @@ class CompositeContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[str, str]:
-        """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
+    def value(self) -> Tuple[UID, UID]:
+        """Tuple[highdicom.UID, highdicom.UID]:
+            referenced SOP Class UID and SOP Instance UID
+        """
         item = self.ReferencedSOPSequence[0]
-        return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
+        return (
+            UID(item.ReferencedSOPClassUID),
+            UID(item.ReferencedSOPInstanceUID),
+        )
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
@@ -1006,9 +1011,9 @@ class ImageContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced image object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced image object
         referenced_frame_numbers: Union[int, Sequence[int]], optional
             number of frame(s) to which the reference applies in case of a
@@ -1033,10 +1038,15 @@ class ImageContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[str, str]:
-        """Tuple[str, str]: referenced SOP Class UID and SOP Instance UID"""
+    def value(self) -> Tuple[UID, UID]:
+        """Tuple[highdicom.UID, highdicom.UID]:
+            referenced SOP Class UID and SOP Instance UID
+        """
         item = self.ReferencedSOPSequence[0]
-        return (item.ReferencedSOPClassUID, item.ReferencedSOPInstanceUID)
+        return (
+            UID(item.ReferencedSOPClassUID),
+            UID(item.ReferencedSOPInstanceUID),
+        )
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
@@ -1097,7 +1107,7 @@ class ScoordContentItem(ContentItem):
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
-        fiducial_uid: Union[pydicom.uid.UID, str, None], optional
+        fiducial_uid: Union[highdicom.UID, str, None], optional
             unique identifier for the content item
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item
@@ -1217,7 +1227,7 @@ class Scoord3DContentItem(ContentItem):
         graphic_data: numpy.ndarray[numpy.float]
             array of spatial coordinates, where each row of the array
             represents a (x, y, z) coordinate triplet
-        frame_of_reference_uid: Union[pydicom.uid.UID, str]
+        frame_of_reference_uid: Union[highdicom.UID, str]
             unique identifier of the frame of reference within which the
             coordinates are defined
         fiducial_uid: str, optional
