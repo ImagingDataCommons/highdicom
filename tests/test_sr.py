@@ -814,11 +814,11 @@ class TestContentItem(unittest.TestCase):
         num_unit_ds = _build_coded_concept_dataset(codes.UCUM.Millimeter)
         num_value_ds = Dataset()
         num_value_ds.NumericValue = 1.
+        num_value_ds.MeasurementUnitsCodeSequence = [num_unit_ds]
         num_ds = Dataset()
         num_ds.ValueType = 'NUM'
         num_ds.ConceptNameCodeSequence = [num_name_ds]
         num_ds.MeasuredValueSequence = [num_value_ds]
-        num_ds.MeasurementUnitsCodeSequence = [num_unit_ds]
         num_ds.RelationshipType = 'CONTAINS'
 
         container_name_ds = _build_coded_concept_dataset(

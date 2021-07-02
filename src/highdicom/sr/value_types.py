@@ -318,6 +318,11 @@ class ContentSequence(DataElementSequence):
                     f'because it has unknown Value Type "{dataset.ValueType}":'
                     f'\n{dataset}'
                 )
+            except AttributeError:
+                raise AttributeError(
+                    f'Item #{i} of sequence is not an SR Content Item:\n'
+                    f'{dataset}'
+                )
             if not hasattr(dataset, 'RelationshipType'):
                 raise AttributeError(
                     'Dataset is not an SR Content Item because it lacks '
@@ -829,7 +834,17 @@ class NumContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.NUM)
-        return super(NumContentItem, cls)._from_dataset(dataset)
+        instance = super(NumContentItem, cls)._from_dataset(dataset)
+        unit_item = (
+            instance
+            .MeasuredValueSequence[0]
+            .MeasurementUnitsCodeSequence[0]
+        )
+        unit_item = CodedConcept.from_dataset(unit_item)
+        if hasattr(instance, 'NumericValueQualifierCodeSequence'):
+            qualifier_item = instance.NumericValueQualifierCodeSequence[0]
+            qualifier_item = CodedConcept.from_dataset(qualifier_item)
+        return instance
 
 
 class ContainerContentItem(ContentItem):
