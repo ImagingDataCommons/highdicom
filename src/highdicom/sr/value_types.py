@@ -1036,7 +1036,7 @@ class ImageContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.ImageContentItem
+        highdicom.sr.ImageContentItem
             Content Item
 
         """
