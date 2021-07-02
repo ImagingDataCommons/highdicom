@@ -1166,7 +1166,7 @@ class ScoordContentItem(ContentItem):
 
     @property
     def value(self) -> np.ndarray:
-        """numpy.ndarray: spatial coordinates"""
+        """numpy.ndarray: n x 2 array of 2D spatial coordinates"""
         graphic_data = np.array(self.GraphicData)
         n_points = len(graphic_data) / 2
         return np.array(np.array_split(graphic_data, n_points))
@@ -1278,7 +1278,7 @@ class Scoord3DContentItem(ContentItem):
 
     @property
     def value(self) -> np.ndarray:
-        """numpy.ndarray: spatial coordinates"""
+        """numpy.ndarray: n x 3 array of 3D spatial coordinates"""
         graphic_data = np.array(self.GraphicData)
         n_points = len(graphic_data) / 3
         return np.array(np.array_split(graphic_data, n_points))
