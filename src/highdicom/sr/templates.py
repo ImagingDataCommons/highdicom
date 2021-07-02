@@ -3314,7 +3314,7 @@ class MeasurementReport(Template):
 
         return sequences
 
-    def get_image_measurment_groups(
+    def get_image_measurement_groups(
         self,
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
