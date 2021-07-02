@@ -377,7 +377,6 @@ class _SR(SOPClass):
         root_item.ContentSequence = dataset.ContentSequence
         root_item.ValueType = dataset.ValueType
         root_item.ContinuityOfContent = dataset.ContinuityOfContent
-        root_item.RelationshipType = None
         try:
             root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
             tid_item = dataset.ContentTemplateSequence[0]
@@ -387,10 +386,12 @@ class _SR(SOPClass):
                 )
             else:
                 sop_instance._content = ContentSequence.from_sequence(
-                    [root_item]
+                    [root_item], is_root=True
                 )
         except AttributeError:
-            sop_instance._content = ContentSequence.from_sequence([root_item])
+            sop_instance._content = ContentSequence.from_sequence(
+                [root_item], is_root=True
+            )
 
         return sop_instance
 

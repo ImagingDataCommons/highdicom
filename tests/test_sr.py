@@ -2559,11 +2559,11 @@ class TestMeasurementReport(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._person_observer_name = 'Foo Bar'
+        self._person_observer_name = 'Bar^Foo'
         self._observer_person_context = ObserverContext(
             observer_type=codes.cid270.Person,
             observer_identifying_attributes=PersonObserverIdentifyingAttributes(
-                name='Bar^Foo'
+                name=self._person_observer_name
             )
         )
         self._device_observer_uid = generate_uid()

@@ -235,27 +235,26 @@ class ContentSequence(DataElementSequence):
             for i in items:
                 if not isinstance(i, ContentItem):
                     raise TypeError(
-                        'Items of "{}" must have type ContentItem.'.format(
-                            self.__class__.__name__
-                        )
+                        f'Items of "{self.__class__.__name__}" must have '
+                        'type ContentItem.'
                     )
                 if is_root:
                     if i.relationship_type is not None:
                         raise AttributeError(
-                            'Items at the root of the content tree must '
-                            'have no relationship type.'
+                            'Item at the root of the content tree must '
+                            f'have no Relationship Type:\n{i.name}.'
                         )
                     if not isinstance(i, ContainerContentItem):
                         raise TypeError(
-                            'Items at the root of a SR content tree must be '
-                            'container content sequences.'
+                            'Item at the root of a SR content tree must '
+                            f'have type ContainerContentItem:\n{i.name}'
                         )
                 else:
                     if i.relationship_type is None:
                         raise AttributeError(
-                            'Items to be included in a '
+                            'Item to be included in a '
                             f'{self.__class__.__name__} must have an '
-                            'established relationship type.'
+                            f'established relationship type:\n{i.name}'
                         )
 
         super(ContentSequence, self).__init__(items)
@@ -406,6 +405,8 @@ class ContentSequence(DataElementSequence):
                 )
             content_item_cls = _get_content_item_class(value_type)
             content_items.append(content_item_cls.from_dataset(dataset))
+        if cls.__name__ == 'ContentSequence':
+            return ContentSequence(content_items, is_root=is_root)
         return cls(content_items)
 
     @property

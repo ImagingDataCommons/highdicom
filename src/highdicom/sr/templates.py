@@ -2910,8 +2910,7 @@ class MeasurementReport(Template):
             )
         item = ContainerContentItem(
             name=title,
-            template_id='1500',
-            relationship_type=RelationshipTypeValues.CONTAINS
+            template_id='1500'
         )
         item.ContentSequence = ContentSequence()
         if language_of_content_item_and_descendants is None:
@@ -3058,7 +3057,7 @@ class MeasurementReport(Template):
                 'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have Template Identifier "1500".'
             )
-        instance = ContentSequence.from_sequence(sequence)
+        instance = ContentSequence.from_sequence(sequence, is_root=True)
         instance.__class__ = cls
         return instance
 
