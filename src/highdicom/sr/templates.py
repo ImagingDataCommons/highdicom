@@ -3048,7 +3048,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        List[highdicom.sr.templates.ObserverContext]
+        List[highdicom.sr.ObserverContext]
             Observer contexts
 
         """  # noqa
