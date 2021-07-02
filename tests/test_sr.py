@@ -595,15 +595,17 @@ class TestContentItem(unittest.TestCase):
 
     def test_num_item_construction_from_qualifier_code(self):
         name = codes.SCT.Area
+        value = 100.0
+        unit = Code('um2', 'UCUM', 'Square Micrometer')
         qualifier = Code('114000', 'SCT', 'Not a number')
         i = NumContentItem(
             name=name,
+            value=value,
+            unit=unit,
             qualifier=qualifier
         )
         assert i.ValueType == 'NUM'
         assert i.ConceptNameCodeSequence[0] == name
-        with pytest.raises(AttributeError):
-            assert i.MeasuredValueSequence
         with pytest.raises(AttributeError):
             assert i.RelationshipType
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
