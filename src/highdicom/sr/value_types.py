@@ -183,11 +183,7 @@ class ContentItem(Dataset):
     def name(self) -> CodedConcept:
         """highdicom.sr.CodedConcept: coded name of the content item"""
         ds = self.ConceptNameCodeSequence[0]
-        return CodedConcept(
-            value=ds.CodeValue,
-            scheme_designator=ds.CodingSchemeDesignator,
-            meaning=ds.CodeMeaning
-        )
+        return CodedConcept.from_dataset(ds)
 
     @property
     def value_type(self) -> ValueTypeValues:
@@ -460,11 +456,7 @@ class CodeContentItem(ContentItem):
     def value(self) -> CodedConcept:
         """highdicom.sr.CodedConcept: coded concept"""
         ds = self.ConceptCodeSequence[0]
-        return CodedConcept(
-            value=ds.CodeValue,
-            scheme_designator=ds.CodingSchemeDesignator,
-            meaning=ds.CodeMeaning
-        )
+        return CodedConcept.from_dataset(ds)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':

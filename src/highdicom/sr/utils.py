@@ -139,12 +139,7 @@ def get_coded_name(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptNameCodeSequence" and '
             'thus doesn\'t represent a SR Content Item.'
         )
-    return CodedConcept(
-        value=name.CodeValue,
-        scheme_designator=name.CodingSchemeDesignator,
-        meaning=name.CodeMeaning,
-        scheme_version=name.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(name)
 
 
 def get_coded_value(item: Dataset) -> CodedConcept:
@@ -168,9 +163,4 @@ def get_coded_value(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptCodeSequence" and '
             'thus doesn\'t represent a SR Content Item of Value Type CODE.'
         )
-    return CodedConcept(
-        value=value.CodeValue,
-        scheme_designator=value.CodingSchemeDesignator,
-        meaning=value.CodeMeaning,
-        scheme_version=value.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(value)
