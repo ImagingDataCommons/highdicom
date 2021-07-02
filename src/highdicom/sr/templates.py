@@ -2165,7 +2165,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 'Item #1 of sequence is not an appropropriate SR Content Item '
                 'because it does not have name "Measurement Group".'
             )
-        instance = ContentSequence.from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = cls
         return instance
 
