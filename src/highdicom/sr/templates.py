@@ -1636,7 +1636,7 @@ class SubjectContextDevice(Template):
 
         Returns
         -------
-        highdicom.sr.templates.SubjectContextDevice
+        highdicom.sr.SubjectContextDevice
             Content Sequence containing SR Content Items
 
         """
