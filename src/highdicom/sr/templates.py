@@ -1177,7 +1177,7 @@ class DeviceObserverIdentifyingAttributes(Template):
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
-        return DeviceObserverIdentifyingAttributes(**kwargs)
+        return cls(**kwargs)
 
 
 class ObserverContext(Template):
