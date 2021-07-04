@@ -1479,10 +1479,9 @@ class Segmentation(SOPClass):
         Read in an example segmentation image in the highdicom test data:
 
         >>> import highdicom as hd
-        >>> from highdicom.seg.utils import segread
         >>> from pydicom.sr.codedict import codes
         >>>
-        >>> seg = segread('data/test_files/seg_image_ct_binary_overlap.dcm')
+        >>> seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
 
         List the tracking IDs and UIDs present in the segmentation image:
 
@@ -1986,9 +1985,8 @@ class Segmentation(SOPClass):
         Read in an example from the highdicom test data:
 
         >>> import highdicom as hd
-        >>> from highdicom.seg.utils import segread
         >>>
-        >>> seg = segread('data/test_files/seg_image_ct_binary.dcm')
+        >>> seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
 
         List the source images for this segmentation:
 
@@ -2216,9 +2214,8 @@ class Segmentation(SOPClass):
         multiframe slide microscopy image:
 
         >>> import highdicom as hd
-        >>> from highdicom.seg.utils import segread
         >>>
-        >>> seg = segread('data/test_files/seg_image_sm_control.dcm')
+        >>> seg = hd.seg.segread('data/test_files/seg_image_sm_control.dcm')
 
         List the source image SOP instance UID for this segmentation:
 
