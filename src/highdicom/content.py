@@ -131,7 +131,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
     @property
     def source(self) -> Optional[str]:
-        """Optional[str]:
+        """Union[str, None]:
                Source of the algorithm, e.g. name of the algorithm
                manufacturer, if any
 
@@ -140,7 +140,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
     @property
     def parameters(self) -> Optional[Dict[str, str]]:
-        """Optional[Dict[str, str]]:
+        """Union[Dict[str, str], None]:
                Dictionary mapping algorithm parameter names to values,
                if any
 

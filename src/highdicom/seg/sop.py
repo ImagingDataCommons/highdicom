@@ -1353,17 +1353,17 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        segment_label: Optional[str], optional
+        segment_label: Union[str, None], optional
             Segment label filter to apply.
-        segmented_property_category: Optional[Union[Code, CodedConcept]], optional
+        segmented_property_category: Union[Code, CodedConcept, None], optional
             Segmented property category filter to apply.
-        segmented_property_type: Optional[Union[Code, CodedConcept]], optional
+        segmented_property_type: Union[Code, CodedConcept, None], optional
             Segmented property type filter to apply.
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]], optional
+        algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
             Segmented property type filter to apply.
-        tracking_uid: Optional[str], optional
+        tracking_uid: Union[str, None], optional
             Tracking unique identifier filter to apply.
-        tracking_id: Optional[str], optional
+        tracking_id: Union[str, None], optional
             Tracking identifier filter to apply.
 
         Returns
@@ -1427,11 +1427,11 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        segmented_property_category: Optional[Union[Code, CodedConcept]], optional
+        segmented_property_category: Union[Code, CodedConcept, None], optional
             Segmented property category filter to apply.
-        segmented_property_type: Optional[Union[Code, CodedConcept]], optional
+        segmented_property_type: Union[Code, CodedConcept, None], optional
             Segmented property type filter to apply.
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]], optional
+        algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
             Segmented property type filter to apply.
 
         Returns
@@ -1868,7 +1868,7 @@ class Segmentation(SOPClass):
         source_sop_instance_uids: str
             SOP Instance UID of the source instances to for which segmentations
             are requested.
-        segment_numbers: Optional[Sequence[int]], optional
+        segment_numbers: Union[Sequence[int], None], optional
             Sequence containing segment numbers to include. If unspecified,
             all segments are included.
         combine_segments: bool, optional
@@ -2067,7 +2067,7 @@ class Segmentation(SOPClass):
         source_frame_numbers: Sequence[int]
             A sequence of frame numbers (1-based) within the source instance
             for which segmentations are requested.
-        segment_numbers: Optional[Sequence[int]], optional
+        segment_numbers: Sequence[int, None], optional
             Sequence containing segment numbers to include. If unspecified,
             all segments are included.
         combine_segments: bool, optional
@@ -2267,7 +2267,7 @@ class Segmentation(SOPClass):
             sequence is determined by the ``dimension_index_pointers``
             parameter, and as such the length of each inner sequence must
             match the length of ``dimension_index_pointers`` parameter.
-        dimension_index_pointers: Optional[Sequence[Union[int, pydicom.tag.BaseTag]]], optional
+        dimension_index_pointers: Union[Sequence[Union[int, pydicom.tag.BaseTag]], None], optional
             The data element tags that identify the indices used in the
             ``dimension_index_values`` parameter. Each element identifies a
             data element tag by which frames are ordered in the segmentation
@@ -2278,7 +2278,7 @@ class Segmentation(SOPClass):
             the construction of the segmentation image and include any
             permutation of any subset of elements in the
             :meth:`Segmentation.get_default_dimension_index_pointers()` list.
-        segment_numbers: Optional[Sequence[int]], optional
+        segment_numbers: Union[Sequence[int], None], optional
             Sequence containing segment numbers to include. If unspecified,
             all segments are included.
         combine_segments: bool, optional
