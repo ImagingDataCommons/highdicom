@@ -24,16 +24,15 @@ from highdicom import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
+    Segmentation,
+    segread,
     DimensionIndexSequence,
     SegmentDescription,
-)
-from highdicom.seg import (
+    SegmentationTypeValues,
     SegmentAlgorithmTypeValues,
     SegmentsOverlapValues,
-    SegmentationTypeValues,
     SegmentationFractionalTypeValues,
 )
-from highdicom.seg import Segmentation
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
@@ -1716,6 +1715,14 @@ class TestSegmentationParsing(unittest.TestCase):
 
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
+
+    def test_segread(self):
+        seg = segread('data/test_files/seg_image_ct_true_fractional.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_ct_binary_overlap.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_numbers.dcm')
+        assert isinstance(seg, Segmentation)
 
     def test_properties(self):
         # SM segs

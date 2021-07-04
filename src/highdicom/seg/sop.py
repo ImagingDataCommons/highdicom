@@ -2,10 +2,11 @@
 from copy import deepcopy
 from collections import OrderedDict
 import logging
+from os import PathLike
 import numpy as np
 from collections import defaultdict
 from typing import (
-    Any, Dict, List, Optional, Set, Sequence, Union, Tuple
+    Any, Dict, List, Optional, Set, Sequence, Union, Tuple, BinaryIO
 )
 
 from pydicom.dataset import Dataset
@@ -25,6 +26,7 @@ from pydicom.uid import (
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName
 from pydicom.sr.coding import Code
+from pydicom.filereader import dcmread
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -2611,3 +2613,21 @@ class Segmentation(SOPClass):
             relabel=relabel,
             rescale_fractional=rescale_fractional
         )
+
+
+def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
+    """Read a segmentation image stored in DICOM File Format.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing a
+        Segmentation image.
+
+    Returns
+    -------
+    highdicom.seg.Segmentation
+        Segmentation image read from the file.
+
+    """
+    return Segmentation.from_dataset(dcmread(fp))
