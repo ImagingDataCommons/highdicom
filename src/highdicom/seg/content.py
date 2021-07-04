@@ -281,7 +281,7 @@ class SegmentDescription(Dataset):
         """
         if not hasattr(self, 'AnatomicRegionSequence'):
             return []
-        return self.AnatomicRegionSequence
+        return list(self.AnatomicRegionSequence)
 
     @property
     def primary_anatomic_structures(self) -> List[CodedConcept]:
@@ -292,7 +292,7 @@ class SegmentDescription(Dataset):
         """
         if not hasattr(self, 'PrimaryAnatomicStructureSequence'):
             return []
-        return self.PrimaryAnatomicStructureSequence
+        return list(self.PrimaryAnatomicStructureSequence)
 
 
 class DimensionIndexSequence(DataElementSequence):
