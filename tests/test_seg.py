@@ -1599,6 +1599,20 @@ class TestSegUtilities(unittest.TestCase):
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
 
+    def test_iter_segments_ct_single_frame(self):
+        seg_dataset = dcmread(
+            'data/test_files/seg_image_ct_binary_single_frame.dcm'
+        )
+
+        generator = iter_segments(seg_dataset)
+        items = list(generator)
+        assert len(items) == 1
+        item_segment_1 = items[0]
+        assert item_segment_1[0].shape == (1, 128, 128)
+        seg_id_item_1 = item_segment_1[1][0].SegmentIdentificationSequence[0]
+        assert seg_id_item_1.ReferencedSegmentNumber == 1
+        assert item_segment_1[2].SegmentNumber == 1
+
     def test_iter_segments_ct_single_frame_2_segments(self):
         image_dataset = self._ct_image
         mask = np.zeros(
