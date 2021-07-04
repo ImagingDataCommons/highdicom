@@ -1842,27 +1842,23 @@ class Segmentation(SOPClass):
         if self._locations_preserved is None:
             if not ignore_spatial_locations:
                 raise RuntimeError(
-                    """
-                    Indexing via source frames is not permissible since this
-                    image does not specify that spatial locations are preserved
-                    in the course of deriving the segmentation from the source
-                    image. If you are confident that spatial locations are
-                    preserved, or do not require that spatial locations are
-                    preserved, you may override this behavior with the
-                    'ignore_spatial_locations' parameter.
-                    """
+                    'Indexing via source frames is not permissible since this '
+                    'image does not specify that spatial locations are '
+                    'preserved in the course of deriving the segmentation '
+                    'from the source image. If you are confident that spatial '
+                    'locations are preserved, or do not require that spatial '
+                    'locations are preserved, you may override this behavior '
+                    "with the 'ignore_spatial_locations' parameter."
                 )
         elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
             if not ignore_spatial_locations:
                 raise RuntimeError(
-                    """
-                    Indexing via source frames is not permissible since this
-                    image specifies that spatial locations are not preserved in
-                    the course of deriving the segmentation from the source
-                    image. If you do not require that spatial locations are
-                    preserved you may override this behavior with the
-                    'ignore_spatial_locations' parameter.
-                    """
+                    'Indexing via source frames is not permissible since this '
+                    'image specifies that spatial locations are not preserved '
+                    'in the course of deriving the segmentation from the '
+                    'source image. If you do not require that spatial '
+                    ' locations are preserved you may override this behavior '
+                    "with the 'ignore_spatial_locations' parameter."
                 )
         if not self._single_source_frame_per_seg_frame:
             raise RuntimeError(
