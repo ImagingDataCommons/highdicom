@@ -50,6 +50,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx_autodoc_typehints',
+    'sphinx.ext.extlinks',
 ]
 
 napoleon_google_docstring = False
@@ -85,6 +86,16 @@ pygments_style = 'sphinx'
 autoclass_content = 'both'
 
 typehints_fully_qualified = True
+
+# Shortcuts for sphinx.ext.extlinks
+extlinks = {
+    # 'alias' : (url_prefix, caption)
+    # Usage :dcm:`link text <part05/sect_6.2.html>`
+    'dcm': (
+        'http://dicom.nema.org/medical/dicom/current/output/chtml/%s',
+        None
+    ),
+}
 
 # -- Options for HTML output -------------------------------------------------
 

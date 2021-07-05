@@ -490,12 +490,12 @@ class NumContentItem(ContentItem):
         value: Union[int, float], optional
             numeric value
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            coded units of measurement (see `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
+            coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
             "Abstract Multi-dimensional Image Model Component Units")
         qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
-            (see `CID 42 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_42.html>`_
+            (see :dcm:`CID 42 <part16/sect_CID_42.html>`
             "Numeric Value Qualifier" for options)
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
