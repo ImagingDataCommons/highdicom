@@ -2375,7 +2375,11 @@ class MeasurementsAndQualitativeEvaluations(Template):
         )
         return [
             item for item in matches
-            if item.name not in (codes.DCM.Finding, codes.SCT.FindingSite, )
+            if item.name not in (
+                codes.DCM.Finding,
+                codes.SCT.FindingSite,
+                codes.SCT.MeasurementMethod
+            )
         ]
 
 
