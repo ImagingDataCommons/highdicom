@@ -39,10 +39,13 @@ def iter_segments(dataset: Dataset) -> Iterator:
         int(item.SegmentIdentificationSequence[0].ReferencedSegmentNumber)
         for item in dataset.PerFrameFunctionalGroupsSequence
     ])
+    pixel_array = dataset.pixel_array
+    if pixel_array.ndim == 2:
+        pixel_array = pixel_array[np.newaxis, ...]
     for i in np.unique(segment_number_per_frame):
         indices = np.where(segment_number_per_frame == i)[0]
         yield (
-            dataset.pixel_array[indices, ...],
+            pixel_array[indices, ...],
             tuple([
                 dataset.PerFrameFunctionalGroupsSequence[index]
                 for index in indices
