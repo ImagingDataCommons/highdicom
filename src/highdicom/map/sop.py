@@ -29,7 +29,7 @@ from pydicom.uid import (
 from pydicom.sr.codedict import codes
 
 
-class PixelDataType(Enum):
+class _PixelDataType(Enum):
     """Helper enum for tracking the type of the pixel data"""
 
     INTEGER = 1
@@ -39,7 +39,7 @@ class PixelDataType(Enum):
 
 class ParametricMap(SOPClass):
 
-    """SOP class for a Parametric Map"""
+    """SOP class for a Parametric Map."""
 
     def __init__(
         self,
@@ -114,14 +114,14 @@ class ParametricMap(SOPClass):
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
         self._pixel_data_type_map = {
-            PixelDataType.INTEGER: "PixelData",
-            PixelDataType.FLOAT: "FloatPixelData",
-            PixelDataType.DOUBLE: "DoubleFloatPixelData",
+            _PixelDataType.INTEGER: "PixelData",
+            _PixelDataType.FLOAT: "FloatPixelData",
+            _PixelDataType.DOUBLE: "DoubleFloatPixelData",
         }
         bits_to_allocate = {
-            PixelDataType.INTEGER: 16,
-            PixelDataType.FLOAT: 32,
-            PixelDataType.DOUBLE: 64,
+            _PixelDataType.INTEGER: 16,
+            _PixelDataType.FLOAT: 32,
+            _PixelDataType.DOUBLE: 64,
         }
 
         super().__init__(
@@ -317,7 +317,7 @@ class ParametricMap(SOPClass):
         # Not sure that's actually necessary or good but whatever
         self._pixel_data_type = pixel_enum
         # Attributes based on the type of Pixel Data
-        if self._pixel_data_type == PixelDataType.INTEGER:
+        if self._pixel_data_type == _PixelDataType.INTEGER:
             self.BitsStored = 16
             self.HighBit = 15
             self.PixelRepresentation = 0x1
@@ -465,7 +465,7 @@ class ParametricMap(SOPClass):
 
     def _get_array_pixel_data_name(
         self, pixel_array: np.ndarray
-    ) -> Tuple[PixelDataType, str]:
+    ) -> Tuple[_PixelDataType, str]:
         """Returns the DICOM Attribute string for a given `np.ndarray`'s
         `dtype`.
 
@@ -476,7 +476,7 @@ class ParametricMap(SOPClass):
 
         Returns
         -------
-        Tuple[PixelDataType, str]
+        Tuple[_PixelDataType, str]
             A tuple where the first element is the enum value and the second
             value is the DICOM pixel data attribute for the given datatype.
             One of (`PixelData`, `FloatPixelData`, `DoubleFloatPixelData`)
@@ -490,18 +490,18 @@ class ParametricMap(SOPClass):
             # Further check for float32 vs float64
             if pixel_array.dtype.name == "float32":
                 return (
-                    PixelDataType.FLOAT,
-                    self._pixel_data_type_map[PixelDataType.FLOAT],
+                    _PixelDataType.FLOAT,
+                    self._pixel_data_type_map[_PixelDataType.FLOAT],
                 )
             elif pixel_array.dtype.name == "float64":
                 return (
-                    PixelDataType.DOUBLE,
-                    self._pixel_data_type_map[PixelDataType.DOUBLE],
+                    _PixelDataType.DOUBLE,
+                    self._pixel_data_type_map[_PixelDataType.DOUBLE],
                 )
         elif pixel_array.dtype.kind == "i" or pixel_array.dtype.kind == "u":
             return (
-                PixelDataType.INTEGER,
-                self._pixel_data_type_map[PixelDataType.INTEGER],
+                _PixelDataType.INTEGER,
+                self._pixel_data_type_map[_PixelDataType.INTEGER],
             )
         raise ValueError(
             "Data type of argument `pixel_array` "
