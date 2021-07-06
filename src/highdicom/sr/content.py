@@ -1,4 +1,5 @@
 """Content items for Structured Report document instances."""
+import logging
 from typing import Optional, Sequence, Union
 
 import numpy as np
@@ -28,6 +29,9 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
@@ -748,6 +752,11 @@ class FindingSite(CodeContentItem):
         )
         if len(matches) > 0:
             return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Topographical Modifier" content item '
+                'in "Finding Site" content item'
+            )
         return None
 
     @property
@@ -759,6 +768,11 @@ class FindingSite(CodeContentItem):
         )
         if len(matches) > 0:
             return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Laterality" content item '
+                'in "Finding Site" content item'
+            )
         return None
 
 

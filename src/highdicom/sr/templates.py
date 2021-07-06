@@ -1,6 +1,7 @@
 """DICOM structured reporting templates."""
-from typing import List, Optional, Sequence, Tuple, Union
+import logging
 import warnings
+from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -44,6 +45,9 @@ DEFAULT_LANGUAGE = CodedConcept(
     scheme_designator='RFC5646',
     meaning='English (United States)'
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _count_roi_items(
@@ -896,6 +900,11 @@ class PersonObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.PersonObserverLoginName
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Login Name" content item '
+                'in "Person Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -907,6 +916,11 @@ class PersonObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.PersonObserverOrganizationName
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Organization Name" content item '
+                'in "Person Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -918,6 +932,11 @@ class PersonObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.PersonObserverRoleInTheOrganization
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Role in Organization" content item '
+                'in "Person Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -929,6 +948,11 @@ class PersonObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.PersonObserverRoleInThisProcedure
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Role in Procedure" content item '
+                'in "Person Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1088,6 +1112,11 @@ class DeviceObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.DeviceObserverName
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Observer Name" content item '
+                'in "Device Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1099,6 +1128,11 @@ class DeviceObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.DeviceObserverManufacturer
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Observer Manufacturer" content '
+                'name in "Device Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1110,6 +1144,11 @@ class DeviceObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.DeviceObserverModelName
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Observer Model Name" content '
+                'item in "Device Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1121,6 +1160,11 @@ class DeviceObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.DeviceObserverSerialNumber
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Observer Serial Number" content '
+                'item in "Device Observer Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1132,6 +1176,12 @@ class DeviceObserverIdentifyingAttributes(Template):
             item for item in self
             if item.name == codes.DCM.DeviceObserverPhysicalLocationDuringObservation  # noqa
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Observer Physical Location '
+                'During Observation" content item in "Device Observer '
+                'Identifying Attributes" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1407,6 +1457,11 @@ class SubjectContextSpecimen(Template):
             item for item in self
             if item.name == codes.DCM.SpecimenIdentifier
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Specimen Identifier" content '
+                'item in "Subject Context Specimen" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1418,6 +1473,11 @@ class SubjectContextSpecimen(Template):
             item for item in self
             if item.name == codes.DCM.SpecimenContainerIdentifier
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Specimen Container Identifier" content '
+                'item in "Subject Context Specimen" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1429,6 +1489,11 @@ class SubjectContextSpecimen(Template):
             item for item in self
             if item.name == codes.SCT.SpecimenType
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Specimen Type" content '
+                'item in "Subject Context Specimen" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1566,6 +1631,11 @@ class SubjectContextDevice(Template):
             item for item in self
             if item.name == codes.DCM.DeviceSubjectUID
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Subject UID" content '
+                'item in "Subject Context Device" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1577,6 +1647,11 @@ class SubjectContextDevice(Template):
             item for item in self
             if item.name == codes.DCM.DeviceSubjectManufacturer
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Subject Manufacturer" content '
+                'item in "Subject Context Device" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1588,6 +1663,11 @@ class SubjectContextDevice(Template):
             item for item in self
             if item.name == codes.DCM.DeviceSubjectModelName
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Subject Model Name" content '
+                'item in "Subject Context Device" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1599,6 +1679,11 @@ class SubjectContextDevice(Template):
             item for item in self
             if item.name == codes.DCM.DeviceSubjectSerialNumber
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Subject Serial Number" content '
+                'item in "Subject Context Device" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -1610,6 +1695,12 @@ class SubjectContextDevice(Template):
             item for item in self
             if item.name == codes.DCM.DeviceSubjectPhysicalLocationDuringObservation  # noqa
         ]
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Device Subject Physical Location '
+                'During Observation" content item in "Subject Context Device" '
+                'template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -2187,6 +2278,11 @@ class MeasurementsAndQualitativeEvaluations(Template):
             name=codes.SCT.MeasurementMethod,
             value_type=ValueTypeValues.CODE
         )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Measurement Method" content '
+                'item in "Measurements and Qualitative Evaluations" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -2200,6 +2296,11 @@ class MeasurementsAndQualitativeEvaluations(Template):
             name=codes.DCM.TrackingIdentifier,
             value_type=ValueTypeValues.TEXT
         )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Tracking Identifier" content '
+                'item in "Measurements and Qualitative Evaluations" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -2213,6 +2314,11 @@ class MeasurementsAndQualitativeEvaluations(Template):
             name=codes.DCM.TrackingUniqueIdentifier,
             value_type=ValueTypeValues.UIDREF
         )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Tracking Unique Identifier" content '
+                'item in "Measurements and Qualitative Evaluations" template'
+            )
         if len(matches) > 0:
             return UID(matches[0].value)
         return None
@@ -2226,6 +2332,11 @@ class MeasurementsAndQualitativeEvaluations(Template):
             name=codes.DCM.Finding,
             value_type=ValueTypeValues.CODE
         )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Finding" content item '
+                'in "Measurements and Qualitative Evaluations" template'
+            )
         if len(matches) > 0:
             return matches[0].value
         return None
@@ -2533,6 +2644,12 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             name=codes.DCM.ImageRegion,
             value_type=ValueTypeValues.SCOORD
         )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Image Region" content item '
+                'in "Planar ROI Measurements and Qualitative Evalutions" '
+                'template'
+            )
         if len(matches) > 0:
             return ImageRegion.from_dataset(matches[0])
         matches = find_content_items(
@@ -2540,7 +2657,13 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             name=codes.DCM.ImageRegion,
             value_type=ValueTypeValues.SCOORD3D
         )
-        if len(matches) > 0:
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Image Region" content item '
+                'in "Planar ROI Measurements and Qualitative Evalutions" '
+                'template'
+            )
+        if len(matches) == 0:
             return ImageRegion3D.from_dataset(matches[0])
         return None
 
