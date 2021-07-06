@@ -56,17 +56,18 @@ def _check_valid_source_image_dataset(dataset: Dataset) -> None:
         measurement, segmentation, or region.
 
     """
-    # Check that there is some form of pixel data present
+    # Check that some of the image pixel description attributes are present
     pixel_data_keywords = [
-        'PixelData',
-        'FloatPixelData',
-        'DoubleFloatPixelData'
+        'Rows',
+        'Columns',
+        'SamplesPerPixel',
+        'PixelRepresentation',
     ]
     if not any(hasattr(dataset, attr) for attr in pixel_data_keywords):
         raise ValueError(
             'Dataset does not represent a valid source image for '
             'a measurement, segmentation, or region because it '
-            'contains no pixel data.'
+            'lacks image pixel description attributes.'
         )
     # Check for obviously invalid modalities
     disallowed_modalities = [
