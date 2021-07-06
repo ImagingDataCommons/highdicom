@@ -107,7 +107,6 @@ from highdicom.sr import (
     VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
-from highdicom.sr.utils import find_content_items
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:

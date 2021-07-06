@@ -1,5 +1,5 @@
 """DICOM structured reporting templates."""
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 import warnings
 
 from pydicom.dataset import Dataset
@@ -45,7 +45,74 @@ DEFAULT_LANGUAGE = CodedConcept(
     meaning='English (United States)'
 )
 
-_REGION_IN_SPACE = Code('130488', 'DCM', 'Region in Space')
+
+def _count_roi_items(
+    group_item: ContainerContentItem
+) -> Tuple[int, int, int, int, int]:
+    """Find content items in a 'Measurement Group' container content item
+    structured according to TID 1410 Planar ROI Measurements and Qualitative
+    Evaluations or TID 1411 Volumetric ROI Measurements and Qualitative
+    Evaluations.
+
+    Parameters
+    ----------
+    group_item: highdicom.sr.ContainerContentItem
+        Container content item of measurement group that is expected to
+        contain ROI items
+
+    Returns
+    -------
+    int:
+        Number of 'Image Region' content items
+    int:
+        Number of 'Volume Surface' content items
+    int:
+        Number of 'Referenced Segment' content items
+    int:
+        Number of 'Referenced Segmentation Frame' content items
+    int:
+        Number of 'Region in Space' content items
+
+    """
+    if group_item.ValueType != ValueTypeValues.CONTAINER.value:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have value type CONTAINER.'
+        )
+    if group_item.name == codes.DCM.MeasurementGroup:
+        raise ValueError(
+            'SR Content Item does not represent a measurement group '
+            'because it does not have name "Measurement Group".'
+        )
+    n_image_region_items = 0
+    n_volume_surface_items = 0
+    n_referenced_segment_items = 0
+    n_referenced_segmentation_frame_items = 0
+    n_region_in_space_items = 0
+    for item in group_item.ContentSequence:
+        if (item.name == codes.DCM.ImageRegion and
+                (item.value_type == ValueTypeValues.SCOORD or
+                 item.value_type == ValueTypeValues.SCOORD3D)):
+            n_image_region_items += 1
+        if (item.name == codes.DCM.VolumeSurface and
+                item.value_type == ValueTypeValues.SCOORD3D):
+            n_volume_surface_items += 1
+        if (item.name == codes.DCM.ReferencedSegment and
+                item.value_type == ValueTypeValues.IMAGE):
+            n_referenced_segment_items += 1
+        if (item.name == codes.DCM.ReferencedSegmentationFrame and
+                item.value_type == ValueTypeValues.IMAGE):
+            n_referenced_segmentation_frame_items += 1
+        if (item.name == Code('130488', 'DCM', 'Region in Space') and
+                item.value_type == ValueTypeValues.COMPOSITE):
+            n_region_in_space_items += 1
+    return (
+        n_image_region_items,
+        n_volume_surface_items,
+        n_referenced_segment_items,
+        n_referenced_segmentation_frame_items,
+        n_region_in_space_items,
+    )
 
 
 def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
@@ -63,60 +130,17 @@ def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
         SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing planar ROIs
 
     """
-    if group_item.ValueType != ValueTypeValues.CONTAINER.value:
-        raise ValueError(
-            'SR Content Item does not represent a measurement group '
-            'because it does not have value type CONTAINER.'
-        )
-    if group_item.name == codes.DCM.MeasurementGroup:
-        raise ValueError(
-            'SR Content Item does not represent a measurement group '
-            'because it does not have name "Measurement Group".'
-        )
-    image_region_items = find_content_items(
-        group_item,
-        name=codes.DCM.ImageRegion,
-        value_type=ValueTypeValues.SCOORD,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    image_region_items += find_content_items(
-        group_item,
-        name=codes.DCM.ImageRegion,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    volume_surface_items = find_content_items(
-        group_item,
-        name=codes.DCM.VolumeSurface,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    referenced_segment_items = find_content_items(
-        group_item,
-        name=codes.DCM.ReferencedSegment,
-        value_type=ValueTypeValues.IMAGE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    referenced_segmentation_frame_items = find_content_items(
-        group_item,
-        name=codes.DCM.ReferencedSegmentationFrame,
-        value_type=ValueTypeValues.IMAGE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    regions_in_space_items = find_content_items(
-        group_item,
-        name=_REGION_IN_SPACE,
-        value_type=ValueTypeValues.COMPOSITE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
+    n_image_region_items, n_volume_surface_items, n_referenced_segment_items, \
+        n_referenced_segmentation_frame_items, n_region_in_space_items = \
+        _count_roi_items(group_item)
 
     if (
-            len(image_region_items) == 1 or
-            len(referenced_segmentation_frame_items) > 0 or
-            len(regions_in_space_items) == 1
+            n_image_region_items == 1 or
+            n_referenced_segmentation_frame_items > 0 or
+            n_region_in_space_items == 1
        ) and (
-            len(volume_surface_items) == 0 and
-            len(referenced_segment_items) == 0
+            n_volume_surface_items == 0 and
+            n_referenced_segment_items == 0
        ):
         return True
     return False
@@ -137,60 +161,17 @@ def _contains_volumetric_rois(group_item: Dataset) -> bool:
         SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing volumetric ROIs
 
     """
-    if group_item.ValueType != ValueTypeValues.CONTAINER.value:
-        raise ValueError(
-            'SR Content Item does not represent a measurement group '
-            'because it does not have value type CONTAINER.'
-        )
-    if group_item.name == codes.DCM.MeasurementGroup:
-        raise ValueError(
-            'SR Content Item does not represent a measurement group '
-            'because it does not have name "Measurement Group".'
-        )
-    image_region_items = find_content_items(
-        group_item,
-        name=codes.DCM.ImageRegion,
-        value_type=ValueTypeValues.SCOORD,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    image_region_items += find_content_items(
-        group_item,
-        name=codes.DCM.ImageRegion,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    volume_surface_items = find_content_items(
-        group_item,
-        name=codes.DCM.VolumeSurface,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    referenced_segment_items = find_content_items(
-        group_item,
-        name=codes.DCM.ReferencedSegment,
-        value_type=ValueTypeValues.IMAGE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    referenced_segmentation_frame_items = find_content_items(
-        group_item,
-        name=codes.DCM.ReferencedSegmentationFrame,
-        value_type=ValueTypeValues.IMAGE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    regions_in_space_items = find_content_items(
-        group_item,
-        name=_REGION_IN_SPACE,
-        value_type=ValueTypeValues.COMPOSITE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
+    n_image_region_items, n_volume_surface_items, n_referenced_segment_items, \
+        n_referenced_segmentation_frame_items, n_region_in_space_items = \
+        _count_roi_items(group_item)
 
     if (
-            len(image_region_items) > 1 or
-            len(referenced_segment_items) > 0 or
-            len(volume_surface_items) > 0 or
-            len(regions_in_space_items) == 1
+            n_image_region_items > 1 or
+            n_referenced_segment_items > 0 or
+            n_volume_surface_items > 0 or
+            n_region_in_space_items > 0
        ) and (
-            len(referenced_segmentation_frame_items) == 0
+            n_referenced_segmentation_frame_items == 0
        ):
         return True
     return False
