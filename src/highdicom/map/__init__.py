@@ -1,7 +1,6 @@
 """Package for creation of Parametric Map instances"""
 
 from highdicom.map.sop import ParametricMap
-from highdicom.map.enum import ParametricMapRecognizableVisualFeatures
 from highdicom.map.content import RealWorldValueMapping
 
 SOP_CLASS_UIDS = {
@@ -10,6 +9,5 @@ SOP_CLASS_UIDS = {
 
 __all__ = [
     "ParametricMap",
-    "ParametricMapRecognizableVisualFeatures",
     "RealWorldValueMapping",
 ]

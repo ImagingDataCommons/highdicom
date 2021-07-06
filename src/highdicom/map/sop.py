@@ -1,8 +1,6 @@
-import datetime
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 from enum import Enum
-from itertools import product
 
 import numpy as np
 from pydicom.pixel_data_handlers.util import get_expected_length
@@ -17,7 +15,6 @@ from highdicom.enum import (
     CoordinateSystemNames,
     RecognizableVisualFeaturesValues,
 )
-from highdicom.map.enum import ParametricMapRecognizableVisualFeatures
 from highdicom.map.content import RealWorldValueMapping
 from highdicom.seg.content import DimensionIndexSequence
 from highdicom.valuerep import check_person_name
@@ -219,16 +216,6 @@ class ParametricMap(SOPClass):
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
         self.PresentationLUTShape = "IDENTITY"
-
-        # TODO FIXME XXX STOP FORGETTING THIS
-        # Number of frames = number of features
-        # Describe each frame in the pffg e.g. output of resnet
-        # e.g. 1024 frames, 300 rows, 225 cols
-
-        # Output of resnet is [1024] per input frame, but we could potentially
-        # use further maps so that e.g. frame 1 is a 4x4 grid of values atop
-        # the srcimg frame 1 or whatever
-        # Array based on plane positions
 
         # Physical dimensions of the image should match those of the source
 
