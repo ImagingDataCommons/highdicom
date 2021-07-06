@@ -2710,30 +2710,30 @@ class TestMeasurementReport(unittest.TestCase):
         # Imaging Measurements
         planar_rois = template.get_planar_roi_measurement_groups()
         assert len(planar_rois) == 1
-        roi = planar_rois[0]
+        group = planar_rois[0]
         assert isinstance(
-            roi,
+            group,
             PlanarROIMeasurementsAndQualitativeEvaluations
         )
-        assert isinstance(roi[0], ContainerContentItem)
-        assert roi[0].name == codes.DCM.MeasurementGroup
+        assert isinstance(group[0], ContainerContentItem)
+        assert group[0].name == codes.DCM.MeasurementGroup
         # Finding Type
-        assert isinstance(roi.finding_type, CodedConcept)
-        assert roi.finding_type == self._finding_type
+        assert isinstance(group.finding_type, CodedConcept)
+        assert group.finding_type == self._finding_type
         # Finding Site
-        assert len(roi.finding_sites) == 1
-        assert isinstance(roi.finding_sites[0], FindingSite)
+        assert len(group.finding_sites) == 1
+        assert isinstance(group.finding_sites[0], FindingSite)
         # Tracking Identifier
-        assert roi.finding_sites[0].value == self._finding_site.value
-        assert roi.tracking_uid == self._tracking_identifier[1].value
+        assert group.finding_sites[0].value == self._finding_site.value
+        assert group.tracking_uid == self._tracking_identifier[1].value
         # Image Region
-        assert isinstance(roi.roi, ImageRegion)
-        assert roi.roi.graphic_type == GraphicTypeValues.CIRCLE
-        assert isinstance(roi.roi.value, np.ndarray)
-        assert roi.roi.value.shape == (2, 2)
+        assert isinstance(group.roi, ImageRegion)
+        assert group.roi.graphic_type == GraphicTypeValues.CIRCLE
+        assert isinstance(group.roi.value, np.ndarray)
+        assert group.roi.value.shape == (2, 2)
         # Measurements and Qualitative Evaluations
-        assert len(roi.measurements) == 0
-        assert len(roi.qualitative_evaluations) == 0
+        assert len(group.measurements) == 0
+        assert len(group.qualitative_evaluations) == 0
 
 
 class TestEnhancedSR(unittest.TestCase):

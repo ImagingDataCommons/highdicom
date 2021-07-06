@@ -176,13 +176,15 @@ class ContentItem(Dataset):
             item.ContentSequence = ContentSequence.from_sequence(
                 dataset.ContentSequence
             )
+        item.ConceptNameCodeSequence = [
+            CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
+        ]
         return item
 
     @property
     def name(self) -> CodedConcept:
         """highdicom.sr.CodedConcept: coded name of the content item"""
-        ds = self.ConceptNameCodeSequence[0]
-        return CodedConcept.from_dataset(ds)
+        return self.ConceptNameCodeSequence[0]
 
     @property
     def value_type(self) -> ValueTypeValues:

@@ -3140,7 +3140,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        highdicom.sr.MeasurementsReport
+        highdicom.sr.MeasurementReport
             Content Sequence containing root CONTAINER SR Content Item
 
         """
@@ -3184,7 +3184,7 @@ class MeasurementReport(Template):
         """  # noqa
         root_item = self[0]
         matches = [
-            (i, item) for i, item in enumerate(root_item.ContentSequence, i)
+            (i, item) for i, item in enumerate(root_item.ContentSequence, 1)
             if item.name == codes.DCM.ObserverType
         ]
         observer_contexts = []
