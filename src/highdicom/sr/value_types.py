@@ -1508,6 +1508,11 @@ class TcoordContentItem(ContentItem):
             except AttributeError:
                 return self.ReferencedDateTime
 
+    @property
+    def temporal_range_type(self) -> TemporalRangeTypeValues:
+        """highdicom.sr.TemporalRangeTypeValues: temporal range type"""
+        return TemporalRangeTypeValues(self.TemporalRangeType)
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
         """Construct instance from an existing dataset.
