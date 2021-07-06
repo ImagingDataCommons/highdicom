@@ -456,8 +456,7 @@ class CodeContentItem(ContentItem):
     @property
     def value(self) -> CodedConcept:
         """highdicom.sr.CodedConcept: coded concept"""
-        ds = self.ConceptCodeSequence[0]
-        return CodedConcept.from_dataset(ds)
+        return self.ConceptCodeSequence[0]
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
@@ -475,7 +474,11 @@ class CodeContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.CODE)
-        return super(CodeContentItem, cls)._from_dataset(dataset)
+        item = super(CodeContentItem, cls)._from_dataset(dataset)
+        item.ConceptCodeSequence = [
+            CodedConcept.from_dataset(item.ConceptCodeSequence[0])
+        ]
+        return item
 
 
 class PnameContentItem(ContentItem):
