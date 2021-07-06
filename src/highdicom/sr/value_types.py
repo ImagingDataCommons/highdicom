@@ -150,7 +150,7 @@ class ContentItem(Dataset):
 
         Returns
         -------
-        highdicom.sr.value_types.ContentItem
+        highdicom.sr.ContentItem
             Content Item
 
         """
@@ -368,7 +368,7 @@ class ContentSequence(DataElementSequence):
 
         Returns
         -------
-        highdicom.sr.value_types.ContentSequence
+        highdicom.sr.ContentSequence
             Content Sequence containing SR Content Items
 
         """
@@ -468,7 +468,7 @@ class CodeContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.CodeContentItem
+        highdicom.sr.CodeContentItem
             Content Item
 
         """
@@ -525,7 +525,7 @@ class PnameContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.PnameContentItem
+        highdicom.sr.PnameContentItem
             Content Item
 
         """
@@ -581,7 +581,7 @@ class TextContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.TextContentItem
+        highdicom.sr.TextContentItem
             Content Item
 
         """
@@ -649,7 +649,7 @@ class TimeContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.TimeContentItem
+        highdicom.sr.TimeContentItem
             Content Item
 
         """
@@ -706,7 +706,7 @@ class DateContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.DateContentItem
+        highdicom.sr.DateContentItem
             Content Item
 
         """
@@ -781,7 +781,7 @@ class DateTimeContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.DateTimeContentItem
+        highdicom.sr.DateTimeContentItem
             Content Item
 
         """
@@ -837,7 +837,7 @@ class UIDRefContentItem(ContentItem):
 
         Returns
         -------
-        highdicom.sr.value_types.UIDRefContentItem
+        highdicom.sr.UIDRefContentItem
             Content Item
 
         """

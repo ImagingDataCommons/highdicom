@@ -972,7 +972,7 @@ class PersonObserverIdentifyingAttributes(Template):
 
         Returns
         -------
-        highdicom.sr.templates.PersonObserverIdentifyingAttributes
+        highdicom.sr.PersonObserverIdentifyingAttributes
             Content Sequence containing SR Content Items
 
         """
@@ -1295,7 +1295,7 @@ class ObserverContext(Template):
         PersonObserverIdentifyingAttributes,
         DeviceObserverIdentifyingAttributes,
     ]:
-        """Union[highdicom.sr.templates.PersonObserverIdentifyingAttributes, highdicom.sr.templates.DeviceObserverIdentifyingAttributes]:
+        """Union[highdicom.sr.PersonObserverIdentifyingAttributes, highdicom.sr.DeviceObserverIdentifyingAttributes]:
         observer identifying attributes
         """  # noqa
         if self.observer_type == codes.DCM.Device:
@@ -1354,7 +1354,7 @@ class SubjectContextFetus(Template):
 
         Returns
         -------
-        highdicom.sr.templates.SubjectContextFetus
+        highdicom.sr.SubjectContextFetus
             Content Sequence containing SR Content Items
 
         """
@@ -1812,7 +1812,7 @@ class SubjectContext(Template):
         SubjectContextSpecimen,
         SubjectContextDevice
     ]:
-        """Union[highdicom.sr.templates.SubjectContextFetus, highdicom.sr.templates.SubjectContextSpecimen, highdicom.sr.templates.SubjectContextDevice]:
+        """Union[highdicom.sr.SubjectContextFetus, highdicom.sr.SubjectContextSpecimen, highdicom.sr.SubjectContextDevice]:
         subject class specific context
         """  # noqa
         if self.subject_class == codes.DCM.Specimen:
@@ -2246,7 +2246,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
         Returns
         -------
-        highdicom.sr.templates.MeasurementsAndQualitativeEvaluations
+        highdicom.sr.MeasurementsAndQualitativeEvaluations
             Content Sequence containing root CONTAINER SR Content Item
 
         """
@@ -2271,7 +2271,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
     @property
     def method(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: measurement method"""
+        """Union[highdicom.sr.CodedConcept, None]: measurement method"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2325,7 +2325,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
     @property
     def finding_type(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: finding"""
+        """Union[highdicom.sr.CodedConcept, None]: finding"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2343,7 +2343,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
     @property
     def finding_sites(self) -> List[FindingSite]:
-        """List[highdicom.sr.content.FindingSite]: finding sites"""
+        """List[highdicom.sr.FindingSite]: finding sites"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2356,7 +2356,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
     @property
     def measurements(self) -> List[NumContentItem]:
-        """List[highdicom.sr.value_types.NumContentItem]: measurements"""
+        """List[highdicom.sr.NumContentItem]: measurements"""
         root_item = self[0]
         return find_content_items(
             root_item,
@@ -2365,7 +2365,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
     @property
     def qualitative_evaluations(self) -> List[CodeContentItem]:
-        """List[highdicom.sr.value_types.CodeContentItem]: qualitative
+        """List[highdicom.sr.CodeContentItem]: qualitative
         evaluations
         """
         root_item = self[0]
@@ -2634,7 +2634,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
     @property
     def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
-        """Union[highdicom.sr.content.ImageRegion, highdicom.sr.content.ImageRegion3D], None]:
+        """Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D], None]:
         image region defined by spatial coordinates
         """  # noqa
         # Image Region may be defined by either SCOORD or SCOORD3D
@@ -2760,7 +2760,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     def roi(
         self
     ) -> Union[VolumeSurface, List[ImageRegion3D], List[ImageRegion], None]:
-        """Union[highdicom.sr.content.VolumeSurface, List[highdicom.sr.content.ImageRegion], List[highdicom.sr.content.ImageRegion3D]], None]:
+        """Union[highdicom.sr.VolumeSurface, List[highdicom.sr.ImageRegion], List[highdicom.sr.ImageRegion3D]], None]:
         volume surface or image regions defined by spatial coordinates
         """  # noqa
         root_item = self[0]
@@ -3184,7 +3184,7 @@ class MeasurementReport(Template):
         """  # noqa
         root_item = self[0]
         matches = [
-            (i + 1, item) for i, item in enumerate(root_item.ContentSequence)
+            (i, item) for i, item in enumerate(root_item.ContentSequence, i)
             if item.name == codes.DCM.ObserverType
         ]
         observer_contexts = []
@@ -3383,7 +3383,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        List[highdicom.sr.templates.VolumetricROIMeasurementsAndQualitativeEvaluations]
+        List[highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
         """  # noqa
@@ -3467,7 +3467,7 @@ class MeasurementReport(Template):
 
         Returns
         -------
-        List[highdicom.sr.templates.MeasurementsAndQualitativeEvaluations]
+        List[highdicom.sr.MeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
         """  # noqa
