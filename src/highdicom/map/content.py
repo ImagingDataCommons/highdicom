@@ -1,106 +1,120 @@
-import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
 
-import numpy as np
-import highdicom
-import pydicom.sr.coding
-from highdicom.enum import CoordinateSystemNames, UniversalEntityIDTypeValues
 from highdicom.sr.coding import CodedConcept
-from highdicom.sr.value_types import (
-    CodeContentItem,
-    ContentSequence,
-    DateTimeContentItem,
-    NumContentItem,
-    TextContentItem,
-)
 from pydicom.dataset import Dataset
-from pydicom.sequence import Sequence as DataElementSequence
-from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
-
-# FIXME: Confirm that this is the correct interpretation of real world value
-# mapping sequence. The std says that the sequence in the PFFG can hold one or
-# more items, so I think I am supposed to make a "RealWorldValueMapping"
-# class and then have the parametric map instance hold them in a data element
-# sequence?
-
-# Maybe add a note that you can specify codes.UCUM.NoUnits?
-
-# For our purposes we will be passing in something like "resnet_bottleneck_0"
-# or whatever for the label and "Resnet feature 0" or whatever for the
-# explanation and NoUnits. What data goes into the lookup table?
-# There will be one of these for each frame in the map, I think I will just
-# add the LUTData as a parameter and maybe
-
-# FIXME: Does this make sense to instantiate outside of the context of a map?
-#       it has requirements based
 
 
 class RealWorldValueMapping(Dataset):
-    """Class representing the Real World Value Mapping Item Macro.
-
-    Parameters
-    ----------
-    Dataset : [type]
-        [description]
-    """
+    """Class representing the Real World Value Mapping Item Macro. """
 
     def __init__(
         self,
         lut_label: str,
         lut_explanation: str,
-        measurement_unit: Union[
-            highdicom.sr.CodedConcept, pydicom.sr.coding.Code
-        ],
-        *args,
-        first_value_mapped: Optional[Union[int, float]] = None,
-        last_value_mapped: Optional[Union[int, float]] = None,
-        intercept: Optional[Union[int, float]] = None,
+        unit: Union[CodedConcept, Code],
+        value_range: Union[Tuple[int, int], Tuple[float, float]],
         slope: Optional[Union[int, float]] = None,
+        intercept: Optional[Union[int, float]] = None,
         lut_data: Optional[Sequence[float]] = None,
-        **kwargs,
     ) -> None:
+        """
+        Parameters
+        ----------
+        lut_label: str
+            Label (identifier) used to identify transformation
+        lut_explanation: str
+            Explanation (short description) of the meaning of the transformation
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Unit of the real world values. This may be not applicable, because
+            the values may not have a (known) unit. In this case, use
+            ``pydicom.sr.codedict.codes.UCUM.NoUnits``.
+        value_range: Union[Tuple[int, int], Tuple[float, float]]
+            Upper and lower value of range of stored values to which the mapping
+            should be restricted. For example, values may be stored as
+            floating-point values with double precision, but limited to the
+            range ``(-1.0, 1.0)`` or ``(0.0, 1.0)`` or stored as 16-bit
+            unsigned integer values but limited to range ``(0, 4094).
+            Note that the type of the values in `value_range` is significant
+            and is used to determine whether values are stored as integers or
+            floating-point values. Therefore, use ``(0.0, 1.0)`` instead of
+            ``(0, 1)`` to specify a range of floating-point values.
+        slope: Union[int, float, None], optional
+            Slope of the linear mapping function applied to values in
+            `value_range`.
+        intercept: Union[int, float, None], optional
+            Intercept of the linear mapping function applied to values in
+            `value_range`.
+        lut_data: Union[Sequence[int], Sequence[float] None], optional
+            Sequence of values to serve as a lookup table for mapping stored
+            values into real-world values in case of a non-linear relationship.
+            The sequence should contain an entry for each value in the specified
+            `value_range` such that
+            ``len(sequence) == value_range[1] - value_range[0] + 1``.
+            For example, in case of a value range of ``(0, 255)``, the sequence
+            shall have ``256`` entries - one for each value in the given range.
+
+        Note
+        ----
+        Either `slope` and `intercept` or `lut_data` must be specified.
+        Specify `slope` and `intercept` if the mapping can be described by a
+        linear function. Specify `lut_data` if the relationship between stored
+        and real-world values is non-linear. Note, however, that a non-linear
+        relationship can only be described for values that are stored as
+        integers. Values stored as floating-point numbers must map linearly to
+        real-world values.
+
+        """
         super().__init__()
 
-        # Check 1C conditions, e.g. PixelData, when RWVM is added to an image's
-        # functional groups sequence
+        self.LUTExplanation = str(lut_explanation)
+        self.LUTLabel = str(lut_label)
 
-        # Manage conditional requirements
-        # FIXME: I got the conditional requirements wrong, gotta recheck them
+        is_floating_point = any(isinstance(v, float) for v in value_range)
         if lut_data is not None:
-            # Raise valueErrors instead
-            assert slope is None
-            assert intercept is None
-            assert first_value_mapped is not None
-            assert last_value_mapped is not None
+            if slope is not None or intercept is not None:
+                raise TypeError(
+                    'Slope and intercept must be provided if LUT data is not '
+                    'provided.'
+                )
+            if is_floating_point:
+                raise ValueError(
+                    'Only linear mapping is supported for floating-point '
+                    'values. The range of values indicates that values are '
+                    'as floating-point rather than integer values.'
+                )
+            n_actual = len(lut_data)
+            n_expected = (int(value_range[1]) - int(value_range[0]) + 1)
+            if n_actual != n_expected:
+                raise ValueError(
+                    'The LUT data sequence contains wrong number of entries: '
+                    f'expected n={n_expected}, actual n={n_actual}.'
+                )
+            self.RealWorldValueLUTData = [float(v) for v in lut_data]
         else:
-            if type(intercept) != type(slope):
-                raise ValueError("Hell no")
+            if slope is None or intercept is None:
+                raise TypeError(
+                    'Slope and intercept must not be provided if LUT data is '
+                    'provided.'
+                )
+            self.RealWorldValueSlope = float(slope)
+            self.RealWorldValueIntercept = float(intercept)
 
-        self.LUTExplanation = lut_explanation
-        self.LUTLabel = lut_label
+        if is_floating_point:
+            self.DoubleFloatRealWorldValueFirstValueMapped = float(
+                value_range[0]
+            )
+            self.DoubleFloatRealWorldValueLastValueMapped = float(
+                value_range[1]
+            )
+        else:
+            self.RealWorldValueFirstValueMapped = int(value_range[0])
+            self.RealWorldValueLastValueMapped = int(value_range[1])
 
-        if not isinstance(measurement_unit, (CodedConcept, Code)):
+        if not isinstance(unit, (CodedConcept, Code)):
             raise TypeError(
                 'Argument "unit" must have type CodedConcept or Code.'
             )
-        if isinstance(measurement_unit, Code):
-            unit = CodedConcept(*measurement_unit)
-
+        if isinstance(unit, Code):
+            unit = CodedConcept(*unit)
         self.MeasurementUnitsCodeSequence = [unit]
-
-        # TODO: What the hell do I put here?
-        """
-When the Real World Value LUT Data (0040,9212) Attribute is supplied,
-Real World Values are obtained via a lookup operation. The stored pixel value
-of the first value mapped is mapped to the first entry in the LUT Data.
-Subsequent stored pixel values are mapped to the subsequent entries in the
-LUT Data up to a stored pixel value equal to the last value mapped.
-
-The number of entries in the LUT data is given by:
-
-Number of entries = Real World Value Last Value Mapped- Real World Value First Value Mapped + 1
-        """
-        self.RealWorldValueLUTData: List[float] = []
-
-        # Set slope to 1 and intercept to 0

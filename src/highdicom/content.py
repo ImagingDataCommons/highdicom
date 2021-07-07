@@ -127,6 +127,8 @@ class PlanePositionSequence(DataElementSequence):
         """
         Parameters
         ----------
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+            Frame of reference coordinate system
         image_position: Sequence[float]
             Offset of the first row and first column of the plane (frame) in
             millimeter along the x, y, and z axis of the three-dimensional
@@ -228,9 +230,8 @@ class PlaneOrientationSequence(DataElementSequence):
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
-            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+            Frame of reference coordinate system
         image_orientation: Sequence[float]
             Direction cosines for the first row (first triplet) and the first
             column (second triplet) of an image with respect to the X, Y, and Z

@@ -122,11 +122,3 @@ class UniversalEntityIDTypeValues(Enum):
     UUID = "UUID"
     X400 = "X400"
     X500 = "X500"
-
-
-class RecognizableVisualFeaturesValues(Enum):
-
-    """Enumerated values for Recognizable Visual Features attribute"""
-
-    YES = "YES"
-    NO = "NO"

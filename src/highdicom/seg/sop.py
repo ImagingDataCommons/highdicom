@@ -180,6 +180,7 @@ class Segmentation(SOPClass):
         ------
         ValueError
             When
+
                 * Length of `source_images` is zero.
                 * Items of `source_images` are not all part of the same study
                   and series.
@@ -231,9 +232,7 @@ class Segmentation(SOPClass):
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
-                'Transfer syntax "{}" is not supported'.format(
-                    transfer_syntax_uid
-                )
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
         if pixel_array.ndim == 2:
@@ -451,7 +450,7 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
-            floating point data type representing a mask image. If `pixel_array`
+            floating-point data type representing a mask image. If `pixel_array`
             is a floating-point array or a binary array (containing only the
             values ``True`` and ``False`` or ``0`` and ``1``), the segment
             number used to encode the segment is taken from
@@ -489,12 +488,13 @@ class Segmentation(SOPClass):
             segment.
         plane_positions: Sequence[highdicom.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
-            three-dimensional patient or slide coordinate system.
+            patient or slide coordinate system.
 
         Raises
         ------
         ValueError
             When
+
                 - The pixel array is not 2D or 3D numpy array
                 - The shape of the pixel array does not match the source images
                 - The numbering of the segment descriptions is not
@@ -516,6 +516,7 @@ class Segmentation(SOPClass):
                   point values outside the range 0.0 to 1.0
                 - Plane positions are provided but the length of the array
                   does not match the number of frames in the pixel array
+
         TypeError
             When the dtype of the pixel array is invalid
 
@@ -585,55 +586,11 @@ class Segmentation(SOPClass):
                 )
             raise ValueError(msg)
 
-        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
-            segments_present = np.unique(
-                pixel_array[pixel_array > 0].astype(np.uint16)
-            )
-
-            # Special case where the mask is binary and there is a single
-            # segment description. Mark the positive segment with
-            # the correct segment number
-            if (np.array_equal(segments_present, np.array([1])) and
-                    len(segment_descriptions) == 1):
-                pixel_array = pixel_array.astype(np.uint8)
-                pixel_array *= described_segment_numbers.item()
-
-            # Otherwise, the pixel values in the pixel array must all belong to
-            # a described segment
-            else:
-                if not np.all(
-                        np.in1d(segments_present, described_segment_numbers)
-                    ):
-                    raise ValueError(
-                        'Pixel array contains segments that lack '
-                        'descriptions.'
-                    )
-
-        elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
-            unique_values = np.unique(pixel_array)
-            if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
-                raise ValueError(
-                    'Floating point pixel array values must be in the '
-                    'range [0, 1].'
-                )
-            if len(segment_descriptions) != 1:
-                raise ValueError(
-                    'When providing a float-valued pixel array, provide only '
-                    'a single segment description'
-                )
-            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                non_boolean_values = np.logical_and(
-                    unique_values > 0.0,
-                    unique_values < 1.0
-                )
-                if np.any(non_boolean_values):
-                    raise ValueError(
-                        'Floating point pixel array values must be either '
-                        '0.0 or 1.0 in case of BINARY segmentation type.'
-                    )
-                pixel_array = pixel_array.astype(np.bool_)
-        else:
-            raise TypeError('Pixel array has an invalid data type.')
+        pixel_array = self._format_pixel_array(
+            pixel_array,
+            segment_descriptions=segment_descriptions,
+            described_segment_numbers=described_segment_numbers
+        )
 
         # Check that the new segments do not already exist
         if len(set(described_segment_numbers) & self._segment_inventory) > 0:
@@ -653,8 +610,8 @@ class Segmentation(SOPClass):
         if plane_positions is None:
             if pixel_array.shape[0] != len(self._source_plane_positions):
                 raise ValueError(
-                    'Number of frames in pixel array does not match number '
-                    'of source image frames.'
+                    "Number of pixel array planes does not match number "
+                    "of planes (frames) in referenced source image."
                 )
             plane_positions = self._source_plane_positions
         else:
@@ -892,6 +849,62 @@ class Segmentation(SOPClass):
         # Add back the null trailing byte if required
         if len(self.PixelData) % 2 == 1:
             self.PixelData += b'0'
+
+    def _format_pixel_array(
+        self,
+        pixel_array: np.ndarray,
+        segment_descriptions: Sequence[SegmentDescription],
+        described_segment_numbers: np.ndarray
+    ) -> np.ndarray:
+        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
+            segments_present = np.unique(
+                pixel_array[pixel_array > 0].astype(np.uint16)
+            )
+
+            # Special case where the mask is binary and there is a single
+            # segment description. Mark the positive segment with
+            # the correct segment number
+            if (np.array_equal(segments_present, np.array([1])) and
+                    len(segment_descriptions) == 1):
+                pixel_array = pixel_array.astype(np.uint8)
+                pixel_array *= described_segment_numbers.item()
+
+            # Otherwise, the pixel values in the pixel array must all belong to
+            # a described segment
+            else:
+                if not np.all(
+                        np.in1d(segments_present, described_segment_numbers)
+                    ):
+                    raise ValueError(
+                        'Pixel array contains segments that lack '
+                        'descriptions.'
+                    )
+
+        elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
+            unique_values = np.unique(pixel_array)
+            if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
+                raise ValueError(
+                    'Floating point pixel array values must be in the '
+                    'range [0, 1].'
+                )
+            if len(segment_descriptions) != 1:
+                raise ValueError(
+                    'When providing a float-valued pixel array, provide only '
+                    'a single segment description'
+                )
+            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+                non_boolean_values = np.logical_and(
+                    unique_values > 0.0,
+                    unique_values < 1.0
+                )
+                if np.any(non_boolean_values):
+                    raise ValueError(
+                        'Floating point pixel array values must be either '
+                        '0.0 or 1.0 in case of BINARY segmentation type.'
+                    )
+                pixel_array = pixel_array.astype(np.bool_)
+        else:
+            raise TypeError('Pixel array has an invalid data type.')
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.

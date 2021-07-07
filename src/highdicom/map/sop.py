@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 from enum import Enum
 
 import numpy as np
+from pydicom.encaps import decode_data_sequence, encapsulate
 from pydicom.pixel_data_handlers.util import get_expected_length
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -10,11 +11,8 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import (
-    ContentQualificationValues,
-    CoordinateSystemNames,
-    RecognizableVisualFeaturesValues,
-)
+from highdicom.enum import CoordinateSystemNames
+from highdicom.frame import encode_frame
 from highdicom.map.content import RealWorldValueMapping
 from highdicom.seg.content import DimensionIndexSequence
 from highdicom.valuerep import check_person_name
@@ -26,15 +24,15 @@ from pydicom.uid import (
     JPEG2000Lossless,
     RLELossless,
 )
-from pydicom.sr.codedict import codes
 
 
 class _PixelDataType(Enum):
     """Helper enum for tracking the type of the pixel data"""
 
-    INTEGER = 1
-    FLOAT = 2
-    DOUBLE = 3
+    SHORT = 1
+    USHORT = 2
+    SINGLE = 3
+    DOUBLE = 4
 
 
 class ParametricMap(SOPClass):
@@ -50,12 +48,13 @@ class ParametricMap(SOPClass):
         sop_instance_uid: str,
         instance_number: int,
         manufacturer: str,
-        device_serial_number: str,
         manufacturer_model_name: str,
-        recognizable_visual_features: Union[
-            str, RecognizableVisualFeaturesValues
-        ],
         software_versions: Union[str, Tuple[str]],
+        device_serial_number: str,
+        contains_recognizable_visual_features: bool,
+        real_world_value_mappings: Sequence[RealWorldValueMapping],
+        window_center: Union[int, float],
+        window_width: Union[int, float],
         transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
         content_description: Optional[str] = None,
         content_creator_name: Optional[str] = None,
@@ -64,6 +63,105 @@ class ParametricMap(SOPClass):
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         **kwargs,
     ):
+        """"
+        Parameters
+        ----------
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: str
+            Name of the manufacturer (developer) of the device (software)
+            that creates the instance
+        manufacturer_model_name: str,
+            Name of the model of the device (software)
+            that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Versions of relevant software used to create the data
+        device_serial_number: str
+            Serial number (or other identifier) of the device (software)
+            that creates the instance
+        contains_recognizable_visual_features: bool
+            Whether the image contains recognizable visible features of the
+            patient
+        real_world_value_mappings: Sequence[highdicom.map.RealWorldValueMapping]
+            Descriptions of how stored values map to real-world values. The
+            concept of real-world values is a bit fuzzy and the mapping may be
+            difficult to describe (e.g., in case of the feature maps of a deep
+            convolutional neural network model).
+        window_center: Union[int, float, None], optional
+            Window center for rescaling stored values for display purposes by
+            applying a linear transformation function. For example, in case of
+            floating-point values in the range ``[0.0, 1.0]``, the window
+            center would be ``0.5``, in case of floating-point values in the
+            range ``[-1.0, 1.0]`` the window center would be ``0.0``, in case
+            of unsigned integer values in the range ``[0, 255]`` the window
+            center would be ``128``.
+        window_width: Union[int, float, None], optional
+            Window width for rescaling stored values for display purposes by
+            applying a linear transformation function. For example, in case of
+            floating-point values in the range ``[0.0, 1.0]``, the window
+            width would be ``1.0``, in case of floating-point values in the
+            range ``[-1.0, 1.0]`` the window width would be ``2.0``, and in
+            case of unsigned integer values in the range ``[0, 255]`` the
+            window width would be ``256``. In case of unbounded floating-point
+            values, a sensible window width should be chosen to allow for
+            stored values to be displayed on 8-bit monitors.
+        transfer_syntax_uid: Union[str, None], optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. Defaults to Implicit VR Little Endian
+            (UID ``"1.2.840.10008.1.2"``)
+        content_description: Union[str, None], optional
+            Brief description of the parametric map image
+        content_creator_name: Union[str, None], optional
+            Name of the person that created the parametric map image
+        pixel_measures: Union[highdicom.PixelMeasuresSequence, None], optional
+            Physical spacing of image pixels in `pixel_array`.
+            If ``None``, it will be assumed that the parametric map image has
+            the same pixel measures as the source image(s).
+        plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
+            Orientation of planes in `pixel_array` relative to axes of
+            three-dimensional patient or slide coordinate space.
+            If ``None``, it will be assumed that the parametric map image as
+            the same plane orientation as the source image(s).
+        plane_positions: Union[Sequence[PlanePositionSequence], None], optional
+            Position of each plane in `pixel_array` in the three-dimensional
+            patient or slide coordinate space.
+            If ``None``, it will be assumed that the parametric map image has
+            the same plane position as the source image(s). However, this will
+            only work when the first dimension of `pixel_array` matches the
+            number of frames in `source_images` (in case of multi-frame source
+            images) or the number of `source_images` (in case of single-frame
+            source images).
+        **kwargs: Any, optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        Raises
+        ------
+        ValueError
+            When
+
+                * Length of `source_images` is zero.
+                * Items of `source_images` are not all part of the same study
+                  and series.
+                * Items of `source_images` have different number of rows and
+                  columns.
+                * Length of `plane_positions` does not match number of 2D planes
+                  in `pixel_array` (size of first array dimension).
+                * Transfer Syntax specified by `transfer_syntax_uid` is not
+                  supported for data type of `pixel_array`.
+
+        Note
+        ----
+        The assumption is made that planes in `pixel_array` are defined in
+        the same frame of reference as `source_images`.
+
+        """  # noqa
         if len(source_images) == 0:
             raise ValueError("At least one source image is required")
         self._source_images = source_images
@@ -100,12 +198,23 @@ class ParametricMap(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
         }
+        if pixel_array.dtype.kind in ('u', 'i'):
+            # If pixel data has unsigned or signed integer data type, then it
+            # can be lossless compressed. The standard does not specify any
+            # compression codecs for floating-point data types.
+            # In case of signed integer data type, values will be rescaled to
+            # a signed integer range prior to compression.
+            supported_transfer_syntaxes.update({
+                JPEG2000Lossless,
+                RLELossless,
+            })
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
-                'Transfer syntax "{}" is not supported'.format(
-                    transfer_syntax_uid
-                )
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
+
+        if window_width <= 0:
+            raise ValueError('Window width must be greater than zero.')
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
@@ -114,14 +223,10 @@ class ParametricMap(SOPClass):
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
         self._pixel_data_type_map = {
-            _PixelDataType.INTEGER: "PixelData",
-            _PixelDataType.FLOAT: "FloatPixelData",
+            _PixelDataType.SHORT: "PixelData",
+            _PixelDataType.USHORT: "PixelData",
+            _PixelDataType.SINGLE: "FloatPixelData",
             _PixelDataType.DOUBLE: "DoubleFloatPixelData",
-        }
-        bits_to_allocate = {
-            _PixelDataType.INTEGER: 16,
-            _PixelDataType.FLOAT: 32,
-            _PixelDataType.DOUBLE: 64,
         }
 
         super().__init__(
@@ -147,6 +252,7 @@ class ParametricMap(SOPClass):
             ),
             **kwargs,
         )
+
         if hasattr(src_img, "ImageOrientationSlide") or hasattr(
             src_img, "ImageCenterPointCoordinatesSequence"
         ):
@@ -206,10 +312,10 @@ class ParametricMap(SOPClass):
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = "MONOCHROME2"
         self.BurnedInAnnotation = "NO"
-        recognizable_visual_features = RecognizableVisualFeaturesValues(
-            recognizable_visual_features
-        )
-        self.RecognizableVisualFeatures = recognizable_visual_features.value
+        if contains_recognizable_visual_features:
+            self.RecognizableVisualFeatures = "YES"
+        else:
+            self.RecognizableVisualFeatures = "NO"
         self.ContentLabel = "ISO_IR 192"  # UTF-8
         self.ContentDescription = content_description
         if content_creator_name is not None:
@@ -220,15 +326,16 @@ class ParametricMap(SOPClass):
         # Physical dimensions of the image should match those of the source
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        shared_func_groups = Dataset()
+        sffg_item = Dataset()
+        self.SharedFunctionalGroupsSequence = []
         if pixel_measures is None:
             if is_multiframe:
                 src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
                 pixel_measures = src_shared_fg.PixelMeasuresSequence
             else:
                 pixel_measures = PixelMeasuresSequence(
-                    pixel_spacing=src_img.PixelSpacing,
-                    slice_thickness=src_img.SliceThickness,
+                    pixel_spacing=[float(v) for v in src_img.PixelSpacing],
+                    slice_thickness=float(src_img.SliceThickness),
                     spacing_between_slices=src_img.get(
                         "SpacingBetweenSlices", None
                     ),
@@ -237,7 +344,9 @@ class ParametricMap(SOPClass):
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationSlide,
+                    image_orientation=[
+                        float(v) for v in src_img.ImageOrientationSlide
+                    ],
                 )
             else:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
@@ -245,7 +354,9 @@ class ParametricMap(SOPClass):
         else:
             source_plane_orientation = PlaneOrientationSequence(
                 coordinate_system=self._coordinate_system,
-                image_orientation=src_img.ImageOrientationPatient,
+                image_orientation=[
+                    float(v) for v in src_img.ImageOrientationPatient
+                ],
             )
         if plane_orientation is None:
             plane_orientation = source_plane_orientation
@@ -277,79 +388,105 @@ class ParametricMap(SOPClass):
                 )
             )
 
-        shared_func_groups.PixelMeasuresSequence = pixel_measures
-        shared_func_groups.PlaneOrientationSequence = plane_orientation
-        # Identity Pixel Value Transformation
-        pixel_value_transformation = Dataset()
-        pixel_value_transformation.RescaleIntercept = 0
-        pixel_value_transformation.RescaleSlope = 1
-        pixel_value_transformation.RescaleType = "US"
-        shared_func_groups.PixelValueTransformationSequence = [
-            pixel_value_transformation
-        ]
-        # This maps input greyscale values to output greyscale values. Might
-        # need to accept as an input or something.
-        frame_voi_lut = Dataset()
-        # TODO See C.11.2.1.2.1 Note 4. If I read correctly, this should
-        # cause the VOI to just be an identity function.
-        frame_voi_lut.WindowWidth = 2 ** 32
-        frame_voi_lut.WindowCenter = 2 ** 31
-        shared_func_groups.FrameVOILUTSequence = [frame_voi_lut]
+        sffg_item.PixelMeasuresSequence = pixel_measures
+        sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Parametric Map Frame Type
         frame_type_item = Dataset()
         frame_type_item.FrameType = self.ImageType
-        shared_func_groups.ParametricMapFrameTypeSequence = [frame_type_item]
+        sffg_item.ParametricFrameTypeSequence = [frame_type_item]
 
-        self.SharedFunctionalGroupsSequence = [shared_func_groups]
+        # Identity Pixel Value Transformation
+        if pixel_array.dtype.kind == 'i':
+            # In case of signed integer type we rescale values to unsigned
+            # 16-bit integer range.
+            transformation_item = Dataset()
+            transformation_item.RescaleIntercept = 2**16 / 2
+            transformation_item.RescaleSlope = 1
+            transformation_item.RescaleType = "US"
+        else:
+            transformation_item = Dataset()
+            transformation_item.RescaleIntercept = 0
+            transformation_item.RescaleSlope = 1
+            transformation_item.RescaleType = "US"
+        sffg_item.PixelValueTransformationSequence = [transformation_item]
 
-        # NOTE: Information about individual frames will be updated by the
-        # "add_frame()" method upon addition of parametric map planes.
+        # Frame VOI LUT With LUT
+        voi_lut_item = Dataset()
+        voi_lut_item.WindowCenter = window_center
+        voi_lut_item.WindowWidth = window_width
+        voi_lut_item.VOILUTFunction = "LINEAR_EXACT"
+        sffg_item.FrameVOILUTSequence = [voi_lut_item]
+
+        self.SharedFunctionalGroupsSequence.append(sffg_item)
+
+        # Parametric Map Frame Type
+        frame_type_item = Dataset()
+        frame_type_item.FrameType = self.ImageType
+        sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
+
+        self.SharedFunctionalGroupsSequence = [sffg_item]
+
+        # Information about individual frames will be updated by the
+        # "add_values()" method upon addition of parametric map planes.
         self.NumberOfFrames = 0
         self.PerFrameFunctionalGroupsSequence: List[Dataset] = []
 
         # Get the correct attribute for this Instance's pixel data
-        pixel_enum, pixel_data_attr = self._get_array_pixel_data_name(
+        pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
             pixel_array
         )
-        setattr(self, pixel_data_attr, b"")
         # Internal value to avoid string comparisons on each map update
         # Not sure that's actually necessary or good but whatever
-        self._pixel_data_type = pixel_enum
-        # Attributes based on the type of Pixel Data
-        if self._pixel_data_type == _PixelDataType.INTEGER:
-            self.BitsStored = 16
-            self.HighBit = 15
-            self.PixelRepresentation = 0x1
-        # TODO: Add something here for unsigned integer as well
-        self.BitsAllocated = bits_to_allocate[self._pixel_data_type]
+        self._pixel_data_type = pixel_data_type
 
-        # TODO: Take from input instead
-        test = RealWorldValueMapping("test", "Test", codes.UCUM.NoUnits)
-
-        self.add_frame(pixel_array, [test])
+        if (self._pixel_data_type == _PixelDataType.SHORT or
+                self._pixel_data_type == _PixelDataType.USHORT):
+            self.BitsAllocated = 16
+            self.BitsStored = self.BitsAllocated
+            self.HighBit = self.BitsStored - 1
+        elif self._pixel_data_type == _PixelDataType.SINGLE:
+            self.BitsAllocated = 32
+        elif self._pixel_data_type == _PixelDataType.DOUBLE:
+            self.BitsAllocated = 64
+        # TODO: Determine whether this attribute can be present in data sets
+        # with Float Pixel Data or Double Float Pixel Data attribute.
+        # The pydicom library requires its presence for decoding.
+        self.PixelRepresentation = 0
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        setattr(self, pixel_data_attr, b"")
 
-    def add_frame(
+        self.add_values(
+            pixel_array,
+            real_world_value_mappings=real_world_value_mappings,
+            plane_positions=plane_positions
+        )
+
+    def add_values(
         self,
         pixel_array: np.ndarray,
         real_world_value_mappings: Sequence[RealWorldValueMapping],
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-    ):
-        """TODO
-
-        This method adds a frame to the parametric map.
+    ) -> None:
+        """Add values to the parametric map.
 
         Parameters
         ----------
-        pixel_array : np.ndarray
-            [description]
-        real_world_value_mappings : Sequence[RealWorldValueMappingSequence]
-            [description]
-        plane_positions : Optional[Sequence[PlanePositionSequence]], optional
-            [description], by default None
+        pixel_array: np.ndarray
+            Array of parametric map pixel data of unsigned integer or
+            floating-point data type representing one or more frames of the
+            parametric map pixel data. The values are supposed to represent a
+            single "feature", i.e., be the result of one set of image
+            transformations such that the same `real_world_value_mappings`
+            apply.
+        real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMappingSequence], None], optional
+            Description of the mapping of values stored in `pixel_array` to
+            real-world values.
+        plane_positions: Sequence[highdicom.PlanePositionSequence], optional
+            Position of each plane in `pixel_array` relative to the
+            patient or slide coordinate system.
 
         Raises
         ------
@@ -359,115 +496,115 @@ class ParametricMap(SOPClass):
             [description]
         NotImplementedError
             [description]
-        """
-        # Each feature map may be represented by 1 to n frames
-        # For now there is only one output frame per map
-        # Input to add_map will be one feature at a time, but it could
-        # be tiled so [n, rows, cols], but each of n is still only one feature
-        # because you can find the same features at different regions in space
 
-        # Proof of concept only use integer, don't use binary, only need to look
-        # into fractional case
-
+        """  # noqa
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim != 3:
-            raise ValueError("Pixel array must be a 2D or 3D array.")
+            raise ValueError('Pixel array must be a 2D or 3D array.')
 
         if pixel_array.shape[1:3] != (self.Rows, self.Columns):
             raise ValueError(
-                "Pixel array representing map has the wrong number of "
-                "rows and columns."
+                'Pixel array has the wrong number of rows or columns.'
             )
 
-        # if plane_positions is None:
-        #     if pixel_array.shape[0] != len(self._source_plane_positions):
-        #         raise ValueError(
-        #             "Number of frames in pixel array does not match number "
-        #             "of source image frames."
-        #         )
-        #     plane_positions = self._source_plane_positions
-        # else:
-        #     if pixel_array.shape[0] != len(plane_positions):
-        #         raise ValueError(
-        #             "Number of pixel array planes does not match number of "
-        #             "provided plane positions."
-        #         )
-        frame_number = self.NumberOfFrames + 1
+        if len(real_world_value_mappings) == 0:
+            raise ValueError(
+                'At least one RealWorldValueMapping item must be provided.'
+            )
 
-        # Per-frame Functional Groups
-        pffgrp_item = Dataset()
-        # Type 2 attribute, i.e. allowed to be empty
-        pffgrp_item.DerivationImageSequence = []
+        if plane_positions is None:
+            if pixel_array.shape[0] != len(self._source_plane_positions):
+                raise ValueError(
+                    "Number of pixel array planes does not match number "
+                    "of planes (frames) in referenced source image."
+                )
+            plane_positions = self._source_plane_positions
+        else:
+            if pixel_array.shape[0] != len(plane_positions):
+                raise ValueError(
+                    'Number of pixel array planes does not match number of '
+                    'provided plane positions.'
+                )
 
-        # Frame Content
-        frame_content_item = Dataset()
-        frame_content_item.DimensionIndexValues = [frame_number]
-        pffgrp_item.FrameContentSequence = [frame_content_item]
+        for i in range(pixel_array.shape[0]):
+            self.NumberOfFrames += 1
 
-        pffgrp_item.RealWorldValueMappingSequence = real_world_value_mappings
+            # Per-frame Functional Groups
+            pffg_item = Dataset()
+            pffg_item.DerivationImageSequence = []
 
-        self.PerFrameFunctionalGroupsSequence.append(pffgrp_item)
-        self.NumberOfFrames += 1
+            # Plane Position (Patient/Slide)
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                pffg_item.PlanePositionSlideSequence = plane_positions[i]
+            else:
+                pffg_item.PlanePositionSequence = plane_positions[i]
 
-        self._append_pixel_data(pixel_array)
+            # Frame Content
+            frame_content_item = Dataset()
+            # FIXME
+            frame_content_item.DimensionIndexValues = [i + 1]
+            pffg_item.FrameContentSequence = [frame_content_item]
 
-    def _append_pixel_data(self, pixel_array: np.ndarray) -> None:
-        """Appends the provided pixel array to the end of the SOP Instance's
-        Pixel Data, Float Pixel Data, or Double Float Pixel Data attributes
-        depending on the data type. This method modifies the Instance object.
+            # Real World Value Mapping
+            pffg_item.RealWorldValueMappingSequence = real_world_value_mappings
+
+            self.PerFrameFunctionalGroupsSequence.append(pffg_item)
+
+            self._append_pixel_data(pixel_array[i, ...])
+
+    def _append_pixel_data(self, plane: np.ndarray) -> None:
+        """Appends the provided array of pixels to the pixel data element.
+
+        Depending on the data type, the pixel data may be stored in either the
+        Pixel Data, Float Pixel Data, or Double Float Pixel Data element.
 
         Parameters
         ----------
-        pixel_array : np.ndarray
-            The pixels to append
+        plane: np.ndarray
+            Two dimensional array of pixels of an individual frame (plane)
 
         Raises
         ------
         ValueError
             When the input pixel array's dtype does not match that of the
             SOP Instance
+
         """
-        pixel_data_enum, pixel_data_attr = self._get_array_pixel_data_name(
-            pixel_array
+        pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
+            plane
         )
-        if self._pixel_data_type != pixel_data_enum:
+        if self._pixel_data_type != pixel_data_type:
             raise ValueError(
-                "Data type of input pixel array "
-                "does not match that of SOP instance. "
-                f"Expected {self._pixel_data_type}, got {pixel_data_enum}"
+                'Data type of input pixel array '
+                'does not match that of SOP instance. '
+                f'Expected "{self._pixel_data_type}", got "{pixel_data_type}".'
             )
 
-        # Framewise encoding
-        # Before adding new pixel data, remove trailing null padding byte
         pixel_data_bytes = getattr(self, pixel_data_attr)
+
+        # Before adding new pixel data, remove trailing null padding byte
         if len(pixel_data_bytes) == get_expected_length(self) + 1:
             pixel_data_bytes = pixel_data_bytes[:-1]
-            setattr(self, pixel_data_attr, pixel_data_bytes)
 
-        if len(pixel_data_bytes) > 0:
-            # PyDICOM property which handles the pixel data conversion.
-            full_pixel_array = self.pixel_array.flatten()
+        # Add new pixel data
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            # To add a new frame item to the encapsulated Pixel Data element
+            # we first need to unpack the existing frames, then add the pixel
+            # data of the current plane, and finally encapsulate all frames.
+            all_frames = decode_data_sequence(pixel_data_bytes)
+            all_frames.append(self._encode_pixels(plane))
+            pixel_data_bytes = encapsulate(all_frames)
         else:
-            # If the pixel array is empty create a new one.
-            full_pixel_array = np.array([], dtype=pixel_array.dtype)
+            pixel_data_bytes += self._encode_pixels(plane)
 
-        full_pixel_array = np.concatenate(
-            [full_pixel_array, pixel_array.flatten()]
-        )
+        setattr(self, pixel_data_attr, pixel_data_bytes)
 
-        encoded_pixels = self._encode_pixels(full_pixel_array)
-        # Add the 0 padding if necessary
-        if len(encoded_pixels) % 2 == 1:
-            encoded_pixels += b"0"
-
-        setattr(self, pixel_data_attr, encoded_pixels)
-
-    def _get_array_pixel_data_name(
-        self, pixel_array: np.ndarray
+    def _get_pixel_data_type_and_attr(
+        self,
+        pixel_array: np.ndarray
     ) -> Tuple[_PixelDataType, str]:
-        """Returns the DICOM Attribute string for a given `np.ndarray`'s
-        `dtype`.
+        """Data type and name of pixel data attribute.
 
         Parameters
         ----------
@@ -476,37 +613,85 @@ class ParametricMap(SOPClass):
 
         Returns
         -------
-        Tuple[_PixelDataType, str]
+        Tuple[highdicom.map.sop._PixelDataType, str]
             A tuple where the first element is the enum value and the second
             value is the DICOM pixel data attribute for the given datatype.
-            One of (`PixelData`, `FloatPixelData`, `DoubleFloatPixelData`)
+            One of (``"PixelData"``, ``"FloatPixelData"``,
+            ``"DoubleFloatPixelData"``)
 
         Raises
         ------
         ValueError
-            If the input array is not a floating point or integer datatype
+            If values in the input array don't have a supported unsigned
+            integer or floating-point type.
+
         """
         if pixel_array.dtype.kind == "f":
             # Further check for float32 vs float64
             if pixel_array.dtype.name == "float32":
                 return (
-                    _PixelDataType.FLOAT,
-                    self._pixel_data_type_map[_PixelDataType.FLOAT],
+                    _PixelDataType.SINGLE,
+                    self._pixel_data_type_map[_PixelDataType.SINGLE],
                 )
             elif pixel_array.dtype.name == "float64":
                 return (
                     _PixelDataType.DOUBLE,
                     self._pixel_data_type_map[_PixelDataType.DOUBLE],
                 )
-        elif pixel_array.dtype.kind == "i" or pixel_array.dtype.kind == "u":
+            else:
+                raise ValueError(
+                    'Unsupported floating-point type for pixel data: '
+                    '32-bit (single-precision) or 64-bit (double-precision) '
+                    'floating-point types are supported.'
+                )
+        elif pixel_array.dtype.kind == "u":
+            if pixel_array.dtype not in (np.uint8, np.uint16):
+                raise ValueError(
+                    'Unsupported unsigned integer type for pixel data: '
+                    '16-bit unsigned integer types are supported.'
+                )
             return (
-                _PixelDataType.INTEGER,
-                self._pixel_data_type_map[_PixelDataType.INTEGER],
+                _PixelDataType.USHORT,
+                self._pixel_data_type_map[_PixelDataType.USHORT],
+            )
+        elif pixel_array.dtype.kind == "i":
+            if pixel_array.dtype not in (np.int8, np.int16):
+                raise ValueError(
+                    'Unsupported signed integer type for pixel data: '
+                    '8-bit or 16-bit signed integer types are supported.'
+                )
+            return (
+                _PixelDataType.SHORT,
+                self._pixel_data_type_map[_PixelDataType.SHORT],
             )
         raise ValueError(
-            "Data type of argument `pixel_array` "
-            "must be floating point or integer values."
+            'Unsupported data type for pixel data.'
+            'Supported are 8-bit or 16-bit signed and unsigned integer types '
+            'as well as 32-bit (single-precision) or 64-bit (double-precision) '
+            'floating-point types.'
         )
 
-    def _encode_pixels(self, maps: np.ndarray) -> bytes:
-        return maps.flatten().tobytes()
+    def _encode_pixels(self, plane: np.ndarray) -> bytes:
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            # Check that only a single plane was passed
+            if plane.ndim != 2:
+                raise ValueError(
+                    'Only single frame can be encoded at at time '
+                    'in case of encapsulated format encoding.'
+                )
+            return encode_frame(
+                plane.astype(np.uint16),
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
+        else:
+            if plane.dtype == np.uint8:
+                return plane.astype(np.uint16).flatten().tobytes()
+            elif plane.dtype.kind == 'i':
+                plane = plane.astype(np.int16) + 2**16 / 2
+                return plane.astype(np.uint16).flatten().tobytes()
+            else:
+                return plane.flatten().tobytes()
