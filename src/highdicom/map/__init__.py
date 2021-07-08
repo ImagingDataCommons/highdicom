@@ -4,10 +4,10 @@ from highdicom.map.sop import ParametricMap
 from highdicom.map.content import RealWorldValueMapping
 
 SOP_CLASS_UIDS = {
-    "1.2.840.10008.5.1.4.1.1.30",  # Parametric Map
+    '1.2.840.10008.5.1.4.1.1.30',  # Parametric Map
 }
 
 __all__ = [
-    "ParametricMap",
-    "RealWorldValueMapping",
+    'ParametricMap',
+    'RealWorldValueMapping',
 ]

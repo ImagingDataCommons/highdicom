@@ -610,8 +610,8 @@ class Segmentation(SOPClass):
         if plane_positions is None:
             if pixel_array.shape[0] != len(self._source_plane_positions):
                 raise ValueError(
-                    "Number of pixel array planes does not match number "
-                    "of planes (frames) in referenced source image."
+                    'Number of pixel array planes does not match number '
+                    'of planes (frames) in referenced source image.'
                 )
             plane_positions = self._source_plane_positions
         else:

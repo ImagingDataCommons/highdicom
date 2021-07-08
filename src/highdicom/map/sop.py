@@ -63,7 +63,7 @@ class ParametricMap(SOPClass):
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         **kwargs,
     ):
-        """"
+        """
         Parameters
         ----------
         series_instance_uid: str
@@ -163,7 +163,7 @@ class ParametricMap(SOPClass):
 
         """  # noqa
         if len(source_images) == 0:
-            raise ValueError("At least one source image is required")
+            raise ValueError('At least one source image is required')
         self._source_images = source_images
 
         uniqueness_criteria = set(
@@ -178,19 +178,19 @@ class ParametricMap(SOPClass):
         )
         if len(uniqueness_criteria) > 1:
             raise ValueError(
-                "Source images must all be part of the same series and must "
-                "have the same image dimensions (number of rows/columns)."
+                'Source images must all be part of the same series and must'
+                'have the same image dimensions (number of rows/columns).'
             )
 
         src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, "NumberOfFrames")
+        is_multiframe = hasattr(src_img, 'NumberOfFrames')
         # TODO: Revisit, may be overly restrictive
         # Check Source Image Sequence attribute in General Reference module
         if is_multiframe:
             if len(self._source_images) > 1:
                 raise ValueError(
-                    "Only one source image should be provided in case images "
-                    "are multi-frame images."
+                    'Only one source image should be provided in case images '
+                    'are multi-frame images.'
                 )
             self._src_num_frames = src_img.NumberOfFrames
 
@@ -204,10 +204,12 @@ class ParametricMap(SOPClass):
             # compression codecs for floating-point data types.
             # In case of signed integer data type, values will be rescaled to
             # a signed integer range prior to compression.
-            supported_transfer_syntaxes.update({
-                JPEG2000Lossless,
-                RLELossless,
-            })
+            supported_transfer_syntaxes.update(
+                {
+                    JPEG2000Lossless,
+                    RLELossless,
+                }
+            )
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
@@ -223,10 +225,10 @@ class ParametricMap(SOPClass):
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
         self._pixel_data_type_map = {
-            _PixelDataType.SHORT: "PixelData",
-            _PixelDataType.USHORT: "PixelData",
-            _PixelDataType.SINGLE: "FloatPixelData",
-            _PixelDataType.DOUBLE: "DoubleFloatPixelData",
+            _PixelDataType.SHORT: 'PixelData',
+            _PixelDataType.USHORT: 'PixelData',
+            _PixelDataType.SINGLE: 'FloatPixelData',
+            _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
         }
 
         super().__init__(
@@ -235,9 +237,9 @@ class ParametricMap(SOPClass):
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sop_class_uid="1.2.840.10008.5.1.4.1.1.30",
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.30',
             manufacturer=manufacturer,
-            modality="OT",
+            modality='OT',
             transfer_syntax_uid=transfer_syntax_uid,
             patient_id=src_img.PatientID,
             patient_name=src_img.PatientName,
@@ -248,13 +250,13 @@ class ParametricMap(SOPClass):
             study_date=src_img.StudyDate,
             study_time=src_img.StudyTime,
             referring_physician_name=getattr(
-                src_img, "ReferringPhysicianName", None
+                src_img, 'ReferringPhysicianName', None
             ),
             **kwargs,
         )
 
-        if hasattr(src_img, "ImageOrientationSlide") or hasattr(
-            src_img, "ImageCenterPointCoordinatesSequence"
+        if hasattr(src_img, 'ImageOrientationSlide') or hasattr(
+            src_img, 'ImageCenterPointCoordinatesSequence'
         ):
             self._coordinate_system = CoordinateSystemNames.SLIDE
         else:
@@ -263,7 +265,7 @@ class ParametricMap(SOPClass):
         # Frame of Reference
         self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
         self.PositionReferenceIndicator = getattr(
-            src_img, "PositionReferenceIndicator", None
+            src_img, 'PositionReferenceIndicator', None
         )
 
         # (Enhanced) General Equipment
@@ -297,10 +299,10 @@ class ParametricMap(SOPClass):
         self.Columns = pixel_array.shape[2]
 
         # Parametric Map Image
-        self.ImageType = ["DERIVED", "PRIMARY"]
+        self.ImageType = ['DERIVED', 'PRIMARY']
 
         self.LossyImageCompression = getattr(
-            src_img, "LossyImageCompression", "00"
+            src_img, 'LossyImageCompression', '00'
         )
         if self.LossyImageCompression == "01":
             self.LossyImageCompressionRatio = (
@@ -310,18 +312,18 @@ class ParametricMap(SOPClass):
                 src_img.LossyImageCompressionMethod
             )
         self.SamplesPerPixel = 1
-        self.PhotometricInterpretation = "MONOCHROME2"
-        self.BurnedInAnnotation = "NO"
+        self.PhotometricInterpretation = 'MONOCHROME2'
+        self.BurnedInAnnotation = 'NO'
         if contains_recognizable_visual_features:
-            self.RecognizableVisualFeatures = "YES"
+            self.RecognizableVisualFeatures = 'YES'
         else:
-            self.RecognizableVisualFeatures = "NO"
-        self.ContentLabel = "ISO_IR 192"  # UTF-8
+            self.RecognizableVisualFeatures = 'NO'
+        self.ContentLabel = 'ISO_IR 192'  # UTF-8
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
-        self.PresentationLUTShape = "IDENTITY"
+        self.PresentationLUTShape = 'IDENTITY'
 
         # Physical dimensions of the image should match those of the source
 
@@ -337,7 +339,7 @@ class ParametricMap(SOPClass):
                     pixel_spacing=[float(v) for v in src_img.PixelSpacing],
                     slice_thickness=float(src_img.SliceThickness),
                     spacing_between_slices=src_img.get(
-                        "SpacingBetweenSlices", None
+                        'SpacingBetweenSlices', None
                     ),
                 )
         if is_multiframe:
@@ -401,21 +403,21 @@ class ParametricMap(SOPClass):
             # In case of signed integer type we rescale values to unsigned
             # 16-bit integer range.
             transformation_item = Dataset()
-            transformation_item.RescaleIntercept = 2**16 / 2
+            transformation_item.RescaleIntercept = 2 ** 16 / 2
             transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = "US"
+            transformation_item.RescaleType = 'US'
         else:
             transformation_item = Dataset()
             transformation_item.RescaleIntercept = 0
             transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = "US"
+            transformation_item.RescaleType = 'US'
         sffg_item.PixelValueTransformationSequence = [transformation_item]
 
         # Frame VOI LUT With LUT
         voi_lut_item = Dataset()
         voi_lut_item.WindowCenter = window_center
         voi_lut_item.WindowWidth = window_width
-        voi_lut_item.VOILUTFunction = "LINEAR_EXACT"
+        voi_lut_item.VOILUTFunction = 'LINEAR_EXACT'
         sffg_item.FrameVOILUTSequence = [voi_lut_item]
 
         self.SharedFunctionalGroupsSequence.append(sffg_item)
@@ -440,8 +442,10 @@ class ParametricMap(SOPClass):
         # Not sure that's actually necessary or good but whatever
         self._pixel_data_type = pixel_data_type
 
-        if (self._pixel_data_type == _PixelDataType.SHORT or
-                self._pixel_data_type == _PixelDataType.USHORT):
+        if (
+            self._pixel_data_type == _PixelDataType.SHORT
+            or self._pixel_data_type == _PixelDataType.USHORT
+        ):
             self.BitsAllocated = 16
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
@@ -461,7 +465,7 @@ class ParametricMap(SOPClass):
         self.add_values(
             pixel_array,
             real_world_value_mappings=real_world_value_mappings,
-            plane_positions=plane_positions
+            plane_positions=plane_positions,
         )
 
     def add_values(
@@ -516,8 +520,8 @@ class ParametricMap(SOPClass):
         if plane_positions is None:
             if pixel_array.shape[0] != len(self._source_plane_positions):
                 raise ValueError(
-                    "Number of pixel array planes does not match number "
-                    "of planes (frames) in referenced source image."
+                    'Number of pixel array planes does not match number '
+                    'of planes (frames) in referenced source image.'
                 )
             plane_positions = self._source_plane_positions
         else:
@@ -601,8 +605,7 @@ class ParametricMap(SOPClass):
         setattr(self, pixel_data_attr, pixel_data_bytes)
 
     def _get_pixel_data_type_and_attr(
-        self,
-        pixel_array: np.ndarray
+        self, pixel_array: np.ndarray
     ) -> Tuple[_PixelDataType, str]:
         """Data type and name of pixel data attribute.
 
@@ -626,14 +629,14 @@ class ParametricMap(SOPClass):
             integer or floating-point type.
 
         """
-        if pixel_array.dtype.kind == "f":
+        if pixel_array.dtype.kind == 'f':
             # Further check for float32 vs float64
-            if pixel_array.dtype.name == "float32":
+            if pixel_array.dtype.name == 'float32':
                 return (
                     _PixelDataType.SINGLE,
                     self._pixel_data_type_map[_PixelDataType.SINGLE],
                 )
-            elif pixel_array.dtype.name == "float64":
+            elif pixel_array.dtype.name == 'float64':
                 return (
                     _PixelDataType.DOUBLE,
                     self._pixel_data_type_map[_PixelDataType.DOUBLE],
@@ -644,7 +647,7 @@ class ParametricMap(SOPClass):
                     '32-bit (single-precision) or 64-bit (double-precision) '
                     'floating-point types are supported.'
                 )
-        elif pixel_array.dtype.kind == "u":
+        elif pixel_array.dtype.kind == 'u':
             if pixel_array.dtype not in (np.uint8, np.uint16):
                 raise ValueError(
                     'Unsupported unsigned integer type for pixel data: '
@@ -685,13 +688,13 @@ class ParametricMap(SOPClass):
                 bits_allocated=self.BitsAllocated,
                 bits_stored=self.BitsStored,
                 photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation
+                pixel_representation=self.PixelRepresentation,
             )
         else:
             if plane.dtype == np.uint8:
                 return plane.astype(np.uint16).flatten().tobytes()
             elif plane.dtype.kind == 'i':
-                plane = plane.astype(np.int16) + 2**16 / 2
+                plane = plane.astype(np.int16) + 2 ** 16 / 2
                 return plane.astype(np.uint16).flatten().tobytes()
             else:
                 return plane.flatten().tobytes()
