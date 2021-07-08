@@ -3279,7 +3279,7 @@ class MeasurementReport(Template):
             Union[GraphicTypeValues, GraphicTypeValues3D]
         ] = None
     ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
-        """Get imaging measurement groups of planar image regions of interest.
+        """Get imaging measurement groups of planar regions of interest.
 
         Finds (and optionally filters) content items contained in the
         CONTAINER content item "Measurement group" as specified by TID 1410
@@ -3368,7 +3368,7 @@ class MeasurementReport(Template):
         finding_site: Optional[Union[CodedConcept, Code]] = None,
         graphic_type: Optional[GraphicTypeValues3D] = None
     ) -> List[VolumetricROIMeasurementsAndQualitativeEvaluations]:
-        """Get imaging measurements of volumetric image regions of interest.
+        """Get imaging measurement groups of volumetric regions of interest.
 
         Finds (and optionally filters) content items contained in the
         CONTAINER content item "Measurement group" as specified by TID 1411
