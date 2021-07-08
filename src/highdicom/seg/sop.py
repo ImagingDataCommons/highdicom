@@ -906,6 +906,8 @@ class Segmentation(SOPClass):
         else:
             raise TypeError('Pixel array has an invalid data type.')
 
+        return pixel_array
+
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
 
