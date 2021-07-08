@@ -3279,7 +3279,7 @@ class MeasurementReport(Template):
             Union[GraphicTypeValues, GraphicTypeValues3D]
         ] = None
     ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
-        """Get imaging measurements of planar image regions of interest.
+        """Get imaging measurement groups of planar image regions of interest.
 
         Finds (and optionally filters) content items contained in the
         CONTAINER content item "Measurement group" as specified by TID 1410
