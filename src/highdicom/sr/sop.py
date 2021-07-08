@@ -354,7 +354,7 @@ class _SR(SOPClass):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> Dataset:
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -659,7 +659,7 @@ class ComprehensiveSR(_SR):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ComprehensiveSR':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -799,7 +799,7 @@ class Comprehensive3DSR(_SR):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Comprehensive3DSR':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------

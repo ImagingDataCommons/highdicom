@@ -962,7 +962,7 @@ class PersonObserverIdentifyingAttributes(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'PersonObserverIdentifyingAttributes':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -1191,7 +1191,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'DeviceObserverIdentifyingAttributes':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -1344,7 +1344,7 @@ class SubjectContextFetus(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'SubjectContextFetus':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -1503,7 +1503,7 @@ class SubjectContextSpecimen(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'SubjectContextSpecimen':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -1710,7 +1710,7 @@ class SubjectContextDevice(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'SubjectContextDevice':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -2236,7 +2236,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'MeasurementsAndQualitativeEvaluations':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -3134,7 +3134,7 @@ class MeasurementReport(Template):
 
     @classmethod
     def from_sequence(cls, sequence: Sequence[Dataset]) -> 'MeasurementReport':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------

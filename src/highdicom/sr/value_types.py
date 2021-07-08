@@ -141,7 +141,7 @@ class ContentItem(Dataset):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ContentItem':
-        """Construct instance of appropriate subtype from an existing dataset.
+        """Construct object of appropriate subtype from an existing dataset.
 
         Parameters
         ----------
@@ -357,7 +357,7 @@ class ContentSequence(DataElementSequence):
         sequence: Sequence[Dataset],
         is_root: bool = False
     ) -> 'ContentSequence':
-        """Construct instance from a sequence of datasets.
+        """Construct object from a sequence of datasets.
 
         Parameters
         ----------
@@ -460,7 +460,7 @@ class CodeContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -521,7 +521,7 @@ class PnameContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
-        """Construct instance from existing dataset.
+        """Construct object from existing dataset.
 
         Parameters
         ----------
@@ -577,7 +577,7 @@ class TextContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'TextContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -645,7 +645,7 @@ class TimeContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'TimeContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -702,7 +702,7 @@ class DateContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'DateContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -777,7 +777,7 @@ class DateTimeContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'DateTimeContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -833,7 +833,7 @@ class UIDRefContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -942,7 +942,7 @@ class NumContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1018,7 +1018,7 @@ class ContainerContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ContainerContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1086,7 +1086,7 @@ class CompositeContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1170,7 +1170,7 @@ class ImageContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1300,7 +1300,7 @@ class ScoordContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1414,7 +1414,7 @@ class Scoord3DContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -1515,7 +1515,7 @@ class TcoordContentItem(ContentItem):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
