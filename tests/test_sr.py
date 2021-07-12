@@ -2740,10 +2740,12 @@ class TestMeasurementReport(unittest.TestCase):
             name=codes.SCT.Area
         )
         assert len(measurements) == 1
+        assert isinstance(measurements[0], Measurement)
         qualitative_evaluations = group.get_qualitative_evaluations(
             name=codes.SCT.AssociatedMorphology
         )
         assert len(qualitative_evaluations) == 1
+        assert isinstance(qualitative_evaluations[0], QualitativeEvaluation)
 
 
 class TestEnhancedSR(unittest.TestCase):

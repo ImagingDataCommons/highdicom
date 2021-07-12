@@ -1,6 +1,7 @@
 """DICOM structured reporting templates."""
 import logging
 import warnings
+from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
@@ -1931,6 +1932,36 @@ class QualitativeEvaluation(Template):
         )
         super().__init__([item])
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: ContentSequence
+    ) -> 'QualitativeEvaluation':
+        """Construct object from a sequence of content items.
+
+        Parameters
+        ----------
+        sequence: highdicom.sr.ContentSequence
+            Content Sequence containing one SR CODE Content Item
+
+        Returns
+        -------
+        highdicom.sr.QualitativeEvaluation
+            Content Sequence containing one SR CODE Content Item
+
+        """
+        print(sequence)
+        if len(sequence) > 1:
+            raise ValueError(
+                'Qualitative Evaluation shall contain only one content item.'
+            )
+        item = sequence[0]
+        if not isinstance(item, CodeContentItem):
+            raise TypeError(
+                'Qualitative Evaluation shall contain a CODE content item.'
+            )
+        return cls(name=item.name, value=item.value)
+
 
 class Measurement(Template):
 
@@ -2080,6 +2111,37 @@ class Measurement(Template):
                 )
             value_item.ContentSequence.extend(algorithm_id)
         self.append(value_item)
+
+    @classmethod
+    def from_sequence(cls, sequence: ContentSequence) -> 'Measurement':
+        """Construct object from a sequence of content items.
+
+        Parameters
+        ----------
+        sequence: highdicom.sr.ContentSequence
+            Content Sequence containing one SR NUM Content Items
+
+        Returns
+        -------
+        highdicom.sr.Measurement
+            Content Sequence containing one SR NUM Content Items
+
+        """
+        if len(sequence) > 1:
+            raise ValueError('Measurement shall contain only one content item.')
+        item = sequence[0]
+        if not isinstance(item, NumContentItem):
+            raise TypeError('Measurement shall contain a NUM content item.')
+        measurement = cls(
+            name=item.name,
+            value=item.value,
+            unit=item.unit,
+            qualifier=item.qualifier
+        )
+        measurement.ContentSequence = ContentSequence.from_sequence(
+            item.ContentSequence
+        )
+        return measurement
 
 
 class MeasurementsAndQualitativeEvaluations(Template):
@@ -2396,16 +2458,20 @@ class MeasurementsAndQualitativeEvaluations(Template):
         """  # noqa: E501
         root_item = self[0]
         if name is None:
-            return find_content_items(
+            matches = find_content_items(
                 root_item,
                 value_type=ValueTypeValues.NUM
             )
         else:
-            return find_content_items(
+            matches = find_content_items(
                 root_item,
                 name=name,
                 value_type=ValueTypeValues.NUM
             )
+        return [
+            Measurement.from_sequence([item])
+            for item in matches
+        ]
 
     def get_qualitative_evaluations(
         self,
@@ -2437,7 +2503,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 value_type=ValueTypeValues.CODE
             )
         return [
-            item
+            QualitativeEvaluation.from_sequence([item])
             for item in matches
             if item.name not in (
                 codes.DCM.Finding,
