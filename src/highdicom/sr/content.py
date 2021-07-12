@@ -127,7 +127,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
             type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='128740',
@@ -479,7 +479,7 @@ class ImageRegion(ScoordContentItem):
             of the source image
             (default: ``highdicom.sr.PixelOriginInterpretationValues.VOLUME``)
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues(graphic_type)
         if graphic_type == GraphicTypeValues.MULTIPOINT:
             raise ValueError(
@@ -490,8 +490,9 @@ class ImageRegion(ScoordContentItem):
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
         if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
-            if (not hasattr(source_image, 'ReferencedFrameNumber') or
-                    source_image.ReferencedFrameNumber is None):
+            ref_sop_item = source_image.ReferencedSOPSequence[0]
+            if (not hasattr(ref_sop_item, 'ReferencedFrameNumber') or
+                    ref_sop_item.ReferencedFrameNumber is None):
                 raise ValueError(
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
@@ -538,7 +539,7 @@ class ImageRegion3D(Scoord3DContentItem):
         frame_of_reference_uid: str
             UID of the frame of reference
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues3D(graphic_type)
         if graphic_type == GraphicTypeValues3D.MULTIPOINT:
             raise ValueError(
@@ -596,7 +597,7 @@ class VolumeSurface(Scoord3DContentItem):
         ----
         Either one or more source images or one source series must be provided.
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues3D(graphic_type)
         if graphic_type != GraphicTypeValues3D.ELLIPSOID:
             raise ValueError(
@@ -709,7 +710,7 @@ class FindingSite(CodeContentItem):
         topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='363698007',
@@ -995,7 +996,7 @@ class ReferencedSegment(ContentSequence):
         ----
         Either `source_images` or `source_series` must be provided.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         segment_item = ImageContentItem(
             name=CodedConcept(
@@ -1203,32 +1204,4 @@ class ReferencedSegment(ContentSequence):
             frame_numbers=frame_numbers,
             source_images=source_images if source_images else None,
             source_series=source_series
-        )
-
-
-class QualitativeEvaluation(CodeContentItem):
-
-    """Content item for coded name-value pairs that describe qualitative
-    evaluations.
-
-    """
-
-    def __init__(
-        self,
-        name: Union[Code, CodedConcept],
-        value: Union[Code, CodedConcept]
-    ) -> None:
-        """
-        Parameters
-        ----------
-        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
-        value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            coded value or an enumerated item representing a coded value
-
-        """  # noqa
-        super().__init__(
-            name=name,
-            value=value,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )

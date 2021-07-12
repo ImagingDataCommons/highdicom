@@ -108,7 +108,7 @@ class SOPClass(Dataset):
         required by the corresponding Information Object Definition (IOD).
         Additional optional attributes can subsequently be added to the dataset.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian

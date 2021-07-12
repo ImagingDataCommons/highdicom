@@ -82,7 +82,7 @@ class SegmentDescription(Dataset):
         must have consecutive segment numbers, starting at 1 for the first
         segment added.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if segment_number < 1:
             raise ValueError("Segment number must be a positive integer")

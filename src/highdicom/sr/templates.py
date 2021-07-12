@@ -17,8 +17,7 @@ from highdicom.sr.content import (
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
-    SourceImageForMeasurement,
-    QualitativeEvaluation
+    SourceImageForMeasurement
 )
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -203,7 +202,7 @@ def _contains_code_items(
         Whether any of the SR Content Items contained in `parent_item`
         match the filter criteria
 
-    """  # noqa
+    """  # noqa: E501
     matched_items = find_content_items(
         parent_item,
         name=name,
@@ -241,7 +240,7 @@ def _contains_text_items(
         Whether any of the SR Content Items contained in `parent_item`
         match the filter criteria
 
-    """  # noqa
+    """  # noqa: E501
     matched_items = find_content_items(
         parent_item,
         name=name,
@@ -279,7 +278,7 @@ def _contains_scoord_items(
         Whether any of the SR Content Items contained in `parent_item`
         match the filter criteria
 
-    """  # noqa
+    """  # noqa: E501
     matched_items = find_content_items(
         parent_item,
         name=name,
@@ -317,7 +316,7 @@ def _contains_scoord3d_items(
         Whether any of the SR Content Items contained in `parent_item`
         match the filter criteria
 
-    """  # noqa
+    """  # noqa: E501
     matched_items = find_content_items(
         parent_item,
         name=name,
@@ -501,7 +500,7 @@ class TimePointContext(Template):
             offset in time from a particular event of significance, e.g., the
             baseline of an imaging study or enrollment into a clinical trial
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         time_point_item = TextContentItem(
             name=CodedConcept(
@@ -728,7 +727,7 @@ class MeasurementProperties(Template):
         lower_measurement_uncertainty: Union[int, float], optional
             lower range of measurment uncertainty
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if normality is not None:
             normality_item = CodeContentItem(
@@ -831,7 +830,7 @@ class PersonObserverIdentifyingAttributes(Template):
         role_in_procedure: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             role of the person in the reported procedure
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         name_item = PnameContentItem(
             name=CodedConcept(
@@ -998,7 +997,8 @@ class PersonObserverIdentifyingAttributes(Template):
 class DeviceObserverIdentifyingAttributes(Template):
 
     """`TID 1004 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1004>`_
-     Device Observer Identifying Attributes"""  # noqa: E501
+     Device Observer Identifying Attributes
+    """  # noqa: E501
 
     def __init__(
         self,
@@ -1174,7 +1174,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         """Union[str, None]: location of device"""
         matches = [
             item for item in self
-            if item.name == codes.DCM.DeviceObserverPhysicalLocationDuringObservation  # noqa
+            if item.name == codes.DCM.DeviceObserverPhysicalLocationDuringObservation  # noqa: E501
         ]
         if len(matches) > 1:
             logger.warning(
@@ -1247,7 +1247,7 @@ class ObserverContext(Template):
         observer_identifying_attributes: Union[highdicom.sr.PersonObserverIdentifyingAttributes, highdicom.sr.DeviceObserverIdentifyingAttributes]
             observer identifying attributes
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         observer_type_item = CodeContentItem(
             name=CodedConcept(
@@ -1297,7 +1297,7 @@ class ObserverContext(Template):
     ]:
         """Union[highdicom.sr.PersonObserverIdentifyingAttributes, highdicom.sr.DeviceObserverIdentifyingAttributes]:
         observer identifying attributes
-        """  # noqa
+        """  # noqa: E501
         if self.observer_type == codes.DCM.Device:
             return DeviceObserverIdentifyingAttributes.from_sequence(self)
         elif self.observer_type == codes.DCM.Person:
@@ -1693,7 +1693,7 @@ class SubjectContextDevice(Template):
         """Union[str, None]: location of device"""
         matches = [
             item for item in self
-            if item.name == codes.DCM.DeviceSubjectPhysicalLocationDuringObservation  # noqa
+            if item.name == codes.DCM.DeviceSubjectPhysicalLocationDuringObservation  # noqa: E501
         ]
         if len(matches) > 1:
             logger.warning(
@@ -1767,7 +1767,7 @@ class SubjectContext(Template):
         subject_class_specific_context: Union[highdicom.sr.SubjectContextFetus, highdicom.sr.SubjectContextSpecimen, highdicom.sr.SubjectContextDevice], optional
             additional context information specific to `subject_class`
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         subject_class_item = CodeContentItem(
             name=CodedConcept(
@@ -1814,7 +1814,7 @@ class SubjectContext(Template):
     ]:
         """Union[highdicom.sr.SubjectContextFetus, highdicom.sr.SubjectContextSpecimen, highdicom.sr.SubjectContextDevice]:
         subject class specific context
-        """  # noqa
+        """  # noqa: E501
         if self.subject_class == codes.DCM.Specimen:
             return SubjectContextSpecimen.from_sequence(sequence=self)
         elif self.subject_class == codes.DCM.Fetus:
@@ -1851,7 +1851,7 @@ class ObservationContext(Template):
             a whole-slide microscopy image, a fetus in an ultrasound image, or
             a pacemaker device in a chest X-ray image)
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if observer_person_context is not None:
             if not isinstance(observer_person_context, ObserverContext):
@@ -1908,6 +1908,30 @@ class LanguageOfContentItemAndDescendants(Template):
         self.append(language_item)
 
 
+class QualitativeEvaluation(Template):
+
+    def __init__(
+        self,
+        name: Union[Code, CodedConcept],
+        value: Union[Code, CodedConcept]
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            concept name
+        value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            coded value or an enumerated item representing a coded value
+
+        """  # noqa: E501
+        item = CodeContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        super().__init__([item])
+
+
 class Measurement(Template):
 
     """`TID 300 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300>`_
@@ -1916,10 +1940,10 @@ class Measurement(Template):
     def __init__(
         self,
         name: Union[CodedConcept, Code],
-        tracking_identifier: Optional[TrackingIdentifier] = None,
-        value: Optional[Union[int, float]] = None,
-        unit: Optional[Union[CodedConcept, Code]] = None,
+        value: Union[int, float],
+        unit: Union[CodedConcept, Code],
         qualifier: Optional[Union[CodedConcept, Code]] = None,
+        tracking_identifier: Optional[TrackingIdentifier] = None,
         algorithm_id: Optional[AlgorithmIdentification] = None,
         derivation: Optional[Union[CodedConcept, Code]] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
@@ -1938,11 +1962,9 @@ class Measurement(Template):
             "Generic Intensity and Size Measurements" and
             `CID 7468 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7468.html>`_
             "Texture Measurements" for options)
-        tracking_identifier: highdicom.sr.TrackingIdentifier, optional
-            Identifier for tracking measurements
-        value: Union[int, float], optional
+        value: Union[int, float]
             Numeric measurement value
-        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             Unit of the numeric measurement value (see
             `CID 7181 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7181.html>`_
             "Abstract Multi-dimensional Image Model Component
@@ -1950,6 +1972,8 @@ class Measurement(Template):
         qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Qualification of numeric measurement value or as an alternative
             qualitative description
+        tracking_identifier: highdicom.sr.TrackingIdentifier, optional
+            Identifier for tracking measurements
         algorithm_id: highdicom.sr.AlgorithmIdentification, optional
             Identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
@@ -1973,7 +1997,7 @@ class Measurement(Template):
         referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
             Referenced real world value map for referenced source images
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         value_item = NumContentItem(
             name=name,
@@ -2104,7 +2128,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
             Coded name-value pairs that describe qualitative evaluations
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         group_item = ContainerContentItem(
             name=CodedConcept(
@@ -2206,12 +2230,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
-                if not isinstance(evaluation, CodeContentItem):
-                    raise TypeError(
-                        'Items of argument "qualitative_evaluations" must have '
-                        'type QualitativeEvaluation.'
-                    )
-                if not isinstance(evaluation, QualitativeEvaluation):
+                if isinstance(evaluation, CodeContentItem):
                     warnings.warn(
                         'Passing items of type CodeContentItem as '
                         'qualitative evaluations deprecated behavior and '
@@ -2220,15 +2239,19 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'instead.',
                         DeprecationWarning
                     )
-                    rel_type = evaluation.relationship_type
-                    expected_rel_type = RelationshipTypeValues.CONTAINS
-                    if rel_type is None or \
-                       RelationshipTypeValues(rel_type) != expected_rel_type:
-                        raise ValueError(
-                            'Evaluations are expected to have relationship '
-                            'types "CONTAINS" with their parent.'
+                    group_item.ContentSequence.extend(
+                        QualitativeEvaluation(
+                            name=evaluation.name,
+                            value=evaluation.value
                         )
-                group_item.ContentSequence.append(evaluation)
+                    )
+                elif isinstance(evaluation, QualitativeEvaluation):
+                    group_item.ContentSequence.extend(evaluation)
+                else:
+                    raise TypeError(
+                        'Items of attribute "qualitative_evaluations" must '
+                        'have type QualitativeEvaluations.'
+                    )
         self.append(group_item)
 
     @classmethod
@@ -2354,27 +2377,68 @@ class MeasurementsAndQualitativeEvaluations(Template):
             return [FindingSite.from_dataset(m) for m in matches]
         return []
 
-    @property
-    def measurements(self) -> List[NumContentItem]:
-        """List[highdicom.sr.NumContentItem]: measurements"""
-        root_item = self[0]
-        return find_content_items(
-            root_item,
-            value_type=ValueTypeValues.NUM
-        )
+    def get_measurements(
+        self,
+        name: Optional[Union[Code, CodedConcept]] = None
+    ) -> List[Measurement]:
+        """Get measurements.
 
-    @property
-    def qualitative_evaluations(self) -> List[CodeContentItem]:
-        """List[highdicom.sr.CodeContentItem]: qualitative
-        evaluations
-        """
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
+            Name of measurement
+
+        Returns
+        -------
+        List[highdicom.sr.Measurement]
+            Measurements
+
+        """  # noqa: E501
         root_item = self[0]
-        matches = find_content_items(
-            root_item,
-            value_type=ValueTypeValues.CODE
-        )
+        if name is None:
+            return find_content_items(
+                root_item,
+                value_type=ValueTypeValues.NUM
+            )
+        else:
+            return find_content_items(
+                root_item,
+                name=name,
+                value_type=ValueTypeValues.NUM
+            )
+
+    def get_qualitative_evaluations(
+        self,
+        name: Optional[Union[Code, CodedConcept]] = None
+    ) -> List[QualitativeEvaluation]:
+        """Get qualitative evaluations.
+
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
+            Name of evaluation
+
+        Returns
+        -------
+        List[highdicom.sr.QualitativeEvaluation]
+            Qualitative evaluations
+
+        """  # noqa: E501
+        root_item = self[0]
+        if name is None:
+            matches = find_content_items(
+                root_item,
+                value_type=ValueTypeValues.CODE
+            )
+        else:
+            matches = find_content_items(
+                root_item,
+                name=name,
+                value_type=ValueTypeValues.CODE
+            )
         return [
-            item for item in matches
+            item
+            for item in matches
             if item.name not in (
                 codes.DCM.Finding,
                 codes.SCT.FindingSite,
@@ -2455,7 +2519,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         referenced together with the corresponding source image(s) or series.
         Derived classes determine which of the above will be allowed.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             tracking_identifier=tracking_identifier,
             referenced_real_world_value_map=referenced_real_world_value_map,
@@ -2599,7 +2663,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         together with the corresponding source image from which the
         segmentation or region was obtained.
 
-        """  # noqa
+        """  # noqa: E501
         were_references_provided = [
             referenced_region is not None,
             referenced_segment is not None,
@@ -2640,7 +2704,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
         """Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D], None]:
         image region defined by spatial coordinates
-        """  # noqa
+        """  # noqa: E501
         # Image Region may be defined by either SCOORD or SCOORD3D
         root_item = self[0]
         matches = find_content_items(
@@ -2741,7 +2805,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         Either a segmentation, a list of regions or volume needs to referenced
         together with the corresponding source image(s) or series.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             measurements=measurements,
             tracking_identifier=tracking_identifier,
@@ -2766,7 +2830,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     ) -> Union[VolumeSurface, List[ImageRegion3D], List[ImageRegion], None]:
         """Union[highdicom.sr.VolumeSurface, List[highdicom.sr.ImageRegion], List[highdicom.sr.ImageRegion3D]], None]:
         volume surface or image regions defined by spatial coordinates
-        """  # noqa
+        """  # noqa: E501
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2827,7 +2891,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
 
-        """  # noqa
+        """  # noqa: E501
         value_item = NumContentItem(
             name=derivation,
             relationship_type=RelationshipTypeValues.CONTAINS
@@ -2884,7 +2948,7 @@ class ImageLibraryEntryDescriptors(Template):
         additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
             Additional SR Content Items that should be included
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         modality_item = CodeContentItem(
             name=CodedConcept(
@@ -3009,7 +3073,7 @@ class MeasurementReport(Template):
         Only one of `imaging_measurements` or `derived_imaging_measurements`
         shall be specified.
 
-        """ # noqa
+        """ # noqa: E501
         if title is None:
             title = codes.cid7021.ImagingMeasurementReport
         if not isinstance(title, (CodedConcept, Code, )):
@@ -3185,7 +3249,7 @@ class MeasurementReport(Template):
         List[highdicom.sr.ObserverContext]
             Observer contexts
 
-        """  # noqa
+        """  # noqa: E501
         root_item = self[0]
         matches = [
             (i, item) for i, item in enumerate(root_item.ContentSequence, 1)
@@ -3234,7 +3298,7 @@ class MeasurementReport(Template):
         List[highdicom.sr.SubjectContext]
            Subject contexts
 
-        """  # noqa
+        """  # noqa: E501
         root_item = self[0]
         matches = [
             (i + 1, item) for i, item in enumerate(root_item.ContentSequence)
@@ -3275,9 +3339,12 @@ class MeasurementReport(Template):
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
         finding_site: Optional[Union[CodedConcept, Code]] = None,
+        reference_type: Optional[Union[CodedConcept, Code]] = None,
         graphic_type: Optional[
             Union[GraphicTypeValues, GraphicTypeValues3D]
-        ] = None
+        ] = None,
+        referenced_sop_instance_uid: Optional[str] = None,
+        referenced_sop_class_uid: Optional[str] = None
     ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of planar regions of interest.
 
@@ -3293,15 +3360,26 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
+        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+            Type of referenced ROI
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
             Graphic type of image region
+        referenced_sop_instance_uid: str, optional
+            SOP Instance UID of the referenced instance, which may be a
+            segmentation image, source image for the region or segmentation, or
+            RT struct, depending on `reference_type`
+        referenced_sop_class_uid: str, optional
+            SOP Class UID of the referenced instance, which may be a
+            segmentation image, source image for the region or segmentation, or
+            RT struct, depending on `reference_type`
 
         Returns
         -------
         List[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
-        """  # noqa
+        """  # noqa: E501
+        # FIXME: reference type and referenced sop instance uid
         measurement_group_items = self._find_measurement_groups()
         sequences = []
         for group_item in measurement_group_items:
@@ -3366,7 +3444,10 @@ class MeasurementReport(Template):
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
         finding_site: Optional[Union[CodedConcept, Code]] = None,
-        graphic_type: Optional[GraphicTypeValues3D] = None
+        reference_type: Optional[Union[CodedConcept, Code]] = None,
+        graphic_type: Optional[GraphicTypeValues3D] = None,
+        referenced_sop_instance_uid: Optional[str] = None,
+        referenced_sop_class_uid: Optional[str] = None
     ) -> List[VolumetricROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of volumetric regions of interest.
 
@@ -3382,15 +3463,26 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
+        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
+            Type of referenced ROI
         graphic_type: highdicom.sr.GraphicTypeValues3D, optional
             Graphic type of image region
+        referenced_sop_instance_uid: str, optional
+            SOP Instance UID of the referenced instance, which may be a
+            segmentation image, source image for the region or segmentation, or
+            RT struct, depending on `reference_type`
+        referenced_sop_class_uid: str, optional
+            SOP Class UID of the referenced instance, which may be a
+            segmentation image, source image for the region or segmentation, or
+            RT struct, depending on `reference_type`
 
         Returns
         -------
         List[highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
-        """  # noqa
+        """  # noqa: E501
+        # FIXME: reference type and referenced sop instance uid
         sequences = []
         measurement_group_items = self._find_measurement_groups()
         for group_item in measurement_group_items:
@@ -3437,7 +3529,7 @@ class MeasurementReport(Template):
                 )
                 matches.append(matches_graphic_type)
 
-            seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(  # noqa
+            seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(  # noqa: E501
                 [group_item]
             )
             if len(matches) == 0:
@@ -3474,7 +3566,7 @@ class MeasurementReport(Template):
         List[highdicom.sr.MeasurementsAndQualitativeEvaluations]
             Sequence of content items for each matched measurement group
 
-        """  # noqa
+        """  # noqa: E501
         measurement_group_items = self._find_measurement_groups()
         sequences = []
         for group_item in measurement_group_items:

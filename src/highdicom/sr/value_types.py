@@ -1,8 +1,9 @@
 """DICOM structured reporting content item value types."""
 import datetime
+import collections
+import warnings
 from copy import deepcopy
 from typing import Any, List, Optional, Sequence, Tuple, Union
-import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -118,7 +119,7 @@ class ContentItem(Dataset):
         relationship_type: Union[str, highdicom.sr.RelationshipTypeValues], optional
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         super(ContentItem, self).__init__()
         value_type = ValueTypeValues(value_type)
         self.ValueType = value_type.value
@@ -255,12 +256,51 @@ class ContentSequence(DataElementSequence):
                         )
 
         super(ContentSequence, self).__init__(items)
+        self._lut = collections.defaultdict(list)
 
     def __setitem__(self, position: int, item: ContentItem) -> None:
         self.insert(position, item)
 
+    def __delitem__(self, position: int) -> None:
+        item = self[position]
+        index = self._lut[item.name].index(item)
+        del self._lut[item.name][index]
+        super(ContentSequence, self).__delitem__(position)
+
     def __contains__(self, item: ContentItem) -> bool:
-        return any(contained_item == item for contained_item in self)
+        try:
+            self.index(item)
+        except ValueError:
+            return False
+        return True
+
+    def index(self, item: ContentItem) -> int:
+        error_message = f'Item "{item.name}" is not in Sequence.'
+        try:
+            matches = self._lut[item.name]
+        except KeyError:
+            raise ValueError(error_message)
+        try:
+            index = matches.index(item)
+        except ValueError:
+            raise ValueError(error_message)
+        return index
+
+    def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
+        """Finds contained content items given their name.
+
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Name of content items
+
+        Returns
+        -------
+        highdicom.sr.ContentSequence
+            Matched content items
+
+        """
+        return ContentSequence(self._lut[name])
 
     def get_nodes(self) -> 'ContentSequence':
         """Gets content items that represent nodes in the content tree, i.e.
@@ -305,6 +345,7 @@ class ContentSequence(DataElementSequence):
                     f'Items to be appended to a {self.__class__.__name__} must '
                     'have an established relationship type.'
                 )
+        self._lut[item.name].append(item)
         super(ContentSequence, self).append(item)
 
     def extend(self, items: Sequence[ContentItem]) -> None:
@@ -317,6 +358,7 @@ class ContentSequence(DataElementSequence):
 
         """
         for i in items:
+            self._lut[i.name].append(i)
             self.append(i)
 
     def insert(self, position: int, item: ContentItem) -> None:
@@ -349,6 +391,7 @@ class ContentSequence(DataElementSequence):
                     f'Items to be inserted into to a {self.__class__.__name__} '
                     'must have an established relationship type.'
                 )
+        self._lut[item.name].append(item)
         super(ContentSequence, self).insert(position, item)
 
     @classmethod
@@ -435,7 +478,7 @@ class CodeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -501,7 +544,7 @@ class PnameContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -558,7 +601,7 @@ class TextContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """ # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -614,7 +657,7 @@ class TimeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -682,7 +725,7 @@ class DateContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -739,7 +782,7 @@ class DateTimeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -814,7 +857,7 @@ class UIDRefContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -880,7 +923,7 @@ class NumContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """ # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -993,7 +1036,7 @@ class ContainerContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item. 
 
-        """  # noqa E501
+        """  # noqa: E501
         super(ContainerContentItem, self).__init__(
             ValueTypeValues.CONTAINER, name, relationship_type
         )
@@ -1058,7 +1101,7 @@ class CompositeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -1138,7 +1181,7 @@ class ImageContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -1230,7 +1273,7 @@ class ScoordContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -1355,7 +1398,7 @@ class Scoord3DContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -1461,7 +1504,7 @@ class TcoordContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '

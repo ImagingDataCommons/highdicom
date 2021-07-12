@@ -308,7 +308,7 @@ class _SR(SOPClass):
             When a SOP instance is referenced in `content` but not provided as
             `evidence`
 
-        """  # noqa
+        """  # noqa: E501
         references = find_content_items(
             content,
             value_type=ValueTypeValues.IMAGE,

@@ -2134,51 +2134,8 @@ class TestMeasurement(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._value = 10.0
-        self._unit = codes.cid7181.SquareMillimeter
-        self._tracking_identifier = TrackingIdentifier(
-            uid=generate_uid(),
-            identifier='prostate zone size measurement'
-        )
         self._name = codes.cid7469.Area
-        self._measurement = Measurement(
-            name=self._name,
-            value=self._value,
-            unit=self._unit,
-            tracking_identifier=self._tracking_identifier
-        )
-
-    def test_name(self):
-        item = self._measurement[0]
-        assert item.ConceptNameCodeSequence[0] == self._name
-
-    def test_value(self):
-        item = self._measurement[0]
-        assert len(item.MeasuredValueSequence) == 1
-        assert len(item.MeasuredValueSequence[0]) == 3
-        assert item.MeasuredValueSequence[0].NumericValue == DS(self._value)
-        value_item = item.MeasuredValueSequence[0]
-        unit_item = value_item.MeasurementUnitsCodeSequence[0]
-        assert unit_item == self._unit
-        with pytest.raises(AttributeError):
-            item.NumericValueQualifierCodeSequence
-
-    def test_tracking_identifier(self):
-        item = self._measurement[0].ContentSequence[0]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '112039'
-
-    def test_tracking_unique_identifier(self):
-        item = self._measurement[0].ContentSequence[1]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '112040'
-
-
-class TestMeasurementOptional(unittest.TestCase):
-
-    def setUp(self):
-        '''Creates a Measurement for a numeric value in millimiter unit with
-        derivation, method and reference to an image region.'''
-        super().setUp()
-        self._value = 10
+        self._value = 10.0
         self._unit = codes.cid7181.SquareMillimeter
         self._tracking_identifier = TrackingIdentifier(
             uid=generate_uid(),
@@ -2200,8 +2157,43 @@ class TestMeasurementOptional(unittest.TestCase):
             graphic_data=np.array([[1.0, 1.0]]),
             source_image=self._image
         )
-        self._name = codes.cid7469.Area
-        self._measurement = Measurement(
+
+    def test_construction_with_required_parameters(self):
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+        )
+        item = measurement[0]
+        assert item.ConceptNameCodeSequence[0] == self._name
+        assert len(item.MeasuredValueSequence) == 1
+        assert len(item.MeasuredValueSequence[0]) == 3
+        assert item.MeasuredValueSequence[0].NumericValue == DS(self._value)
+        value_item = item.MeasuredValueSequence[0]
+        unit_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_item == self._unit
+        with pytest.raises(AttributeError):
+            item.NumericValueQualifierCodeSequence
+
+    def test_construction_with_missing_required_parameters(self):
+        with pytest.raises(TypeError):
+            Measurement(
+                value=self._value,
+                unit=self._unit
+            )
+        with pytest.raises(TypeError):
+            Measurement(
+                name=self._name,
+                value=self._value
+            )
+        with pytest.raises(TypeError):
+            Measurement(
+                name=self._name,
+                unit=self._unit
+            )
+
+    def test_construction_with_optional_parameters(self):
+        measurement = Measurement(
             name=self._name,
             value=self._value,
             unit=self._unit,
@@ -2211,34 +2203,27 @@ class TestMeasurementOptional(unittest.TestCase):
             finding_sites=[self._finding_site, ]
         )
 
-    def test_method(self):
-        item = self._measurement[0].ContentSequence[2]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '370129005'
-        assert item.ConceptCodeSequence[0] == self._method
+        subitem = measurement[0].ContentSequence[0]
+        assert subitem.ConceptNameCodeSequence[0].CodeValue == '112039'
+        assert subitem == self._tracking_identifier[0]
 
-    def test_derivation(self):
-        item = self._measurement[0].ContentSequence[3]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '121401'
-        assert item.ConceptCodeSequence[0] == self._derivation
+        subitem = measurement[0].ContentSequence[1]
+        assert subitem.ConceptNameCodeSequence[0].CodeValue == '112040'
+        assert subitem == self._tracking_identifier[1]
 
-    def test_finding_site(self):
-        item = self._measurement[0].ContentSequence[4]
-        assert item.ConceptNameCodeSequence[0].CodeValue == '363698007'
-        assert item.ConceptCodeSequence[0] == self._location
+        subitem = measurement[0].ContentSequence[2]
+        assert subitem.ConceptNameCodeSequence[0].CodeValue == '370129005'
+        assert subitem.ConceptCodeSequence[0] == self._method
+
+        subitem = measurement[0].ContentSequence[3]
+        assert subitem.ConceptNameCodeSequence[0].CodeValue == '121401'
+        assert subitem.ConceptCodeSequence[0] == self._derivation
+
+        subitem = measurement[0].ContentSequence[4]
+        assert subitem.ConceptNameCodeSequence[0].CodeValue == '363698007'
+        assert subitem.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
-        assert not hasattr(item, 'ContentSequence')
-
-
-class TestImageRegion(unittest.TestCase):
-
-    def setUp(self):
-        pass
-
-
-class TestVolumeSurface(unittest.TestCase):
-
-    def setUp(self):
-        pass
+        assert not hasattr(subitem, 'ContentSequence')
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -2287,25 +2272,32 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._session = 'Session 1'
         self._geometric_purpose = codes.DCM.Center
+        self._measurements = [
+            Measurement(
+                name=codes.SCT.Area,
+                value=5,
+                unit=codes.UCUM.SquareCentimeter
+            ),
+        ]
         self._qualitative_evaluations = [
             QualitativeEvaluation(
-                CodedConcept(
+                name=CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes
+                value=codes.SCT.Yes
             )
         ]
         self._evaluations_wrong_rel_type = [
             CodeContentItem(
-                CodedConcept(
+                name=CodedConcept(
                     value="RID49502",
                     meaning="clinically significant prostate cancer",
                     scheme_designator="RADLEX"
                 ),
-                codes.SCT.Yes,
-                RelationshipTypeValues.HAS_PROPERTIES
+                value=codes.SCT.Yes,
+                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
         ]
 
@@ -2340,7 +2332,6 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        # TODO add time_point_context and measurements
         PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
@@ -2350,6 +2341,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             algorithm_id=self._algo_id,
             finding_sites=self._finding_sites,
             session=self._session,
+            measurements=self._measurements,
             qualitative_evaluations=self._qualitative_evaluations,
             geometric_purpose=self._geometric_purpose
         )
@@ -2376,14 +2368,6 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
                 referenced_segment=self._segment
-            )
-
-    def test_constructed_with_wrong_rel_type(self):
-        with pytest.raises(ValueError):
-            PlanarROIMeasurementsAndQualitativeEvaluations(
-                tracking_identifier=self._tracking_identifier,
-                referenced_region=self._region,
-                qualitative_evaluations=self._evaluations_wrong_rel_type
             )
 
 
@@ -2545,14 +2529,6 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 referenced_volume_surface=self._regions
             )
 
-    def test_constructed_with_wrong_rel_type(self):
-        with pytest.raises(ValueError):
-            VolumetricROIMeasurementsAndQualitativeEvaluations(
-                tracking_identifier=self._tracking_identifier,
-                referenced_regions=self._regions,
-                qualitative_evaluations=self._evaluations_wrong_rel_type
-            )
-
 
 class TestMeasurementReport(unittest.TestCase):
 
@@ -2606,18 +2582,42 @@ class TestMeasurementReport(unittest.TestCase):
         )
         self._finding_type = codes.SCT.Neoplasm
         self._finding_site = FindingSite(codes.SCT.Lung)
-        self._measurements = PlanarROIMeasurementsAndQualitativeEvaluations(
+        self._measurements = [
+            Measurement(
+                name=codes.cid7469.Area,
+                value=10.0,
+                unit=codes.cid7181.SquareMillimeter
+            ),
+            Measurement(
+                name=codes.cid7469.Length,
+                value=5.0,
+                unit=codes.cid7181.Millimeter
+            ),
+        ]
+        self._qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=Code('35917007', 'SCT', 'Adenocarcinoma')
+            ),
+            QualitativeEvaluation(
+                name=Code('116677004', 'SCT', 'AssociatedTopography'),
+                value=codes.SCT.Lung
+            ),
+        ]
+        self._roi_group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
             finding_type=self._finding_type,
             finding_sites=[self._finding_site],
+            measurements=self._measurements,
+            qualitative_evaluations=self._qualitative_evaluations,
         )
 
     def test_construction(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
-            imaging_measurements=[self._measurements]
+            imaging_measurements=[self._roi_group]
         )
         item = measurement_report[0]
         assert len(item.ContentSequence) == 13
@@ -2655,7 +2655,7 @@ class TestMeasurementReport(unittest.TestCase):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
-            imaging_measurements=[self._measurements]
+            imaging_measurements=[self._roi_group]
         )
         template = MeasurementReport.from_sequence(measurement_report)
         assert isinstance(template, MeasurementReport)
@@ -2732,8 +2732,18 @@ class TestMeasurementReport(unittest.TestCase):
         assert isinstance(group.roi.value, np.ndarray)
         assert group.roi.value.shape == (2, 2)
         # Measurements and Qualitative Evaluations
-        assert len(group.measurements) == 0
-        assert len(group.qualitative_evaluations) == 0
+        measurements = group.get_measurements()
+        assert len(measurements) == 2
+        qualitative_evaluations = group.get_qualitative_evaluations()
+        assert len(qualitative_evaluations) == 2
+        measurements = group.get_measurements(
+            name=codes.SCT.Area
+        )
+        assert len(measurements) == 1
+        qualitative_evaluations = group.get_qualitative_evaluations(
+            name=codes.SCT.AssociatedMorphology
+        )
+        assert len(qualitative_evaluations) == 1
 
 
 class TestEnhancedSR(unittest.TestCase):
@@ -2802,9 +2812,9 @@ class TestEnhancedSR(unittest.TestCase):
         measurements = [
             Measurement(
                 name=codes.SCT.AreaOfDefinedRegion,
-                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 value=1.7,
                 unit=codes.UCUM.SquareMillimeter,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 properties=MeasurementProperties(
                     normality=CodedConcept(
                         value="17621005",
@@ -2921,9 +2931,9 @@ class TestComprehensiveSR(unittest.TestCase):
         measurements = [
             Measurement(
                 name=codes.SCT.AreaOfDefinedRegion,
-                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 value=1.7,
                 unit=codes.UCUM.SquareMillimeter,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 properties=MeasurementProperties(
                     normality=CodedConcept(
                         value="17621005",
@@ -3028,9 +3038,9 @@ class TestComprehensiveSR(unittest.TestCase):
         measurements = [
             Measurement(
                 name=codes.SCT.AreaOfDefinedRegion,
-                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 value=0.7,
                 unit=codes.UCUM.SquareMillimeter,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
             )
         ]
         measurement_group = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -3124,9 +3134,9 @@ class TestComprehensive3DSR(unittest.TestCase):
         measurements = [
             Measurement(
                 name=codes.SCT.AreaOfDefinedRegion,
-                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 value=1.7,
                 unit=codes.UCUM.SquareMillimeter,
+                tracking_identifier=TrackingIdentifier(uid=generate_uid()),
                 properties=MeasurementProperties(
                     normality=CodedConcept(
                         value="17621005",

@@ -45,7 +45,7 @@ def find_content_items(
     AttributeError
         When data set does not contain Content Sequence attribute.
 
-    """  # noqa
+    """  # noqa: E501
     def has_name(item: ContentItem, name: Optional[str]) -> bool:
         if name is None:
             return True
