@@ -2138,9 +2138,12 @@ class Measurement(Template):
             unit=item.unit,
             qualifier=item.qualifier
         )
-        measurement.ContentSequence = ContentSequence.from_sequence(
-            item.ContentSequence
-        )
+        if 'ContentSequence' in item:
+            measurement.ContentSequence = ContentSequence.from_sequence(
+                item.ContentSequence
+            )
+        else:
+            measurement.ContentSequence = ContentSequence()
         return measurement
 
 
