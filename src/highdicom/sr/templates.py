@@ -1950,7 +1950,6 @@ class QualitativeEvaluation(Template):
             Content Sequence containing one SR CODE Content Item
 
         """
-        print(sequence)
         if len(sequence) > 1:
             raise ValueError(
                 'Qualitative Evaluation shall contain only one content item.'
