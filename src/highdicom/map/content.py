@@ -22,7 +22,8 @@ class RealWorldValueMapping(Dataset):
         Parameters
         ----------
         lut_label: str
-            Label (identifier) used to identify transformation
+            Label (identifier) used to identify transformation. Must be less
+            than or equal to 16 characters.
         lut_explanation: str
             Explanation (short description) of the meaning of the transformation
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
@@ -66,6 +67,12 @@ class RealWorldValueMapping(Dataset):
 
         """
         super().__init__()
+
+        if len(lut_label) > 16:
+            raise ValueError(
+                'lut_label must be less than or equal to 16 characters, '
+                f'given {len(lut_label)}.'
+            )
 
         self.LUTExplanation = str(lut_explanation)
         self.LUTLabel = str(lut_label)
