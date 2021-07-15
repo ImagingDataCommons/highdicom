@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
 import logging
 import warnings
-from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
@@ -23,8 +22,10 @@ from highdicom.sr.content import (
 from highdicom.sr.enum import (
     GraphicTypeValues,
     GraphicTypeValues3D,
+    PlanarROITypes,
     RelationshipTypeValues,
     ValueTypeValues,
+    VolumetricROITypes,
 )
 from highdicom.uid import UID
 from highdicom.sr.utils import find_content_items, get_coded_name
@@ -204,13 +205,13 @@ def _contains_code_items(
         match the filter criteria
 
     """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.CODE,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    for item in matched_items:
+    sequence = getattr(parent_item, 'ContentSequence', ContentSequence())
+    for item in sequence.find(name):
+        if not(
+            item.value_type == ValueTypeValues.CODE and
+            item.relationship_type == RelationshipTypeValues.CONTAINS
+        ):
+            continue
         if value is not None:
             if item.value == value:
                 return True
@@ -242,13 +243,13 @@ def _contains_text_items(
         match the filter criteria
 
     """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.TEXT,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    for item in matched_items:
+    sequence = getattr(parent_item, 'ContentSequence', ContentSequence())
+    for item in sequence.find(name):
+        if not(
+            item.value_type == ValueTypeValues.TEXT and
+            item.relationship_type == RelationshipTypeValues.CONTAINS
+        ):
+            continue
         if value is not None:
             if item.TextValue == value:
                 return True
@@ -260,7 +261,9 @@ def _contains_text_items(
 def _contains_scoord_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues] = None
+    graphic_type: Optional[GraphicTypeValues] = None,
+    referenced_sop_class_uid: Optional[str] = None,
+    referenced_sop_instance_uid: Optional[str] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type SCOORD.
 
@@ -272,6 +275,10 @@ def _contains_scoord_items(
         Name of the child SR Content Item
     graphic_type: highdicom.sr.enum.GraphicTypeValues, optional
         Graphic type of the child SR Content Item
+    referenced_sop_class_uid: str, optional
+        SOP Class UID referned by the grandchild SR Content Item
+    referenced_sop_instance_uid: str, optional
+        SOP Instance UID referned by the grandchild SR Content Item
 
     Returns
     -------
@@ -280,25 +287,51 @@ def _contains_scoord_items(
         match the filter criteria
 
     """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.SCOORD,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    for item in matched_items:
+    sequence = getattr(parent_item, 'ContentSequence', ContentSequence())
+    for item in sequence.find(name):
+        if not(
+            item.value_type == ValueTypeValues.SCOORD and
+            item.relationship_type == RelationshipTypeValues.CONTAINS
+        ):
+            continue
+
+        passed_graphic_type_check = True
         if graphic_type is not None:
-            if item.GraphicType == graphic_type.value:
-                return True
-        else:
-            return True
-    return False
+            if item.GraphicType != graphic_type.value:
+                passed_graphic_type_check = False
+
+        passed_image_check = True
+        if (referenced_sop_class_uid is not None or
+                referenced_sop_instance_uid is not None):
+            for subitem in getattr(item, 'ContentSequence', ContentSequence()):
+                if not(
+                    subitem.value_type == ValueTypeValues.IMAGE and
+                    subitem.relationship_type ==
+                        RelationshipTypeValues.SELECTED_FROM
+                ):
+                    continue
+                if (referenced_sop_class_uid is not None and
+                        referenced_sop_instance_uid is not None):
+                    value = (
+                        referenced_sop_class_uid,
+                        referenced_sop_instance_uid,
+                    )
+                    if subitem.value != value:
+                        passed_image_check = False
+                elif referenced_sop_class_uid is not None:
+                    if subitem.value[0] != referenced_sop_class_uid:
+                        passed_image_check = False
+                elif referenced_sop_instance_uid is not None:
+                    if subitem.value[1] != referenced_sop_instance_uid:
+                        passed_image_check = False
+
+    return passed_graphic_type_check and passed_image_check
 
 
 def _contains_scoord3d_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues3D] = None
+    graphic_type: Optional[GraphicTypeValues3D] = None,
 ) -> bool:
     """Checks whether an item contains specific items with value type SCOORD3D.
 
@@ -318,15 +351,64 @@ def _contains_scoord3d_items(
         match the filter criteria
 
     """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
-    )
-    for item in matched_items:
+    sequence = getattr(parent_item, 'ContentSequence', ContentSequence())
+    for item in sequence.find(name):
+        if not(
+            item.value_type == ValueTypeValues.SCOORD3D and
+            item.relationship_type == RelationshipTypeValues.CONTAINS
+        ):
+            continue
         if graphic_type is not None:
             if item.GraphicType == graphic_type.value:
+                return True
+        else:
+            return True
+    return False
+
+
+def _contains_image_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    referenced_sop_class_uid: Optional[str] = None,
+    referenced_sop_instance_uid: Optional[str] = None
+) -> bool:
+    """Checks whether an item contains specific items with value type IMAGE.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    referenced_sop_class_uid: str, optional
+        SOP Class UID referned by the child SR Content Item
+    referenced_sop_instance_uid: str, optional
+        SOP Instance UID referned by the child SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa: E501
+    sequence = getattr(parent_item, 'ContentSequence', ContentSequence())
+    for item in sequence.find(name):
+        if not(
+            item.value_type == ValueTypeValues.IMAGE and
+            item.relationship_type == RelationshipTypeValues.CONTAINS
+        ):
+            continue
+        if (referenced_sop_class_uid is not None and
+                referenced_sop_instance_uid is not None):
+            value = (referenced_sop_class_uid, referenced_sop_instance_uid)
+            if item.value == value:
+                return True
+        elif referenced_sop_class_uid is not None:
+            if item.value[0] == referenced_sop_class_uid:
+                return True
+        elif referenced_sop_instance_uid is not None:
+            if item.value[1] == referenced_sop_instance_uid:
                 return True
         else:
             return True
@@ -2693,35 +2775,35 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D], optional
-            region of interest in source image
+            Region of interest in source image
         referenced_segment: highdicom.sr.ReferencedSegmentationFrame, optional
-            segmentation for region of interest in source image
+            Segmentation for region of interest in source image
         referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: highdicom.sr.TimePointContext, optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method (see
+            Coded measurement method (see
             `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
             "Response Criteria" for options)
         algorithm_id: highdicom.sr.AlgorithmIdentification, optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.FindingSite], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         session: str, optional
-            description of the session
+            Description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
-            measurements for a region of interest
+            Measurements for a region of interest
         qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
-            coded name-value (question-answer) pairs that describe
+            Coded name-value (question-answer) pairs that describe
             qualitative evaluations of a region of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            geometric interpretation of region of interest (see
+            Geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
             "Geometry Graphical Representation" for options)
 
@@ -2834,37 +2916,37 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D]], optional
-            regions of interest in source image(s)
+            Regions of interest in source image(s)
         referenced_volume_surface: highdicom.sr.VolumeSurface, optional
-            volume of interest in source image(s)
+            Volume of interest in source image(s)
         referenced_segment: highdicom.sr.ReferencedSegment, optional
-            segmentation for region of interest in source image
+            Segmentation for region of interest in source image
         referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: highdicom.sr.TimePointContext, optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            coded measurement method (see
+            Coded measurement method (see
             `CID 6147 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_6147.html>`_
             "Response Criteria" for options)
         algorithm_id: highdicom.sr.AlgorithmIdentification, optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.FindingSite], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         session: str, optional
-            description of the session
+            Description of the session
         measurements: Sequence[highdicom.sr.Measurement], optional
-            measurements for a volume of interest
+            Measurements for a volume of interest
         qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
-            coded name-value (question-answer) pairs that describe
+            Coded name-value (question-answer) pairs that describe
             qualitative evaluations of a volume of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            geometric interpretation of region of interest (see
+            Geometric interpretation of region of interest (see
             `CID 219 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_219.html>`_
             "Geometry Graphical Representation" for options)
 
@@ -3407,12 +3489,11 @@ class MeasurementReport(Template):
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
         finding_site: Optional[Union[CodedConcept, Code]] = None,
-        reference_type: Optional[Union[CodedConcept, Code]] = None,
+        reference_type: Optional[PlanarROITypes] = None,
         graphic_type: Optional[
             Union[GraphicTypeValues, GraphicTypeValues3D]
         ] = None,
         referenced_sop_instance_uid: Optional[str] = None,
-        referenced_sop_class_uid: Optional[str] = None
     ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of planar regions of interest.
 
@@ -3428,18 +3509,13 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            Type of referenced ROI
+        reference_type: Union[highdicom.sr.PlanarROITypes], optional
+            Referenced ROI type
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
             Graphic type of image region
         referenced_sop_instance_uid: str, optional
-            SOP Instance UID of the referenced instance, which may be a
-            segmentation image, source image for the region or segmentation, or
-            RT struct, depending on `reference_type`
-        referenced_sop_class_uid: str, optional
-            SOP Class UID of the referenced instance, which may be a
-            segmentation image, source image for the region or segmentation, or
-            RT struct, depending on `reference_type`
+            SOP Instance UID of a referenced source image for the region or
+            segmentation
 
         Returns
         -------
@@ -3447,7 +3523,6 @@ class MeasurementReport(Template):
             Sequence of content items for each matched measurement group
 
         """  # noqa: E501
-        # FIXME: reference type and referenced sop instance uid
         measurement_group_items = self._find_measurement_groups()
         sequences = []
         for group_item in measurement_group_items:
@@ -3482,19 +3557,50 @@ class MeasurementReport(Template):
                 )
                 matches.append(matches_tracking_uid)
             if graphic_type is not None:
-                if isinstance(graphic_type, GraphicTypeValues):
-                    matches_graphic_type = _contains_scoord_items(
-                        group_item,
-                        name=codes.DCM.ImageRegion,
-                        graphic_type=graphic_type
-                    )
-                else:
-                    matches_graphic_type = _contains_scoord3d_items(
-                        group_item,
-                        name=codes.DCM.ImageRegion,
-                        graphic_type=graphic_type
-                    )
+                matches_graphic_type = _contains_scoord_items(
+                    group_item,
+                    name=codes.DCM.ImageRegion,
+                    graphic_type=graphic_type,
+                )
+                matches_graphic_type |= _contains_scoord3d_items(
+                    group_item,
+                    name=codes.DCM.ImageRegion,
+                    graphic_type=graphic_type,
+                )
                 matches.append(matches_graphic_type)
+            if reference_type is not None:
+                if reference_type == PlanarROITypes.REGION:
+                    matches_region = _contains_scoord_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                    )
+                    matches_region |= _contains_scoord3d_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                    )
+                    matches.append(matches_region)
+                elif reference_type == PlanarROITypes.SEGMENT:
+                    matches_segment = _contains_image_items(
+                        group_item,
+                        name=codes.DCM.ReferencedSegmentationFrame,
+                    )
+                    matches.append(matches_segment)
+                else:
+                    raise ValueError(
+                        f'Unsupported Planar ROI Type "{reference_type.value}".'
+                    )
+            if referenced_sop_instance_uid is not None:
+                matches_sop_instance_uid = _contains_image_items(
+                    group_item,
+                    name=codes.DCM.SourceImageForSegmentation,
+                    referenced_sop_instance_uid=referenced_sop_instance_uid
+                )
+                matches_sop_instance_uid |= _contains_scoord_items(
+                    group_item,
+                    name=codes.DCM.ImageRegion,
+                    referenced_sop_instance_uid=referenced_sop_instance_uid
+                )
+                matches.append(matches_sop_instance_uid)
 
             seq = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
                 [group_item]
@@ -3512,10 +3618,9 @@ class MeasurementReport(Template):
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
         finding_site: Optional[Union[CodedConcept, Code]] = None,
-        reference_type: Optional[Union[CodedConcept, Code]] = None,
+        reference_type: Optional[VolumetricROITypes] = None,
         graphic_type: Optional[GraphicTypeValues3D] = None,
         referenced_sop_instance_uid: Optional[str] = None,
-        referenced_sop_class_uid: Optional[str] = None
     ) -> List[VolumetricROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of volumetric regions of interest.
 
@@ -3531,18 +3636,13 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
-            Type of referenced ROI
+        reference_type: Union[highdicom.sr.VolumetricROITypes], optional
+            Referenced ROI type
         graphic_type: highdicom.sr.GraphicTypeValues3D, optional
             Graphic type of image region
         referenced_sop_instance_uid: str, optional
-            SOP Instance UID of the referenced instance, which may be a
-            segmentation image, source image for the region or segmentation, or
-            RT struct, depending on `reference_type`
-        referenced_sop_class_uid: str, optional
-            SOP Class UID of the referenced instance, which may be a
-            segmentation image, source image for the region or segmentation, or
-            RT struct, depending on `reference_type`
+            SOP Instance UID of a referenced source image for the region or
+            segmentation
 
         Returns
         -------
@@ -3550,7 +3650,6 @@ class MeasurementReport(Template):
             Sequence of content items for each matched measurement group
 
         """  # noqa: E501
-        # FIXME: reference type and referenced sop instance uid
         sequences = []
         measurement_group_items = self._find_measurement_groups()
         for group_item in measurement_group_items:
@@ -3593,9 +3692,44 @@ class MeasurementReport(Template):
                 matches_graphic_type |= _contains_scoord3d_items(
                     group_item,
                     name=codes.DCM.VolumeSurface,
-                    graphic_type=graphic_type
+                    graphic_type=graphic_type,
                 )
                 matches.append(matches_graphic_type)
+            if reference_type is not None:
+                if reference_type == VolumetricROITypes.REGIONS:
+                    matches_regions = _contains_scoord_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                    )
+                    matches.append(matches_regions)
+                elif reference_type == VolumetricROITypes.SEGMENT:
+                    matches_segment = _contains_image_items(
+                        group_item,
+                        name=codes.DCM.ReferencedSegment,
+                    )
+                    matches.append(matches_segment)
+                elif reference_type == VolumetricROITypes.VOLUME_SURFACE:
+                    matches_volume_surface = _contains_scoord3d_items(
+                        group_item,
+                        name=codes.DCM.VolumeSurface,
+                    )
+                    matches.append(matches_volume_surface)
+                else:
+                    raise ValueError(
+                        f'Unsupported Planar ROI Type "{reference_type.value}".'
+                    )
+            if referenced_sop_instance_uid is not None:
+                matches_sop_instance_uid = _contains_image_items(
+                    group_item,
+                    name=codes.DCM.SourceImageForSegmentation,
+                    referenced_sop_instance_uid=referenced_sop_instance_uid
+                )
+                matches_sop_instance_uid |= _contains_scoord_items(
+                    group_item,
+                    name=codes.DCM.ImageRegion,
+                    referenced_sop_instance_uid=referenced_sop_instance_uid
+                )
+                matches.append(matches_sop_instance_uid)
 
             seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(  # noqa: E501
                 [group_item]

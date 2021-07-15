@@ -78,3 +78,30 @@ class PixelOriginInterpretationValues(Enum):
 
     FRAME = 'FRAME'
     VOLUME = 'VOLUME'
+
+
+class PlanarROITypes(Enum):
+
+    """Planar Region of Interest (ROI) types.
+
+    Correspond to SR Content Content Items contained in Measurement Group
+    defined by TID 1410 Planar ROI Measurements and Qualitative Evaluations.
+
+    """
+
+    REGION = 'REGION'
+    SEGMENT = 'SEGMENT'
+
+
+class VolumetricROITypes(Enum):
+
+    """Volumetric Region of Interest (ROI) types.
+
+    Correspond to SR Content Content Items contained in Measurement Group
+    defined by TID 1411 Volumetric ROI Measurements and Qualitative Evaluations.
+
+    """
+
+    REGIONS = 'REGIONS'
+    SEGMENT = 'SEGMENT'
+    VOLUME_SURFACE = 'VOLUME_SURFACE'
