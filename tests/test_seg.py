@@ -681,6 +681,13 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.PlanePositionSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
         assert len(frame_content_item.DimensionIndexValues) == 2
+        for i, frame_item in enumerate(
+            instance.PerFrameFunctionalGroupsSequence, 1
+        ):
+            frame_content_item = frame_item.FrameContentSequence[0]
+            # The slice location index values should be consecutive, starting
+            # at 1
+            assert frame_content_item.DimensionIndexValues[1] == i
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
@@ -799,6 +806,13 @@ class TestSegmentation(unittest.TestCase):
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
+        for i, frame_item in enumerate(
+            instance.PerFrameFunctionalGroupsSequence, 1
+        ):
+            frame_content_item = frame_item.FrameContentSequence[0]
+            # The slice location index values should be consecutive, starting
+            # at 1
+            assert frame_content_item.DimensionIndexValues[1] == i
         assert len(frame_content_item.DimensionIndexValues) == 2
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
