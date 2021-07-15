@@ -14,6 +14,7 @@ from highdicom.content import (
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
 
 
