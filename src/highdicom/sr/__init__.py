@@ -17,10 +17,12 @@ from highdicom.sr.content import (
 from highdicom.sr.enum import (
     GraphicTypeValues,
     GraphicTypeValues3D,
+    PlanarROITypes,
     PixelOriginInterpretationValues,
     RelationshipTypeValues,
     TemporalRangeTypeValues,
     ValueTypeValues,
+    VolumetricROITypes,
 )
 from highdicom.sr.sop import (
     EnhancedSR,
@@ -126,6 +128,7 @@ __all__ = [
     'ObservationContext',
     'PersonObserverIdentifyingAttributes',
     'PlanarROIMeasurementsAndQualitativeEvaluations',
+    'PlanarROITypes',
     'PixelOriginInterpretationValues',
     'PnameContentItem',
     'QualitativeEvaluation',
@@ -154,4 +157,5 @@ __all__ = [
     'ValueTypeValues',
     'VolumeSurface',
     'VolumetricROIMeasurementsAndQualitativeEvaluations',
+    'VolumetricROITypes',
 ]

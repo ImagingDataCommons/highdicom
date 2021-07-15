@@ -21,6 +21,7 @@ from highdicom.sr import (
     ImageRegion,
     ImageRegion3D,
     LongitudinalTemporalOffsetFromEvent,
+    PlanarROITypes,
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
@@ -2650,6 +2651,131 @@ class TestMeasurementReport(unittest.TestCase):
         for index, value in content_item_expectations:
             content_item = item.ContentSequence[index]
             assert content_item.ConceptNameCodeSequence[0].CodeValue == value
+
+    def test_construction_and_query(self):
+        tumor = codes.cid7159.Neoplasm
+        normal = Code('SCT', '30389008', 'Normal tissue')
+
+        roi_group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='roi group #1'
+            ),
+            referenced_region=ImageRegion(
+                graphic_type=GraphicTypeValues.POLYLINE,
+                graphic_data=np.array([
+                    [1.0, 1.0],
+                    [1.0, 2.0],
+                    [2.0, 2.0],
+                    [2.0, 2.0],
+                    [1.0, 1.0],
+                ]),
+                source_image=self._image
+            ),
+            finding_type=normal,
+            finding_sites=[self._finding_site]
+        )
+
+        roi_group_3d = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=TrackingIdentifier(
+                uid=generate_uid(),
+                identifier='roi group #2'
+            ),
+            referenced_region=ImageRegion3D(
+                graphic_type=GraphicTypeValues3D.POLYGON,
+                graphic_data=np.array([
+                    [15.0, 15.0, 0.0],
+                    [15.0, 37.0, 0.0],
+                    [15.0, 37.0, 0.0],
+                    [37.0, 37.0, 0.0],
+                    [15.0, 15.0, 0.0],
+                ]),
+                frame_of_reference_uid=generate_uid()
+            ),
+            finding_type=tumor,
+            finding_sites=[self._finding_site]
+        )
+        imaging_measurements = [roi_group, roi_group_3d]
+
+        measurement_report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=imaging_measurements
+        )
+
+        groups = measurement_report.get_planar_roi_measurement_groups()
+        assert len(groups) == 2
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            finding_type=tumor
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POLYGON
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            finding_type=tumor
+        )
+        assert len(groups) == 0
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            finding_type=normal
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            finding_type=normal
+        )
+        assert len(groups) == 0
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            finding_type=tumor
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(groups) == 0
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            referenced_sop_instance_uid=self._image.value[1]
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            referenced_sop_instance_uid=self._image.value[1]
+        )
+        assert len(groups) == 0
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            referenced_sop_instance_uid=self._image.value[1]
+        )
+        assert len(groups) == 1
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=PlanarROITypes.REGION
+        )
+        assert len(groups) == 2
+
+        groups = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=PlanarROITypes.SEGMENT
+        )
+        assert len(groups) == 0
 
     def test_from_sequence(self):
         measurement_report = MeasurementReport(

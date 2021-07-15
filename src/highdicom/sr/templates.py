@@ -325,7 +325,9 @@ def _contains_scoord_items(
                     if subitem.value[1] != referenced_sop_instance_uid:
                         passed_image_check = False
 
-    return passed_graphic_type_check and passed_image_check
+        return passed_graphic_type_check and passed_image_check
+
+    return False
 
 
 def _contains_scoord3d_items(
