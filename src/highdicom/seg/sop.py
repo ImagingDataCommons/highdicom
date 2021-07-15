@@ -758,7 +758,12 @@ class Segmentation(SOPClass):
 
             contained_plane_index = []
             for j in plane_sort_index:
+                # Index of this frame in the original list of source indices
                 source_image_index = source_image_indices[j]
+
+                # Even though fully-empty slices were removed earlier, 
+                # there may still be slices in which this segment is
+                # absent. Such frames should be removed
                 if np.sum(planes[j]) == 0:
                     logger.info(
                         'skip empty plane {} of segment #{}'.format(
