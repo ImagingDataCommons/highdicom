@@ -66,6 +66,12 @@ class ParametricMap(SOPClass):
         """
         Parameters
         ----------
+        source_images: Sequence[pydicom.Dataset]
+            Sequence of one or more `pydicom.Dataset`s that this parametric map
+            is derived from
+        pixel_array: numpy.ndarray
+            The array of pixel data to store in this parametric map SOP
+            instance
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -145,7 +151,6 @@ class ParametricMap(SOPClass):
         ------
         ValueError
             When
-
                 * Length of `source_images` is zero.
                 * Items of `source_images` are not all part of the same study
                   and series.
@@ -393,11 +398,6 @@ class ParametricMap(SOPClass):
         sffg_item.PixelMeasuresSequence = pixel_measures
         sffg_item.PlaneOrientationSequence = plane_orientation
 
-        # Parametric Map Frame Type
-        frame_type_item = Dataset()
-        frame_type_item.FrameType = self.ImageType
-        sffg_item.ParametricFrameTypeSequence = [frame_type_item]
-
         # Identity Pixel Value Transformation
         if pixel_array.dtype.kind == 'i':
             # In case of signed integer type we rescale values to unsigned
@@ -419,8 +419,6 @@ class ParametricMap(SOPClass):
         voi_lut_item.WindowWidth = window_width
         voi_lut_item.VOILUTFunction = 'LINEAR_EXACT'
         sffg_item.FrameVOILUTSequence = [voi_lut_item]
-
-        self.SharedFunctionalGroupsSequence.append(sffg_item)
 
         # Parametric Map Frame Type
         frame_type_item = Dataset()
