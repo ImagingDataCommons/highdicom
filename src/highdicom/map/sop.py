@@ -70,8 +70,12 @@ class ParametricMap(SOPClass):
             Sequence of one or more `pydicom.Dataset`s that this parametric map
             is derived from
         pixel_array: numpy.ndarray
-            The array of pixel data to store in this parametric map SOP
-            instance
+            Array of parametric map pixel data of unsigned integer or
+            floating-point data type representing one or more frames of the
+            parametric map pixel data. The values are supposed to represent a
+            single "feature", i.e., be the result of one set of image
+            transformations such that the same `real_world_value_mappings`
+            apply.
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -483,7 +487,7 @@ class ParametricMap(SOPClass):
             single "feature", i.e., be the result of one set of image
             transformations such that the same `real_world_value_mappings`
             apply.
-        real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMappingSequence], None], optional
+        real_world_value_mappings: Sequence[highdicom.map.RealWorldValueMapping]
             Description of the mapping of values stored in `pixel_array` to
             real-world values.
         plane_positions: Sequence[highdicom.PlanePositionSequence], optional
@@ -493,13 +497,17 @@ class ParametricMap(SOPClass):
         Raises
         ------
         ValueError
-            [description]
-        ValueError
-            [description]
-        NotImplementedError
-            [description]
+            When:
+                * `pixel_array` is not 2D or 3D
+                * `pixel_array` rows and columns do not match those of the
+                    object
+                * `real_world_value_mappings` is empty
+                * The number of pixel array planes does not match the number of
+                    planes/frames in the referenced source image
+                * The number of pixel array planes does not match the number of
+                    provided plane positions
 
-        """  # noqa
+        """
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim != 3:
@@ -673,6 +681,24 @@ class ParametricMap(SOPClass):
         )
 
     def _encode_pixels(self, plane: np.ndarray) -> bytes:
+        """Encodes a given pixel array as a bytes object
+
+        Parameters
+        ----------
+        plane : np.ndarray
+            The numpy array to encode
+
+        Returns
+        -------
+        bytes
+            `plane` encoded as a `bytes` object
+
+        Raises
+        ------
+        ValueError
+            If the SOP instance uses an encapsulated transfer syntax and
+            `plane` is not exactly 2 dimensional.
+        """
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             # Check that only a single plane was passed
             if plane.ndim != 2:
