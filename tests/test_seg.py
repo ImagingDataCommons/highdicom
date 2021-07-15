@@ -566,7 +566,9 @@ class TestSegmentation(unittest.TestCase):
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=bool
         )
-        self._ct_series_mask_array[1:2, 1:5, 7:9] = True
+        nonempty_slice = slice(1, 3)
+        self._ct_series_mask_array[nonempty_slice, 1:5, 7:9] = True
+        self._ct_series_nonempty = self._ct_series[nonempty_slice]
 
         # An enhanced (multiframe) CT image
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
@@ -576,7 +578,7 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_multiframe_mask_array[:, 100:200, 200:400] = True
 
-    @ staticmethod
+    @staticmethod
     def sort_frames(sources, mask):
         src = sources[0]
         if hasattr(src, 'ImageOrientationSlide'):
@@ -776,7 +778,7 @@ class TestSegmentation(unittest.TestCase):
             self._software_versions,
             self._device_serial_number
         )
-        src_im = self._ct_series[1]
+        src_im = self._ct_series_nonempty[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
         assert len(instance.SegmentSequence) == 1
@@ -798,29 +800,29 @@ class TestSegmentation(unittest.TestCase):
             src_im.ImageOrientationPatient
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
-        assert instance.NumberOfFrames == 1
-        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
-        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
-        assert len(frame_item.FrameContentSequence) == 1
-        assert len(frame_item.DerivationImageSequence) == 1
-        assert len(frame_item.PlanePositionSequence) == 1
-        frame_content_item = frame_item.FrameContentSequence[0]
-        for i, frame_item in enumerate(
-            instance.PerFrameFunctionalGroupsSequence, 1
+        n_frames = len(self._ct_series_nonempty)
+        assert instance.NumberOfFrames == n_frames
+        assert len(instance.PerFrameFunctionalGroupsSequence) == n_frames
+        for i, (frame_item, src_ins) in enumerate(
+            zip(instance.PerFrameFunctionalGroupsSequence, self._ct_series_nonempty),
+            1
         ):
+            assert len(frame_item.SegmentIdentificationSequence) == 1
+            assert len(frame_item.FrameContentSequence) == 1
+            assert len(frame_item.DerivationImageSequence) == 1
+            assert len(frame_item.PlanePositionSequence) == 1
             frame_content_item = frame_item.FrameContentSequence[0]
             # The slice location index values should be consecutive, starting
             # at 1
             assert frame_content_item.DimensionIndexValues[1] == i
-        assert len(frame_content_item.DimensionIndexValues) == 2
-        for derivation_image_item in frame_item.DerivationImageSequence:
-            assert len(derivation_image_item.SourceImageSequence) == 1
-            source_image_item = derivation_image_item.SourceImageSequence[0]
-            assert source_image_item.ReferencedSOPClassUID == src_im.SOPClassUID
-            assert source_image_item.ReferencedSOPInstanceUID == \
-                src_im.SOPInstanceUID
-            assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+            assert len(frame_content_item.DimensionIndexValues) == 2
+            for derivation_image_item in frame_item.DerivationImageSequence:
+                assert len(derivation_image_item.SourceImageSequence) == 1
+                source_image_item = derivation_image_item.SourceImageSequence[0]
+                assert source_image_item.ReferencedSOPClassUID == src_ins.SOPClassUID
+                assert source_image_item.ReferencedSOPInstanceUID == \
+                    src_ins.SOPInstanceUID
+                assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -910,6 +912,85 @@ class TestSegmentation(unittest.TestCase):
             assert source_image_item.ReferencedFrameNumber == i + 1
             assert source_image_item.ReferencedSOPInstanceUID == \
                 self._ct_multiframe.SOPInstanceUID
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
+        with pytest.raises(AttributeError):
+            frame_item.PlanePositionSlideSequence
+
+    def test_construction_5(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in 
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        src_im = self._ct_series[0]
+        assert instance.PatientID == src_im.PatientID
+        assert instance.AccessionNumber == src_im.AccessionNumber
+        assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
+        assert len(instance.SourceImageSequence) == len(self._ct_series)
+        ref_item = instance.SourceImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == src_im.SOPInstanceUID
+        assert instance.Rows == src_im.pixel_array.shape[0]
+        assert instance.Columns == src_im.pixel_array.shape[1]
+        assert len(instance.SharedFunctionalGroupsSequence) == 1
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == src_im.PixelSpacing
+        assert pm_item.SliceThickness == src_im.SliceThickness
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            src_im.ImageOrientationPatient
+        assert len(instance.DimensionOrganizationSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
+        assert instance.NumberOfFrames == 4
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 4
+        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert len(frame_item.FrameContentSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
+        assert len(frame_item.PlanePositionSequence) == 1
+        for i, (frame_item, src_ins) in enumerate(
+            zip(instance.PerFrameFunctionalGroupsSequence, self._ct_series),
+            1
+        ):
+            frame_content_item = frame_item.FrameContentSequence[0]
+            # The slice location index values should be consecutive, starting
+            # at 1
+            assert frame_content_item.DimensionIndexValues[1] == i
+            assert len(frame_content_item.DimensionIndexValues) == 2
+            for derivation_image_item in frame_item.DerivationImageSequence:
+                assert len(derivation_image_item.SourceImageSequence) == 1
+                source_image_item = derivation_image_item.SourceImageSequence[0]
+                assert source_image_item.ReferencedSOPClassUID == src_ins.SOPClassUID
+                assert source_image_item.ReferencedSOPInstanceUID == \
+                    src_ins.SOPInstanceUID
+                assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+        uid_to_plane_position = {}
+        for fm in instance.PerFrameFunctionalGroupsSequence:
+            src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
+            uid_to_plane_position[src_img_item.ReferencedSOPInstanceUID] = \
+                fm.PlanePositionSequence[0].ImagePositionPatient
+        source_uid_to_plane_position = {
+            dcm.SOPInstanceUID: dcm.ImagePositionPatient
+            for dcm in self._ct_series
+            if dcm.SOPInstanceUID in uid_to_plane_position
+        }
+        assert source_uid_to_plane_position == uid_to_plane_position
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):

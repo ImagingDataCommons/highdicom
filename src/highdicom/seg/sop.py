@@ -74,6 +74,7 @@ class Segmentation(SOPClass):
             pixel_measures: Optional[PixelMeasuresSequence] = None,
             plane_orientation: Optional[PlaneOrientationSequence] = None,
             plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+            omit_empty_frames: bool = True,
             **kwargs: Any
         ) -> None:
         """
@@ -172,6 +173,9 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
+        omit_empty_frames: bool
+            If True (default), frames with no non-zero pixels are omitted from
+            the segmentation image. If False, all frames are included.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -433,7 +437,8 @@ class Segmentation(SOPClass):
         self.add_segments(
             pixel_array=pixel_array,
             segment_descriptions=segment_descriptions,
-            plane_positions=plane_positions
+            plane_positions=plane_positions,
+            omit_empty_frames=omit_empty_frames
         )
 
         self.copy_specimen_information(src_img)
@@ -443,7 +448,8 @@ class Segmentation(SOPClass):
         self,
         pixel_array: np.ndarray,
         segment_descriptions: Sequence[SegmentDescription],
-        plane_positions: Optional[Sequence[PlanePositionSequence]] = None
+        plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+        omit_empty_frames: bool = True,
     ) -> None:
         """Adds one or more segments to the segmentation image.
 
@@ -490,6 +496,9 @@ class Segmentation(SOPClass):
         plane_positions: Sequence[highdicom.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
             three-dimensional patient or slide coordinate system.
+        omit_empty_frames: bool
+            If True (default), frames with no non-zero pixels are omitted from
+            the segmentation image. If False, all frames are included.
 
         Raises
         ------
@@ -673,16 +682,19 @@ class Segmentation(SOPClass):
         )
 
         # Remove empty slices
-        non_empty_frames = []
-        non_empty_plane_positions = []
-        source_image_indices = []
-        for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
-            if frm.sum() > 0:
-                non_empty_frames.append(frm)
-                non_empty_plane_positions.append(pos)
-                source_image_indices.append(i)
-        pixel_array = np.stack(non_empty_frames)
-        plane_positions = non_empty_plane_positions
+        if omit_empty_frames:
+            non_empty_frames = []
+            non_empty_plane_positions = []
+            source_image_indices = []
+            for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
+                if frm.sum() > 0:
+                    non_empty_frames.append(frm)
+                    non_empty_plane_positions.append(pos)
+                    source_image_indices.append(i)
+            pixel_array = np.stack(non_empty_frames)
+            plane_positions = non_empty_plane_positions
+        else:
+            source_image_indices = list(range(pixel_array.shape[0]))
 
         plane_position_values, plane_sort_index = \
             self.DimensionIndexSequence.get_index_values(plane_positions)
@@ -764,7 +776,7 @@ class Segmentation(SOPClass):
                 # Even though fully-empty slices were removed earlier, 
                 # there may still be slices in which this segment is
                 # absent. Such frames should be removed
-                if np.sum(planes[j]) == 0:
+                if omit_empty_frames and np.sum(planes[j]) == 0:
                     logger.info(
                         'skip empty plane {} of segment #{}'.format(
                             j, segment_number
