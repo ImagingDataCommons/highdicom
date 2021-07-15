@@ -84,7 +84,7 @@ def _count_roi_items(
             'SR Content Item does not represent a measurement group '
             'because it does not have value type CONTAINER.'
         )
-    if group_item.name == codes.DCM.MeasurementGroup:
+    if group_item.name != codes.DCM.MeasurementGroup:
         raise ValueError(
             'SR Content Item does not represent a measurement group '
             'because it does not have name "Measurement Group".'
@@ -3225,7 +3225,7 @@ class MeasurementReport(Template):
         Only one of `imaging_measurements` or `derived_imaging_measurements`
         shall be specified.
 
-        """ # noqa: E501
+        """  # noqa: E501
         if title is None:
             title = codes.cid7021.ImagingMeasurementReport
         if not isinstance(title, (CodedConcept, Code, )):
@@ -3335,18 +3335,18 @@ class MeasurementReport(Template):
 
     def _find_measurement_groups(self) -> List[ContainerContentItem]:
         root_item = self[0]
-        imaging_measurement_items = find_content_items(
-            root_item,
-            name=codes.DCM.ImagingMeasurements,
-            value_type=ValueTypeValues.CONTAINER
+        imaging_measurement_items = root_item.ContentSequence.find(
+            codes.DCM.ImagingMeasurements
         )
         if len(imaging_measurement_items) == 0:
             return []
-        return find_content_items(
-            imaging_measurement_items[0],
-            name=codes.DCM.MeasurementGroup,
-            value_type=ValueTypeValues.CONTAINER
-        )
+        elif len(imaging_measurement_items) > 1:
+            logger.warning(
+                'found more than one "Imaging Measurements" content item '
+                'in "Measurement Report" template'
+            )
+        item = imaging_measurement_items[0]
+        return item.ContentSequence.find(codes.DCM.MeasurementGroup)
 
     @classmethod
     def from_sequence(cls, sequence: Sequence[Dataset]) -> 'MeasurementReport':
@@ -3525,9 +3525,8 @@ class MeasurementReport(Template):
             Sequence of content items for each matched measurement group
 
         """  # noqa: E501
-        measurement_group_items = self._find_measurement_groups()
         sequences = []
-        for group_item in measurement_group_items:
+        for group_item in self._find_measurement_groups():
             if group_item.template_id is not None:
                 if group_item.template_id != '1410':
                     continue

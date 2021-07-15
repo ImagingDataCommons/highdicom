@@ -228,6 +228,7 @@ class ContentSequence(DataElementSequence):
             content tree
 
         """
+        self._lut = collections.defaultdict(list)
         self._is_root = is_root
         if items is not None:
             for i in items:
@@ -254,9 +255,9 @@ class ContentSequence(DataElementSequence):
                             f'{self.__class__.__name__} must have an '
                             f'established relationship type:\n{i.name}'
                         )
+                self._lut[i.name].append(i)
 
         super(ContentSequence, self).__init__(items)
-        self._lut = collections.defaultdict(list)
 
     def __setitem__(self, position: int, item: ContentItem) -> None:
         self.insert(position, item)
