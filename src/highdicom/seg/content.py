@@ -180,7 +180,7 @@ class DimensionIndexSequence(DataElementSequence):
         super().__init__()
         self._coordinate_system = CoordinateSystemNames(coordinate_system)
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
+            dim_uid = UID()
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
@@ -261,7 +261,7 @@ class DimensionIndexSequence(DataElementSequence):
             ])
 
         elif self._coordinate_system == CoordinateSystemNames.PATIENT:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
+            dim_uid = UID()
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
