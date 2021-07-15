@@ -664,9 +664,6 @@ class Segmentation(SOPClass):
                     'provided plane positions.'
                 )
 
-        plane_position_values, plane_sort_index = \
-            self.DimensionIndexSequence.get_index_values(plane_positions)
-
         are_spatial_locations_preserved = (
             all(
                 plane_positions[i] == self._source_plane_positions[i]
@@ -674,6 +671,21 @@ class Segmentation(SOPClass):
             ) and
             self._plane_orientation == self._source_plane_orientation
         )
+
+        # Remove empty slices
+        non_empty_frames = []
+        non_empty_plane_positions = []
+        source_image_indices = []
+        for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
+            if frm.sum() > 0:
+                non_empty_frames.append(frm)
+                non_empty_plane_positions.append(pos)
+                source_image_indices.append(i)
+        pixel_array = np.stack(non_empty_frames)
+        plane_positions = non_empty_plane_positions
+
+        plane_position_values, plane_sort_index = \
+            self.DimensionIndexSequence.get_index_values(plane_positions)
 
         # Get unique values of attributes in the Plane Position Sequence or
         # Plane Position Slide Sequence, which define the position of the plane
@@ -746,6 +758,7 @@ class Segmentation(SOPClass):
 
             contained_plane_index = []
             for j in plane_sort_index:
+                source_image_index = source_image_indices[j]
                 if np.sum(planes[j]) == 0:
                     logger.info(
                         'skip empty plane {} of segment #{}'.format(
@@ -818,14 +831,16 @@ class Segmentation(SOPClass):
                     ]
 
                     derivation_src_img_item = Dataset()
-                    if len(plane_sort_index) > len(self._source_images):
+                    if hasattr(self._source_images[0], 'NumberOfFrames'):
                         # A single multi-frame source image
                         src_img_item = self.SourceImageSequence[0]
                         # Frame numbers are one-based
-                        derivation_src_img_item.ReferencedFrameNumber = j + 1
+                        derivation_src_img_item.ReferencedFrameNumber = (
+                            source_image_index + 1
+                        )
                     else:
                         # Multiple single-frame source images
-                        src_img_item = self.SourceImageSequence[j]
+                        src_img_item = self.SourceImageSequence[source_image_index]
                     derivation_src_img_item.ReferencedSOPClassUID = \
                         src_img_item.ReferencedSOPClassUID
                     derivation_src_img_item.ReferencedSOPInstanceUID = \
