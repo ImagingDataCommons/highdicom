@@ -464,14 +464,11 @@ class ParametricMap(SOPClass):
             self.BitsAllocated = 16
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
+            self.PixelRepresentation = 0
         elif self._pixel_data_type == _PixelDataType.SINGLE:
             self.BitsAllocated = 32
         elif self._pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
-        # TODO: Determine whether this attribute can be present in data sets
-        # with Float Pixel Data or Double Float Pixel Data attribute.
-        # The pydicom library requires its presence for decoding.
-        self.PixelRepresentation = 0
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
@@ -765,3 +762,28 @@ class ParametricMap(SOPClass):
                 return plane.astype(np.uint16).flatten().tobytes()
             else:
                 return plane.flatten().tobytes()
+    
+    @property
+    def pixel_array(self) -> np.ndarray:
+        """This is a workaround for a bug in Pydicom.
+
+        In PyDicom you are required to set PixelRepresentation in order to
+        use the numpy pixel_data handler, however this goes against the DICOM
+        standard. To get around this issue we set the Pixel Representation
+        attribute if it is not set, then get the array, then remove the
+        attribute.
+
+        Returns
+        -------
+        numpy.ndarray
+            The pixel data encoded as a `numpy.ndarray`.
+        """
+        workaround = False
+        if not hasattr(self, 'PixelRepresentation'):
+            workaround = True
+        if workaround:
+            self.PixelRepresentation = 1
+        _pixel_array = super().pixel_array
+        if workaround:
+            del self.PixelRepresentation
+        return _pixel_array
