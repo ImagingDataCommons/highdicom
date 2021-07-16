@@ -598,7 +598,7 @@ class ParametricMap(SOPClass):
                 else:
                     pffg_item.RealWorldValueMappingSequence = rwvm
 
-                self.PerFrameFunctionalGroupsSequence.append(pffg_item)
+            self.PerFrameFunctionalGroupsSequence.append(pffg_item)
 
             self._append_pixel_data(pixel_array[i, ...])
 
