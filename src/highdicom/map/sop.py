@@ -337,7 +337,7 @@ class ParametricMap(SOPClass):
         # Physical dimensions of the image should match those of the source
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        sffg_item = Dataset()
+        shared_fg_item = Dataset()
         self.SharedFunctionalGroupsSequence = []
         if pixel_measures is None:
             if is_multiframe:
@@ -399,8 +399,8 @@ class ParametricMap(SOPClass):
                 )
             )
 
-        sffg_item.PixelMeasuresSequence = pixel_measures
-        sffg_item.PlaneOrientationSequence = plane_orientation
+        shared_fg_item.PixelMeasuresSequence = pixel_measures
+        shared_fg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
         if pixel_array.dtype.kind == 'i':
@@ -415,21 +415,34 @@ class ParametricMap(SOPClass):
             transformation_item.RescaleIntercept = 0
             transformation_item.RescaleSlope = 1
             transformation_item.RescaleType = 'US'
-        sffg_item.PixelValueTransformationSequence = [transformation_item]
+        shared_fg_item.PixelValueTransformationSequence = [transformation_item]
 
         # Frame VOI LUT With LUT
         voi_lut_item = Dataset()
         voi_lut_item.WindowCenter = window_center
         voi_lut_item.WindowWidth = window_width
         voi_lut_item.VOILUTFunction = 'LINEAR_EXACT'
-        sffg_item.FrameVOILUTSequence = [voi_lut_item]
+        shared_fg_item.FrameVOILUTSequence = [voi_lut_item]
 
         # Parametric Map Frame Type
         frame_type_item = Dataset()
         frame_type_item.FrameType = self.ImageType
-        sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
+        shared_fg_item.ParametricMapFrameTypeSequence = [frame_type_item]
 
-        self.SharedFunctionalGroupsSequence = [sffg_item]
+        # Real World Value Mapping Sequence
+        # If the input was a single RWVM or a sequence of size 1 then we will
+        # assign it to the Shared FG Seq. Otherwise it will be per-frame and
+        # will be checked later on
+        if len(real_world_value_mappings) == 1:
+            shared_fg_item.RealWorldValueMappingSequence = real_world_value_mappings  # noqa: E501
+            # Set to None so that when it is passed to the add_values method
+            # we can tell that it has already been assigned
+            rwvm_seq = None
+        else:
+            # Otherwise just pass the sequence to add_values
+            rwvm_seq = real_world_value_mappings
+
+        self.SharedFunctionalGroupsSequence = [shared_fg_item]
 
         # Information about individual frames will be updated by the
         # "add_values()" method upon addition of parametric map planes.
@@ -466,14 +479,16 @@ class ParametricMap(SOPClass):
 
         self.add_values(
             pixel_array,
-            real_world_value_mappings=real_world_value_mappings,
+            real_world_value_mappings=rwvm_seq,
             plane_positions=plane_positions,
         )
 
     def add_values(
         self,
         pixel_array: np.ndarray,
-        real_world_value_mappings: Sequence[RealWorldValueMapping],
+        real_world_value_mappings: Optional[
+            Union[Sequence[RealWorldValueMapping],
+                  Sequence[Sequence[RealWorldValueMapping]]]],
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
     ) -> None:
         """Add values to the parametric map.
@@ -487,9 +502,13 @@ class ParametricMap(SOPClass):
             single "feature", i.e., be the result of one set of image
             transformations such that the same `real_world_value_mappings`
             apply.
-        real_world_value_mappings: Sequence[highdicom.map.RealWorldValueMapping]
+        real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMapping],
+                                         Sequence[
+                                             Sequence[highdicom.map.RealWorldValueMapping]]], optional
             Description of the mapping of values stored in `pixel_array` to
-            real-world values.
+            real-world values. Number of items must match the number of planes
+            in `pixel_array`. Multiple Real World Value Mappings can be
+            assigned to a single frame/plane.
         plane_positions: Sequence[highdicom.PlanePositionSequence], optional
             Position of each plane in `pixel_array` relative to the
             patient or slide coordinate system.
@@ -507,7 +526,7 @@ class ParametricMap(SOPClass):
                 * The number of pixel array planes does not match the number of
                     provided plane positions
 
-        """
+        """  # noqa: E501
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim != 3:
@@ -517,8 +536,7 @@ class ParametricMap(SOPClass):
             raise ValueError(
                 'Pixel array has the wrong number of rows or columns.'
             )
-
-        if len(real_world_value_mappings) == 0:
+        if real_world_value_mappings and len(real_world_value_mappings) == 0:
             raise ValueError(
                 'At least one RealWorldValueMapping item must be provided.'
             )
@@ -535,6 +553,18 @@ class ParametricMap(SOPClass):
                 raise ValueError(
                     'Number of pixel array planes does not match number of '
                     'provided plane positions.'
+                )
+
+        # We can have either a list of RealWorldValueMappings which maps one
+        # to each frame, or we can have a list of lists which maps multiple
+        # mappings to each frame.
+        if real_world_value_mappings:
+            if len(real_world_value_mappings) != pixel_array.shape[0]:
+                raise ValueError(
+                    'Number of items in the Real World Value Mappings sequence '
+                    'does not match the number of pixel array planes. '
+                    f'Expected {pixel_array.shape[0]}, got '
+                    f'{len(real_world_value_mappings)}'
                 )
 
         for i in range(pixel_array.shape[0]):
@@ -557,9 +587,18 @@ class ParametricMap(SOPClass):
             pffg_item.FrameContentSequence = [frame_content_item]
 
             # Real World Value Mapping
-            pffg_item.RealWorldValueMappingSequence = real_world_value_mappings
+            if real_world_value_mappings:
+                rwvm = real_world_value_mappings[i]
+                # If the input RWVM is a list of individual mappings we need to
+                # assign those to a sequence as we go. Otherwise, if it is a
+                # list of sequences of RWVMs, then we can just assign them
+                # outright
+                if isinstance(rwvm, RealWorldValueMapping):
+                    pffg_item.RealWorldValueMappingSequence = [rwvm]
+                else:
+                    pffg_item.RealWorldValueMappingSequence = rwvm
 
-            self.PerFrameFunctionalGroupsSequence.append(pffg_item)
+                self.PerFrameFunctionalGroupsSequence.append(pffg_item)
 
             self._append_pixel_data(pixel_array[i, ...])
 
@@ -608,6 +647,10 @@ class ParametricMap(SOPClass):
         else:
             pixel_data_bytes += self._encode_pixels(plane)
 
+        # FIXME(cg): This fails with the latest release of PyDICOM because the
+        # when using Double Float Pixel Data. The bug is fixed in master but
+        # has not been released yet.
+        # See https://github.com/pydicom/pydicom/pull/1413 for more details
         setattr(self, pixel_data_attr, pixel_data_bytes)
 
     def _get_pixel_data_type_and_attr(
