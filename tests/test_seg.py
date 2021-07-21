@@ -503,6 +503,9 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
+        self._both_segment_descriptions = (
+            self._segment_descriptions + self._additional_segment_descriptions
+        )
         self._additional_segment_descriptions_no4 = [
             SegmentDescription(
                 segment_number=4,
@@ -1007,9 +1010,16 @@ class TestSegmentation(unittest.TestCase):
 
         for sources, mask in tests:
 
-            # Create a mask for an additional segment as the complement of the
-            # original mask
-            additional_mask = (1 - mask)
+            # Two segments, overlapping
+            multi_segment_overlap = np.stack([mask, mask], axis=-1)
+            if multi_segment_overlap.ndim == 3:
+                multi_segment_overlap = multi_segment_overlap[np.newaxis, ...]
+
+            # Two segments non-overlapping
+            multi_segment_exc = np.stack([mask, 1 - mask], axis=-1)
+            if multi_segment_exc.ndim == 3:
+                multi_segment_exc = multi_segment_exc[np.newaxis, ...]
+            additional_mask = 1 - mask
 
             # Find the expected encodings for the masks
             if mask.ndim > 2:
@@ -1073,21 +1083,75 @@ class TestSegmentation(unittest.TestCase):
                         expected_encoding
                     ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
-                    # Add another segment
-                    instance.add_segments(
-                        additional_mask.astype(pix_type),
-                        self._additional_segment_descriptions
+                    # Multi-segment (exclusive)
+                    instance = Segmentation(
+                        sources,
+                        multi_segment_exc.astype(pix_type),
+                        SegmentationTypeValues.FRACTIONAL.value,
+                        self._both_segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
                     )
-                    assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
-                        SegmentsOverlapValues.UNDEFINED
+                    if pix_type == np.float_:
+                        assert (
+                            instance.SegmentsOverlap ==
+                            SegmentsOverlapValues.UNDEFINED.value
+                        )
+                    else:
+                        assert (
+                            instance.SegmentsOverlap ==
+                            SegmentsOverlapValues.NO.value
+                        )
 
-                    # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(
-                        self.get_array_after_writing(instance),
-                        two_segment_expected_encoding
-                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    # Multi-segment (overlapping)
+                    instance = Segmentation(
+                        sources,
+                        multi_segment_overlap.astype(pix_type),
+                        SegmentationTypeValues.FRACTIONAL.value,
+                        self._both_segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
+                    )
+                    if pix_type == np.float_:
+                        assert (
+                            instance.SegmentsOverlap ==
+                            SegmentsOverlapValues.UNDEFINED.value
+                        )
+                    else:
+                        assert (
+                            instance.SegmentsOverlap ==
+                            SegmentsOverlapValues.YES.value
+                        )
 
         for sources, mask in tests:
+            # Two segments, overlapping
+            multi_segment_overlap = np.stack([mask, mask], axis=-1)
+            if multi_segment_overlap.ndim == 3:
+                multi_segment_overlap = multi_segment_overlap[np.newaxis, ...]
+
+            # Two segments non-overlapping
+            multi_segment_exc = np.stack([mask, 1 - mask], axis=-1)
+
+            if multi_segment_exc.ndim == 3:
+                multi_segment_exc = multi_segment_exc[np.newaxis, ...]
+            additional_mask = 1 - mask
+
             additional_mask = (1 - mask)
             if mask.ndim > 2:
                 expected_encoding = self.sort_frames(
@@ -1147,19 +1211,50 @@ class TestSegmentation(unittest.TestCase):
                         expected_encoding
                     ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
-                    # Add another segment
-                    instance.add_segments(
-                        additional_mask.astype(pix_type),
-                        self._additional_segment_descriptions
+                    # Multi-segment (exclusive)
+                    print(multi_segment_exc.shape)
+                    instance = Segmentation(
+                        sources,
+                        multi_segment_exc.astype(pix_type),
+                        SegmentationTypeValues.BINARY.value,
+                        self._both_segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
                     )
-                    assert SegmentsOverlapValues(instance.SegmentsOverlap) == \
-                        SegmentsOverlapValues.UNDEFINED
+                    assert (
+                        instance.SegmentsOverlap ==
+                        SegmentsOverlapValues.NO.value
+                    )
 
-                    # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(
-                        self.get_array_after_writing(instance),
-                        two_segment_expected_encoding
-                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    # Multi-segment (overlapping)
+                    instance = Segmentation(
+                        sources,
+                        multi_segment_overlap.astype(pix_type),
+                        SegmentationTypeValues.BINARY.value,
+                        self._both_segment_descriptions,
+                        self._series_instance_uid,
+                        self._series_number,
+                        self._sop_instance_uid,
+                        self._instance_number,
+                        self._manufacturer,
+                        self._manufacturer_model_name,
+                        self._software_versions,
+                        self._device_serial_number,
+                        max_fractional_value=1,
+                        transfer_syntax_uid=transfer_syntax_uid
+                    )
+                    assert (
+                        instance.SegmentsOverlap ==
+                        SegmentsOverlapValues.YES.value
+                    )
 
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded
@@ -1207,20 +1302,6 @@ class TestSegmentation(unittest.TestCase):
         )
 
         assert np.array_equal(self.get_array_after_writing(instance), odd_mask)
-
-        instance.add_segments(
-            addtional_odd_mask,
-            self._additional_segment_descriptions
-        )
-
-        expected_two_segment_mask = np.stack(
-            [odd_mask, addtional_odd_mask],
-            axis=0
-        )
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            expected_two_segment_mask
-        )
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
@@ -1297,29 +1378,6 @@ class TestSegmentation(unittest.TestCase):
                 manufacturer_model_name=self._manufacturer_model_name,
                 software_versions=self._software_versions,
                 device_serial_number=self._device_serial_number
-            )
-
-    def test_construction_segment_numbers_continue_wrong(self):
-        instance = Segmentation(
-            source_images=[self._ct_image],
-            pixel_array=self._ct_pixel_array,
-            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-            segment_descriptions=(
-                self._segment_descriptions  # seg num 1
-            ),
-            series_instance_uid=self._series_instance_uid,
-            series_number=self._series_number,
-            sop_instance_uid=self._sop_instance_uid,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            manufacturer_model_name=self._manufacturer_model_name,
-            software_versions=self._software_versions,
-            device_serial_number=self._device_serial_number
-        )
-        with pytest.raises(ValueError):
-            instance.add_segments(
-                self._ct_pixel_array,
-                self._additional_segment_descriptions_no4
             )
 
     def test_construction_wrong_segment_order(self):
