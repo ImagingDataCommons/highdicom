@@ -2,12 +2,11 @@
 import logging
 import numpy as np
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Union, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom.encaps import decode_data_sequence, encapsulate
+from pydicom.encaps import encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
-from pydicom.pixel_data_handlers.util import get_expected_length
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -772,7 +771,9 @@ class Segmentation(SOPClass):
                         )
                     else:
                         # Multiple single-frame source images
-                        src_img_item = self.SourceImageSequence[source_image_index]
+                        src_img_item = self.SourceImageSequence[
+                            source_image_index
+                        ]
                     derivation_src_img_item.ReferencedSOPClassUID = \
                         src_img_item.ReferencedSOPClassUID
                     derivation_src_img_item.ReferencedSOPInstanceUID = \

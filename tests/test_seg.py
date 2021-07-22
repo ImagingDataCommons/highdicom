@@ -807,7 +807,10 @@ class TestSegmentation(unittest.TestCase):
         assert instance.NumberOfFrames == n_frames
         assert len(instance.PerFrameFunctionalGroupsSequence) == n_frames
         for i, (frame_item, src_ins) in enumerate(
-            zip(instance.PerFrameFunctionalGroupsSequence, self._ct_series_nonempty),
+            zip(
+                instance.PerFrameFunctionalGroupsSequence,
+                self._ct_series_nonempty
+            ),
             1
         ):
             assert len(frame_item.SegmentIdentificationSequence) == 1
@@ -822,10 +825,14 @@ class TestSegmentation(unittest.TestCase):
             for derivation_image_item in frame_item.DerivationImageSequence:
                 assert len(derivation_image_item.SourceImageSequence) == 1
                 source_image_item = derivation_image_item.SourceImageSequence[0]
-                assert source_image_item.ReferencedSOPClassUID == src_ins.SOPClassUID
+                assert source_image_item.ReferencedSOPClassUID == \
+                    src_ins.SOPClassUID
                 assert source_image_item.ReferencedSOPInstanceUID == \
                     src_ins.SOPInstanceUID
-                assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+                assert hasattr(
+                    source_image_item,
+                    'PurposeOfReferenceCodeSequence'
+                )
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -922,7 +929,7 @@ class TestSegmentation(unittest.TestCase):
 
     def test_construction_5(self):
         # Segmentation instance from a series of single-frame CT images
-        # with empty frames kept in 
+        # with empty frames kept in
         instance = Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
@@ -979,10 +986,14 @@ class TestSegmentation(unittest.TestCase):
             for derivation_image_item in frame_item.DerivationImageSequence:
                 assert len(derivation_image_item.SourceImageSequence) == 1
                 source_image_item = derivation_image_item.SourceImageSequence[0]
-                assert source_image_item.ReferencedSOPClassUID == src_ins.SOPClassUID
+                assert source_image_item.ReferencedSOPClassUID == \
+                    src_ins.SOPClassUID
                 assert source_image_item.ReferencedSOPInstanceUID == \
                     src_ins.SOPInstanceUID
-                assert hasattr(source_image_item, 'PurposeOfReferenceCodeSequence')
+                assert hasattr(
+                    source_image_item,
+                    'PurposeOfReferenceCodeSequence'
+                )
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -1023,30 +1034,44 @@ class TestSegmentation(unittest.TestCase):
 
             # Find the expected encodings for the masks
             if mask.ndim > 2:
+                # Expected encoding of the mask
                 expected_encoding = self.sort_frames(
                     sources,
                     mask
                 )
-                expected_additional_encoding = self.sort_frames(
-                    sources,
-                    additional_mask
-                )
                 expected_encoding = self.remove_empty_frames(
                     expected_encoding
                 )
-                expected_additional_encoding = self.remove_empty_frames(
-                    expected_additional_encoding
+
+                # Expected encoding of the complement
+                expected_encoding_comp = self.sort_frames(
+                    sources,
+                    additional_mask
                 )
-                two_segment_expected_encoding = np.concatenate(
-                    [expected_encoding, expected_additional_encoding],
+                expected_encoding_comp = self.remove_empty_frames(
+                    expected_encoding_comp
+                )
+
+                # Expected encoding of the multi segment arrays
+                expected_enc_overlap = np.concatenate(
+                    [expected_encoding, expected_encoding],
                     axis=0
-                ).squeeze()
+                )
+                expected_enc_exc = np.concatenate(
+                    [expected_encoding, expected_encoding_comp],
+                    axis=0
+                )
                 expected_encoding = expected_encoding.squeeze()
             else:
                 expected_encoding = mask
-                expected_additional_encoding = additional_mask
-                two_segment_expected_encoding = np.stack(
-                    [expected_encoding, expected_additional_encoding],
+
+                # Expected encoding of the multi segment arrays
+                expected_enc_overlap = np.stack(
+                    [expected_encoding, expected_encoding],
+                    axis=0
+                )
+                expected_enc_exc = np.stack(
+                    [expected_encoding, 1 - expected_encoding],
                     axis=0
                 )
 
@@ -1111,6 +1136,11 @@ class TestSegmentation(unittest.TestCase):
                             SegmentsOverlapValues.NO.value
                         )
 
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_enc_exc
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+
                     # Multi-segment (overlapping)
                     instance = Segmentation(
                         sources,
@@ -1139,6 +1169,11 @@ class TestSegmentation(unittest.TestCase):
                             SegmentsOverlapValues.YES.value
                         )
 
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_enc_overlap
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+
         for sources, mask in tests:
             # Two segments, overlapping
             multi_segment_overlap = np.stack([mask, mask], axis=-1)
@@ -1153,31 +1188,46 @@ class TestSegmentation(unittest.TestCase):
             additional_mask = 1 - mask
 
             additional_mask = (1 - mask)
+            # Find the expected encodings for the masks
             if mask.ndim > 2:
+                # Expected encoding of the mask
                 expected_encoding = self.sort_frames(
                     sources,
                     mask
                 )
-                expected_additional_encoding = self.sort_frames(
-                    sources,
-                    additional_mask
-                )
                 expected_encoding = self.remove_empty_frames(
                     expected_encoding
                 )
-                expected_additional_encoding = self.remove_empty_frames(
-                    expected_additional_encoding
+
+                # Expected encoding of the complement
+                expected_encoding_comp = self.sort_frames(
+                    sources,
+                    additional_mask
                 )
-                two_segment_expected_encoding = np.concatenate(
-                    [expected_encoding, expected_additional_encoding],
+                expected_encoding_comp = self.remove_empty_frames(
+                    expected_encoding_comp
+                )
+
+                # Expected encoding of the multi segment arrays
+                expected_enc_overlap = np.concatenate(
+                    [expected_encoding, expected_encoding],
                     axis=0
-                ).squeeze()
+                )
+                expected_enc_exc = np.concatenate(
+                    [expected_encoding, expected_encoding_comp],
+                    axis=0
+                )
                 expected_encoding = expected_encoding.squeeze()
             else:
                 expected_encoding = mask
-                expected_additional_encoding = additional_mask
-                two_segment_expected_encoding = np.stack(
-                    [expected_encoding, expected_additional_encoding],
+
+                # Expected encoding of the multi segment arrays
+                expected_enc_overlap = np.stack(
+                    [expected_encoding, expected_encoding],
+                    axis=0
+                )
+                expected_enc_exc = np.stack(
+                    [expected_encoding, 1 - expected_encoding],
                     axis=0
                 )
 
@@ -1212,7 +1262,6 @@ class TestSegmentation(unittest.TestCase):
                     ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
                     # Multi-segment (exclusive)
-                    print(multi_segment_exc.shape)
                     instance = Segmentation(
                         sources,
                         multi_segment_exc.astype(pix_type),
@@ -1233,6 +1282,11 @@ class TestSegmentation(unittest.TestCase):
                         instance.SegmentsOverlap ==
                         SegmentsOverlapValues.NO.value
                     )
+
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_enc_exc
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
                     # Multi-segment (overlapping)
                     instance = Segmentation(
@@ -1255,6 +1309,11 @@ class TestSegmentation(unittest.TestCase):
                         instance.SegmentsOverlap ==
                         SegmentsOverlapValues.YES.value
                     )
+
+                    assert np.array_equal(
+                        self.get_array_after_writing(instance),
+                        expected_enc_overlap
+                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
 
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded
@@ -1280,11 +1339,6 @@ class TestSegmentation(unittest.TestCase):
             size=odd_pixels.shape,
             dtype=bool
         )
-        addtional_odd_mask = np.random.randint(
-            2,
-            size=odd_pixels.shape,
-            dtype=bool
-        )
 
         instance = Segmentation(
             [odd_instance],
@@ -1302,6 +1356,40 @@ class TestSegmentation(unittest.TestCase):
         )
 
         assert np.array_equal(self.get_array_after_writing(instance), odd_mask)
+
+        additional_odd_mask = np.random.randint(
+            2,
+            size=odd_pixels.shape,
+            dtype=bool
+        )
+        two_segment_mask = np.stack(
+            [odd_mask, additional_odd_mask],
+            axis=-1
+        )[np.newaxis, ...]
+        expected_encoding = np.stack(
+            [odd_mask, additional_odd_mask],
+            axis=0
+        )
+
+        instance = Segmentation(
+            [odd_instance],
+            two_segment_mask,
+            SegmentationTypeValues.BINARY.value,
+            segment_descriptions=self._both_segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding
+        )
 
     def test_multi_segments(self):
         # Test that the multi-segment encoding is behaving as expected
