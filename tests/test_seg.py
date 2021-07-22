@@ -1449,6 +1449,88 @@ class TestSegmentation(unittest.TestCase):
                 expected_encoding
             )
 
+    def test_construction_empty_source_image(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[],  # empty
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_mixed_source_series(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=self._ct_series + [self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._additional_segment_descriptions  # seg num 2
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_wrong_number_of_segments(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array[..., np.newaxis],
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._both_segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_stacked_label_map(self):
+        # A 4D integer cannot have non-binary values
+        mask = np.zeros(
+            (1, self._ct_image.Rows, self._ct_image.Columns, 2),
+            dtype=np.uint8
+        )
+        mask[0, 0, 0, 0] = 2  # disallowed
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=mask,
+                segmentation_type=SegmentationTypeValues.BINARY.value,
+                segment_descriptions=(
+                    self._both_segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
     def test_construction_segment_numbers_start_wrong(self):
         with pytest.raises(ValueError):
             Segmentation(
@@ -1457,6 +1539,66 @@ class TestSegmentation(unittest.TestCase):
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._additional_segment_descriptions  # seg num 2
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_empty_invalid_floats(self):
+        # Floats outside the range 0.0 to 1.0 are invalid
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],  # empty
+                pixel_array=self._ct_pixel_array.astype(np.float_) * 2,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_empty_invalid_floats_binary(self):
+        # Cannot use floats other than 0.0 and 1.0 when encoding as BINARY
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array.astype(np.float_) * 0.5,
+                segmentation_type=SegmentationTypeValues.BINARY.value,
+                segment_descriptions=(
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_empty_invalid_dtype(self):
+        # Cannot use signed integers
+        with pytest.raises(TypeError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array.astype(np.int16),
+                segmentation_type=SegmentationTypeValues.BINARY.value,
+                segment_descriptions=(
+                    self._segment_descriptions
                 ),
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
