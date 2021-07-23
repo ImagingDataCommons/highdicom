@@ -895,5 +895,6 @@ class Segmentation(SOPClass):
             'To ensure correctness of segmentation images, the add_segments '
             'method was deprecated in highdicom 0.8.0. For more information '
             'and migration instructions visit '
-            'https://highdicom.readthedocs.io/en/latest/???????'  # TODO
+            'https://highdicom.readthedocs.io/en/latest/release_notes.html'
+            '#deprecation-of-add-segments-method'
         )
