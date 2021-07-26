@@ -45,7 +45,7 @@ def find_content_items(
     AttributeError
         When data set does not contain Content Sequence attribute.
 
-    """  # noqa
+    """  # noqa: E501
     def has_name(item: ContentItem, name: Optional[str]) -> bool:
         if name is None:
             return True
@@ -77,12 +77,12 @@ def find_content_items(
         )
 
     def search_tree(
-            node: Dataset,
-            name: Optional[Union[CodedConcept, Code]],
-            value_type: Optional[Union[ValueTypeValues, str]],
-            relationship_type: Optional[Union[RelationshipTypeValues, str]],
-            recursive: bool
-        ) -> List:
+        node: Dataset,
+        name: Optional[Union[CodedConcept, Code]],
+        value_type: Optional[Union[ValueTypeValues, str]],
+        relationship_type: Optional[Union[RelationshipTypeValues, str]],
+        recursive: bool
+    ) -> List:
         matched_content_items = []
         for i, content_item in enumerate(node.ContentSequence):
             name_code = content_item.ConceptNameCodeSequence[0]
@@ -139,12 +139,7 @@ def get_coded_name(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptNameCodeSequence" and '
             'thus doesn\'t represent a SR Content Item.'
         )
-    return CodedConcept(
-        value=name.CodeValue,
-        scheme_designator=name.CodingSchemeDesignator,
-        meaning=name.CodeMeaning,
-        scheme_version=name.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(name)
 
 
 def get_coded_value(item: Dataset) -> CodedConcept:
@@ -168,9 +163,4 @@ def get_coded_value(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptCodeSequence" and '
             'thus doesn\'t represent a SR Content Item of Value Type CODE.'
         )
-    return CodedConcept(
-        value=value.CodeValue,
-        scheme_designator=value.CodingSchemeDesignator,
-        meaning=value.CodeMeaning,
-        scheme_version=value.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(value)

@@ -213,7 +213,7 @@ class Segmentation(SOPClass):
         the same frame of reference as `source_images`.
 
 
-        """  # noqa
+        """  # noqa: E501
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
         self._source_images = source_images
@@ -552,7 +552,7 @@ class Segmentation(SOPClass):
         one segment can be encoded by `pixel_array` and hence only one item is
         permitted in `segment_descriptions`.
 
-        """  # noqa
+        """
         if self._source_images is None:
             raise AttributeError(
                 'Further segments may not be added to Segmentation objects '

@@ -1,13 +1,14 @@
 """DICOM structured reporting content item value types."""
 import datetime
-from typing import Any, List, Optional, Sequence, Union
+import collections
 import warnings
+from copy import deepcopy
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
-from pydicom.uid import UID
 from pydicom.valuerep import DA, TM, DT, PersonName
 
 from highdicom.sr.coding import CodedConcept
@@ -19,7 +20,82 @@ from highdicom.sr.enum import (
     TemporalRangeTypeValues,
     ValueTypeValues,
 )
+from highdicom.uid import UID
 from highdicom.valuerep import check_person_name
+
+
+def _assert_value_type(
+    dataset: Dataset,
+    value_type: ValueTypeValues
+) -> None:
+    """Check whether dataset contains required attributes for a value type.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        Dataset representing an SR Content Item
+    value_type: highdicom.sr.enum.ValueTypeValues
+        Expected value of Value Type attribute
+
+    Raises
+    ------
+    AttributeError
+        When a required attribute is missing
+    ValueError
+        When the expected and encountered value of Value Type attribute don't
+        match
+
+    """
+    if not hasattr(dataset, 'ValueType'):
+        raise AttributeError('Dataset is not an SR Content Item:\n{dataset}.')
+    if not dataset.ValueType == value_type.value:
+        raise ValueError(
+            'Dataset is not an SR Content Item with value type '
+            f'"{value_type.value}":\n{dataset}'
+        )
+    required_attrs = {
+        ValueTypeValues.CODE: ['ConceptCodeSequence'],
+        ValueTypeValues.COMPOSITE: ['ReferencedSOPSequence'],
+        ValueTypeValues.CONTAINER: ['ContinuityOfContent'],
+        ValueTypeValues.DATE: ['Date'],
+        ValueTypeValues.DATETIME: ['DateTime'],
+        ValueTypeValues.IMAGE: ['ReferencedSOPSequence'],
+        ValueTypeValues.NUM: ['MeasuredValueSequence'],
+        ValueTypeValues.PNAME: ['PersonName'],
+        ValueTypeValues.SCOORD: ['GraphicType', 'GraphicData'],
+        ValueTypeValues.SCOORD3D: ['GraphicType', 'GraphicData'],
+        ValueTypeValues.TCOORD: ['TemporalRangeType'],
+        ValueTypeValues.TIME: ['Time'],
+        ValueTypeValues.TEXT: ['TextValue'],
+        ValueTypeValues.UIDREF: ['UID'],
+    }
+    for attr in required_attrs[value_type]:
+        if not hasattr(dataset, attr):
+            raise AttributeError(
+                'Dataset is not an SR Content Item with value type '
+                f'"{value_type.value}" because it lacks required '
+                f'attribute "{attr}":\n{dataset}'
+            )
+
+
+def _get_content_item_class(value_type: ValueTypeValues) -> type:
+    python_types = {
+        ValueTypeValues.CODE: CodeContentItem,
+        ValueTypeValues.COMPOSITE: CompositeContentItem,
+        ValueTypeValues.CONTAINER: ContainerContentItem,
+        ValueTypeValues.DATE: DateContentItem,
+        ValueTypeValues.DATETIME: DateTimeContentItem,
+        ValueTypeValues.IMAGE: ImageContentItem,
+        ValueTypeValues.NUM: NumContentItem,
+        ValueTypeValues.PNAME: PnameContentItem,
+        ValueTypeValues.SCOORD: ScoordContentItem,
+        ValueTypeValues.SCOORD3D: Scoord3DContentItem,
+        ValueTypeValues.TCOORD: TcoordContentItem,
+        ValueTypeValues.TIME: TimeContentItem,
+        ValueTypeValues.TEXT: TextContentItem,
+        ValueTypeValues.UIDREF: UIDRefContentItem,
+    }
+    return python_types[value_type]
 
 
 class ContentItem(Dataset):
@@ -43,7 +119,7 @@ class ContentItem(Dataset):
         relationship_type: Union[str, highdicom.sr.RelationshipTypeValues], optional
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         super(ContentItem, self).__init__()
         value_type = ValueTypeValues(value_type)
         self.ValueType = value_type.value
@@ -63,6 +139,48 @@ class ContentItem(Dataset):
             super(ContentItem, self).__setattr__(name, ContentSequence(value))
         else:
             super(ContentItem, self).__setattr__(name, value)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ContentItem':
+        """Construct object of appropriate subtype from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item
+
+        Returns
+        -------
+        highdicom.sr.ContentItem
+            Content Item
+
+        """
+        value_type = ValueTypeValues(dataset.ValueType)
+        content_item_cls = _get_content_item_class(value_type)
+        return content_item_cls.from_dataset(dataset)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ContentItem':
+        required_attrs = [
+            'ValueType',
+            'ConceptNameCodeSequence',
+        ]
+        for attr in required_attrs:
+            if not hasattr(dataset, attr):
+                raise AttributeError(
+                    'Dataset is not an SR Content Item because it lacks '
+                    f'required attribute "{attr}".'
+                )
+        item = deepcopy(dataset)
+        item.__class__ = cls
+        if hasattr(dataset, 'ContentSequence'):
+            item.ContentSequence = ContentSequence.from_sequence(
+                dataset.ContentSequence
+            )
+        item.ConceptNameCodeSequence = [
+            CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
+        ]
+        return item
 
     @property
     def name(self) -> CodedConcept:
@@ -98,41 +216,91 @@ class ContentSequence(DataElementSequence):
         items: Optional[Sequence] = None,
         is_root: bool = False
     ) -> None:
+        """
+
+        Parameters
+        ----------
+        items: Union[Sequence[highdicom.sr.ContentItem], None], optional
+            SR Content items
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
+
+        """
         self._is_root = is_root
         if items is not None:
             for i in items:
                 if not isinstance(i, ContentItem):
                     raise TypeError(
-                        'Items of "{}" must have type ContentItem.'.format(
-                            self.__class__.__name__
-                        )
+                        f'Items of "{self.__class__.__name__}" must have '
+                        'type ContentItem.'
                     )
                 if is_root:
                     if i.relationship_type is not None:
                         raise AttributeError(
-                            'Items at the root of the content tree must '
-                            'have no relationship type.'
+                            'Item at the root of the content tree must '
+                            f'have no Relationship Type:\n{i.name}.'
                         )
                     if not isinstance(i, ContainerContentItem):
                         raise TypeError(
-                            'Items at the root of a SR content tree must be '
-                            'container content sequences.'
+                            'Item at the root of a SR content tree must '
+                            f'have type ContainerContentItem:\n{i.name}'
                         )
                 else:
                     if i.relationship_type is None:
                         raise AttributeError(
-                            'Items to be included in a '
+                            'Item to be included in a '
                             f'{self.__class__.__name__} must have an '
-                            'established relationship type.'
+                            f'established relationship type:\n{i.name}'
                         )
 
         super(ContentSequence, self).__init__(items)
+        self._lut = collections.defaultdict(list)
 
     def __setitem__(self, position: int, item: ContentItem) -> None:
         self.insert(position, item)
 
+    def __delitem__(self, position: int) -> None:
+        item = self[position]
+        index = self._lut[item.name].index(item)
+        del self._lut[item.name][index]
+        super(ContentSequence, self).__delitem__(position)
+
     def __contains__(self, item: ContentItem) -> bool:
-        return any(contained_item == item for contained_item in self)
+        try:
+            self.index(item)
+        except ValueError:
+            return False
+        return True
+
+    def index(self, item: ContentItem) -> int:
+        error_message = f'Item "{item.name}" is not in Sequence.'
+        try:
+            matches = self._lut[item.name]
+        except KeyError:
+            raise ValueError(error_message)
+        try:
+            index = matches.index(item)
+        except ValueError:
+            raise ValueError(error_message)
+        return index
+
+    def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
+        """Finds contained content items given their name.
+
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Name of content items
+
+        Returns
+        -------
+        highdicom.sr.ContentSequence
+            Matched content items
+
+        """
+        return ContentSequence(self._lut[name])
 
     def get_nodes(self) -> 'ContentSequence':
         """Gets content items that represent nodes in the content tree, i.e.
@@ -177,6 +345,7 @@ class ContentSequence(DataElementSequence):
                     f'Items to be appended to a {self.__class__.__name__} must '
                     'have an established relationship type.'
                 )
+        self._lut[item.name].append(item)
         super(ContentSequence, self).append(item)
 
     def extend(self, items: Sequence[ContentItem]) -> None:
@@ -189,6 +358,7 @@ class ContentSequence(DataElementSequence):
 
         """
         for i in items:
+            self._lut[i.name].append(i)
             self.append(i)
 
     def insert(self, position: int, item: ContentItem) -> None:
@@ -221,7 +391,63 @@ class ContentSequence(DataElementSequence):
                     f'Items to be inserted into to a {self.__class__.__name__} '
                     'must have an established relationship type.'
                 )
+        self._lut[item.name].append(item)
         super(ContentSequence, self).insert(position, item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset],
+        is_root: bool = False
+    ) -> 'ContentSequence':
+        """Construct object from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing SR Content Items
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
+
+        Returns
+        -------
+        highdicom.sr.ContentSequence
+            Content Sequence containing SR Content Items
+
+        """
+        content_items = []
+        for i, dataset in enumerate(sequence, 1):
+            if not isinstance(dataset, Dataset):
+                raise TypeError(
+                    f'Item #{i} of sequence is not an SR Content Item:\n'
+                    f'{dataset}'
+                )
+            try:
+                value_type = ValueTypeValues(dataset.ValueType)
+            except TypeError:
+                raise ValueError(
+                    f'Item #{i} of sequence is not an SR Content Item '
+                    f'because it has unknown Value Type "{dataset.ValueType}":'
+                    f'\n{dataset}'
+                )
+            except AttributeError:
+                raise AttributeError(
+                    f'Item #{i} of sequence is not an SR Content Item:\n'
+                    f'{dataset}'
+                )
+            if not hasattr(dataset, 'RelationshipType') and not is_root:
+                raise AttributeError(
+                    'Item #{i} of sequence is not a value SR Content Item '
+                    'because it is not a root item and lacks the otherwise '
+                    f'required attribute "RelationshipType":\n{dataset}'
+                )
+            content_item_cls = _get_content_item_class(value_type)
+            content_items.append(content_item_cls.from_dataset(dataset))
+        if cls.__name__ == 'ContentSequence':
+            return ContentSequence(content_items, is_root=is_root)
+        return cls(content_items)
 
     @property
     def is_root(self) -> bool:
@@ -252,7 +478,7 @@ class CodeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -269,6 +495,33 @@ class CodeContentItem(ContentItem):
         if isinstance(value, Code):
             value = CodedConcept(*value)
         self.ConceptCodeSequence = [value]
+
+    @property
+    def value(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: coded concept"""
+        return self.ConceptCodeSequence[0]
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type CODE
+
+        Returns
+        -------
+        highdicom.sr.CodeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.CODE)
+        item = super(CodeContentItem, cls)._from_dataset(dataset)
+        item.ConceptCodeSequence = [
+            CodedConcept.from_dataset(item.ConceptCodeSequence[0])
+        ]
+        return item
 
 
 class PnameContentItem(ContentItem):
@@ -291,7 +544,7 @@ class PnameContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -303,6 +556,29 @@ class PnameContentItem(ContentItem):
         )
         check_person_name(value)
         self.PersonName = PersonName(value)
+
+    @property
+    def value(self) -> PersonName:
+        """pydicom.valuerep.PersonName: person name"""
+        return PersonName(self.PersonName)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
+        """Construct object from existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type PNAME
+
+        Returns
+        -------
+        highdicom.sr.PnameContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.PNAME)
+        return super(PnameContentItem, cls)._from_dataset(dataset)
 
 
 class TextContentItem(ContentItem):
@@ -325,7 +601,7 @@ class TextContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """ # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -336,6 +612,29 @@ class TextContentItem(ContentItem):
             ValueTypeValues.TEXT, name, relationship_type
         )
         self.TextValue = str(value)
+
+    @property
+    def value(self) -> str:
+        """str: text value"""
+        return self.TextValue
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TextContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TEXT
+
+        Returns
+        -------
+        highdicom.sr.TextContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TEXT)
+        return super(TextContentItem, cls)._from_dataset(dataset)
 
 
 class TimeContentItem(ContentItem):
@@ -358,7 +657,7 @@ class TimeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -369,6 +668,41 @@ class TimeContentItem(ContentItem):
             ValueTypeValues.TIME, name, relationship_type
         )
         self.Time = TM(value)
+
+    @property
+    def value(self) -> datetime.time:
+        """datetime.time: time"""
+        allowed_formats = [
+            '%H:%M:%S.%f',
+            '%H:%M:%S',
+            '%H:%M',
+            '%H',
+        ]
+        for fmt in allowed_formats:
+            try:
+                dt = datetime.datetime.strptime(self.Time.isoformat(), fmt)
+                return dt.time()
+            except ValueError:
+                continue
+        raise ValueError(f'Could not decode time value "{self.Time}"')
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TimeContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TIME
+
+        Returns
+        -------
+        highdicom.sr.TimeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TIME)
+        return super(TimeContentItem, cls)._from_dataset(dataset)
 
 
 class DateContentItem(ContentItem):
@@ -391,7 +725,7 @@ class DateContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -402,6 +736,30 @@ class DateContentItem(ContentItem):
             ValueTypeValues.DATE, name, relationship_type
         )
         self.Date = DA(value)
+
+    @property
+    def value(self) -> datetime.date:
+        """datetime.date: date"""
+        fmt = '%Y-%m-%d'
+        return datetime.datetime.strptime(self.Date.isoformat(), fmt).date()
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'DateContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type DATE
+
+        Returns
+        -------
+        highdicom.sr.DateContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.DATE)
+        return super(DateContentItem, cls)._from_dataset(dataset)
 
 
 class DateTimeContentItem(ContentItem):
@@ -424,7 +782,7 @@ class DateTimeContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -435,6 +793,48 @@ class DateTimeContentItem(ContentItem):
             ValueTypeValues.DATETIME, name, relationship_type
         )
         self.DateTime = DT(value)
+
+    @property
+    def value(self) -> datetime.datetime:
+        """datetime.datetime: datetime"""
+        allowed_formats = [
+            '%Y-%m-%dT%H:%M:%S.%f%z',
+            '%Y-%m-%dT%H:%M:%S.%f',
+            '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%dT%H:%M:%S%z',
+            '%Y-%m-%dT%H:%M',
+            '%Y-%m-%dT%H:%M%z',
+            '%Y-%m-%dT%H',
+            '%Y-%m-%dT%H%z',
+            '%Y-%m-%d',
+            '%Y-%m',
+            '%Y',
+        ]
+        for fmt in allowed_formats:
+            try:
+                dt = datetime.datetime.strptime(self.DateTime.isoformat(), fmt)
+                return dt
+            except ValueError:
+                continue
+        raise ValueError(f'Could not decode datetime value "{self.DateTime}"')
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'DateTimeContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type DATETIME
+
+        Returns
+        -------
+        highdicom.sr.DateTimeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.DATETIME)
+        return super(DateTimeContentItem, cls)._from_dataset(dataset)
 
 
 class UIDRefContentItem(ContentItem):
@@ -452,12 +852,12 @@ class UIDRefContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[pydicom.uid.UID, str]
+        value: Union[highdicom.UID, str]
             unique identifier
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -469,6 +869,29 @@ class UIDRefContentItem(ContentItem):
         )
         self.UID = value
 
+    @property
+    def value(self) -> UID:
+        """highdicom.UID: UID"""
+        return UID(self.UID)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type UIDREF
+
+        Returns
+        -------
+        highdicom.sr.UIDRefContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.UIDREF)
+        return super(UIDRefContentItem, cls)._from_dataset(dataset)
+
 
 class NumContentItem(ContentItem):
 
@@ -477,8 +900,8 @@ class NumContentItem(ContentItem):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        value: Optional[Union[int, float]] = None,
-        unit: Optional[Union[Code, CodedConcept]] = None,
+        value: Union[int, float],
+        unit: Union[Code, CodedConcept],
         qualifier: Optional[Union[Code, CodedConcept]] = None,
         relationship_type: Union[str, RelationshipTypeValues, None] = None,
     ) -> None:
@@ -487,7 +910,7 @@ class NumContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        value: Union[int, float], optional
+        value: Union[int, float]
             numeric value
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
@@ -500,11 +923,7 @@ class NumContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        Note
-        ----
-        Either `value` and `unit` or `qualifier` must be specified.
-
-        """ # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -514,25 +933,24 @@ class NumContentItem(ContentItem):
         super(NumContentItem, self).__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
-        if value is not None:
-            self.MeasuredValueSequence: List[Dataset] = []
-            measured_value_sequence_item = Dataset()
-            if not isinstance(value, (int, float, )):
-                raise TypeError(
-                    'Argument "value" must have type "int" or "float".'
-                )
-            measured_value_sequence_item.NumericValue = value
-            if isinstance(value, float):
-                measured_value_sequence_item.FloatingPointValue = value
-            if not isinstance(unit, (CodedConcept, Code, )):
-                raise TypeError(
-                    'Argument "unit" must have type CodedConcept or Code.'
-                )
-            if isinstance(unit, Code):
-                unit = CodedConcept(*unit)
-            measured_value_sequence_item.MeasurementUnitsCodeSequence = [unit]
-            self.MeasuredValueSequence.append(measured_value_sequence_item)
-        elif qualifier is not None:
+        self.MeasuredValueSequence: List[Dataset] = []
+        measured_value_sequence_item = Dataset()
+        if not isinstance(value, (int, float, )):
+            raise TypeError(
+                'Argument "value" must have type "int" or "float".'
+            )
+        measured_value_sequence_item.NumericValue = value
+        if isinstance(value, float):
+            measured_value_sequence_item.FloatingPointValue = value
+        if not isinstance(unit, (CodedConcept, Code, )):
+            raise TypeError(
+                'Argument "unit" must have type CodedConcept or Code.'
+            )
+        if isinstance(unit, Code):
+            unit = CodedConcept(*unit)
+        measured_value_sequence_item.MeasurementUnitsCodeSequence = [unit]
+        self.MeasuredValueSequence.append(measured_value_sequence_item)
+        if qualifier is not None:
             if not isinstance(qualifier, (CodedConcept, Code, )):
                 raise TypeError(
                     'Argument "qualifier" must have type "CodedConcept" or '
@@ -541,11 +959,57 @@ class NumContentItem(ContentItem):
             if isinstance(qualifier, Code):
                 qualifier = CodedConcept(*qualifier)
             self.NumericValueQualifierCodeSequence = [qualifier]
-        else:
-            raise ValueError(
-                'Either argument "value" or "qualifier" must be specified '
-                'upon creation of NumContentItem.'
-            )
+
+    @property
+    def value(self) -> Union[int, float]:
+        """Union[int, float]: measured value"""
+        item = self.MeasuredValueSequence[0]
+        try:
+            return float(item.FloatingPointValue)
+        except AttributeError:
+            return float(item.NumericValue)
+
+    @property
+    def unit(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: unit"""
+        item = self.MeasuredValueSequence[0]
+        return item.MeasurementUnitsCodeSequence[0]
+
+    @property
+    def qualifier(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        try:
+            return self.NumericValueQualifierCodeSequence[0]
+        except AttributeError:
+            return None
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type NUM
+
+        Returns
+        -------
+        highdicom.sr.NumContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.NUM)
+        instance = super(NumContentItem, cls)._from_dataset(dataset)
+        unit_item = (
+            instance
+            .MeasuredValueSequence[0]
+            .MeasurementUnitsCodeSequence[0]
+        )
+        unit_item = CodedConcept.from_dataset(unit_item)
+        if hasattr(instance, 'NumericValueQualifierCodeSequence'):
+            qualifier_item = instance.NumericValueQualifierCodeSequence[0]
+            qualifier_item = CodedConcept.from_dataset(qualifier_item)
+        return instance
 
 
 class ContainerContentItem(ContentItem):
@@ -572,7 +1036,7 @@ class ContainerContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item. 
 
-        """  # noqa E501
+        """  # noqa: E501
         super(ContainerContentItem, self).__init__(
             ValueTypeValues.CONTAINER, name, relationship_type
         )
@@ -585,6 +1049,33 @@ class ContainerContentItem(ContentItem):
             item.MappingResource = 'DCMR'
             item.TemplateIdentifier = str(template_id)
             self.ContentTemplateSequence = [item]
+
+    @property
+    def template_id(self) -> Union[str, None]:
+        """Union[str, None]: template identifier"""
+        try:
+            item = self.ContentTemplateSequence[0]
+            return item.TemplateIdentifier
+        except (AttributeError, IndexError):
+            return None
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ContainerContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type CONTAINER
+
+        Returns
+        -------
+        highdicom.sr.ContainerContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.CONTAINER)
+        return super(ContainerContentItem, cls)._from_dataset(dataset)
 
 
 class CompositeContentItem(ContentItem):
@@ -603,14 +1094,14 @@ class CompositeContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced object
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -624,6 +1115,35 @@ class CompositeContentItem(ContentItem):
         item.ReferencedSOPClassUID = str(referenced_sop_class_uid)
         item.ReferencedSOPInstanceUID = str(referenced_sop_instance_uid)
         self.ReferencedSOPSequence = [item]
+
+    @property
+    def value(self) -> Tuple[UID, UID]:
+        """Tuple[highdicom.UID, highdicom.UID]:
+            referenced SOP Class UID and SOP Instance UID
+        """
+        item = self.ReferencedSOPSequence[0]
+        return (
+            UID(item.ReferencedSOPClassUID),
+            UID(item.ReferencedSOPInstanceUID),
+        )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type COMPOSITE
+
+        Returns
+        -------
+        highdicom.sr.CompositeContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.COMPOSITE)
+        return super(CompositeContentItem, cls)._from_dataset(dataset)
 
 
 class ImageContentItem(ContentItem):
@@ -648,9 +1168,9 @@ class ImageContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        referenced_sop_class_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced image object
-        referenced_sop_instance_uid: Union[pydicom.uid.UID, str]
+        referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced image object
         referenced_frame_numbers: Union[int, Sequence[int]], optional
             number of frame(s) to which the reference applies in case of a
@@ -661,7 +1181,7 @@ class ImageContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -679,6 +1199,35 @@ class ImageContentItem(ContentItem):
         if referenced_segment_numbers is not None:
             item.ReferencedSegmentNumber = referenced_segment_numbers
         self.ReferencedSOPSequence = [item]
+
+    @property
+    def value(self) -> Tuple[UID, UID]:
+        """Tuple[highdicom.UID, highdicom.UID]:
+            referenced SOP Class UID and SOP Instance UID
+        """
+        item = self.ReferencedSOPSequence[0]
+        return (
+            UID(item.ReferencedSOPClassUID),
+            UID(item.ReferencedSOPInstanceUID),
+        )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type IMAGE
+
+        Returns
+        -------
+        highdicom.sr.ImageContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.IMAGE)
+        return super(ImageContentItem, cls)._from_dataset(dataset)
 
 
 class ScoordContentItem(ContentItem):
@@ -699,7 +1248,7 @@ class ScoordContentItem(ContentItem):
         pixel_origin_interpretation: Union[
             str,
             PixelOriginInterpretationValues
-        ],
+        ] = None,
         fiducial_uid: Optional[Union[str, UID]] = None,
         relationship_type: Union[str, RelationshipTypeValues, None] = None
     ) -> None:
@@ -713,18 +1262,18 @@ class ScoordContentItem(ContentItem):
         graphic_data: numpy.ndarray[numpy.int]
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str]
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
-        fiducial_uid: Union[pydicom.uid.UID, str, None], optional
+        fiducial_uid: Union[highdicom.UID, str, None], optional
             unique identifier for the content item
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -735,16 +1284,13 @@ class ScoordContentItem(ContentItem):
             ValueTypeValues.SCOORD, name, relationship_type
         )
         graphic_type = GraphicTypeValues(graphic_type)
-        pixel_origin_interpretation = PixelOriginInterpretationValues(
-            pixel_origin_interpretation
-        )
         self.GraphicType = graphic_type.value
 
         if graphic_type == GraphicTypeValues.POINT:
             if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
                     'Graphic data of a scoord of graphic type "POINT" '
-                    'must be a single (column row) pair in two-dimensional '
+                    'must be a single (column, row) pair in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypeValues.CIRCLE:
@@ -777,9 +1323,41 @@ class ScoordContentItem(ContentItem):
                 )
         # Flatten list of coordinate pairs
         self.GraphicData = graphic_data.flatten().tolist()
-        self.PixelOriginInterpretation = pixel_origin_interpretation.value
+        if pixel_origin_interpretation is not None:
+            pixel_origin_interpretation = PixelOriginInterpretationValues(
+                pixel_origin_interpretation
+            )
+            self.PixelOriginInterpretation = pixel_origin_interpretation.value
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
+
+    @property
+    def value(self) -> np.ndarray:
+        """numpy.ndarray: n x 2 array of 2D spatial coordinates"""
+        return np.array(self.GraphicData).reshape(-1, 2)
+
+    @property
+    def graphic_type(self) -> GraphicTypeValues:
+        """GraphicTypeValues: graphic type"""
+        return GraphicTypeValues(self.GraphicType)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ScoordContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.SCOORD)
+        return super(ScoordContentItem, cls)._from_dataset(dataset)
 
 
 class Scoord3DContentItem(ContentItem):
@@ -812,7 +1390,7 @@ class Scoord3DContentItem(ContentItem):
         graphic_data: numpy.ndarray[numpy.float]
             array of spatial coordinates, where each row of the array
             represents a (x, y, z) coordinate triplet
-        frame_of_reference_uid: Union[pydicom.uid.UID, str]
+        frame_of_reference_uid: Union[highdicom.UID, str]
             unique identifier of the frame of reference within which the
             coordinates are defined
         fiducial_uid: str, optional
@@ -820,7 +1398,7 @@ class Scoord3DContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -867,6 +1445,34 @@ class Scoord3DContentItem(ContentItem):
         if fiducial_uid is not None:
             self.FiducialUID = fiducial_uid
 
+    @property
+    def value(self) -> np.ndarray:
+        """numpy.ndarray: n x 3 array of 3D spatial coordinates"""
+        return np.array(self.GraphicData).reshape(-1, 3)
+
+    @property
+    def graphic_type(self) -> GraphicTypeValues3D:
+        """GraphicTypeValues3D: graphic type"""
+        return GraphicTypeValues3D(self.GraphicType)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD3D
+
+        Returns
+        -------
+        highdicom.sr.Scoord3DContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.SCOORD3D)
+        return super(Scoord3DContentItem, cls)._from_dataset(dataset)
+
 
 class TcoordContentItem(ContentItem):
 
@@ -898,7 +1504,7 @@ class TcoordContentItem(ContentItem):
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
 
-        """  # noqa
+        """  # noqa: E501
         if relationship_type is None:
             warnings.warn(
                 'A future release will require that relationship types be '
@@ -932,3 +1538,38 @@ class TcoordContentItem(ContentItem):
                     ])
                 )
             )
+
+    @property
+    def value(self) -> Union[List[int], List[float], List[datetime.datetime]]:
+        """Union[List[int], List[float], List[datetime.datetime]]: time points
+        """
+        try:
+            return self.ReferencedSamplePositions
+        except AttributeError:
+            try:
+                return self.ReferencedTimeOffsets
+            except AttributeError:
+                return self.ReferencedDateTime
+
+    @property
+    def temporal_range_type(self) -> TemporalRangeTypeValues:
+        """highdicom.sr.TemporalRangeTypeValues: temporal range type"""
+        return TemporalRangeTypeValues(self.TemporalRangeType)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type TCOORD
+
+        Returns
+        -------
+        highdicom.sr.TcoordContentItem
+            Content Item
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.TCOORD)
+        return super(TcoordContentItem, cls)._from_dataset(dataset)

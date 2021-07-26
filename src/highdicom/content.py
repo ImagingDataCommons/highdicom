@@ -53,7 +53,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             Name and actual value of the parameters with which the algorithm
             was invoked
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         item = Dataset()
         item.AlgorithmName = name
@@ -537,7 +537,7 @@ class IssuerOfIdentifier(Dataset):
             Type of identifier of the entity that created the examined specimen
             (required if `issuer_of_specimen_id` is a Unique Entity ID)
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if issuer_of_identifier_type is None:
             self.LocalNamespaceEntityID = issuer_of_identifier
@@ -565,7 +565,7 @@ class SpecimenCollection(ContentSequence):
         procedure: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Procedure used to collect the examined specimen
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         item = CodeContentItem(
             name=codes.SCT.SpecimenCollection,
@@ -601,7 +601,7 @@ class SpecimenSampling(ContentSequence):
         issuer_of_parent_specimen_id: highdicom.IssuerOfIdentifier, optional
             Issuer who created the parent specimen
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         # CID 8110
         method_item = CodeContentItem(
@@ -650,7 +650,7 @@ class SpecimenStaining(ContentSequence):
         substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
             Substances used to stain examined specimen(s)
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         # CID 8112
         for s in substances:
@@ -705,7 +705,7 @@ class SpecimenPreparationStep(ContentSequence):
         embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Embedding medium used during processing
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         specimen_identifier_item = TextContentItem(
             name=codes.DCM.SpecimenIdentifier,
@@ -796,7 +796,7 @@ class SpecimenDescription(Dataset):
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
             Description of the issuer of the specimen identifier
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         self.SpecimenIdentifier = specimen_id
         self.SpecimenUID = specimen_uid

@@ -64,7 +64,7 @@ class RelationshipTypeValues(Enum):
     """Enumerated values for attribute Relationship Type."""
 
     CONTAINS = 'CONTAINS'
-    HAS_ACQ_CONTENT = 'HAS ACQ CONTENT'
+    HAS_ACQ_CONTEXT = 'HAS ACQ CONTEXT'
     HAS_CONCEPT_MOD = 'HAS CONCEPT MOD'
     HAS_OBS_CONTEXT = 'HAS OBS CONTEXT'
     HAS_PROPERTIES = 'HAS PROPERTIES'

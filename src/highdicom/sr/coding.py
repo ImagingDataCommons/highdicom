@@ -47,6 +47,9 @@ class CodedConcept(Dataset):
             self.CodingSchemeVersion = str(scheme_version)
         # TODO: Enhanced Code Sequence Macro Attributes
 
+    def __hash__(self) -> int:
+        return hash(self.scheme_designator + self.value)
+
     def __eq__(self, other: Any) -> bool:
         """Compares `self` and `other` for equality.
 

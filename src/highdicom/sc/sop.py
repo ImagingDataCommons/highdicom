@@ -172,7 +172,7 @@ class SCImage(SOPClass):
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
 
-        """  # noqa
+        """  # noqa: E501
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,

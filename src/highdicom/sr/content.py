@@ -1,9 +1,14 @@
 """Content items for Structured Report document instances."""
+import logging
 from typing import Optional, Sequence, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom._storage_sopclass_uids import (
+    SegmentationStorage,
+    VLWholeSlideMicroscopyImageStorage
+)
 from pydicom.dataset import Dataset
+from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
@@ -11,7 +16,9 @@ from highdicom.sr.enum import (
     GraphicTypeValues3D,
     PixelOriginInterpretationValues,
     RelationshipTypeValues,
+    ValueTypeValues,
 )
+from highdicom.sr.utils import find_content_items
 from highdicom.sr.value_types import (
     CodeContentItem,
     CompositeContentItem,
@@ -22,6 +29,9 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
@@ -46,17 +56,18 @@ def _check_valid_source_image_dataset(dataset: Dataset) -> None:
         measurement, segmentation, or region.
 
     """
-    # Check that there is some form of pixel data present
+    # Check that some of the image pixel description attributes are present
     pixel_data_keywords = [
-        'PixelData',
-        'FloatPixelData',
-        'DoubleFloatPixelData'
+        'Rows',
+        'Columns',
+        'SamplesPerPixel',
+        'PixelRepresentation',
     ]
     if not any(hasattr(dataset, attr) for attr in pixel_data_keywords):
         raise ValueError(
             'Dataset does not represent a valid source image for '
             'a measurement, segmentation, or region because it '
-            'contains no pixel data.'
+            'lacks image pixel description attributes.'
         )
     # Check for obviously invalid modalities
     disallowed_modalities = [
@@ -116,7 +127,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
             type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='128740',
@@ -146,11 +157,11 @@ class SourceImageForMeasurement(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -228,11 +239,11 @@ class SourceImageForRegion(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -310,11 +321,11 @@ class SourceImageForSegmentation(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> None:
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -457,7 +468,7 @@ class ImageRegion(ScoordContentItem):
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        source_image: highdicom.sr.template.SourceImageForRegion
+        source_image: highdicom.sr.SourceImageForRegion
             source image to which `graphic_data` relates
         pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str], optional
             whether pixel coordinates specified by `graphic_data` are defined
@@ -468,7 +479,7 @@ class ImageRegion(ScoordContentItem):
             of the source image
             (default: ``highdicom.sr.PixelOriginInterpretationValues.VOLUME``)
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues(graphic_type)
         if graphic_type == GraphicTypeValues.MULTIPOINT:
             raise ValueError(
@@ -478,15 +489,19 @@ class ImageRegion(ScoordContentItem):
             raise TypeError(
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
-        if pixel_origin_interpretation is None:
-            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
-            if (not hasattr(source_image, 'ReferencedFrameNumber') or
-                    source_image.ReferencedFrameNumber is None):
+            ref_sop_item = source_image.ReferencedSOPSequence[0]
+            if (not hasattr(ref_sop_item, 'ReferencedFrameNumber') or
+                    ref_sop_item.ReferencedFrameNumber is None):
                 raise ValueError(
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
                 )
+        ref_sop_instance_item = source_image.ReferencedSOPSequence[0]
+        ref_sop_class_uid = ref_sop_instance_item.ReferencedSOPClassUID
+        if (ref_sop_class_uid == VLWholeSlideMicroscopyImageStorage and
+                pixel_origin_interpretation is None):
+            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         super().__init__(
             name=CodedConcept(
                 value='111030',
@@ -524,7 +539,7 @@ class ImageRegion3D(Scoord3DContentItem):
         frame_of_reference_uid: str
             UID of the frame of reference
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues3D(graphic_type)
         if graphic_type == GraphicTypeValues3D.MULTIPOINT:
             raise ValueError(
@@ -582,7 +597,7 @@ class VolumeSurface(Scoord3DContentItem):
         ----
         Either one or more source images or one source series must be provided.
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues3D(graphic_type)
         if graphic_type != GraphicTypeValues3D.ELLIPSOID:
             raise ValueError(
@@ -694,7 +709,7 @@ class FindingSite(CodeContentItem):
         topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded modifier of anatomic location
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='363698007',
@@ -728,6 +743,38 @@ class FindingSite(CodeContentItem):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 self.ContentSequence.append(modifier_item)
+
+    @property
+    def topographical_modifier(self) -> Union[CodedConcept, None]:
+        matches = find_content_items(
+            self,
+            name=codes.SCT.TopographicalModifier,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Topographical Modifier" content item '
+                'in "Finding Site" content item'
+            )
+        return None
+
+    @property
+    def laterality(self) -> Union[CodedConcept, None]:
+        matches = find_content_items(
+            self,
+            name=codes.SCT.Laterality,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Laterality" content item '
+                'in "Finding Site" content item'
+            )
+        return None
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -948,7 +995,7 @@ class ReferencedSegment(ContentSequence):
         ----
         Either `source_images` or `source_series` must be provided.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         segment_item = ImageContentItem(
             name=CodedConcept(
@@ -1156,32 +1203,4 @@ class ReferencedSegment(ContentSequence):
             frame_numbers=frame_numbers,
             source_images=source_images if source_images else None,
             source_series=source_series
-        )
-
-
-class QualitativeEvaluation(CodeContentItem):
-
-    """Content item for coded name-value pairs that describe qualitative
-    evaluations.
-
-    """
-
-    def __init__(
-        self,
-        name: Union[Code, CodedConcept],
-        value: Union[Code, CodedConcept]
-    ) -> None:
-        """
-        Parameters
-        ----------
-        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
-        value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            coded value or an enumerated item representing a coded value
-
-        """  # noqa
-        super().__init__(
-            name=name,
-            value=value,
-            relationship_type=RelationshipTypeValues.CONTAINS
         )
