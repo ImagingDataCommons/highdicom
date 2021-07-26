@@ -647,20 +647,18 @@ class TestSegmentation(unittest.TestCase):
                 old_v = index_mapping[k][0]
         else:
             # Build up the mapping from index to value
-            for kw in [
-                #'ColumnPositionInTotalImagePixelMatrix',
-                #'RowPositionInTotalImagePixelMatrix'
-                'XOffsetInSlideCoordinateSystem',
-                'YOffsetInSlideCoordinateSystem'
-            ]:
+            for dim_kw, dim_ind in zip([
+                'ColumnPositionInTotalImagePixelMatrix',
+                'RowPositionInTotalImagePixelMatrix'
+            ], [1, 2]):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
-                    posn_index = content_item.DimensionIndexValues[1]
+                    posn_index = content_item.DimensionIndexValues[dim_ind]
                     # This is not general, but all the tests run here use axial
                     # images so just check the z coordinate
                     posn_item = f.PlanePositionSlideSequence[0]
-                    posn_val = getattr(posn_item, kw)
+                    posn_val = getattr(posn_item, dim_kw)
                     index_mapping[posn_index].append(posn_val)
 
                 # Check that each index value found references a unique value
