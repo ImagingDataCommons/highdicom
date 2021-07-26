@@ -1,13 +1,21 @@
 """Module for the SOP class of the Segmentation IOD."""
+from copy import deepcopy
+from collections import OrderedDict
 import logging
+from os import PathLike
 import numpy as np
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Sequence, Union, Tuple
+from typing import (
+    Any, Dict, List, Optional, Set, Sequence, Union, Tuple, BinaryIO
+)
 
 from pydicom.dataset import Dataset
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.encaps import decode_data_sequence, encapsulate
+from pydicom.multival import MultiValue
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.util import get_expected_length
+from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -17,6 +25,8 @@ from pydicom.uid import (
 )
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName
+from pydicom.sr.coding import Code
+from pydicom.filereader import dcmread
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -34,12 +44,19 @@ from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
     SegmentsOverlapValues,
+    SpatialLocationsPreservedValues,
+    SegmentAlgorithmTypeValues,
 )
+from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name
+from highdicom.uid import UID as hd_UID
 
 
 logger = logging.getLogger(__name__)
+
+
+_NO_FRAME_REF_VALUE = -1
 
 
 class Segmentation(SOPClass):
@@ -79,7 +96,7 @@ class Segmentation(SOPClass):
         """
         Parameters
         ----------
-        source_images: Sequence[pydicom.dataset.Dataset]
+        source_images: Sequence[Dataset]
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived
         pixel_array: numpy.ndarray
@@ -536,6 +553,11 @@ class Segmentation(SOPClass):
         permitted in `segment_descriptions`.
 
         """  # noqa
+        if self._source_images is None:
+            raise AttributeError(
+                'Further segments may not be added to Segmentation objects '
+                'created from existing datasets.'
+            )
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim != 3:
@@ -893,6 +915,8 @@ class Segmentation(SOPClass):
         if len(self.PixelData) % 2 == 1:
             self.PixelData += b'0'
 
+        self._build_luts()
+
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
 
@@ -940,3 +964,1663 @@ class Segmentation(SOPClass):
                 return pack_bits(planes.flatten())
             else:
                 return planes.flatten().tobytes()
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
+        """Create a Segmentation object from an existing pydicom dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Pydicom dataset representing a SEG image.
+
+        Returns
+        -------
+        highdicom.seg.Segmentation
+            Representation of the supplied dataset as a highdicom
+            Segmentation.
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
+        # Checks on integrity of input dataset
+        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
+            raise ValueError(
+                'Dataset is not a Segmentation.'
+            )
+        seg = deepcopy(dataset)
+        seg.__class__ = cls
+
+        seg._source_images = None
+        seg._source_plane_orientation = None
+        sf_groups = seg.SharedFunctionalGroupsSequence[0]
+        plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
+        if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
+            seg._coordinate_system = CoordinateSystemNames.SLIDE
+            seg._plane_orientation = plane_ori_seq.ImageOrientationSlide
+        elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
+            seg._coordinate_system = CoordinateSystemNames.PATIENT
+            seg._plane_orientation = plane_ori_seq.ImageOrientationPatient
+        else:
+            raise AttributeError(
+                'Expected Plane Orientation Sequence to have either '
+                'ImageOrientationSlide or ImageOrientationPatient '
+                'attribute.'
+            )
+
+        for i, segment in enumerate(seg.SegmentSequence, 1):
+            if segment.SegmentNumber != i:
+                raise AttributeError(
+                    'Segments are expected to start at 1 and be consecutive '
+                    'integers.'
+                )
+
+        for i, s in enumerate(seg.SegmentSequence, 1):
+            if s.SegmentNumber != i:
+                raise ValueError(
+                    'Segment numbers in the segmentation image must start at '
+                    '1 and increase by 1 with the segments sequence.'
+                )
+        # Needed for compatibility with add_segments
+        seg._segment_inventory = {
+            s.SegmentNumber for s in seg.SegmentSequence
+        }
+
+        # Convert contained items to highdicom types
+        # Segment descriptions
+        seg.SegmentSequence = [
+            SegmentDescription.from_dataset(ds) for ds in seg.SegmentSequence
+        ]
+
+        # Shared functional group elements
+        if hasattr(sf_groups, 'PlanePositionSequence'):
+            plane_pos = PlanePositionSequence.from_sequence(
+                sf_groups.PlanePositionSequence
+            )
+            sf_groups.PlanePositionSequence = plane_pos
+        if hasattr(sf_groups, 'PlaneOrientationSequence'):
+            plane_ori = PlaneOrientationSequence.from_sequence(
+                sf_groups.PlaneOrientationSequence
+            )
+            sf_groups.PlaneOrientationSequence = plane_ori
+        if hasattr(sf_groups, 'PixelMeasuresSequence'):
+            pixel_measures = PixelMeasuresSequence.from_sequence(
+                sf_groups.PixelMeasuresSequence
+            )
+            sf_groups.PixelMeasuresSequence = pixel_measures
+
+        # Per-frame functional group items
+        for pffg_item in seg.PerFrameFunctionalGroupsSequence:
+            if hasattr(pffg_item, 'PlanePositionSequence'):
+                plane_pos = PlanePositionSequence.from_sequence(
+                    pffg_item.PlanePositionSequence
+                )
+                pffg_item.PlanePositionSequence = plane_pos
+            if hasattr(pffg_item, 'PlaneOrientationSequence'):
+                plane_ori = PlaneOrientationSequence.from_sequence(
+                    pffg_item.PlaneOrientationSequence
+                )
+                pffg_item.PlaneOrientationSequence = plane_ori
+            if hasattr(pffg_item, 'PixelMeasuresSequence'):
+                pixel_measures = PixelMeasuresSequence.from_sequence(
+                    pffg_item.PixelMeasuresSequence
+                )
+                pffg_item.PixelMeasuresSequence = pixel_measures
+
+        seg._build_luts()
+
+        return seg
+
+    def _build_ref_instance_lut(self) -> None:
+        """Build lookup table for all instance referenced in the segmentation.
+
+        Builds a lookup table mapping the SOPInstanceUIDs of all datasets
+        referenced in the segmentation to a tuple containing the
+        StudyInstanceUID, SeriesInstanceUID and SOPInstanceUID.
+
+        """
+        # Map sop uid to tuple (study uid, series uid, sop uid)
+        self._ref_ins_lut = OrderedDict()
+        if hasattr(self, 'ReferencedSeriesSequence'):
+            for ref_series in self.ReferencedSeriesSequence:
+                for ref_ins in ref_series.ReferencedInstanceSequence:
+                    self._ref_ins_lut[ref_ins.ReferencedSOPInstanceUID] = (
+                        hd_UID(self.StudyInstanceUID),
+                        hd_UID(ref_series.SeriesInstanceUID),
+                        hd_UID(ref_ins.ReferencedSOPInstanceUID)
+                    )
+        other_studies_kw = 'StudiesContainingOtherReferencedInstancesSequence'
+        if hasattr(self, other_studies_kw):
+            for ref_study in getattr(self, other_studies_kw):
+                for ref_series in ref_study.ReferencedSeriesSequence:
+                    for ref_ins in ref_series.ReferencedInstanceSequence:
+                        self._ref_ins_lut[ref_ins.ReferencedSOPInstanceUID] = (
+                            hd_UID(ref_study.StudyInstanceUID),
+                            hd_UID(ref_series.SeriesInstanceUID),
+                            hd_UID(ref_ins.ReferencedSOPInstanceUID)
+                        )
+
+        self._source_sop_instance_uids = np.array(
+            list(self._ref_ins_lut.keys())
+        )
+
+    def _build_luts(self) -> None:
+        """Build lookup tables for efficient querying.
+
+        Two lookup tables are currently constructed. The first maps the
+        SOPInstanceUIDs of all datasets referenced in the segmentation to a
+        tuple containing the StudyInstanceUID, SeriesInstanceUID and
+        SOPInstanceUID.
+
+        The second look-up table contains information about each frame of the
+        segmentation, including the segment it contains, the instance and frame
+        from which it was derived (if these are unique), and its dimension
+        index values.
+
+        """
+        self._build_ref_instance_lut()
+
+        segnum_col_data = []
+        source_instance_col_data = []
+        source_frame_col_data = []
+
+        # Get list of all dimension index pointers, excluding the segment
+        # number, since this is treated differently
+        seg_num_tag = tag_for_keyword('ReferencedSegmentNumber')
+        self._dim_ind_pointers = [
+            dim_ind.DimensionIndexPointer
+            for dim_ind in self.DimensionIndexSequence
+            if dim_ind.DimensionIndexPointer != seg_num_tag
+        ]
+        dim_ind_positions = {
+            dim_ind.DimensionIndexPointer: i
+            for i, dim_ind in enumerate(self.DimensionIndexSequence)
+            if dim_ind.DimensionIndexPointer != seg_num_tag
+        }
+        dim_index_col_data: Dict[int, List[int]] = {
+            ptr: [] for ptr in self._dim_ind_pointers
+        }
+
+        # Create a list of source images and check for spatial locations
+        # preserved and that there is a single source frame per seg frame
+        locations_list_type = List[Optional[SpatialLocationsPreservedValues]]
+        locations_preserved: locations_list_type = []
+        self._single_source_frame_per_seg_frame = True
+        for frame_item in self.PerFrameFunctionalGroupsSequence:
+            # Get segment number for this frame
+            seg_id_seg = frame_item.SegmentIdentificationSequence[0]
+            seg_num = seg_id_seg.ReferencedSegmentNumber
+            segnum_col_data.append(int(seg_num))
+
+            # Get dimension indices for this frame
+            indices = frame_item.FrameContentSequence[0].DimensionIndexValues
+            if len(indices) != len(self._dim_ind_pointers) + 1:
+                # (+1 because referenced segment number is ignored)
+                raise RuntimeError(
+                    'Unexpected mismatch between dimension index values in '
+                    'per-frames functional groups sequence and items in the '
+                    'dimension index sequence.'
+                )
+            for ptr in self._dim_ind_pointers:
+                dim_index_col_data[ptr].append(indices[dim_ind_positions[ptr]])
+
+            frame_source_instances = []
+            frame_source_frames = []
+            for der_im in frame_item.DerivationImageSequence:
+                for src_im in der_im.SourceImageSequence:
+                    frame_source_instances.append(
+                        src_im.ReferencedSOPInstanceUID
+                    )
+                    if hasattr(src_im, 'SpatialLocationsPreserved'):
+                        locations_preserved.append(
+                            SpatialLocationsPreservedValues(
+                                src_im.SpatialLocationsPreserved
+                            )
+                        )
+                    else:
+                        locations_preserved.append(
+                            None
+                        )
+
+                    if hasattr(src_im, 'ReferencedFrameNumber'):
+                        if isinstance(
+                            src_im.ReferencedFrameNumber,
+                            MultiValue
+                        ):
+                            frame_source_frames.extend(
+                                [
+                                    int(f)
+                                    for f in src_im.ReferencedFrameNumber
+                                ]
+                            )
+                        else:
+                            frame_source_frames.append(
+                                int(src_im.ReferencedFrameNumber)
+                            )
+                    else:
+                        frame_source_frames.append(_NO_FRAME_REF_VALUE)
+
+            if (
+                len(set(frame_source_instances)) != 1 or
+                len(set(frame_source_frames)) != 1
+            ):
+                self._single_source_frame_per_seg_frame = False
+            else:
+                ref_instance_uid = frame_source_instances[0]
+                if ref_instance_uid not in self._source_sop_instance_uids:
+                    raise AttributeError(
+                        f'SOP instance {ref_instance_uid} referenced in the '
+                        'source image sequence is not included in the '
+                        'Referenced Series Sequence or Studies Containing '
+                        'Other Referenced Instances Sequence.'
+                    )
+                src_uid_ind = self._get_src_uid_index(frame_source_instances[0])
+                source_instance_col_data.append(src_uid_ind)
+                source_frame_col_data.append(frame_source_frames[0])
+
+        # Summarise
+        if any(
+            isinstance(v, SpatialLocationsPreservedValues) and
+            v == SpatialLocationsPreservedValues.NO
+            for v in locations_preserved
+        ):
+            Type = Optional[SpatialLocationsPreservedValues]
+            self._locations_preserved: Type = SpatialLocationsPreservedValues.NO
+        elif all(
+            isinstance(v, SpatialLocationsPreservedValues) and
+            v == SpatialLocationsPreservedValues.YES
+            for v in locations_preserved
+        ):
+            self._locations_preserved = SpatialLocationsPreservedValues.YES
+        else:
+            self._locations_preserved = None
+
+        # Frame LUT is a 2D numpy array. Columns represent different ways to
+        # index segmentation frames.  Row i represents frame i of the
+        # segmentation dataset Possible columns include the segment number, the
+        # source uid index in the source_sop_instance_uids list, the source
+        # frame number (if applicable), and the dimension index values of the
+        # segmentation frames
+        # This allows for fairly efficient querying by any of the three
+        # variables: seg frame number, source instance/frame number, segment
+        # number
+        # Column for segment number
+        self._lut_seg_col = 0
+        col_data = [segnum_col_data]
+
+        # Columns for other dimension index values
+        self._lut_dim_ind_cols = {
+            i: ptr for ptr, i in
+            enumerate(self._dim_ind_pointers, len(col_data))
+        }
+        col_data += [
+            indices for indices in dim_index_col_data.values()
+        ]
+
+        # Columns related to source frames, if they are usable for indexing
+        if self._single_source_frame_per_seg_frame:
+            self._lut_src_instance_col = len(col_data)
+            self._lut_src_frame_col = len(col_data) + 1
+            col_data += [
+                source_instance_col_data,
+                source_frame_col_data
+            ]
+
+        # Build LUT from columns
+        self._frame_lut = np.array(col_data).T
+
+    @property
+    def segmentation_type(self) -> SegmentationTypeValues:
+        """highdicom.seg.SegmentationTypeValues: Segmentation type."""
+        return SegmentationTypeValues(self.SegmentationType)
+
+    @property
+    def segmentation_fractional_type(
+        self
+    ) -> Union[SegmentationFractionalTypeValues, None]:
+        """
+        highdicom.seg.SegmentationFractionalTypeValues:
+            Segmentation fractional type.
+
+        """
+        if not hasattr(self, 'SegmentationFractionalType'):
+            return None
+        return SegmentationFractionalTypeValues(
+            self.SegmentationFractionalType
+        )
+
+    def iter_segments(self):
+        """Iterates over segments in this segmentation image.
+
+        Returns
+        -------
+        Iterator[Tuple[numpy.ndarray, Tuple[pydicom.dataset.Dataset, ...], pydicom.dataset.Dataset]]
+            For each segment in the Segmentation image instance, provides the
+            Pixel Data frames representing the segment, items of the Per-Frame
+            Functional Groups Sequence describing the individual frames, and
+            the item of the Segment Sequence describing the segment
+
+        """  # noqa
+        return iter_segments(self)
+
+    @property
+    def number_of_segments(self) -> int:
+        """int: The number of segments in this SEG image."""
+        return len(self.SegmentSequence)
+
+    @property
+    def segment_numbers(self) -> range:
+        """range: The segment numbers present in the SEG image as a range."""
+        return range(1, self.number_of_segments + 1)
+
+    def get_segment_description(
+        self,
+        segment_number: int
+    ) -> SegmentDescription:
+        """Get segment description for a segment.
+
+        Parameters
+        ----------
+        segment_number: int
+            Segment number for the segment, as a 1-based index.
+
+        Returns
+        -------
+        highdicom.seg.SegmentDescription
+            Description of the given segment.
+
+        """
+        if segment_number < 1 or segment_number > self.number_of_segments:
+            raise IndexError(
+                f'{segment_number} is an invalid segment number for this '
+                'dataset.'
+            )
+        return self.SegmentSequence[segment_number - 1]
+
+    def get_segment_numbers(
+        self,
+        segment_label: Optional[str] = None,
+        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
+        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
+        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None,
+        tracking_uid: Optional[str] = None,
+        tracking_id: Optional[str] = None,
+    ) -> List[int]:
+        """Get a list of segment numbers matching provided criteria.
+
+        Any number of optional filters may be provided. A segment must match
+        all provided filters to be included in the returned list.
+
+        Parameters
+        ----------
+        segment_label: Union[str, None], optional
+            Segment label filter to apply.
+        segmented_property_category: Union[Code, CodedConcept, None], optional
+            Segmented property category filter to apply.
+        segmented_property_type: Union[Code, CodedConcept, None], optional
+            Segmented property type filter to apply.
+        algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
+            Segmented property type filter to apply.
+        tracking_uid: Union[str, None], optional
+            Tracking unique identifier filter to apply.
+        tracking_id: Union[str, None], optional
+            Tracking identifier filter to apply.
+
+        Returns
+        -------
+        List[int]
+            List of all segment numbers matching the provided criteria.
+
+        Examples
+        --------
+
+        Get segment numbers of all segments that both represent tumors and were
+        generated by an automatic algorithm from a segmentation object ``seg``:
+
+        >>> from pydicom.sr.codedict import codes
+        >>> from highdicom.seg import SegmentAlgorithmTypeValues
+        >>>
+        >>> segment_numbers = seg.get_segment_numbers(
+        >>>     segmented_property_type=codes.SCT.Tumor,
+        >>>     algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC
+        >>> )
+        [1, 2, 3]
+
+        Get segment numbers of all segments identified by a given
+        institution-specific tracking ID:
+
+        >>> segment_numbers = seg.get_segment_numbers(
+        >>>     tracking_id='Tumor #1234567'
+        >>> )
+        [13]
+
+        Get segment numbers of all segments identified a globally unique
+        tracking UID:
+
+        >>> uid = '1.2.826.0.1.3680043.10.511.3.73025483745501512180439199223117347'
+        >>> segment_numbers = seg.get_segment_numbers(tracking_uid=uid)
+        [5]
+
+        """  # noqa: E501
+        filter_funcs = []
+        if segment_label is not None:
+            filter_funcs.append(
+                lambda desc: desc.segment_label == segment_label
+            )
+        if segmented_property_category is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_category == segmented_property_category
+            )
+        if segmented_property_type is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_type == segmented_property_type
+            )
+        if algorithm_type is not None:
+            algo_type = SegmentAlgorithmTypeValues(algorithm_type)
+            filter_funcs.append(
+                lambda desc:
+                SegmentAlgorithmTypeValues(desc.algorithm_type) == algo_type
+            )
+        if tracking_uid is not None:
+            filter_funcs.append(
+                lambda desc: desc.tracking_uid == tracking_uid
+            )
+        if tracking_id is not None:
+            filter_funcs.append(
+                lambda desc: desc.tracking_id == tracking_id
+            )
+
+        return [
+            desc.segment_number
+            for desc in self.SegmentSequence
+            if all(f(desc) for f in filter_funcs)
+        ]
+
+    def get_tracking_ids(
+        self,
+        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
+        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
+        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None
+    ) -> List[Tuple[str, UID]]:
+        """Get all unique tracking identifiers in this SEG image.
+
+        Any number of optional filters may be provided. A segment must match
+        all provided filters to be included in the returned list.
+
+        The tracking IDs and the accompanying tracking UIDs are returned
+        in a list of tuples.
+
+        Note that the order of the returned list is not significant and will
+        not in general match the order of segments.
+
+        Parameters
+        ----------
+        segmented_property_category: Union[Code, CodedConcept, None], optional
+            Segmented property category filter to apply.
+        segmented_property_type: Union[Code, CodedConcept, None], optional
+            Segmented property type filter to apply.
+        algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
+            Segmented property type filter to apply.
+
+        Returns
+        -------
+        List[Tuple[str, UID]]
+            List of all unique (tracking_id, tracking_uid) tuples that are
+            referenced in segment descriptions in this SEG image that match
+            all provided filters.
+
+        Examples
+        --------
+
+        Read in an example segmentation image in the highdicom test data:
+
+        >>> import highdicom as hd
+        >>> from pydicom.sr.codedict import codes
+        >>>
+        >>> seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
+
+        List the tracking IDs and UIDs present in the segmentation image:
+
+        >>> seg.get_tracking_ids()
+        [('Spine', '1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772'),
+         ('Bone', '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067')]
+
+        >>> for seg_num in seg.segment_numbers:
+        >>>     desc = seg.get_segment_description(seg_num)
+        >>>     print(desc.segmented_property_type.meaning)
+        Bone
+        Spine
+
+        List tracking IDs only for those segments with a segmented property
+        category of 'Spine':
+
+        >>> seg.get_tracking_ids(segmented_property_type=codes.SCT.Spine)
+        [('Spine', '1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772')]
+
+        """  # noqa: E501
+        filter_funcs = []
+        if segmented_property_category is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_category == segmented_property_category
+            )
+        if segmented_property_type is not None:
+            filter_funcs.append(
+                lambda desc:
+                desc.segmented_property_type == segmented_property_type
+            )
+        if algorithm_type is not None:
+            algo_type = SegmentAlgorithmTypeValues(algorithm_type)
+            filter_funcs.append(
+                lambda desc:
+                SegmentAlgorithmTypeValues(desc.algorithm_type) == algo_type
+            )
+
+        return list({
+            (desc.tracking_id, UID(desc.tracking_uid))
+            for desc in self.SegmentSequence
+            if desc.tracking_id is not None and
+            all(f(desc) for f in filter_funcs)
+        })
+
+    @property
+    def segmented_property_categories(self) -> List[CodedConcept]:
+        """Get all unique segmented property categories in this SEG image.
+
+        Returns
+        -------
+        List[CodedConcept]
+            All unique segmented property categories referenced in segment
+            descriptions in this SEG image.
+
+        """
+        categories = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_category not in categories:
+                categories.append(desc.segmented_property_category)
+
+        return categories
+
+    @property
+    def segmented_property_types(self) -> List[CodedConcept]:
+        """Get all unique segmented property types in this SEG image.
+
+        Returns
+        -------
+        List[CodedConcept]
+            All unique segmented property types referenced in segment
+            descriptions in this SEG image.
+
+        """
+        types = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_type not in types:
+                types.append(desc.segmented_property_type)
+
+        return types
+
+    def _get_src_uid_index(self, sop_instance_uid: str) -> int:
+        ind = np.argwhere(self._source_sop_instance_uids == sop_instance_uid)
+        if len(ind) == 0:
+            raise KeyError(
+                f'No such source frame: {sop_instance_uid}'
+            )
+        return ind.item()
+
+    def _get_pixels_by_seg_frame(
+        self,
+        seg_frames_matrix: np.ndarray,
+        segment_numbers: np.ndarray,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        rescale_fractional: bool = True
+    ) -> np.ndarray:
+        """Construct a segmentation array given an array of frame numbers.
+
+        The output array is either 4D (combine_segments=False) or 3D
+        (combine_segments=True), where dimensions are frames x rows x columes x
+        segments.
+
+        Parameters
+        ----------
+        seg_frames_matrix: np.ndarray
+            Two dimensional numpy array containing integers. Each row of the
+            array corresponds to a frame (0th dimension) of the output array.
+            Each column of the array corresponds to a segment of the output
+            array. Elements specify the (1-based) frame numbers of the
+            segmentation image that contain the pixel data for that output
+            frame and segment. A value of -1 signifies that there is no pixel
+            data for that frame/segment combination.
+        segment_numbers: np.ndarray
+            One dimensional numpy array containing segment numbers
+            corresponding to the columns of the seg frames matrix.
+        combine_segments: bool
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Segmentation pixel array
+
+        """
+        # Checks on input array
+        if seg_frames_matrix.ndim != 2:
+            raise ValueError('Seg frames matrix must be a 2D array.')
+        if not issubclass(seg_frames_matrix.dtype.type, np.integer):
+            raise TypeError(
+                'Seg frames matrix must have an integer data type.'
+            )
+
+        if seg_frames_matrix.min() < -1:
+            raise ValueError(
+                'Seg frames matrix may not contain negative values other than '
+                '-1.'
+            )
+        if seg_frames_matrix.max() > self.NumberOfFrames:
+            raise ValueError(
+                'Seg frames matrix contains values outside the range of '
+                'segmentation frames in the image.'
+            )
+
+        if segment_numbers.shape != (seg_frames_matrix.shape[1], ):
+            raise ValueError(
+                'Segment numbers array does not match the shape of the '
+                'seg frames matrix.'
+            )
+
+        if (
+            segment_numbers.min() < 1 or
+            segment_numbers.max() > self.number_of_segments
+        ):
+            raise ValueError(
+                'Segment numbers array contains invalid values.'
+            )
+
+        # Initialize empty pixel array
+        pixel_array = np.zeros(
+            (
+                seg_frames_matrix.shape[0],
+                self.Rows,
+                self.Columns,
+                seg_frames_matrix.shape[1]
+            ),
+            self.pixel_array.dtype
+        )
+
+        # Loop through output frames
+        for out_frm, frm_row in enumerate(seg_frames_matrix):
+            # Loop through segmentation frames
+            for out_seg, seg_frame_num in enumerate(frm_row):
+                if seg_frame_num >= 1:
+                    seg_frame_ind = seg_frame_num.item() - 1
+                    # Copy data to to output array
+                    if self.pixel_array.ndim == 2:
+                        # Special case with a single segmentation frame
+                        pixel_array[out_frm, :, :, out_seg] = \
+                            self.pixel_array
+                    else:
+                        pixel_array[out_frm, :, :, out_seg] = \
+                            self.pixel_array[seg_frame_ind, :, :]
+
+        if rescale_fractional:
+            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                if pixel_array.max() > self.MaximumFractionalValue:
+                    raise RuntimeError(
+                        'Segmentation image contains values greater than the '
+                        'MaximumFractionalValue recorded in the dataset.'
+                    )
+                max_val = self.MaximumFractionalValue
+                pixel_array = pixel_array.astype(np.float32) / max_val
+
+        if combine_segments:
+            # Check whether segmentation is binary, or fractional with only
+            # binary values
+            if self.segmentation_type != SegmentationTypeValues.BINARY:
+                if not rescale_fractional:
+                    raise ValueError(
+                        'In order to combine segments of a FRACTIONAL '
+                        'segmentation image, rescale_fractional must be '
+                        'set to True.'
+                    )
+                is_binary = np.isin(
+                    np.unique(pixel_array),
+                    np.array([0.0, 1.0]),
+                    assume_unique=True
+                )
+                if not is_binary.all():
+                    raise ValueError(
+                        'Cannot combine segments if the segmentation is not'
+                        'binary'
+                    )
+
+            # Check for overlap by summing over the segments dimension
+            if np.any(pixel_array.sum(axis=-1) > 1):
+                raise RuntimeError(
+                    'Segments cannot be combined because they overlap'
+                )
+
+            # Scale the array by the segment number using broadcasting
+            if relabel:
+                pixel_value_map = np.arange(1, len(segment_numbers) + 1)
+            else:
+                pixel_value_map = segment_numbers
+            scaled_array = pixel_array * pixel_value_map.reshape(1, 1, 1, -1)
+
+            # Combine segments by taking maximum down final dimension
+            max_array = scaled_array.max(axis=-1)
+            pixel_array = max_array
+
+        return pixel_array
+
+    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
+        """Get UIDs for all source SOP instances referenced in the dataset.
+
+        Returns
+        -------
+        List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
+            List of tuples containing Study Instance UID, Series Instance UID
+            and SOP Instance UID for every SOP Instance referenced in the
+            dataset.
+
+        """
+        return [self._ref_ins_lut[sop_uid] for sop_uid in self._ref_ins_lut]
+
+    def get_default_dimension_index_pointers(
+        self
+    ) -> List[BaseTag]:
+        """Get the default list of tags used to index frames.
+
+        The list of tags used to index dimensions depends upon how the
+        segmentation image was constructed, and is stored in the
+        DimensionIndexPointer attribute within the DimensionIndexSequence. The
+        list returned by this method matches the order of items in the
+        DimensionIndexSequence, but omits the ReferencedSegmentNumber
+        attribute, since this is handled differently to other tags when
+        indexing frames in highdicom.
+
+        Returns
+        -------
+        List[pydicom.tag.BaseTag]
+            List of tags used as the default dimension index pointers.
+
+        """
+        return self._dim_ind_pointers[:]
+
+    def are_dimension_indices_unique(
+        self,
+        dimension_index_pointers: Sequence[Union[int, BaseTag]]
+    ) -> bool:
+        """Check if a list of index pointers uniquely identifies frames.
+
+        For a given list of dimension index pointers, check whether every
+        combination of index values for these pointers identifies a unique
+        frame per segment in the segmentation image. This is a pre-requisite
+        for indexing using this list of dimension index pointers in the
+        :meth:`Segmentation.get_pixels_by_dimension_index_values()` method.
+
+        Parameters
+        ----------
+        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
+            Sequence of tags serving as dimension index pointers.
+
+        Returns
+        -------
+        bool
+            True if the specified list of dimension index pointers uniquely
+            identifies frames in the segmentation image. False otherwise.
+
+        Raises
+        ------
+        KeyError
+            If any of the elements of the ``dimension_index_pointers`` are not
+            valid dimension index pointers in this segmentation image.
+
+        """
+        for ptr in dimension_index_pointers:
+            if ptr not in self._dim_ind_pointers:
+                kw = keyword_for_tag(ptr)
+                if kw == '':
+                    kw = '<no keyword>'
+                raise KeyError(
+                    f'Tag {ptr} ({kw}) is not used as a dimension index '
+                    'in this image.'
+                )
+        # Create the sub-matrix of the look up table that indexes
+        # by the dimension index values
+        dim_ind_cols = [
+            self._lut_dim_ind_cols[ptr]
+            for ptr in dimension_index_pointers
+        ]
+        lut = self._frame_lut[:, dim_ind_cols + [self._lut_seg_col]]
+
+        return np.unique(lut, axis=0).shape[0] == lut.shape[0]
+
+    def _check_indexing_with_source_frames(
+        self,
+        ignore_spatial_locations: bool = False
+    ) -> None:
+        """Check if indexing by source frames is possible.
+
+        Raise exceptions with useful messages otherwise.
+
+        Possible problems include:
+            * Spatial locations are not preserved.
+            * The dataset does not specify that spatial locations are preserved
+              and the user has not asserted that they are.
+            * At least one frame in the segmentation lists multiple
+              source frames.
+
+        Parameters
+        ----------
+        ignore_spatial_locations: bool
+            Allows the user to ignore whether spatial locations are preserved
+            in the frames.
+
+        """
+        # Checks that it is possible to index using source frames in this
+        # dataset
+        if self._locations_preserved is None:
+            if not ignore_spatial_locations:
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since this '
+                    'image does not specify that spatial locations are '
+                    'preserved in the course of deriving the segmentation '
+                    'from the source image. If you are confident that spatial '
+                    'locations are preserved, or do not require that spatial '
+                    'locations are preserved, you may override this behavior '
+                    "with the 'ignore_spatial_locations' parameter."
+                )
+        elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
+            if not ignore_spatial_locations:
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since this '
+                    'image specifies that spatial locations are not preserved '
+                    'in the course of deriving the segmentation from the '
+                    'source image. If you do not require that spatial '
+                    ' locations are preserved you may override this behavior '
+                    "with the 'ignore_spatial_locations' parameter."
+                )
+        if not self._single_source_frame_per_seg_frame:
+            raise RuntimeError(
+                'Indexing via source frames is not permissible since some '
+                'frames in the segmentation specify multiple source frames.'
+            )
+
+    def get_pixels_by_source_instance(
+        self,
+        source_sop_instance_uids: Sequence[str],
+        segment_numbers: Optional[Sequence[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        ignore_spatial_locations: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
+    ) -> np.ndarray:
+        """Get a pixel array for a list of source instances.
+
+        This is intended for retrieving segmentation masks derived from
+        (series of) single frame source images.
+
+        The output array will have 4 dimensions under the default behavior, and
+        3 dimensions if ``combine_segments`` is set to ``True``.  The first
+        dimension represents the source instances. ``pixel_array[i, ...]``
+        represents the segmentation of ``source_sop_instance_uids[i]``.  The
+        next two dimensions are the rows and columns of the frames,
+        respectively.
+
+        When ``combine_segments`` is ``False`` (the default behavior), the
+        segments are stacked down the final (4th) dimension of the pixel array.
+        If ``segment_numbers`` was specified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``segment_numbers[i]``. If
+        ``segment_numbers`` was unspecified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``parser.segment_numbers[i]``. Note
+        that in neither case does ``pixel_array[:, :, :, i]`` represent
+        the segmentation data for the segment with segment number ``i``, since
+        segment numbers begin at 1 in DICOM.
+
+        When ``combine_segments`` is ``True``, then the segmentation data from
+        all specified segments is combined into a multi-class array in which
+        pixel value is used to denote the segment to which a pixel belongs.
+        This is only possible if the segments do not overlap and either the
+        type of the segmentation is ``BINARY`` or the type of the segmentation
+        is ``FRACTIONAL`` but all values are exactly 0.0 or 1.0.  the segments
+        do not overlap. If the segments do overlap, a ``RuntimeError`` will be
+        raised. After combining, the value of a pixel depends upon the
+        ``relabel`` parameter. In both cases, pixels that appear in no segments
+        with have a value of ``0``.  If ``relabel`` is ``False``, a pixel that
+        appears in the segment with segment number ``i`` (according to the
+        original segment numbering of the segmentation object) will have a
+        value of ``i``. If ``relabel`` is ``True``, the value of a pixel in
+        segment ``i`` is related not to the original segment number, but to the
+        index of that segment number in the ``segment_numbers`` parameter of
+        this method. Specifically, pixels belonging to the segment with segment
+        number ``segment_numbers[i]`` is given the value ``i + 1`` in the
+        output pixel array (since 0 is reserved for pixels that belong to no
+        segments). In this case, the values in the output pixel array will
+        always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        Parameters
+        ----------
+        source_sop_instance_uids: str
+            SOP Instance UID of the source instances to for which segmentations
+            are requested.
+        segment_numbers: Union[Sequence[int], None], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        ignore_spatial_locations: bool, optional
+           Ignore whether or not spatial locations were preserved in the
+           derivation of the segmentation frames from the source frames. In
+           some segmentation images, the pixel locations in the segmentation
+           frames may not correspond to pixel locations in the frames of the
+           source image from which they were derived. The segmentation image
+           may or may not specify whether or not spatial locations are
+           preserved in this way through use of the optional (0028,135A)
+           SpatialLocationsPreserved attribute. If this attribute specifies
+           that spatial locations are not preserved, or is absent from the
+           segmentation image, highdicom's default behavior is to disallow
+           indexing by source frames. To override this behavior and retrieve
+           segmentation pixels regardless of the presence or value of the
+           spatial locations preserved attribute, set this parameter to True.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the segmentation image contain no segments. If a source frame
+            number is not referenced by the segmentation image, highdicom is
+            unable to check that the frame number is valid in the source image.
+            By default, highdicom will raise an error if any of the requested
+            source frames are not referenced in the source image. To override
+            this behavior and return a segmentation frame of all zeros for such
+            frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array representing the segmentation. See notes for full
+            explanation.
+
+        Examples
+        --------
+
+        Read in an example from the highdicom test data:
+
+        >>> import highdicom as hd
+        >>>
+        >>> seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+
+        List the source images for this segmentation:
+
+        >>> for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
+        >>>     print(sop_uid)
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
+
+        Get the segmentation array for a subset of these images:
+
+        >>> pixels = seg.get_pixels_by_source_instance(
+        >>>     source_sop_instance_uids=[
+        >>>         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93',
+        >>>         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94'
+        >>>     ]
+        >>> )
+        >>> pixels.shape
+        (2, 16, 16, 1)
+
+        """
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(ignore_spatial_locations)
+
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+        if isinstance(source_sop_instance_uids, str):
+            raise TypeError(
+                'source_sop_instance_uids should be a sequence of UIDs, not a '
+                'single UID'
+            )
+        if len(source_sop_instance_uids) == 0:
+            raise ValueError(
+                'Source SOP instance UIDs may not be empty.'
+            )
+
+        # Initialize seg frame numbers matrix with value signifying
+        # "empty" (-1)
+        rows = len(source_sop_instance_uids)
+        cols = len(segment_numbers)
+        seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+
+        # Sub-matrix of the LUT used for indexing by instance and
+        # segment number
+        query_cols = [self._lut_src_instance_col, self._lut_seg_col]
+        lut = self._frame_lut[:, query_cols]
+
+        # Check for uniqueness
+        if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+            raise RuntimeError(
+                'Source SOP instance UIDs and segment numbers do not '
+                'uniquely identify frames of the segmentation image.'
+            )
+
+        # Build the segmentation frame matrix
+        for r, sop_uid in enumerate(source_sop_instance_uids):
+            # Check whether this source UID exists in the LUT
+            try:
+                src_uid_ind = self._get_src_uid_index(sop_uid)
+            except KeyError as e:
+                if assert_missing_frames_are_empty:
+                    continue
+                else:
+                    msg = (
+                        f'SOP Instance UID {sop_uid} does not match any '
+                        'referenced source frames. To return an empty '
+                        'segmentation mask in this situation, use the '
+                        "'assert_missing_frames_are_empty' parameter."
+                    )
+                    raise KeyError(msg) from e
+
+            # Iterate over segment numbers for this source instance
+            for c, seg_num in enumerate(segment_numbers):
+                # Use LUT to find the segmentation frame containing
+                # the source frame and segment number
+                qry = np.array([src_uid_ind, seg_num])
+                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
+                if len(seg_frm_indices) == 1:
+                    seg_frames[r, c] = seg_frm_indices[0] + 1
+                elif len(seg_frm_indices) > 0:
+                    # This should never happen due to earlier checks
+                    # on unique rows
+                    raise RuntimeError(
+                        'An unexpected error was encountered during '
+                        'indexing of the segmentation image. Please '
+                        'file a bug report with the highdicom repository.'
+                    )
+                # else no segmentation frame found for this segment number,
+                # assume this frame is empty and leave the entry in seg_frames
+                # as -1
+
+        return self._get_pixels_by_seg_frame(
+            seg_frames_matrix=seg_frames,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional
+        )
+
+    def get_pixels_by_source_frame(
+        self,
+        source_sop_instance_uid: str,
+        source_frame_numbers: Sequence[int],
+        segment_numbers: Optional[Sequence[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        ignore_spatial_locations: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
+    ):
+        """Get a pixel array for a list of frames within a source instance.
+
+        This is intended for retrieving segmentation masks derived from
+        multi-frame (enhanced) source images. All source frames for
+        which segmentations are requested must belong within the same
+        SOP Instance UID.
+
+        The output array will have 4 dimensions under the default behavior, and
+        3 dimensions if ``combine_segments`` is set to ``True``.  The first
+        dimension represents the source frames. ``pixel_array[i, ...]``
+        represents the segmentation of ``source_frame_numbers[i]``.  The
+        next two dimensions are the rows and columns of the frames,
+        respectively.
+
+        When ``combine_segments`` is ``False`` (the default behavior), the
+        segments are stacked down the final (4th) dimension of the pixel array.
+        If ``segment_numbers`` was specified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``segment_numbers[i]``. If
+        ``segment_numbers`` was unspecified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``parser.segment_numbers[i]``. Note
+        that in neither case does ``pixel_array[:, :, :, i]`` represent
+        the segmentation data for the segment with segment number ``i``, since
+        segment numbers begin at 1 in DICOM.
+
+        When ``combine_segments`` is ``True``, then the segmentation data from
+        all specified segments is combined into a multi-class array in which
+        pixel value is used to denote the segment to which a pixel belongs.
+        This is only possible if the segments do not overlap and either the
+        type of the segmentation is ``BINARY`` or the type of the segmentation
+        is ``FRACTIONAL`` but all values are exactly 0.0 or 1.0.  the segments
+        do not overlap. If the segments do overlap, a ``RuntimeError`` will be
+        raised. After combining, the value of a pixel depends upon the
+        ``relabel`` parameter. In both cases, pixels that appear in no segments
+        with have a value of ``0``.  If ``relabel`` is ``False``, a pixel that
+        appears in the segment with segment number ``i`` (according to the
+        original segment numbering of the segmentation object) will have a
+        value of ``i``. If ``relabel`` is ``True``, the value of a pixel in
+        segment ``i`` is related not to the original segment number, but to the
+        index of that segment number in the ``segment_numbers`` parameter of
+        this method. Specifically, pixels belonging to the segment with segment
+        number ``segment_numbers[i]`` is given the value ``i + 1`` in the
+        output pixel array (since 0 is reserved for pixels that belong to no
+        segments). In this case, the values in the output pixel array will
+        always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        Parameters
+        ----------
+        source_sop_instance_uid: str
+            SOP Instance UID of the source instance that contains the source
+            frames.
+        source_frame_numbers: Sequence[int]
+            A sequence of frame numbers (1-based) within the source instance
+            for which segmentations are requested.
+        segment_numbers: Sequence[int, None], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        ignore_spatial_locations: bool, optional
+           Ignore whether or not spatial locations were preserved in the
+           derivation of the segmentation frames from the source frames. In
+           some segmentation images, the pixel locations in the segmentation
+           frames may not correspond to pixel locations in the frames of the
+           source image from which they were derived. The segmentation image
+           may or may not specify whether or not spatial locations are
+           preserved in this way through use of the optional (0028,135A)
+           SpatialLocationsPreserved attribute. If this attribute specifies
+           that spatial locations are not preserved, or is absent from the
+           segmentation image, highdicom's default behavior is to disallow
+           indexing by source frames. To override this behavior and retrieve
+           segmentation pixels regardless of the presence or value of the
+           spatial locations preserved attribute, set this parameter to True.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the segmentation image contain no segments. If a source frame
+            number is not referenced by the segmentation image, highdicom is
+            unable to check that the frame number is valid in the source image.
+            By default, highdicom will raise an error if any of the requested
+            source frames are not referenced in the source image. To override
+            this behavior and return a segmentation frame of all zeros for such
+            frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array representing the segmentation. See notes for full
+            explanation.
+
+        Examples
+        --------
+
+        Read in an example from the highdicom test data derived from a
+        multiframe slide microscopy image:
+
+        >>> import highdicom as hd
+        >>>
+        >>> seg = hd.seg.segread('data/test_files/seg_image_sm_control.dcm')
+
+        List the source image SOP instance UID for this segmentation:
+
+        >>> sop_uid = seg.get_source_image_uids()[0][2]
+        '1.2.826.0.1.3680043.9.7433.3.12857516184849951143044513877282227'
+
+        Get the segmentation array for 3 of the frames in the multiframe source
+        image.  The resulting segmentation array has 3 10 x 10 frames, one for
+        each source frame. The final dimension contains the 20 different
+        segments present in this segmentation.
+
+        >>> pixels = seg.get_pixels_by_source_frame(
+        >>>     source_sop_instance_uid=sop_uid,
+        >>>     source_frame_numbers=[4, 5, 6]
+        >>> )
+        >>> pixels.shape
+        (3, 10, 10, 20)
+
+        This time, select only 4 of the 20 segments:
+
+        >>> pixels = seg.get_pixels_by_source_frame(
+        >>>     source_sop_instance_uid=sop_uid,
+        >>>     source_frame_numbers=[4, 5, 6],
+        >>>     segment_numbers=[10, 11, 12, 13]
+        >>> )
+        >>> pixels.shape
+        (3, 10, 10, 4)
+
+        Instead create a multiclass label map for each source frame. Note
+        that segments 6, 8, and 10 are present in the three chosen frames.
+
+        >>> pixels = seg.get_pixels_by_source_frame(
+        >>>     source_sop_instance_uid=sop_uid,
+        >>>     source_frame_numbers=[4, 5, 6],
+        >>>     combine_segments=True
+        >>> )
+        >>> pixels.shape, np.unique(pixels)
+        (3, 10, 10), array([0, 6, 8, 10])
+
+        Now relabel the segments to give a pixel map with values between 0
+        and 3 (inclusive):
+
+        >>> pixels = seg.get_pixels_by_source_frame(
+        >>>     source_sop_instance_uid=sop_uid,
+        >>>     source_frame_numbers=[4, 5, 6],
+        >>>     segment_numbers=[6, 8, 10]
+        >>>     combine_segments=True,
+        >>>     relabel=True
+        >>> )
+        >>> pixels.shape, np.unique(pixels)
+        (3, 10, 10), array([0, 1, 2, 3])
+
+        """
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(ignore_spatial_locations)
+
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+
+        if len(source_frame_numbers) == 0:
+            raise ValueError(
+                'Source frame numbers should not be empty.'
+            )
+        if not all(f > 0 for f in source_frame_numbers):
+            raise ValueError(
+                'Frame numbers are 1-based indices and must be > 0.'
+            )
+
+        rows = len(source_frame_numbers)
+        cols = len(segment_numbers)
+        seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+
+        # Create the sub-matrix of the look up table that indexes
+        # by frame number and segment number within this
+        # instance
+        src_uid_ind = self._get_src_uid_index(source_sop_instance_uid)
+        col = self._lut_src_instance_col
+        lut_instance_mask = self._frame_lut[:, col] == src_uid_ind
+        lut = self._frame_lut[lut_instance_mask, :]
+        query_cols = [self._lut_src_frame_col, self._lut_seg_col]
+        lut = lut[:, query_cols]
+
+        if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+            raise RuntimeError(
+                'Source frame numbers and segment numbers do not '
+                'uniquely identify frames of the segmentation image.'
+            )
+
+        # Build the segmentation frame matrix
+        for r, src_frm_num in enumerate(source_frame_numbers):
+            # Check whether this source frame exists in the LUT
+            if src_frm_num not in lut[:, 0]:
+                if assert_missing_frames_are_empty:
+                    continue
+                else:
+                    msg = (
+                        f'Source frame number {src_frm_num} does not '
+                        'match any referenced source frame. To return '
+                        'an empty segmentation mask in this situation, '
+                        "use the 'assert_missing_frames_are_empty' "
+                        'parameter.'
+                    )
+                    raise ValueError(msg)
+
+            # Iterate over segment numbers for this source frame
+            for c, seg_num in enumerate(segment_numbers):
+                # Use LUT to find the segmentation frame containing
+                # the source frame and segment number
+                qry = np.array([src_frm_num, seg_num])
+                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
+                if len(seg_frm_indices) == 1:
+                    seg_frames[r, c] = seg_frm_indices[0] + 1
+                elif len(seg_frm_indices) > 0:
+                    # This should never happen due to earlier checks
+                    # on unique rows
+                    raise RuntimeError(
+                        'An unexpected error was encountered during '
+                        'indexing of the segmentation image. Please '
+                        'file a bug report with the highdicom repository.'
+                    )
+                # else no segmentation frame found for this segment number,
+                # assume this frame is empty and leave the entry in seg_frames
+                # as -1
+
+        return self._get_pixels_by_seg_frame(
+            seg_frames_matrix=seg_frames,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional
+        )
+
+    def get_pixels_by_dimension_index_values(
+        self,
+        dimension_index_values: Sequence[Sequence[int]],
+        dimension_index_pointers: Optional[Sequence[int]] = None,
+        segment_numbers: Optional[Sequence[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True
+    ):
+        """Get a pixel array for a list of dimension index values.
+
+        This is intended for retrieving segmentation masks using the index
+        values within the segmentation object, without referring to the
+        source images from which the segmentation as derived.
+
+        The output array will have 4 dimensions under the default behavior, and
+        3 dimensions if ``combine_segments`` is set to ``True``.  The first
+        dimension represents the source frames. ``pixel_array[i, ...]``
+        represents the segmentation frame with index
+        ``dimension_index_values[i]``.  The next two dimensions are the rows
+        and columns of the frames, respectively.
+
+        When ``combine_segments`` is ``False`` (the default behavior), the
+        segments are stacked down the final (4th) dimension of the pixel array.
+        If ``segment_numbers`` was specified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``segment_numbers[i]``. If
+        ``segment_numbers`` was unspecified, then ``pixel_array[:, :, :, i]``
+        represents the data for segment ``parser.segment_numbers[i]``. Note
+        that in neither case does ``pixel_array[:, :, :, i]`` represent
+        the segmentation data for the segment with segment number ``i``, since
+        segment numbers begin at 1 in DICOM.
+
+        When ``combine_segments`` is ``True``, then the segmentation data from
+        all specified segments is combined into a multi-class array in which
+        pixel value is used to denote the segment to which a pixel belongs.
+        This is only possible if the segments do not overlap and either the
+        type of the segmentation is ``BINARY`` or the type of the segmentation
+        is ``FRACTIONAL`` but all values are exactly 0.0 or 1.0.  the segments
+        do not overlap. If the segments do overlap, a ``RuntimeError`` will be
+        raised. After combining, the value of a pixel depends upon the
+        ``relabel`` parameter. In both cases, pixels that appear in no segments
+        with have a value of ``0``.  If ``relabel`` is ``False``, a pixel that
+        appears in the segment with segment number ``i`` (according to the
+        original segment numbering of the segmentation object) will have a
+        value of ``i``. If ``relabel`` is ``True``, the value of a pixel in
+        segment ``i`` is related not to the original segment number, but to the
+        index of that segment number in the ``segment_numbers`` parameter of
+        this method. Specifically, pixels belonging to the segment with segment
+        number ``segment_numbers[i]`` is given the value ``i + 1`` in the
+        output pixel array (since 0 is reserved for pixels that belong to no
+        segments). In this case, the values in the output pixel array will
+        always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        Parameters
+        ----------
+        dimension_index_values: Sequence[Sequence[int]]
+            Dimension index values for the requested frames. Each element of
+            the sequence is a sequence of 1-based index values representing the
+            dimension index values for a single frame of the output
+            segmentation. The order of the index values within the inner
+            sequence is determined by the ``dimension_index_pointers``
+            parameter, and as such the length of each inner sequence must
+            match the length of ``dimension_index_pointers`` parameter.
+        dimension_index_pointers: Union[Sequence[Union[int, pydicom.tag.BaseTag]], None], optional
+            The data element tags that identify the indices used in the
+            ``dimension_index_values`` parameter. Each element identifies a
+            data element tag by which frames are ordered in the segmentation
+            image dataset. If this parameter is set to ``None`` (the default),
+            the value of
+            :meth:`Segmentation.get_default_dimension_index_pointers()` is
+            used. Valid values of this parameter are are determined by
+            the construction of the segmentation image and include any
+            permutation of any subset of elements in the
+            :meth:`Segmentation.get_default_dimension_index_pointers()` list.
+        segment_numbers: Union[Sequence[int], None], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the segmentation image contain no segments. If a source frame
+            number is not referenced by the segmentation image, highdicom is
+            unable to check that the frame number is valid in the source image.
+            By default, highdicom will raise an error if any of the requested
+            source frames are not referenced in the source image. To override
+            this behavior and return a segmentation frame of all zeros for such
+            frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array representing the segmentation. See notes for full
+            explanation.
+
+        Examples
+        --------
+
+        Read a test image of a segmentation of a slide microscopy image
+
+        >>> import highdicom as hd
+        >>> from pydicom.datadict import keyword_for_tag, tag_for_keyword
+        >>> from pydicom import dcmread
+        >>>
+        >>> ds = dcmread('data/test_files/seg_image_sm_control.dcm')
+        >>> seg = hd.seg.Segmentation.from_dataset(ds)
+
+        Get the default list of dimension index values
+
+        >>> for tag in seg.get_default_dimension_index_pointers():
+        >>>     print(keyword_for_tag(tag))
+        ColumnPositionInTotalImagePixelMatrix
+        RowPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
+
+
+        Use a subset of these index pointers to index the image
+
+        >>> tags = [
+        >>>     tag_for_keyword('ColumnPositionInTotalImagePixelMatrix'),
+        >>>     tag_for_keyword('RowPositionInTotalImagePixelMatrix')
+        >>> ]
+        >>> assert seg.are_dimension_indices_unique(tags)  # True
+
+        It is therefore possible to index using just this subset of
+        dimension indices
+
+        >>> pixels = seg.get_pixels_by_dimension_index_values(
+        >>>     dimension_index_pointers=tags,
+        >>>     dimension_index_values=[[1, 1], [1, 2]]
+        >>> )
+        >>> pixels.shape
+        (2, 10, 10, 20)
+
+        """  # noqa: E501
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+
+        if dimension_index_pointers is None:
+            dimension_index_pointers = self._dim_ind_pointers
+        else:
+            for ptr in dimension_index_pointers:
+                if ptr not in self._dim_ind_pointers:
+                    kw = keyword_for_tag(ptr)
+                    if kw == '':
+                        kw = '<no keyword>'
+                    raise KeyError(
+                        f'Tag {Tag(ptr)} ({kw}) is not used as a dimension '
+                        'index in this image.'
+                    )
+
+        if len(dimension_index_values) == 0:
+            raise ValueError(
+                'Dimension index values should not be empty.'
+            )
+        if len(dimension_index_pointers) == 0:
+            raise ValueError(
+                'Dimension index pointers should not be empty.'
+            )
+        rows = len(dimension_index_values)
+        cols = len(segment_numbers)
+        seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+
+        # Create the sub-matrix of the look up table that indexes
+        # by the dimension index values
+        dim_ind_cols = [
+            self._lut_dim_ind_cols[ptr]
+            for ptr in dimension_index_pointers
+        ]
+        lut = self._frame_lut[:, dim_ind_cols + [self._lut_seg_col]]
+
+        if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+            raise RuntimeError(
+                'The chosen dimension indices do not uniquely identify '
+                'frames of the segmentation image. You may need to provide '
+                'further indices to disambiguate.'
+            )
+
+        # Build the segmentation frame matrix
+        for r, ind_vals in enumerate(dimension_index_values):
+            if len(ind_vals) != len(dimension_index_pointers):
+                raise ValueError(
+                    'Number of provided indices does not match the expected '
+                    'number.'
+                )
+            if not all(v > 0 for v in ind_vals):
+                raise ValueError(
+                    'Indices are 1-based and must be greater than 1.'
+                )
+
+            # Check whether this frame exists in the LUT at all, ignoring the
+            # segment number column
+            qry = np.array(ind_vals)
+            seg_frm_indices = np.where(np.all(lut[:, :-1] == qry, axis=1))[0]
+            if len(seg_frm_indices) == 0:
+                if assert_missing_frames_are_empty:
+                    # Nothing more to do
+                    continue
+                else:
+                    raise RuntimeError(
+                        f'No frame with dimension index values {ind_vals} '
+                        'found in the segmentation image. To return a frame of '
+                        'zeros in this situation, set the '
+                        "'assert_missing_frames_are_empty' parameter to True."
+                    )
+
+            # Iterate over requested segment numbers for this source frame
+            for c, seg_num in enumerate(segment_numbers):
+                # Use LUT to find the segmentation frame containing
+                # the index values and segment number
+                qry = np.array(list(ind_vals) + [seg_num])
+                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
+                if len(seg_frm_indices) == 1:
+                    seg_frames[r, c] = seg_frm_indices[0] + 1
+                elif len(seg_frm_indices) > 0:
+                    # This should never happen due to earlier checks
+                    # on unique rows
+                    raise RuntimeError(
+                        'An unexpected error was encountered during '
+                        'indexing of the segmentation image. Please '
+                        'file a bug report with the highdicom repository.'
+                    )
+                # else no segmentation frame found for this segment number,
+                # assume this frame is empty and leave the entry in seg_frames
+                # as -1
+
+        return self._get_pixels_by_seg_frame(
+            seg_frames_matrix=seg_frames,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional
+        )
+
+
+def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
+    """Read a segmentation image stored in DICOM File Format.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing a
+        Segmentation image.
+
+    Returns
+    -------
+    highdicom.seg.Segmentation
+        Segmentation image read from the file.
+
+    """
+    return Segmentation.from_dataset(dcmread(fp))

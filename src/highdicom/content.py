@@ -1,5 +1,6 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
@@ -20,6 +21,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom._module_utils import check_required_attributes
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
@@ -47,7 +49,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             Version of the algorithm
         source: str, optional
             Source of the algorithm, e.g. name of the algorithm manufacturer
-        parameters: Dict[str: str], optional
+        parameters: Dict[str, str], optional
             Name and actual value of the parameters with which the algorithm
             was invoked
 
@@ -72,6 +74,86 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 for key, value in parameters.items()
             ])
         self.append(item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'AlgorithmIdentificationSequence':
+        """Construct instance from an existing data element sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Data element sequence representing the
+            AlgorithmIdentificationSequence Sequence.
+
+        Returns
+        -------
+        highdicom.seg.content.AlgorithmIdentificationSequence
+            Algorithm identification sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence should be of type pydicom.sequence.Sequence.'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence should contain a single item.')
+        check_required_attributes(
+            sequence[0],
+            module='segmentation-image',
+            base_path=[
+                'SegmentSequence',
+                'SegmentationAlgorithmIdentificationSequence'
+            ]
+        )
+        algo_id_sequence = deepcopy(sequence)
+        algo_id_sequence.__class__ = cls
+        return algo_id_sequence
+
+    @property
+    def name(self) -> str:
+        """str: Name of the algorithm."""
+        return self[0].AlgorithmName
+
+    @property
+    def family(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: Kind of the algorithm family."""
+        return CodedConcept.from_dataset(
+            self[0].AlgorithmFamilyCodeSequence[0]
+        )
+
+    @property
+    def version(self) -> str:
+        """str: Version of the algorithm."""
+        return self[0].AlgorithmVersion
+
+    @property
+    def source(self) -> Optional[str]:
+        """Union[str, None]:
+               Source of the algorithm, e.g. name of the algorithm
+               manufacturer, if any
+
+        """
+        return getattr(self[0], 'AlgorithmSource', None)
+
+    @property
+    def parameters(self) -> Optional[Dict[str, str]]:
+        """Union[Dict[str, str], None]:
+               Dictionary mapping algorithm parameter names to values,
+               if any
+
+        """
+        if not hasattr(self[0], 'AlgorithmParameters'):
+            return None
+        parameters = {}
+        for param in self[0].AlgorithmParameters.split(','):
+            split = param.split('=')
+            if len(split) != 2:
+                raise ValueError('Malformed parameter string')
+            parameters[split[0]] = split[1]
+        return parameters
 
 
 class PixelMeasuresSequence(DataElementSequence):
@@ -108,6 +190,51 @@ class PixelMeasuresSequence(DataElementSequence):
         if spacing_between_slices is not None:
             item.SpacingBetweenSlices = spacing_between_slices
         self.append(item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PixelMeasuresSequence':
+        """Create a PixelMeasuresSequence from an existing Sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PixelMeasuresSequence
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            pixel measures sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        req_kws = ['SliceThickness', 'PixelSpacing']
+        if not all(hasattr(sequence[0], kw) for kw in req_kws):
+            raise AttributeError(
+                'Sequence does not have the required attributes for '
+                'a Pixel Measures Sequence.'
+            )
+
+        pixel_measures = deepcopy(sequence)
+        pixel_measures.__class__ = cls
+        return pixel_measures
 
 
 class PlanePositionSequence(DataElementSequence):
@@ -212,6 +339,56 @@ class PlanePositionSequence(DataElementSequence):
                 ]),
             )
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlanePositionSequence':
+        """Create a PlanePositionSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PlanePositionSequence:
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane position sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImagePositionPatient'):
+            check_required_attributes(
+                dataset=sequence[0],
+                module='segmentation-multi-frame-functional-groups',
+                base_path=[
+                    'PerFrameFunctionalGroupsSequence',
+                    'PlanePositionSlideSequence'
+                ]
+            )
+
+        plane_position = deepcopy(sequence)
+        plane_position.__class__ = cls
+        return plane_position
+
 
 class PlaneOrientationSequence(DataElementSequence):
 
@@ -291,6 +468,53 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         else:
             return False
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlaneOrientationSequence':
+        """Create a PlaneOrientationSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PlaneOrientationSequence:
+            Plane orientation sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane orientation sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImageOrientationPatient'):
+            if not hasattr(sequence[0], 'ImageOrientationSlide'):
+                raise AttributeError(
+                    'The sequence does not contain required attributes for '
+                    'either the PATIENT or SLIDE coordinate system.'
+                )
+
+        plane_orientation = deepcopy(sequence)
+        plane_orientation.__class__ = cls
+        return plane_orientation
 
 
 class IssuerOfIdentifier(Dataset):
