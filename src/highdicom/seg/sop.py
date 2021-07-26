@@ -96,28 +96,26 @@ class Segmentation(SOPClass):
             single 3D multi-frame image (such as a multi-frame CT/MR image), or
             a single 2D tiled image (such as a slide microscopy image).
 
-            If `pixel_array` represents the segmentation of a 3D image, the
-            first dimension represents individual 2D planes and these planes
-            must be ordered based on their position in the three-dimensional
-            patient coordinate system (first along the X axis, second along the
-            Y axis, and third along the Z axis).
+            If ``pixel_array`` represents the segmentation of a 3D image, the
+            first dimension represents individual 2D planes. Unless the
+            ``plane_positions`` parameter is provided, the frame in
+            ``pixel_array[i, ...]`` should correspond to either
+            ``source_images[i]`` (if ``source_images`` is a list of single
+            frame instances) or source_images[0].pixel_array[i, ...] if
+            ``source_images`` is a single multiframe instance.
 
-            If `pixel_array` is a 3D array representing the segmentation of a
-            tiled 2D image, the first dimension represents individual 2D tiles
-            (for one channel and z-stack) and these tiles must be ordered based
-            on their position in the tiled total pixel matrix (first along the
-            row dimension and second along the column dimension, which are
-            defined in the three-dimensional slide coordinate system by the
-            direction cosines encoded by the *Image Orientation (Slide)*
-            attribute).
+            Similarly, if ``pixel_array`` is a 3D array representing the
+            segmentation of a tiled 2D image, the first dimension represents
+            individual 2D tiles (for one channel and z-stack) and these tiles
+            correspond to the frames in the source image dataset.
 
-            If `pixel_array` is an unsigned integer or boolean array with
+            If ``pixel_array`` is an unsigned integer or boolean array with
             binary data (containing only the values ``True`` and ``False`` or
             ``0`` and ``1``) or a floating-point array, it represents a single
             segment. In the case of a floating-point array, values must be in
             the range 0.0 to 1.0.
 
-            Otherwise, if `pixel_array` is a 2D or 3D array containing multiple
+            Otherwise, if ``pixel_array`` is a 2D or 3D array containing multiple
             unsigned integer values, each value is treated as a different
             segment whose segment number is that integer value. This is
             referred to as a *label map* style segmentation.  In this case, all
@@ -130,7 +128,7 @@ class Segmentation(SOPClass):
             single frame along the first dimension may be used interchangeably
             as segmentations of a single frame, regardless of their data type.
 
-            If `pixel_array` is a 4D numpy array, the first three dimensions
+            If ``pixel_array`` is a 4D numpy array, the first three dimensions
             are used in the same way as the 3D case and the fourth dimension
             represents multiple segments. In this case
             ``pixel_array[:, :, :, i]`` represents segment number ``i + 1``
@@ -478,7 +476,7 @@ class Segmentation(SOPClass):
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
         if pixel_array.ndim not in [3, 4]:
-            raise ValueError('Pixel array must be a 2D, 3D,or 4D array.')
+            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         if pixel_array.shape[1:3] != (self.Rows, self.Columns):
             raise ValueError(
@@ -619,6 +617,8 @@ class Segmentation(SOPClass):
         if omit_empty_frames:
             non_empty_frames = []
             non_empty_plane_positions = []
+
+            # This list tracks which source image each non-empty frame came from
             source_image_indices = []
             for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
                 if frm.sum() > 0:
