@@ -323,28 +323,7 @@ def decode_frame(
     ds.HighBit = bits_stored - 1
 
     if UID(file_meta.TransferSyntaxUID).is_encapsulated:
-        if (transfer_syntax_uid == JPEGBaseline and
-                photometric_interpretation == 'RGB'):
-            # RGB color images, which were not transformed into YCbCr color
-            # space upon JPEG compression, need to be handled separately.
-            # Pillow assumes that images were transformed into YCbCr color
-            # space prior to JPEG compression. However, with photometric
-            # interpretation RGB, no color transformation was performed.
-            # Setting the value of "mode" to YCbCr signals Pillow to not
-            # apply any color transformation upon decompression.
-            image = Image.open(BytesIO(value))
-            color_mode = 'YCbCr'
-            image.tile = [(
-                'jpeg',
-                image.tile[0][1],
-                image.tile[0][2],
-                (color_mode, ''),
-            )]
-            image.mode = color_mode
-            image.rawmode = color_mode
-            return np.asarray(image)
-        else:
-            ds.PixelData = encapsulate(frames=[value])
+        ds.PixelData = encapsulate(frames=[value])
     else:
         ds.PixelData = value
 
