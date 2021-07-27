@@ -161,17 +161,36 @@ class ContentItem(Dataset):
 
     @classmethod
     def _from_dataset(cls, dataset: Dataset) -> 'ContentItem':
-        required_attrs = [
-            'ValueType',
-            'ConceptNameCodeSequence',
-        ]
-        for attr in required_attrs:
-            if not hasattr(dataset, attr):
-                raise AttributeError(
-                    'Dataset is not an SR Content Item because it lacks '
-                    f'required attribute "{attr}".'
-                )
+        if not hasattr(dataset, 'ValueType'):
+            raise AttributeError(
+                'Dataset is not an SR Content Item because it lacks '
+                'required attribute "Value Type".'
+            )
+
         item = deepcopy(dataset)
+        value_types_with_optional_name = (
+            'ContainerContentItem',
+            'CompositeContentItem',
+            'ImageContentItem',
+            'ScoordContentItem',
+            'Scoord3DContentItem',
+            'TcoordContentItem',
+            'WaveformContentItem',
+        )
+        if not hasattr(dataset, 'ConceptNameCodeSequence'):
+            if cls.__name__ in value_types_with_optional_name:
+                default_name = CodedConcept(
+                    value='260753009',
+                    scheme_designator='SCT',
+                    meaning='Source',
+                )
+                item.ConceptNameCodeSequence = [default_name]
+            else:
+                raise AttributeError(
+                    'Dataset is not a SR Content Item because it lacks '
+                    'required attribute "Concept Name Content Sequence".'
+                )
+
         item.__class__ = cls
         if hasattr(dataset, 'ContentSequence'):
             item.ContentSequence = ContentSequence.from_sequence(
