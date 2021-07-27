@@ -1,7 +1,6 @@
 """DICOM structured reporting templates."""
 import logging
 import warnings
-from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset

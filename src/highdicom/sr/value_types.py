@@ -1023,10 +1023,14 @@ class NumContentItem(ContentItem):
             .MeasuredValueSequence[0]
             .MeasurementUnitsCodeSequence[0]
         )
-        unit_item = CodedConcept.from_dataset(unit_item)
+        instance.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
+            CodedConcept.from_dataset(unit_item)
+        ]
         if hasattr(instance, 'NumericValueQualifierCodeSequence'):
             qualifier_item = instance.NumericValueQualifierCodeSequence[0]
-            qualifier_item = CodedConcept.from_dataset(qualifier_item)
+            instance.NumericValueQualifierCodeSequence = [
+                CodedConcept.from_dataset(qualifier_item)
+            ]
         return instance
 
 
