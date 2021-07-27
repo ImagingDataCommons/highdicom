@@ -169,7 +169,6 @@ class ContentItem(Dataset):
 
         item = deepcopy(dataset)
         value_types_with_optional_name = (
-            'ContainerContentItem',
             'CompositeContentItem',
             'ImageContentItem',
             'ScoordContentItem',
