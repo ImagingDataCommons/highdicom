@@ -1,6 +1,7 @@
 """DICOM structured reporting templates."""
 import logging
 import warnings
+from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
@@ -984,7 +985,8 @@ class PersonObserverIdentifyingAttributes(Template):
         ]
         kwargs = {}
         for dataset in sequence:
-            content_item = ContentItem.from_dataset(dataset)
+            dataset_copy = deepcopy(dataset)
+            content_item = ContentItem._from_dataset(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1212,7 +1214,8 @@ class DeviceObserverIdentifyingAttributes(Template):
         ]
         kwargs = {}
         for dataset in sequence:
-            content_item = ContentItem.from_dataset(dataset)
+            dataset_copy = deepcopy(dataset)
+            content_item = ContentItem._from_dataset(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1358,7 +1361,8 @@ class SubjectContextFetus(Template):
         ]
         kwargs = {}
         for dataset in sequence:
-            content_item = ContentItem.from_dataset(dataset)
+            dataset_copy = deepcopy(dataset)
+            content_item = ContentItem._from_dataset(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1520,7 +1524,8 @@ class SubjectContextSpecimen(Template):
         ]
         kwargs = {}
         for dataset in sequence:
-            content_item = ContentItem.from_dataset(dataset)
+            dataset_copy = deepcopy(dataset)
+            content_item = ContentItem._from_dataset(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1730,7 +1735,8 @@ class SubjectContextDevice(Template):
         ]
         kwargs = {}
         for dataset in sequence:
-            content_item = ContentItem.from_dataset(dataset)
+            dataset_copy = deepcopy(dataset)
+            content_item = ContentItem._from_dataset(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
