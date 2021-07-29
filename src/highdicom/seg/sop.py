@@ -137,6 +137,8 @@ class Segmentation(SOPClass):
             application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
+        device_serial_number: str
+            Manufacturer's serial number of the device
         fractional_type: Union[str, highdicom.seg.SegmentationFractionalTypeValues], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
