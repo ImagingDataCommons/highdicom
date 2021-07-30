@@ -982,6 +982,11 @@ class Segmentation(SOPClass):
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         omit_empty_frames: bool = True,
     ) -> None:
+        """To ensure correctness of segmentation images, this
+        method was deprecated in highdicom 0.8.0. For more information
+        and migration instructions see :ref:`here <add-segments-deprecation>`.
+
+        """  # noqa E510
         raise AttributeError(
             'To ensure correctness of segmentation images, the add_segments '
             'method was deprecated in highdicom 0.8.0. For more information '

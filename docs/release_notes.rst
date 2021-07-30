@@ -7,6 +7,8 @@ Brief release notes may be found on `on Github
 <https://github.com/MGHComputationalPathology/highdicom/releases>`_. This page
 contains migration notes for major breaking changes to the library's API.
 
+.. _add-segments-deprecation:
+
 Deprecation of `add_segments` method
 ------------------------------------
 
@@ -15,13 +17,13 @@ Prior to highdicom 0.8.0, it was possible to add further segments to
 `add_segments` method. This was found to produce incorrect Dimension Index
 Values if the empty frames did not match within all segments added.
 
-To create the DimensionIndexValues correctly, the constructor needs access to
-all segments in the image when it is first created. In highdicom 0.8.0, the
-`add_segments` method was removed. Instead, in highdicom 0.8.0 and later,
-multiple segments can be passed to the constructor by stacking their arrays
-along the fourth dimension.
+To create the Dimension Index Values correctly, the constructor needs access to
+all segments in the image when it is first created. Therefore, the
+`add_segments` method was removed in highdicom 0.8.0. Instead, in highdicom
+0.8.0 and later, multiple segments can be passed to the constructor by stacking
+their arrays along the fourth dimension.
 
-Given code that adds segments like this:
+Given code that adds segments like this, in highdicom 0.7.0 and earlier:
 
 .. code-block:: python
 
@@ -59,7 +61,7 @@ Given code that adds segments like this:
 
 
 This can be migrated to highdicom 0.8.0 and later by concatenating the arrays
-along the fourth dimension.
+along the fourth dimension and calling the constructor at the end.
 
 .. code-block:: python
 
