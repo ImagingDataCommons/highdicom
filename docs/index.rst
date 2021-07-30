@@ -13,6 +13,7 @@ Documentation of the highdicom package
    citation
    license
    package
+   release_notes
 
 
 
