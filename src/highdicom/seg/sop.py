@@ -519,18 +519,8 @@ class Segmentation(SOPClass):
 
         # Remove empty slices
         if omit_empty_frames:
-            non_empty_frames = []
-            non_empty_plane_positions = []
-
-            # This list tracks which source image each non-empty frame came from
-            source_image_indices = []
-            for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
-                if frm.sum() > 0:
-                    non_empty_frames.append(frm)
-                    non_empty_plane_positions.append(pos)
-                    source_image_indices.append(i)
-            pixel_array = np.stack(non_empty_frames)
-            plane_positions = non_empty_plane_positions
+            pixel_array, plane_positions, source_image_indices = \
+                self._omit_empty_frames(pixel_array, plane_positions)
         else:
             source_image_indices = list(range(pixel_array.shape[0]))
 
@@ -595,18 +585,18 @@ class Segmentation(SOPClass):
                 # there may still be slices in which this specific segment is
                 # absent. Such frames should be removed
                 if omit_empty_frames and np.sum(planes[j]) == 0:
-                    #logger.info(
-                    #    'skip empty plane {} of segment #{}'.format(
-                    #        j, segment_number
-                    #    )
-                    #)
+                    logger.info(
+                        'skip empty plane {} of segment #{}'.format(
+                            j, segment_number
+                        )
+                    )
                     continue
                 contained_plane_index.append(j)
-                #logger.info(
-                #    'add plane #{} for segment #{}'.format(
-                #        j, segment_number
-                #    )
-                #)
+                logger.info(
+                    'add plane #{} for segment #{}'.format(
+                        j, segment_number
+                    )
+                )
 
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
@@ -892,6 +882,50 @@ class Segmentation(SOPClass):
             raise TypeError('Pixel array has an invalid data type.')
 
         return pixel_array, segments_overlap
+
+    @staticmethod
+    def _omit_empty_frames(
+        pixel_array: np.ndarray,
+        plane_positions: Sequence[PlanePositionSequence]
+    ) -> Tuple[np.ndarray, Sequence[PlanePositionSequence], List[int]]:
+        """Remove empty frames from the pixel array.
+
+        Empty frames (without any positive pixels) do not need to be included
+        in the segmentation image. This method removes the relevant frames
+        and updates the plane positions accordingly.
+
+        Parameters
+        ----------
+        pixel_array: np.ndarray
+            Segmentation pixel array
+        plane_positions: Sequence[PlanePositionSequence]
+            Plane positions for each of the frames
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array with empty frames removed
+        plane_positions: Sequence[PlanePositionSequence]
+            Plane positions with entries corresponding to empty frames removed.
+        source_image_indices: List[int]
+            List giving for each frame in the output pixel array the index of
+            the corresponding frame in the original pixel array
+
+        """
+        non_empty_frames = []
+        non_empty_plane_positions = []
+
+        # This list tracks which source image each non-empty frame came from
+        source_image_indices = []
+        for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
+            if frm.sum() > 0:
+                non_empty_frames.append(frm)
+                non_empty_plane_positions.append(pos)
+                source_image_indices.append(i)
+        pixel_array = np.stack(non_empty_frames)
+        plane_positions = non_empty_plane_positions
+
+        return pixel_array, plane_positions, source_image_indices
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.

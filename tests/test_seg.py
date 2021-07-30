@@ -616,7 +616,7 @@ class TestSegmentation(unittest.TestCase):
 
     @staticmethod
     def check_dimension_index_vals(seg):
-        # Function to apply some checks (necessary but not sufficient for 
+        # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
         is_patient_coord_system = hasattr(
             seg.PerFrameFunctionalGroupsSequence[0],
