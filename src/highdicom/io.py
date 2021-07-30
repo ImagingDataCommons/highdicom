@@ -251,13 +251,13 @@ class ImageFileReader(object):
     def __exit__(self, except_type, except_value, except_trace) -> None:
         self._fp.close()
         if except_value:
-            sys.stdout.write(
+            sys.stderr.write(
                 'Error while accessing file "{}":\n{}'.format(
                     self.filename, str(except_value)
                 )
             )
             for tb in traceback.format_tb(except_trace):
-                sys.stdout.write(tb)
+                sys.stderr.write(tb)
             raise
 
     def open(self) -> None:
