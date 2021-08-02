@@ -3140,7 +3140,7 @@ class MeasurementReport(Template):
         Only one of `imaging_measurements` or `derived_imaging_measurements`
         shall be specified.
 
-        """ # noqa: E501
+        """  # noqa: E501
         if title is None:
             title = codes.cid7021.ImagingMeasurementReport
         if not isinstance(title, (CodedConcept, Code, )):
