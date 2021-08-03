@@ -184,7 +184,8 @@ def _contains_volumetric_rois(group_item: Dataset) -> bool:
 def _contains_code_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    value: Optional[Union[Code, CodedConcept]] = None
+    value: Optional[Union[Code, CodedConcept]] = None,
+    relationship_type: Optional[RelationshipTypeValues] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type CODE.
 
@@ -192,10 +193,12 @@ def _contains_code_items(
     ----------
     parent_item: highdicom.sr.value_types.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    value: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+    value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
         Code value of the child SR Content Item
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
+        Relationship between child and parent SR Content Item
 
     Returns
     -------
@@ -208,7 +211,7 @@ def _contains_code_items(
         parent_item,
         name=name,
         value_type=ValueTypeValues.CODE,
-        relationship_type=RelationshipTypeValues.CONTAINS
+        relationship_type=relationship_type
     )
     for item in matched_items:
         if value is not None:
@@ -222,7 +225,8 @@ def _contains_code_items(
 def _contains_text_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    value: Optional[str] = None
+    value: Optional[str] = None,
+    relationship_type: Optional[RelationshipTypeValues] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type TEXT.
 
@@ -230,10 +234,12 @@ def _contains_text_items(
     ----------
     parent_item: highdicom.sr.value_types.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
     value: str, optional
         Text value of the child SR Content Item
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
+        Relationship between child and parent SR Content Item
 
     Returns
     -------
@@ -246,7 +252,7 @@ def _contains_text_items(
         parent_item,
         name=name,
         value_type=ValueTypeValues.TEXT,
-        relationship_type=RelationshipTypeValues.CONTAINS
+        relationship_type=relationship_type
     )
     for item in matched_items:
         if value is not None:
@@ -257,10 +263,52 @@ def _contains_text_items(
     return False
 
 
+def _contains_uidref_items(
+    parent_item: ContentItem,
+    name: Union[Code, CodedConcept],
+    value: Optional[str] = None,
+    relationship_type: Optional[RelationshipTypeValues] = None
+) -> bool:
+    """Checks whether an item contains a specific item with value type UIDREF.
+
+    Parameters
+    ----------
+    parent_item: highdicom.sr.value_types.ContentItem
+        Parent SR Content Item
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+        Name of the child SR Content Item
+    value: str, optional
+        UID value of the child SR Content Item
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
+        Relationship between child and parent SR Content Item
+
+    Returns
+    -------
+    bool
+        Whether any of the SR Content Items contained in `parent_item`
+        match the filter criteria
+
+    """  # noqa: E501
+    matched_items = find_content_items(
+        parent_item,
+        name=name,
+        value_type=ValueTypeValues.UIDREF,
+        relationship_type=relationship_type
+    )
+    for item in matched_items:
+        if value is not None:
+            if item.UID == value:
+                return True
+        else:
+            return True
+    return False
+
+
 def _contains_scoord_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues] = None
+    graphic_type: Optional[GraphicTypeValues] = None,
+    relationship_type: Optional[RelationshipTypeValues] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type SCOORD.
 
@@ -268,10 +316,12 @@ def _contains_scoord_items(
     ----------
     parent_item: highdicom.sr.value_types.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    graphic_type: highdicom.sr.enum.GraphicTypeValues, optional
+    graphic_type: highdicom.sr.GraphicTypeValues, optional
         Graphic type of the child SR Content Item
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
+        Relationship between child and parent SR Content Item
 
     Returns
     -------
@@ -284,7 +334,7 @@ def _contains_scoord_items(
         parent_item,
         name=name,
         value_type=ValueTypeValues.SCOORD,
-        relationship_type=RelationshipTypeValues.CONTAINS
+        relationship_type=relationship_type
     )
     for item in matched_items:
         if graphic_type is not None:
@@ -298,7 +348,8 @@ def _contains_scoord_items(
 def _contains_scoord3d_items(
     parent_item: ContentItem,
     name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues3D] = None
+    graphic_type: Optional[GraphicTypeValues3D] = None,
+    relationship_type: Optional[RelationshipTypeValues] = None
 ) -> bool:
     """Checks whether an item contains specific items with value type SCOORD3D.
 
@@ -306,10 +357,12 @@ def _contains_scoord3d_items(
     ----------
     parent_item: highdicom.sr.value_types.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    graphic_type: highdicom.sr.enum.GraphicTypeValues3D, optional
+    graphic_type: highdicom.sr.GraphicTypeValues3D, optional
         Graphic type of the child SR Content Item
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
+        Relationship between child and parent SR Content Item
 
     Returns
     -------
@@ -322,7 +375,7 @@ def _contains_scoord3d_items(
         parent_item,
         name=name,
         value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=RelationshipTypeValues.CONTAINS
+        relationship_type=relationship_type
     )
     for item in matched_items:
         if graphic_type is not None:
@@ -1285,7 +1338,7 @@ class ObserverContext(Template):
 
     @property
     def observer_type(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: observer type"""
+        """highdicom.sr.CodedConcept: observer type"""
         return self[0].value
 
     @property
@@ -1483,7 +1536,7 @@ class SubjectContextSpecimen(Template):
 
     @property
     def specimen_type(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: type of specimen"""
+        """Union[highdicom.sr.CodedConcept, None]: type of specimen"""
         matches = [
             item for item in self
             if item.name == codes.SCT.SpecimenType
@@ -1804,7 +1857,7 @@ class SubjectContext(Template):
 
     @property
     def subject_class(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: type of subject"""
+        """highdicom.sr.CodedConcept: type of subject"""
         return self[0].value
 
     @property
@@ -3005,7 +3058,7 @@ class ImageLibraryEntryDescriptors(Template):
         """
         Parameters
         ----------
-        modality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        modality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             Modality
         frame_of_reference_uid: str
             Frame of Reference UID
@@ -3308,7 +3361,7 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        observer_type: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        observer_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Type of observer ("Device" or "Person") for which should be filtered
 
         Returns
@@ -3356,7 +3409,7 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        subject_class: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code], optional
+        subject_class: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Type of subject ("Specimen", "Fetus", or "Device") for which should
             be filtered
 
@@ -3463,21 +3516,24 @@ class MeasurementReport(Template):
                 matches_finding = _contains_code_items(
                     group_item,
                     name=codes.DCM.Finding,
-                    value=finding_type
+                    value=finding_type,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 matches.append(matches_finding)
             if finding_site is not None:
                 matches_finding_sites = _contains_code_items(
                     group_item,
                     name=codes.SCT.FindingSite,
-                    value=finding_site
+                    value=finding_site,
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 matches.append(matches_finding_sites)
             if tracking_uid is not None:
-                matches_tracking_uid = _contains_text_items(
+                matches_tracking_uid = _contains_uidref_items(
                     group_item,
                     name=codes.DCM.TrackingUniqueIdentifier,
-                    value=tracking_uid
+                    value=tracking_uid,
+                    relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
                 )
                 matches.append(matches_tracking_uid)
             if graphic_type is not None:
@@ -3485,13 +3541,15 @@ class MeasurementReport(Template):
                     matches_graphic_type = _contains_scoord_items(
                         group_item,
                         name=codes.DCM.ImageRegion,
-                        graphic_type=graphic_type
+                        graphic_type=graphic_type,
+                        relationship_type=RelationshipTypeValues.CONTAINS
                     )
                 else:
                     matches_graphic_type = _contains_scoord3d_items(
                         group_item,
                         name=codes.DCM.ImageRegion,
-                        graphic_type=graphic_type
+                        graphic_type=graphic_type,
+                        relationship_type=RelationshipTypeValues.CONTAINS
                     )
                 matches.append(matches_graphic_type)
 
@@ -3566,33 +3624,38 @@ class MeasurementReport(Template):
                 matches_finding = _contains_code_items(
                     group_item,
                     name=codes.DCM.Finding,
-                    value=finding_type
+                    value=finding_type,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 matches.append(matches_finding)
             if finding_site is not None:
                 matches_finding_sites = _contains_code_items(
                     group_item,
                     name=codes.SCT.FindingSite,
-                    value=finding_site
+                    value=finding_site,
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 matches.append(matches_finding_sites)
             if tracking_uid is not None:
-                matches_tracking_uid = _contains_text_items(
+                matches_tracking_uid = _contains_uidref_items(
                     group_item,
                     name=codes.DCM.TrackingUniqueIdentifier,
-                    value=tracking_uid
+                    value=tracking_uid,
+                    relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
                 )
                 matches.append(matches_tracking_uid)
             if graphic_type is not None:
                 matches_graphic_type = _contains_scoord_items(
                     group_item,
                     name=codes.DCM.ImageRegion,
-                    graphic_type=graphic_type
+                    graphic_type=graphic_type,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 matches_graphic_type |= _contains_scoord3d_items(
                     group_item,
                     name=codes.DCM.VolumeSurface,
-                    graphic_type=graphic_type
+                    graphic_type=graphic_type,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 matches.append(matches_graphic_type)
 
@@ -3651,21 +3714,24 @@ class MeasurementReport(Template):
                 matches_finding = _contains_code_items(
                     group_item,
                     name=codes.DCM.Finding,
-                    value=finding_type
+                    value=finding_type,
+                    relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 matches.append(matches_finding)
             if finding_site is not None:
                 matches_finding_sites = _contains_code_items(
                     group_item,
                     name=codes.SCT.FindingSite,
-                    value=finding_site
+                    value=finding_site,
+                    relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 matches.append(matches_finding_sites)
             if tracking_uid is not None:
-                matches_tracking_uid = _contains_text_items(
+                matches_tracking_uid = _contains_uidref_items(
                     group_item,
                     name=codes.DCM.TrackingUniqueIdentifier,
-                    value=tracking_uid
+                    value=tracking_uid,
+                    relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
                 )
                 matches.append(matches_tracking_uid)
 
