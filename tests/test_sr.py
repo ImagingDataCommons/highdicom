@@ -2615,6 +2615,36 @@ class TestMeasurementReport(unittest.TestCase):
             content_item = item.ContentSequence[index]
             assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            finding_type=self._finding_type
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            finding_type=codes.SCT.Tissue
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            finding_site=self._finding_site.value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            finding_site=codes.SCT.Colon
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            tracking_uid=self._tracking_identifier[1].value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            tracking_uid=generate_uid()
+        )
+        assert len(matches) == 0
+
     def test_from_sequence(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
