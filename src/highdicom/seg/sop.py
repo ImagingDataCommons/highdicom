@@ -507,7 +507,7 @@ class Segmentation(SOPClass):
         self._check_segment_numbers(described_segment_numbers)
 
         # Checks on pixels and overlap
-        pixel_array, segments_overlap = self._check_pixel_array(
+        pixel_array, segments_overlap = self._check_and_cast_pixel_array(
             pixel_array,
             described_segment_numbers,
             segmentation_type
@@ -789,7 +789,7 @@ class Segmentation(SOPClass):
         Raises
         ------
         ValueError
-            If the described_segment_numbers do not have the required values
+            If the ``described_segment_numbers`` do not have the required values
 
         """
         # Check segment numbers in the segment descriptions are
@@ -806,7 +806,7 @@ class Segmentation(SOPClass):
             )
 
     @staticmethod
-    def _check_pixel_array(
+    def _check_and_cast_pixel_array(
         pixel_array: np.ndarray,
         described_segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues
@@ -817,19 +817,19 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        pixel_array: np.ndarray
+        pixel_array: numpy.ndarray
             The segmentation pixel array.
-        described_segment_numbers: np.ndarray
+        described_segment_numbers: numpy.ndarray
             The segment numbers from the segment descriptions, in the order
             they were passed. 1D array of integers.
-        segmentation_type: hd.seg.SegmentationTypeValues
+        segmentation_type: highdicom.seg.SegmentationTypeValues
             The segmentation_type parameter.
 
         Returns
         -------
-        pixel_array: np.ndarray
+        pixel_array: numpyp.ndarray
             Input pixel array with the data type simplified if possible.
-        segments_overlap: hd.seg.SegmentationOverlaps
+        segments_overlap: highdicom.seg.SegmentationOverlaps
             The value for the SegmentationOverlaps attribute, inferred from the
             pixel array.
 
@@ -938,16 +938,16 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        pixel_array: np.ndarray
+        pixel_array: numpy.ndarray
             Segmentation pixel array
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane positions for each of the frames
 
         Returns
         -------
-        pixel_array: np.ndarray
+        pixel_array: numpy.ndarray
             Pixel array with empty frames removed
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane positions with entries corresponding to empty frames removed.
         source_image_indices: List[int]
             List giving for each frame in the output pixel array the index of
