@@ -4,9 +4,9 @@ from io import BytesIO
 from typing import List, Optional, Sequence, Union
 
 from pydicom.datadict import tag_for_keyword
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filewriter import write_file_meta_info
-from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian
+from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian, UID
 from pydicom.valuerep import DA, TM
 
 from highdicom.coding_schemes import CodingSchemeIdentificationItem
@@ -124,12 +124,12 @@ class SOPClass(Dataset):
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
         self.preamble = b'\x00' * 128
-        self.file_meta = Dataset()
+        self.file_meta = FileMetaDataset()
         self.file_meta.DICOMPrefix = 'DICM'
         self.file_meta.FilePreamble = self.preamble
-        self.file_meta.TransferSyntaxUID = transfer_syntax_uid
-        self.file_meta.MediaStorageSOPClassUID = str(sop_class_uid)
-        self.file_meta.MediaStorageSOPInstanceUID = str(sop_instance_uid)
+        self.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
+        self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
+        self.file_meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
         self.file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.9.7433.1.1'
         self.file_meta.ImplementationVersionName = '{} v{}'.format(

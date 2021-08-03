@@ -767,17 +767,17 @@ class SpecimenDescription(Dataset):
     """Dataset describing a specimen."""
 
     def __init__(
-            self,
-            specimen_id: str,
-            specimen_uid: str,
-            specimen_location: Optional[
-                Union[str, Tuple[float, float, float]]
-            ] = None,
-            specimen_preparation_steps: Optional[
-                Sequence[SpecimenPreparationStep]
-            ] = None,
-            issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None
-        ):
+        self,
+        specimen_id: str,
+        specimen_uid: str,
+        specimen_location: Optional[
+            Union[str, Tuple[float, float, float]]
+        ] = None,
+        specimen_preparation_steps: Optional[
+            Sequence[SpecimenPreparationStep]
+        ] = None,
+        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None
+    ):
         """
         Parameters
         ----------
@@ -787,9 +787,10 @@ class SpecimenDescription(Dataset):
             Unique identifier of the examined specimen
         specimen_location: Union[str, Tuple[float, float, float]], optional
             Location of the examined specimen relative to the container
-            provided either in form of text or in form of spatial x, y, z
+            provided either in form of text or in form of spatial X, Y, Z
             coordinates specifying the position (offset) relative to the
-            three-dimensional slide coordinate system
+            three-dimensional slide coordinate system in millimeter (X, Y) and
+            micrometer (Z) unit.
         specimen_preparation_steps: Sequence[highdicom.SpecimenPreparationStep], optional
             Steps that were applied during the preparation of the examined
             specimen in the laboratory prior to image acquisition
@@ -825,10 +826,16 @@ class SpecimenDescription(Dataset):
                     codes.DCM.LocationOfSpecimenYOffset,
                     codes.DCM.LocationOfSpecimenZOffset,
                 )
+                units = (
+                    codes.UCUM.Millimeter,
+                    codes.UCUM.Millimeter,
+                    codes.UCUM.Micrometer,
+                )
                 for i, coordinate in enumerate(specimen_location):
                     loc_item = NumContentItem(
                         name=names[i],
                         value=coordinate,
+                        unit=units[i]
                     )
                     loc_seq.append(loc_item)
             self.SpecimenLocalizationContentItemSequence = loc_seq

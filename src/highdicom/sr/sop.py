@@ -186,7 +186,7 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
-        self._content = content
+        self._content = ContentSequence([content], is_root=True)
         for tag, value in content.items():
             self[tag] = value
 

@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.encaps import get_frame_offsets
-from pydicom.filebase import DicomFile
+from pydicom.filebase import DicomFile, DicomFileLike
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
@@ -35,13 +35,13 @@ _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
 
 
-def _get_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
+def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     """Tries to read the value of the Basic Offset Table (BOT) item and builds
     it in case it is empty.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
     number_of_frames: int
@@ -81,13 +81,13 @@ def _get_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
-def _read_bot(fp: DicomFile) -> List[int]:
+def _read_bot(fp: DicomFileLike) -> List[int]:
     """Reads the Basic Offset Table (BOT) item of an encapsulated Pixel Data
     element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
 
@@ -122,13 +122,13 @@ def _read_bot(fp: DicomFile) -> List[int]:
     return offsets
 
 
-def _build_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
+def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     """Builds a Basic Offset Table (BOT) item of an encapsulated Pixel Data
     element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element following the empty Basic Offset Table (BOT)
     number_of_frames: int

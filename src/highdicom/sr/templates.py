@@ -2165,12 +2165,12 @@ class Measurement(Template):
         self.append(value_item)
 
     @classmethod
-    def from_sequence(cls, sequence: ContentSequence) -> 'Measurement':
+    def from_sequence(cls, sequence: List[Dataset]) -> 'Measurement':
         """Construct object from a sequence of content items.
 
         Parameters
         ----------
-        sequence: highdicom.sr.ContentSequence
+        sequence: Sequence[pydicom.dataset.Dataset]
             Content Sequence containing one SR NUM Content Items
 
         Returns

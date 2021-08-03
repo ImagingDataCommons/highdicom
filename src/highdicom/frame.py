@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 from PIL import Image
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
@@ -308,8 +308,8 @@ def decode_frame(
     # The pydicom library does currently not support reading individual frames.
     # This hack creates a small dataset containing only a single frame, which
     # can then be decoded using the pydicom API.
-    file_meta = Dataset()
-    file_meta.TransferSyntaxUID = transfer_syntax_uid
+    file_meta = FileMetaDataset()
+    file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
     ds = Dataset()
     ds.file_meta = file_meta
     ds.Rows = rows
