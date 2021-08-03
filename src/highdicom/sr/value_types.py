@@ -1283,7 +1283,7 @@ class ContainerContentItem(ContentItem):
         template_id: str, optional
             SR template identifier
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
-            type of relationship with parent content item. 
+            type of relationship with parent content item.
 
         """  # noqa: E501
         super(ContainerContentItem, self).__init__(
