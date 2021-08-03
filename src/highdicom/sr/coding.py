@@ -64,7 +64,13 @@ class CodedConcept(Dataset):
             whether `self` and `other` are considered equal
 
         """
-        return Code.__eq__(self, other)
+        this = Code(
+            self.value,
+            self.scheme_designator,
+            self.meaning,
+            self.coding_scheme_version
+        )
+        return Code.__eq__(this, other)
 
     def __ne__(self, other: Any) -> bool:
         """Compares `self` and `other` for inequality.
@@ -149,6 +155,6 @@ class CodedConcept(Dataset):
         return self.CodingSchemeDesignator
 
     @property
-    def scheme_version(self) -> str:
+    def scheme_version(self) -> Optional[str]:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)

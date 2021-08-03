@@ -289,21 +289,6 @@ def decode_frame(
         When transfer syntax is not supported.
 
     """
-    pixel_representation = PixelRepresentationValues(
-        pixel_representation
-    ).value
-    photometric_interpretation = PhotometricInterpretationValues(
-        photometric_interpretation
-    ).value
-    if samples_per_pixel > 1:
-        if planar_configuration is None:
-            raise ValueError(
-                'Planar configuration needs to be specified for decoding of '
-                'color image frames.'
-            )
-        planar_configuration = PlanarConfigurationValues(
-            planar_configuration
-        ).value
 
     # The pydicom library does currently not support reading individual frames.
     # This hack creates a small dataset containing only a single frame, which
@@ -315,12 +300,28 @@ def decode_frame(
     ds.Rows = rows
     ds.Columns = columns
     ds.SamplesPerPixel = samples_per_pixel
-    ds.PhotometricInterpretation = photometric_interpretation
-    ds.PixelRepresentation = pixel_representation
-    ds.PlanarConfiguration = planar_configuration
     ds.BitsAllocated = bits_allocated
     ds.BitsStored = bits_stored
     ds.HighBit = bits_stored - 1
+
+    pixel_representation = PixelRepresentationValues(
+        pixel_representation
+    ).value
+    ds.PixelRepresentation = pixel_representation
+    photometric_interpretation = PhotometricInterpretationValues(
+        photometric_interpretation
+    ).value
+    ds.PhotometricInterpretation = photometric_interpretation
+    if samples_per_pixel > 1:
+        if planar_configuration is None:
+            raise ValueError(
+                'Planar configuration needs to be specified for decoding of '
+                'color image frames.'
+            )
+        planar_configuration = PlanarConfigurationValues(
+            planar_configuration
+        ).value
+        ds.PlanarConfiguration = planar_configuration
 
     if UID(file_meta.TransferSyntaxUID).is_encapsulated:
         ds.PixelData = encapsulate(frames=[value])
