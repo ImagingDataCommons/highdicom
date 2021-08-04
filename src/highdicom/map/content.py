@@ -54,7 +54,7 @@ class RealWorldValueMapping(Dataset):
         intercept: Union[int, float, None], optional
             Intercept of the linear mapping function applied to values in
             `value_range`.
-        lut_data: Union[Sequence[int], Sequence[float] None], optional
+        lut_data: Union[Sequence[int], Sequence[float], None], optional
             Sequence of values to serve as a lookup table for mapping stored
             values into real-world values in case of a non-linear relationship.
             The sequence should contain an entry for each value in the specified
