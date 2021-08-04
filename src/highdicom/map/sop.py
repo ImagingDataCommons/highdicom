@@ -440,8 +440,8 @@ class ParametricMap(SOPClass):
         if plane_orientation is None:
             plane_orientation = source_plane_orientation
 
-        shared_fg_item.PixelMeasuresSequence = pixel_measures
-        shared_fg_item.PlaneOrientationSequence = plane_orientation
+        sffg_item.PixelMeasuresSequence = pixel_measures
+        sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
         if pixel_array.dtype.kind == 'i':
@@ -470,20 +470,8 @@ class ParametricMap(SOPClass):
         frame_type_item.FrameType = self.ImageType
         sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
 
-        # Real World Value Mapping Sequence
-        # If the input was a single RWVM or a sequence of size 1 then we will
-        # assign it to the Shared FG Seq. Otherwise it will be per-frame and
-        # will be checked later on
-        if len(real_world_value_mappings) == 1:
-            sffg_item.RealWorldValueMappingSequence = real_world_value_mappings  # noqa: E501
-            # Set to None so that when it is passed to the add_values method
-            # we can tell that it has already been assigned
-            rwvm_seq = None
-        else:
-            # Otherwise just pass the sequence to add_values
-            rwvm_seq = real_world_value_mappings
-
-        self.SharedFunctionalGroupsSequence = [shared_fg_item]
+        # TODO: put Real World Value Mapping Sequence into shared
+        self.SharedFunctionalGroupsSequence = [sffg_item]
 
         # Get the correct attribute for this Instance's pixel data
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
@@ -494,10 +482,15 @@ class ParametricMap(SOPClass):
             self.BitsAllocated = 16
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
+            self.PixelRepresentation = 0
         elif pixel_data_type == _PixelDataType.SINGLE:
             self.BitsAllocated = 32
+            # FIXME: needs to be fixed in pydicom
+            self.PixelRepresentation = 0
         elif pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
+            # FIXME: needs to be fixed in pydicom
+            self.PixelRepresentation = 0
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
@@ -583,49 +576,120 @@ class ParametricMap(SOPClass):
                 per_frame_functional_groups.append(pffg_item)
 
                 plane = pixel_array[i, :, :, j]
-                frames.append(self._encode_pixels(plane))
+                frames.append(self._encode_frame(plane))
 
         return (frames, per_frame_functional_groups)
+
+    def _get_pixel_data_type_and_attr(
+        self,
+        pixel_array: np.ndarray
+    ) -> Tuple[_PixelDataType, str]:
+        """Get the data type and name of pixel data attribute.
+
+        Parameters
+        ----------
+        pixel_array : np.ndarray
+            The array to check
+
+        Returns
+        -------
+        Tuple[highdicom.map.sop._PixelDataType, str]
+            A tuple where the first element is the enum value and the second
+            value is the DICOM pixel data attribute for the given datatype.
+            One of (``"PixelData"``, ``"FloatPixelData"``,
+            ``"DoubleFloatPixelData"``)
+
+        Raises
+        ------
+        ValueError
+            If values in the input array don't have a supported unsigned
+            integer or floating-point type.
+
+        """
+        if pixel_array.dtype.kind == 'f':
+            # Further check for float32 vs float64
+            if pixel_array.dtype.name == 'float32':
+                return (
+                    _PixelDataType.SINGLE,
+                    self._pixel_data_type_map[_PixelDataType.SINGLE],
+                )
+            elif pixel_array.dtype.name == 'float64':
+                return (
+                    _PixelDataType.DOUBLE,
+                    self._pixel_data_type_map[_PixelDataType.DOUBLE],
+                )
+            else:
+                raise ValueError(
+                    'Unsupported floating-point type for pixel data: '
+                    '32-bit (single-precision) or 64-bit (double-precision) '
+                    'floating-point types are supported.'
+                )
+        elif pixel_array.dtype.kind == 'u':
+            if pixel_array.dtype not in (np.uint8, np.uint16):
+                raise ValueError(
+                    'Unsupported unsigned integer type for pixel data: '
+                    '16-bit unsigned integer types are supported.'
+                )
+            return (
+                _PixelDataType.USHORT,
+                self._pixel_data_type_map[_PixelDataType.USHORT],
+            )
+        elif pixel_array.dtype.kind == "i":
+            if pixel_array.dtype not in (np.int8, np.int16):
+                raise ValueError(
+                    'Unsupported signed integer type for pixel data: '
+                    '8-bit or 16-bit signed integer types are supported.'
+                )
+            return (
+                _PixelDataType.SHORT,
+                self._pixel_data_type_map[_PixelDataType.SHORT],
+            )
+        raise ValueError(
+            'Unsupported data type for pixel data.'
+            'Supported are 8-bit or 16-bit signed and unsigned integer types '
+            'as well as 32-bit (single-precision) or 64-bit (double-precision) '
+            'floating-point types.'
+        )
+
+    def _encode_frame(self, pixel_array: np.ndarray) -> bytes:
+        """Encode a given pixel array.
+
+        Parameters
+        ----------
+        pixel_array: np.ndarray
+            The pixel array to encode
+
+        Returns
+        -------
+        bytes
+            Encoded frame
+
+        Raises
+        ------
+        ValueError
+            If the `pixel_array` is not exactly two-dimensional.
+
+        """
+        if pixel_array.ndim != 2:
+            raise ValueError(
+                'Only single frame can be encoded at at time '
+                'in case of encapsulated format encoding.'
+            )
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             # Check that only a single plane was passed
             return encode_frame(
-                plane.astype(np.uint16),
+                pixel_array.astype(np.uint16),
                 transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
                 bits_allocated=self.BitsAllocated,
                 bits_stored=self.BitsStored,
                 photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation,
+                pixel_representation=self.PixelRepresentation
             )
         else:
-            if plane.dtype == np.uint8:
-                return plane.astype(np.uint16).flatten().tobytes()
-            elif plane.dtype.kind == 'i':
-                plane = plane.astype(np.int16) + 2 ** 16 / 2
-                return plane.astype(np.uint16).flatten().tobytes()
+            if pixel_array.dtype == np.uint8:
+                return pixel_array.astype(np.uint16).flatten().tobytes()
+            elif pixel_array.dtype.kind == 'i':
+                pixel_array = pixel_array.astype(np.int16) + 2 ** 16 / 2
+                return pixel_array.astype(np.uint16).flatten().tobytes()
             else:
-                return plane.flatten().tobytes()
-
-    @property
-    def pixel_array(self) -> np.ndarray:
-        """This is a workaround for a bug in Pydicom.
-
-        In PyDicom you are required to set PixelRepresentation in order to
-        use the numpy pixel_data handler, however this goes against the DICOM
-        standard. To get around this issue we set the Pixel Representation
-        attribute if it is not set, then get the array, then remove the
-        attribute.
-
-        Returns
-        -------
-        numpy.ndarray
-            The pixel data encoded as a `numpy.ndarray`.
-        """
-        workaround = False
-        if not hasattr(self, 'PixelRepresentation'):
-            workaround = True
-        if workaround:
-            self.PixelRepresentation = 1
-        _pixel_array = super().pixel_array
-        if workaround:
-            del self.PixelRepresentation
-        return _pixel_array
+                return pixel_array.flatten().tobytes()
