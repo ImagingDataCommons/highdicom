@@ -365,14 +365,36 @@ class ParametricMap(SOPClass):
         # is stored in the Shared Functional Groups Sequence. Otherwise, it
         # is stored for each frame separately in the Per Frame Functional
         # Groups Sequence.
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
+        if pixel_array.ndim in (2, 3):
+            error_message = (
+                'In case argument "pixel_array" is a 2D or 3D array, argument '
+                '"real_world_value_mappings" must be a flat sequence '
+                'of one or more RealWorldValueMapping items.'
+            )
             sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
-        elif pixel_array.ndim == 3:
-            pixel_array = pixel_array[..., np.newaxis]
-            sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
-
-        if pixel_array.ndim != 4:
+            try:
+                item = real_world_value_mappings[0]
+            except IndexError:
+                raise TypeError(error_message)
+            if not isinstance(item, RealWorldValueMapping):
+                raise TypeError(error_message)
+            if pixel_array.ndim == 2:
+                pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
+            elif pixel_array.ndim == 3:
+                pixel_array = pixel_array[..., np.newaxis]
+        elif pixel_array.ndim == 4:
+            error_message = (
+                'In case argument "pixel_array" is a 4D array, argument '
+                '"real_world_value_mappings" must be a nested sequence '
+                'of one or more RealWorldValueMapping items.'
+            )
+            try:
+                item = real_world_value_mappings[0][0]
+            except IndexError:
+                raise TypeError(error_message)
+            if not isinstance(item, RealWorldValueMapping):
+                raise TypeError(error_message)
+        else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         # Image Pixel
