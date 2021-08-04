@@ -349,7 +349,8 @@ class ParametricMap(SOPClass):
         self.ContentCreatorName = content_creator_name
         self.PresentationLUTShape = 'IDENTITY'
 
-        # Physical dimensions of the image should match those of the source
+        # TODO: check that physical dimensions of the image match those of the
+        # source image
 
         self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
         dimension_organization = Dataset()
@@ -358,12 +359,18 @@ class ParametricMap(SOPClass):
         )
         self.DimensionOrganizationSequence = [dimension_organization]
 
+        sffg_item = Dataset()
+
+        # If the same set of mappings applies to all frames, the information
+        # is stored in the Shared Functional Groups Sequence. Otherwise, it
+        # is stored for each frame separately in the Per Frame Functional
+        # Groups Sequence.
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
-            real_world_value_mappings = [real_world_value_mappings]
+            sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
         elif pixel_array.ndim == 3:
             pixel_array = pixel_array[..., np.newaxis]
-            real_world_value_mappings = [real_world_value_mappings]
+            sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
 
         if pixel_array.ndim != 4:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
@@ -406,7 +413,6 @@ class ParametricMap(SOPClass):
                 )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        sffg_item = Dataset()
         if pixel_measures is None:
             if is_multiframe:
                 src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
@@ -550,6 +556,7 @@ class ParametricMap(SOPClass):
         )
         per_frame_functional_groups = []
         frames = []
+        has_multiple_mappings = pixel_array.shape[3] > 1
         for i in range(pixel_array.shape[0]):
             for j in range(pixel_array.shape[3]):
                 pffg_item = Dataset()
@@ -570,8 +577,12 @@ class ParametricMap(SOPClass):
                 pffg_item.FrameContentSequence = [frame_content_item]
 
                 # Real World Value Mapping
-                pffg_item.RealWorldValueMappingSequence = \
-                    real_world_value_mappings[j]
+                if has_multiple_mappings:
+                    # Only if there are multiple sets of mappings. Otherwise,
+                    # the information will be stored in the Shared Functional
+                    # Groups Sequence.
+                    pffg_item.RealWorldValueMappingSequence = \
+                        real_world_value_mappings[j]
 
                 per_frame_functional_groups.append(pffg_item)
 
