@@ -127,18 +127,18 @@ class ParametricMap(SOPClass):
             Window center for rescaling stored values for display purposes by
             applying a linear transformation function. For example, in case of
             floating-point values in the range ``[0.0, 1.0]``, the window
-            center would be ``0.5``, in case of floating-point values in the
-            range ``[-1.0, 1.0]`` the window center would be ``0.0``, in case
+            center may be ``0.5``, in case of floating-point values in the
+            range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
             of unsigned integer values in the range ``[0, 255]`` the window
-            center would be ``128``.
+            center may be ``128``.
         window_width: Union[int, float, None], optional
             Window width for rescaling stored values for display purposes by
             applying a linear transformation function. For example, in case of
             floating-point values in the range ``[0.0, 1.0]``, the window
-            width would be ``1.0``, in case of floating-point values in the
-            range ``[-1.0, 1.0]`` the window width would be ``2.0``, and in
+            width may be ``1.0``, in case of floating-point values in the
+            range ``[-1.0, 1.0]`` the window width may be ``2.0``, and in
             case of unsigned integer values in the range ``[0, 255]`` the
-            window width would be ``256``. In case of unbounded floating-point
+            window width may be ``256``. In case of unbounded floating-point
             values, a sensible window width should be chosen to allow for
             stored values to be displayed on 8-bit monitors.
         transfer_syntax_uid: Union[str, None], optional
