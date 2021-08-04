@@ -90,7 +90,8 @@ class ParametricMap(SOPClass):
               mappings for multiple 2D frames at different spatial image
               positions and the array shall have shape ``(n, r, c, m)``, where
               ``n`` is the number of frames, ``r`` is the number of rows per
-              frame, and ``c`` is the number of columns per frame.
+              frame, ``c`` is the number of columns per frame, and ``m`` is
+              the number of mappings per-frame.
 
         series_instance_uid: str
             UID of the series
