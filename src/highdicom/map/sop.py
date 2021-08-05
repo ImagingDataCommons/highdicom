@@ -514,12 +514,8 @@ class ParametricMap(SOPClass):
             self.PixelRepresentation = 0
         elif pixel_data_type == _PixelDataType.SINGLE:
             self.BitsAllocated = 32
-            # FIXME: needs to be fixed in pydicom
-            self.PixelRepresentation = 0
         elif pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
-            # FIXME: needs to be fixed in pydicom
-            self.PixelRepresentation = 0
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
