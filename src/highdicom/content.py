@@ -1,5 +1,6 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
@@ -7,6 +8,7 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
+from pydicom.valuerep import DS
 
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -20,6 +22,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom._module_utils import check_required_attributes
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
@@ -47,11 +50,11 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             Version of the algorithm
         source: str, optional
             Source of the algorithm, e.g. name of the algorithm manufacturer
-        parameters: Dict[str: str], optional
+        parameters: Dict[str, str], optional
             Name and actual value of the parameters with which the algorithm
             was invoked
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         item = Dataset()
         item.AlgorithmName = name
@@ -72,6 +75,86 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 for key, value in parameters.items()
             ])
         self.append(item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'AlgorithmIdentificationSequence':
+        """Construct instance from an existing data element sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Data element sequence representing the
+            AlgorithmIdentificationSequence Sequence.
+
+        Returns
+        -------
+        highdicom.seg.content.AlgorithmIdentificationSequence
+            Algorithm identification sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence should be of type pydicom.sequence.Sequence.'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence should contain a single item.')
+        check_required_attributes(
+            sequence[0],
+            module='segmentation-image',
+            base_path=[
+                'SegmentSequence',
+                'SegmentationAlgorithmIdentificationSequence'
+            ]
+        )
+        algo_id_sequence = deepcopy(sequence)
+        algo_id_sequence.__class__ = cls
+        return algo_id_sequence
+
+    @property
+    def name(self) -> str:
+        """str: Name of the algorithm."""
+        return self[0].AlgorithmName
+
+    @property
+    def family(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: Kind of the algorithm family."""
+        return CodedConcept.from_dataset(
+            self[0].AlgorithmFamilyCodeSequence[0]
+        )
+
+    @property
+    def version(self) -> str:
+        """str: Version of the algorithm."""
+        return self[0].AlgorithmVersion
+
+    @property
+    def source(self) -> Optional[str]:
+        """Union[str, None]:
+               Source of the algorithm, e.g. name of the algorithm
+               manufacturer, if any
+
+        """
+        return getattr(self[0], 'AlgorithmSource', None)
+
+    @property
+    def parameters(self) -> Optional[Dict[str, str]]:
+        """Union[Dict[str, str], None]:
+               Dictionary mapping algorithm parameter names to values,
+               if any
+
+        """
+        if not hasattr(self[0], 'AlgorithmParameters'):
+            return None
+        parameters = {}
+        for param in self[0].AlgorithmParameters.split(','):
+            split = param.split('=')
+            if len(split) != 2:
+                raise ValueError('Malformed parameter string')
+            parameters[split[0]] = split[1]
+        return parameters
 
 
 class PixelMeasuresSequence(DataElementSequence):
@@ -103,11 +186,56 @@ class PixelMeasuresSequence(DataElementSequence):
         """
         super().__init__()
         item = Dataset()
-        item.PixelSpacing = list(pixel_spacing)
+        item.PixelSpacing = [DS(ps, auto_format=True) for ps in pixel_spacing]
         item.SliceThickness = slice_thickness
         if spacing_between_slices is not None:
             item.SpacingBetweenSlices = spacing_between_slices
         self.append(item)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PixelMeasuresSequence':
+        """Create a PixelMeasuresSequence from an existing Sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PixelMeasuresSequence
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            pixel measures sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        req_kws = ['SliceThickness', 'PixelSpacing']
+        if not all(hasattr(sequence[0], kw) for kw in req_kws):
+            raise AttributeError(
+                'Sequence does not have the required attributes for '
+                'a Pixel Measures Sequence.'
+            )
+
+        pixel_measures = deepcopy(sequence)
+        pixel_measures.__class__ = cls
+        return pixel_measures
 
 
 class PlanePositionSequence(DataElementSequence):
@@ -147,9 +275,6 @@ class PlanePositionSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
 
-        def ds(num: float) -> float:
-            return float(str(num)[:16])
-
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
@@ -159,13 +284,15 @@ class PlanePositionSequence(DataElementSequence):
                 )
             col_position, row_position = pixel_matrix_position
             x, y, z = image_position
-            item.XOffsetInSlideCoordinateSystem = ds(x)
-            item.YOffsetInSlideCoordinateSystem = ds(y)
-            item.ZOffsetInSlideCoordinateSystem = ds(z)
+            item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
+            item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
+            item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImagePositionPatient = list(image_position)
+            item.ImagePositionPatient = [
+                DS(ip, auto_format=True) for ip in image_position
+            ]
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
@@ -214,6 +341,56 @@ class PlanePositionSequence(DataElementSequence):
                 ]),
             )
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlanePositionSequence':
+        """Create a PlanePositionSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PlanePositionSequence:
+            Plane position sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane position sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImagePositionPatient'):
+            check_required_attributes(
+                dataset=sequence[0],
+                module='segmentation-multi-frame-functional-groups',
+                base_path=[
+                    'PerFrameFunctionalGroupsSequence',
+                    'PlanePositionSlideSequence'
+                ]
+            )
+
+        plane_position = deepcopy(sequence)
+        plane_position.__class__ = cls
+        return plane_position
+
 
 class PlaneOrientationSequence(DataElementSequence):
 
@@ -241,10 +418,13 @@ class PlaneOrientationSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         coordinate_system = CoordinateSystemNames(coordinate_system)
+        image_orientation_ds = [
+            DS(io, auto_format=True) for io in image_orientation
+        ]
         if coordinate_system == CoordinateSystemNames.SLIDE:
-            item.ImageOrientationSlide = list(image_orientation)
+            item.ImageOrientationSlide = image_orientation_ds
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImageOrientationPatient = list(image_orientation)
+            item.ImageOrientationPatient = image_orientation_ds
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
@@ -293,6 +473,53 @@ class PlaneOrientationSequence(DataElementSequence):
         else:
             return False
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'PlaneOrientationSequence':
+        """Create a PlaneOrientationSequence from an existing Sequence.
+
+        The coordinate system is inferred from the attributes in the sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Sequence to be converted.
+
+        Returns
+        -------
+        highdicom.PlaneOrientationSequence:
+            Plane orientation sequence.
+
+        Raises
+        ------
+        TypeError:
+            If sequence is not of the correct type.
+        ValueError:
+            If sequence does not contain exactly one item.
+        AttributeError:
+            If sequence does not contain the attributes required for a
+            plane orientation sequence.
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence must be of type pydicom.sequence.Sequence'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence must contain a single item.')
+        if not hasattr(sequence[0], 'ImageOrientationPatient'):
+            if not hasattr(sequence[0], 'ImageOrientationSlide'):
+                raise AttributeError(
+                    'The sequence does not contain required attributes for '
+                    'either the PATIENT or SLIDE coordinate system.'
+                )
+
+        plane_orientation = deepcopy(sequence)
+        plane_orientation.__class__ = cls
+        return plane_orientation
+
 
 class IssuerOfIdentifier(Dataset):
 
@@ -314,7 +541,7 @@ class IssuerOfIdentifier(Dataset):
             Type of identifier of the entity that created the examined specimen
             (required if `issuer_of_specimen_id` is a Unique Entity ID)
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if issuer_of_identifier_type is None:
             self.LocalNamespaceEntityID = issuer_of_identifier
@@ -342,7 +569,7 @@ class SpecimenCollection(ContentSequence):
         procedure: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Procedure used to collect the examined specimen
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         item = CodeContentItem(
             name=codes.SCT.SpecimenCollection,
@@ -355,9 +582,9 @@ class SpecimenSampling(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
     sampling procedure according to structured reporting template
-    `TID 8002 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8002>`_
+    :dcm:`TID 8002 <part16/chapter_C.html#sect_TID_8002>`
     Specimen Sampling.
-    """  # noqa E501
+    """
 
     def __init__(
             self,
@@ -378,7 +605,7 @@ class SpecimenSampling(ContentSequence):
         issuer_of_parent_specimen_id: highdicom.IssuerOfIdentifier, optional
             Issuer who created the parent specimen
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         # CID 8110
         method_item = CodeContentItem(
@@ -413,9 +640,9 @@ class SpecimenStaining(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
     staining procedure according to structured reporting template
-    `TID 8003 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8003>`_
+    :dcm:`TID 8003 <part16/chapter_C.html#sect_TID_8003>`
     Specimen Staining.
-    """  # noqa E501
+    """
 
     def __init__(
             self,
@@ -427,7 +654,7 @@ class SpecimenStaining(ContentSequence):
         substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
             Substances used to stain examined specimen(s)
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         # CID 8112
         for s in substances:
@@ -442,9 +669,9 @@ class SpecimenPreparationStep(ContentSequence):
 
     """Dataset describing a specimen preparation step according to
     structured reporting template
-    `TID 8001 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_C.html#sect_TID_8001>`_
+    :dcm:`TID 8001 <part16/chapter_C.html#sect_TID_8001>`
     Specimen Preparation.
-    """  # noqa E501
+    """
 
     def __init__(
             self,
@@ -482,7 +709,7 @@ class SpecimenPreparationStep(ContentSequence):
         embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Embedding medium used during processing
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         specimen_identifier_item = TextContentItem(
             name=codes.DCM.SpecimenIdentifier,
@@ -544,17 +771,17 @@ class SpecimenDescription(Dataset):
     """Dataset describing a specimen."""
 
     def __init__(
-            self,
-            specimen_id: str,
-            specimen_uid: str,
-            specimen_location: Optional[
-                Union[str, Tuple[float, float, float]]
-            ] = None,
-            specimen_preparation_steps: Optional[
-                Sequence[SpecimenPreparationStep]
-            ] = None,
-            issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None
-        ):
+        self,
+        specimen_id: str,
+        specimen_uid: str,
+        specimen_location: Optional[
+            Union[str, Tuple[float, float, float]]
+        ] = None,
+        specimen_preparation_steps: Optional[
+            Sequence[SpecimenPreparationStep]
+        ] = None,
+        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None
+    ):
         """
         Parameters
         ----------
@@ -564,16 +791,17 @@ class SpecimenDescription(Dataset):
             Unique identifier of the examined specimen
         specimen_location: Union[str, Tuple[float, float, float]], optional
             Location of the examined specimen relative to the container
-            provided either in form of text or in form of spatial x, y, z
+            provided either in form of text or in form of spatial X, Y, Z
             coordinates specifying the position (offset) relative to the
-            three-dimensional slide coordinate system
+            three-dimensional slide coordinate system in millimeter (X, Y) and
+            micrometer (Z) unit.
         specimen_preparation_steps: Sequence[highdicom.SpecimenPreparationStep], optional
             Steps that were applied during the preparation of the examined
             specimen in the laboratory prior to image acquisition
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
             Description of the issuer of the specimen identifier
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         self.SpecimenIdentifier = specimen_id
         self.SpecimenUID = specimen_uid
@@ -602,10 +830,16 @@ class SpecimenDescription(Dataset):
                     codes.DCM.LocationOfSpecimenYOffset,
                     codes.DCM.LocationOfSpecimenZOffset,
                 )
+                units = (
+                    codes.UCUM.Millimeter,
+                    codes.UCUM.Millimeter,
+                    codes.UCUM.Micrometer,
+                )
                 for i, coordinate in enumerate(specimen_location):
                     loc_item = NumContentItem(
                         name=names[i],
                         value=coordinate,
+                        unit=units[i]
                     )
                     loc_seq.append(loc_item)
             self.SpecimenLocalizationContentItemSequence = loc_seq

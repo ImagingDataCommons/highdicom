@@ -1,4 +1,5 @@
 """Data Elements that are specific to the Segmentation IOD."""
+from copy import deepcopy
 from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -14,7 +15,9 @@ from highdicom.content import (
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
+from highdicom._module_utils import check_required_attributes
 
 
 class SegmentDescription(Dataset):
@@ -50,12 +53,12 @@ class SegmentDescription(Dataset):
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
-            (see `CID 7150 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7150.html>`_
+            (see :dcm:`CID 7150 <part16/sect_CID_7150.html>`
             "Segmentation Property Categories")
         segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see `CID 7151 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7151.html>`_
+            (see :dcm:`CID 7151 <part16/sect_CID_7151.html>`
             "Segmentation Property Types")
         algorithm_type: Union[str, highdicom.seg.SegmentAlgorithmTypeValues]
             Type of algorithm
@@ -69,8 +72,8 @@ class SegmentDescription(Dataset):
         anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
-            (see `CID 4 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4.html>`_
-            "Anatomic Region", `CID 4031 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_4031.html>`_ "Common Anatomic Regions", as
+            (see :dcm:`CID 4 <part16/sect_CID_4.html>`
+            "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>` "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
         primary_anatomic_structures: Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], optional
             Anatomic structure(s) the segment represents
@@ -82,7 +85,7 @@ class SegmentDescription(Dataset):
         must have consecutive segment numbers, starting at 1 for the first
         segment added.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if segment_number < 1:
             raise ValueError("Segment number must be a positive integer")
@@ -152,6 +155,146 @@ class SegmentDescription(Dataset):
                 for structure in primary_anatomic_structures
             ]
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SegmentDescription':
+        """Construct instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an item of the Segment Sequence.
+
+        Returns
+        -------
+        highdicom.seg.SegmentDescription
+            Segment description.
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
+        check_required_attributes(
+            dataset,
+            module='segmentation-image',
+            base_path=['SegmentSequence']
+        )
+        desc = deepcopy(dataset)
+        desc.__class__ = cls
+
+        # Convert sub sequences to highdicom types
+        desc.SegmentedPropertyCategoryCodeSequence = [
+            CodedConcept.from_dataset(
+                desc.SegmentedPropertyCategoryCodeSequence[0]
+            )
+        ]
+        desc.SegmentedPropertyTypeCodeSequence = [
+            CodedConcept.from_dataset(
+                desc.SegmentedPropertyTypeCodeSequence[0]
+            )
+        ]
+        if hasattr(desc, 'SegmentationAlgorithmIdentificationSequence'):
+            desc.SegmentationAlgorithmIdentificationSequence = \
+                AlgorithmIdentificationSequence.from_sequence(
+                    desc.SegmentationAlgorithmIdentificationSequence
+                )
+        if hasattr(desc, 'AnatomicRegionSequence'):
+            desc.AnatomicRegionSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.AnatomicRegionSequence
+            ]
+        if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
+            desc.PrimaryAnatomicStructureSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.PrimaryAnatomicStructureSequence
+            ]
+        return desc
+
+    @property
+    def segment_number(self) -> int:
+        """int: Number of the segment."""
+        return int(self.SegmentNumber)
+
+    @property
+    def segment_label(self) -> str:
+        """str: Label of the segment."""
+        return str(self.SegmentLabel)
+
+    @property
+    def segmented_property_category(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept:
+            Category of the property the segment represents.
+
+        """
+        return self.SegmentedPropertyCategoryCodeSequence[0]
+
+    @property
+    def segmented_property_type(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept:
+            Type of the property the segment represents.
+
+        """
+        return self.SegmentedPropertyTypeCodeSequence[0]
+
+    @property
+    def algorithm_type(self) -> SegmentAlgorithmTypeValues:
+        """highdicom.seg.SegmentAlgorithmTypeValues:
+            Type of algorithm used to create the segment.
+
+        """
+        return SegmentAlgorithmTypeValues(self.SegmentAlgorithmType)
+
+    @property
+    def algorithm_identification(
+        self
+    ) -> Union[AlgorithmIdentificationSequence, None]:
+        """Union[highdicom.AlgorithmIdentificationSequence, None]
+            Information useful for identification of the algorithm, if any.
+
+        """
+        if hasattr(self, 'SegmentationAlgorithmIdentificationSequence'):
+            return self.SegmentationAlgorithmIdentificationSequence
+        return None
+
+    @property
+    def tracking_uid(self) -> Union[str, None]:
+        """Union[str, None]:
+            Tracking unique identifier for the segment, if any.
+
+        """
+        if 'TrackingUID' in self:
+            return self.TrackingUID
+        return None
+
+    @property
+    def tracking_id(self) -> Union[str, None]:
+        """Union[str, None]: Tracking identifier for the segment, if any."""
+        if 'TrackingID' in self:
+            return self.TrackingID
+        return None
+
+    @property
+    def anatomic_regions(self) -> List[CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
+            List of anatomic regions into which the segment falls.
+            May be empty.
+
+        """
+        if not hasattr(self, 'AnatomicRegionSequence'):
+            return []
+        return list(self.AnatomicRegionSequence)
+
+    @property
+    def primary_anatomic_structures(self) -> List[CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
+            List of anatomic anatomic structures the segment represents.
+            May be empty.
+
+        """
+        if not hasattr(self, 'PrimaryAnatomicStructureSequence'):
+            return []
+        return list(self.PrimaryAnatomicStructureSequence)
+
 
 class DimensionIndexSequence(DataElementSequence):
 
@@ -180,7 +323,7 @@ class DimensionIndexSequence(DataElementSequence):
         super().__init__()
         self._coordinate_system = CoordinateSystemNames(coordinate_system)
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.4'
+            dim_uid = UID()
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
@@ -261,7 +404,7 @@ class DimensionIndexSequence(DataElementSequence):
             ])
 
         elif self._coordinate_system == CoordinateSystemNames.PATIENT:
-            dim_uid = '1.2.826.0.1.3680043.9.7433.2.3'
+            dim_uid = UID()
 
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
@@ -291,7 +434,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         else:
             raise ValueError(
-                f'Unknown coordinate system "{self._coordinat_system}"'
+                f'Unknown coordinate system "{self._coordinate_system}"'
             )
 
     def get_plane_positions_of_image(

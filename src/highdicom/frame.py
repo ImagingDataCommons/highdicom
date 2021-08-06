@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 from PIL import Image
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
@@ -308,8 +308,8 @@ def decode_frame(
     # The pydicom library does currently not support reading individual frames.
     # This hack creates a small dataset containing only a single frame, which
     # can then be decoded using the pydicom API.
-    file_meta = Dataset()
-    file_meta.TransferSyntaxUID = transfer_syntax_uid
+    file_meta = FileMetaDataset()
+    file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
     ds = Dataset()
     ds.file_meta = file_meta
     ds.Rows = rows
@@ -323,28 +323,7 @@ def decode_frame(
     ds.HighBit = bits_stored - 1
 
     if UID(file_meta.TransferSyntaxUID).is_encapsulated:
-        if (transfer_syntax_uid == JPEGBaseline and
-                photometric_interpretation == 'RGB'):
-            # RGB color images, which were not transformed into YCbCr color
-            # space upon JPEG compression, need to be handled separately.
-            # Pillow assumes that images were transformed into YCbCr color
-            # space prior to JPEG compression. However, with photometric
-            # interpretation RGB, no color transformation was performed.
-            # Setting the value of "mode" to YCbCr signals Pillow to not
-            # apply any color transformation upon decompression.
-            image = Image.open(BytesIO(value))
-            color_mode = 'YCbCr'
-            image.tile = [(
-                'jpeg',
-                image.tile[0][1],
-                image.tile[0][2],
-                (color_mode, ''),
-            )]
-            image.mode = color_mode
-            image.rawmode = color_mode
-            return np.asarray(image)
-        else:
-            ds.PixelData = encapsulate(frames=[value])
+        ds.PixelData = encapsulate(frames=[value])
     else:
         ds.PixelData = value
 

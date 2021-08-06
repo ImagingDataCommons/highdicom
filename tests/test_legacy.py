@@ -1,6 +1,6 @@
 import unittest
-from pydicom import FileDataset, Dataset
-from pydicom.uid import generate_uid
+from pydicom.dataset import FileDataset, FileMetaDataset
+from pydicom.uid import generate_uid, UID
 from highdicom.legacy import sop
 from datetime import datetime, timedelta
 import enum
@@ -214,15 +214,15 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
         bytes_per_voxel = 2
 
         for i in range(0, slice_count):
-            file_meta = Dataset()
+            file_meta = FileMetaDataset()
             pixel_array = b"\0" * cols * rows * bytes_per_voxel
-            file_meta.MediaStorageSOPClassUID = sop_classes[system][1]
+            file_meta.MediaStorageSOPClassUID = UID(sop_classes[system][1])
             file_meta.MediaStorageSOPInstanceUID = generate_uid()
             file_meta.ImplementationClassUID = generate_uid()
 
             tmp_dataset = FileDataset('', {}, file_meta=file_meta,
                                       preamble=pixel_array)
-            tmp_dataset.file_meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
+            tmp_dataset.file_meta.TransferSyntaxUID = UID("1.2.840.10008.1.2.1")
             tmp_dataset.SliceLocation = slice_pos + i * slice_thickness
             tmp_dataset.SliceThickness = slice_thickness
             tmp_dataset.WindowCenter = 1
