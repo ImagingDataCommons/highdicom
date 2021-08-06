@@ -236,7 +236,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                                                 tmp_dataset.SliceLocation]
             tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
             tmp_dataset.PixelSpacing = [1, 1]
-            tmp_dataset.PatientName = 'John Doe'
+            tmp_dataset.PatientName = 'Doe^John'
             tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
             tmp_dataset.SOPClassUID = sop_classes[system][1]
             tmp_dataset.SOPInstanceUID = generate_uid()
@@ -255,7 +255,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.AdditionalPatientHistory = 'UTERINE CA PRE-OP EVAL'
             tmp_dataset.ContentDate = date_
             tmp_dataset.ContentTime = datetime.now().time()
-            tmp_dataset.Manufacturer = 'Mnufacturer'
+            tmp_dataset.Manufacturer = 'Manufacturer'
             tmp_dataset.ManufacturerModelName = 'Model'
             tmp_dataset.Modality = sop_classes[system][0]
             tmp_dataset.PatientAge = '064Y'

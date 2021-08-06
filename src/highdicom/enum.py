@@ -29,6 +29,15 @@ class DimensionOrganizationTypeValues(Enum):
     TILED_SPARSE = 'TILED_SPARSE'
 
 
+class PatientSexValues(Enum):
+
+    """Enumerated values for Patient's Sex attribute."""
+
+    MALE = 'M'
+    FEMALE = 'F'
+    OTHER = 'O'
+
+
 class PhotometricInterpretationValues(Enum):
 
     """Enumerated values for Photometric Interpretation attribute."""

@@ -62,20 +62,20 @@ class SegmentDescription(Dataset):
             "Segmentation Property Types")
         algorithm_type: Union[str, highdicom.seg.SegmentAlgorithmTypeValues]
             Type of algorithm
-        algorithm_identification: highdicom.AlgorithmIdentificationSequence, optional
+        algorithm_identification: Union[highdicom.AlgorithmIdentificationSequence, None], optional
             Information useful for identification of the algorithm, such
             as its name or version. Required unless the algorithm type is `MANUAL`
-        tracking_uid: str, optional
+        tracking_uid: Union[str, None], optional
             Unique tracking identifier (universally unique)
-        tracking_id: str, optional
+        tracking_id: Union[str, None], optional
             Tracking identifier (unique only with the domain of use)
-        anatomic_regions: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], optional
+        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
             (see :dcm:`CID 4 <part16/sect_CID_4.html>`
             "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>` "Common Anatomic Regions", as
             as well as other CIDs for domain-specific anatomic regions)
-        primary_anatomic_structures: Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], optional
+        primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 

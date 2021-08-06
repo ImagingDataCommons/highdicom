@@ -71,6 +71,7 @@ from highdicom.sr import (
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
 from highdicom.sr.utils import find_content_items
+from highdicom.enum import PatientSexValues
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:
@@ -2748,9 +2749,9 @@ class TestEnhancedSR(unittest.TestCase):
         super().setUp()
         self._ref_dataset = Dataset()
         self._ref_dataset.PatientID = '1'
-        self._ref_dataset.PatientName = 'patient'
+        self._ref_dataset.PatientName = 'Doe^John'
         self._ref_dataset.PatientBirthDate = '2000101'
-        self._ref_dataset.PatientSex = 'o'
+        self._ref_dataset.PatientSex = 'O'
         self._ref_dataset.SOPClassUID = '1.2.840.10008.5.1.4.1.1.2.2'
         self._ref_dataset.SOPInstanceUID = generate_uid()
         self._ref_dataset.SeriesInstanceUID = generate_uid()
