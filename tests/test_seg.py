@@ -11,7 +11,6 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import (
-    generate_uid,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
@@ -22,6 +21,7 @@ from highdicom import (
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
+    UID,
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
@@ -31,6 +31,8 @@ from highdicom.seg import (
     SegmentDescription,
     SegmentationTypeValues,
     SegmentAlgorithmTypeValues,
+    Segmentation,
+    SegmentDescription,
     SegmentsOverlapValues,
     SegmentationFractionalTypeValues,
 )
@@ -155,7 +157,7 @@ class TestSegmentDescription(unittest.TestCase):
             version='v1'
         )
         self._tracking_id = 'segment #1'
-        self._tracking_uid = generate_uid()
+        self._tracking_uid = UID()
         self._anatomic_region = codes.SCT.Thorax
         self._anatomic_structure = codes.SCT.Lung
 
@@ -606,9 +608,9 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
-        self._series_instance_uid = generate_uid()
+        self._series_instance_uid = UID()
         self._series_number = 1
-        self._sop_instance_uid = generate_uid()
+        self._sop_instance_uid = UID()
         self._instance_number = 1
         self._manufacturer = 'FavoriteManufacturer'
         self._manufacturer_model_name = 'BestModel'
@@ -2801,7 +2803,7 @@ class TestSegUtilities(unittest.TestCase):
                 segmented_property_type=codes.SCT.Neoplasm,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
                 algorithm_identification=algorithm_identification,
-                tracking_uid=generate_uid(),
+                tracking_uid=UID(),
                 tracking_id='first segment'
             ),
             SegmentDescription(
@@ -2811,7 +2813,7 @@ class TestSegUtilities(unittest.TestCase):
                 segmented_property_type=codes.cid7166.ConnectiveTissue,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
                 algorithm_identification=algorithm_identification,
-                tracking_uid=generate_uid(),
+                tracking_uid=UID(),
                 tracking_id='second segment'
             ),
         ]
@@ -2821,9 +2823,9 @@ class TestSegUtilities(unittest.TestCase):
             pixel_array=mask,
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=segment_descriptions,
-            series_instance_uid=generate_uid(),
+            series_instance_uid=UID(),
             series_number=2,
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=UID(),
             instance_number=1,
             manufacturer='Manufacturer',
             manufacturer_model_name='Manufacturer Model',
