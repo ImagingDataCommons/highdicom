@@ -117,13 +117,10 @@ class ParametricMap(SOPClass):
             patient
         real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMapping], Sequence[Sequence[highdicom.map.RealWorldValueMapping]]
             Descriptions of how stored values map to real-world values.
-            The concept of real-world values is a bit fuzzy or the mapping may
-            be difficult to describe (e.g., in case of a transformation
-            performed by a deep convolutional neural network).
-            The real-world value mapping may simply describe an identity
-            function that maps stored values to unit-less real-world values.
             Each channel encoded in `pixel_array` shall be described with one
-            or more real-world value mappings.
+            or more real-world value mappings. Multiple mappings might be
+            used for different representations such as log versus linear scales
+            or for different representations in different units.
             If `pixel_array` is a 2D or 3D array and only one channel exists
             at each spatial image position), then one or more real-world value
             mappings shall be provided in a flat sequence.
@@ -131,6 +128,12 @@ class ParametricMap(SOPClass):
             spatial image position, then one or more mappings shall be provided
             for each channel in a nested sequence of length ``m``, where ``m``
             shall match the channel dimension of the `pixel_array``.
+
+            In some situations the mapping may be difficult to describe (e.g., in
+            case of a transformation performed by a deep convolutional neural
+            network). The real-world value mapping may simply describe an
+            identity function that maps stored values to unit-less real-world
+            values.
         window_center: Union[int, float, None], optional
             Window center for rescaling stored values for display purposes by
             applying a linear transformation function. For example, in case of
