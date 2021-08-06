@@ -108,3 +108,7 @@ venv.bak/
 
 #IntelliJ
 .idea
+
+# Visual Studio Code
+.vscode
+

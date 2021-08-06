@@ -8,6 +8,7 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
+from pydicom.valuerep import DS
 
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -185,7 +186,7 @@ class PixelMeasuresSequence(DataElementSequence):
         """
         super().__init__()
         item = Dataset()
-        item.PixelSpacing = list(pixel_spacing)
+        item.PixelSpacing = [DS(ps, auto_format=True) for ps in pixel_spacing]
         item.SliceThickness = slice_thickness
         if spacing_between_slices is not None:
             item.SpacingBetweenSlices = spacing_between_slices
@@ -254,6 +255,8 @@ class PlanePositionSequence(DataElementSequence):
         """
         Parameters
         ----------
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+            Frame of reference coordinate system
         image_position: Sequence[float]
             Offset of the first row and first column of the plane (frame) in
             millimeter along the x, y, and z axis of the three-dimensional
@@ -272,9 +275,6 @@ class PlanePositionSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
 
-        def ds(num: float) -> float:
-            return float(str(num)[:16])
-
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if pixel_matrix_position is None:
@@ -284,13 +284,15 @@ class PlanePositionSequence(DataElementSequence):
                 )
             col_position, row_position = pixel_matrix_position
             x, y, z = image_position
-            item.XOffsetInSlideCoordinateSystem = ds(x)
-            item.YOffsetInSlideCoordinateSystem = ds(y)
-            item.ZOffsetInSlideCoordinateSystem = ds(z)
+            item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
+            item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
+            item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImagePositionPatient = list(image_position)
+            item.ImagePositionPatient = [
+                DS(ip, auto_format=True) for ip in image_position
+            ]
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
@@ -405,9 +407,8 @@ class PlaneOrientationSequence(DataElementSequence):
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
-            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+            Frame of reference coordinate system
         image_orientation: Sequence[float]
             Direction cosines for the first row (first triplet) and the first
             column (second triplet) of an image with respect to the X, Y, and Z
@@ -417,10 +418,13 @@ class PlaneOrientationSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         coordinate_system = CoordinateSystemNames(coordinate_system)
+        image_orientation_ds = [
+            DS(io, auto_format=True) for io in image_orientation
+        ]
         if coordinate_system == CoordinateSystemNames.SLIDE:
-            item.ImageOrientationSlide = list(image_orientation)
+            item.ImageOrientationSlide = image_orientation_ds
         elif coordinate_system == CoordinateSystemNames.PATIENT:
-            item.ImageOrientationPatient = list(image_orientation)
+            item.ImageOrientationPatient = image_orientation_ds
         else:
             raise ValueError(
                 f'Unknown coordinate system "{coordinate_system.value}".'
