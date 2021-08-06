@@ -71,27 +71,27 @@ class ParametricMap(SOPClass):
             from which the parametric map was derived
         pixel_array: numpy.ndarray
             2D, 3D, or 4D array of signed integer, unsigned integer, or
-            floating-point data type representing one or more mapping
-            (image transformation) results for one or more spatial image
-            positions:
+            floating-point data type representing one or more channels
+            (images derived from source images via an image transformation)
+            for one or more spatial image positions:
 
-            * In case of a 2D array, the values represent a single set of
-              mappings for a single 2D frame and the array shall have shape
-              ``(r, c)``, where ``r`` is the number of rows and ``c`` is the
-              number of columns.
+            * In case of a 2D array, the values represent a single channel
+              for a single 2D frame and the array shall have shape ``(r, c)``,
+              where ``r`` is the number of rows and ``c`` is the number of
+              columns.
 
-            * In case of a 3D array, the values represent a single set of
-              mappings for multiple 2D frames at different spatial image
-              positions and the array shall have shape ``(n, r, c)``, where
-              ``n`` is the number of frames, ``r`` is the number of rows per
-              frame, and ``c`` is the number of columns per frame.
+            * In case of a 3D array, the values represent a single channel
+              for multiple 2D frames at different spatial image positions and
+              the array shall have shape ``(n, r, c)``, where ``n`` is the
+              number of frames, ``r`` is the number of rows per frame, and
+              ``c`` is the number of columns per frame.
 
-            * In case of a 4D array, the values represent multiple sets of
-              mappings for multiple 2D frames at different spatial image
-              positions and the array shall have shape ``(n, r, c, m)``, where
-              ``n`` is the number of frames, ``r`` is the number of rows per
-              frame, ``c`` is the number of columns per frame, and ``m`` is
-              the number of mappings per-frame.
+            * In case of a 4D array, the values represent multiple channels
+              for multiple 2D frames at different spatial image positions and
+              the array shall have shape ``(n, r, c, m)``, where ``n`` is the
+              number of frames, ``r`` is the number of rows per frame, ``c`` is
+              the number of columns per frame, and ``m`` is the number of
+              channels.
 
         series_instance_uid: str
             UID of the series
@@ -116,14 +116,21 @@ class ParametricMap(SOPClass):
             Whether the image contains recognizable visible features of the
             patient
         real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMapping], Sequence[Sequence[highdicom.map.RealWorldValueMapping]]
-            Descriptions of how stored values map to real-world values. The
-            concept of real-world values is a bit fuzzy and the mapping may be
-            difficult to describe (e.g., in case of the feature maps of a deep
-            convolutional neural network model). Each mapping result encoded
-            in `pixel_array` shall be described with one or more mappings.
-            If `pixel_array` is a 4D array (i.e., multiple different mapping
-            results are encoded for each spatial image position), then one or
-            more mappings shall be described for each such mapping result.
+            Descriptions of how stored values map to real-world values.
+            The concept of real-world values is a bit fuzzy or the mapping may
+            be difficult to describe (e.g., in case of a transformation
+            performed by a deep convolutional neural network).
+            The real-world value mapping may simply describe an identity
+            function that maps stored values to unit-less real-world values.
+            Each channel encoded in `pixel_array` shall be described with one
+            or more real-world value mappings.
+            If `pixel_array` is a 2D or 3D array and only one channel exists
+            at each spatial image position), then one or more real-world value
+            mappings shall be provided in a flat sequence.
+            If `pixel_array` is a 4D array and multiple channels exist at each
+            spatial image position, then one or more mappings shall be provided
+            for each channel in a nested sequence of length ``m``, where ``m``
+            shall match the channel dimension of the `pixel_array``.
         window_center: Union[int, float, None], optional
             Window center for rescaling stored values for display purposes by
             applying a linear transformation function. For example, in case of
