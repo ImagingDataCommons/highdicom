@@ -71,7 +71,6 @@ from highdicom.sr import (
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
 from highdicom.sr.utils import find_content_items
-from highdicom.enum import PatientSexValues
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:

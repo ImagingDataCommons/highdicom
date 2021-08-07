@@ -154,7 +154,6 @@ class TemporalRangeTypeValues(Enum):
     """A range between two temporal points."""
 
 
-
 class RelationshipTypeValues(Enum):
 
     """Enumerated values for attribute Relationship Type.

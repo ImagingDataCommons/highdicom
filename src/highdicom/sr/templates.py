@@ -3761,7 +3761,7 @@ class ImageLibrary(Template):
         groups: Union[Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptors]], None], optional
             Entry descriptors for each image library group
 
-        """
+        """  # noqa: E501
         super().__init__()
         library_item = ContainerContentItem(
             name=CodedConcept(

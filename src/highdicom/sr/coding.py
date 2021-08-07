@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code

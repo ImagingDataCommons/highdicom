@@ -1625,13 +1625,6 @@ class ScoordContentItem(ContentItem):
                     'must be four (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
-        elif graphic_type == GraphicTypeValues.ELLIPSOID:
-            if graphic_data.shape[0] != 6 or not graphic_data.shape[1] == 2:
-                raise ValueError(
-                    'Graphic data of a scoord of graphic type "ELLIPSOID" '
-                    'must be six (column, row) pairs in two-dimensional '
-                    'image coordinate space.'
-                )
         else:
             if not graphic_data.shape[0] > 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
