@@ -291,7 +291,7 @@ class SourceImageForRegion(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-            referenced_frame_numbers: Union[Sequence[int], None], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
