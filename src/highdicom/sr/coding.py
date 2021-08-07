@@ -27,7 +27,7 @@ class CodedConcept(Dataset):
             designator of coding scheme
         meaning: str
             meaning of the code
-        scheme_version: str, optional
+        scheme_version: Union[str, None], optional
             version of coding scheme
 
         """
@@ -149,6 +149,6 @@ class CodedConcept(Dataset):
         return self.CodingSchemeDesignator
 
     @property
-    def scheme_version(self) -> str:
+    def scheme_version(self) -> Union[str, None]:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)

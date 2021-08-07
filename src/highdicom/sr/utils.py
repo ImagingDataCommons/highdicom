@@ -23,12 +23,12 @@ def find_content_items(
     ----------
     dataset: pydicom.dataset.Dataset
         SR document instance
-    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
         Coded name that items should have
-    value_type: Union[highdicom.sr.ValueTypeValues, str], optional
+    value_type: Union[highdicom.sr.ValueTypeValues, str, None], optional
         Type of value that items should have
         (e.g. ``highdicom.sr.ValueTypeValues.CONTAINER``)
-    relationship_type: Union[highdicom.sr.RelationshipTypeValues, str], optional
+    relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
         Type of relationship that items should have with its parent
         (e.g. ``highdicom.sr.RelationshipTypeValues.CONTAINS``)
     recursive: bool, optional

@@ -277,7 +277,7 @@ def _contains_uidref_items(
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    value: str, optional
+    value: Union[str, None], optional
         UID value of the child SR Content Item
     relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
         Relationship between child and parent SR Content Item
@@ -318,7 +318,7 @@ def _contains_scoord_items(
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    graphic_type: highdicom.sr.GraphicTypeValues, optional
+    graphic_type: Union[highdicom.sr.GraphicTypeValues, None], optional
         Graphic type of the child SR Content Item
     relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
         Relationship between child and parent SR Content Item
@@ -359,7 +359,7 @@ def _contains_scoord3d_items(
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
-    graphic_type: highdicom.sr.GraphicTypeValues3D, optional
+    graphic_type: Union[highdicom.sr.GraphicTypeValues3D, None], optional
         Graphic type of the child SR Content Item
     relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
         Relationship between child and parent SR Content Item
@@ -428,7 +428,7 @@ class AlgorithmIdentification(Template):
             name of the algorithm
         version: str
             version of the algorithm
-        parameters: Sequence[str], optional
+        parameters: Union[Sequence[str], None], optional
             parameters of the algorithm
 
         """
@@ -480,9 +480,9 @@ class TrackingIdentifier(Template):
 
         Parameters
         ----------
-        uid: Union[highdicom.UID, str], optional
+        uid: Union[highdicom.UID, str, None], optional
             globally unique identifier
-        identifier: str, optional
+        identifier: Union[str, None], optional
             human readable identifier
 
         """
@@ -534,22 +534,22 @@ class TimePointContext(Template):
         ----------
         time_point: str
             actual value representation of the time point
-        time_point_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        time_point_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded type of time point, e.g., "Baseline" or "Posttreatment" (see
             :dcm:`CID 6146 <part16/sect_CID_6146.html>`
             "Time Point Types" for options)
-        time_point_order: int, optional
+        time_point_order: Union[int, None], optional
             number indicating the order of a time point relative to other
             time points in a time series
-        subject_time_point_identifier: str, optional
+        subject_time_point_identifier: Union[str, None], optional
            identifier of a specific time point in a time series, which is
            unique within an appropriate local context and specific to a
            particular subject (patient)
-        protocol_time_point_identifier: str, optional
+        protocol_time_point_identifier: Union[str, None], optional
            identifier of a specific time point in a time series, which is
            unique within an appropriate local context and specific to a
            particular protocol using the same value for different subjects
-        temporal_offset_from_event: highdicom.sr.LongitudinalTemporalOffsetFromEvent, optional
+        temporal_offset_from_event: Union[highdicom.sr.LongitudinalTemporalOffsetFromEvent, None], optional
             offset in time from a particular event of significance, e.g., the
             baseline of an imaging study or enrollment into a clinical trial
 
@@ -642,9 +642,9 @@ class MeasurementStatisticalProperties(Template):
             "Population Statistical Descriptors" and
             :dcm:`CID 227 <part16/sect_CID_227.html>`
             "Sample Statistical Descriptors" for options)
-        description: str, optional
+        description: Union[str, None], optional
             description of the reference population of measurements
-        authority: str, optional
+        authority: Union[str, None], optional
             authority for a description of the reference population of
             measurements
 
@@ -702,9 +702,9 @@ class NormalRangeProperties(Template):
             reference values of the normal range, e.g., its upper and lower
             bound (see :dcm:`CID 223 <part16/sect_CID_223.html>`
             "Normal Range Values" for options)
-        description: str, optional
+        description: Union[str, None], optional
             description of the normal range
-        authority: str, optional
+        authority: Union[str, None], optional
             authority for the description of the normal range
 
         """  # noqa: E501
@@ -755,28 +755,28 @@ class MeasurementProperties(Template):
 
         Parameters
         ----------
-        normality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        normality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             the extend to which the measurement is considered normal or abnormal
             (see :dcm:`CID 222 <part16/sect_CID_222.html>` "Normality Codes" for
             options)
-        level_of_significance: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        level_of_significance: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             the extend to which the measurement is considered normal or abnormal
             (see :dcm:`CID 220 <part16/sect_CID_220.html>` "Level of
             Significance" for options)
-        selection_status: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        selection_status: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             how the measurement value was selected or computed from a set of
             available values (see :dcm:`CID 224 <part16/sect_CID_224.html>`
             "Selection Method" for options)
-        measurement_statistical_properties: highdicom.sr.MeasurementStatisticalProperties, optional
+        measurement_statistical_properties: Union[highdicom.sr.MeasurementStatisticalProperties, None], optional
             statistical properties of a reference population for a measurement
             and/or the position of a measurement in such a reference population
-        normal_range_properties: highdicom.sr.NormalRangeProperties, optional
+        normal_range_properties: Union[highdicom.sr.NormalRangeProperties, None], optional
             statistical properties of a reference population for a measurement
             and/or the position of a measurement in such a reference population
-        upper_measurement_uncertainty: Union[int, float], optional
-            upper range of measurment uncertainty
-        lower_measurement_uncertainty: Union[int, float], optional
-            lower range of measurment uncertainty
+        upper_measurement_uncertainty: Union[int, float, None], optional
+            upper range of measurement uncertainty
+        lower_measurement_uncertainty: Union[int, float, None], optional
+            lower range of measurement uncertainty
 
         """  # noqa: E501
         super().__init__()
@@ -795,7 +795,7 @@ class MeasurementProperties(Template):
             if not isinstance(measurement_statistical_properties,
                               MeasurementStatisticalProperties):
                 raise TypeError(
-                    'Argument "measurment_statistical_properties" must have '
+                    'Argument "measurement_statistical_properties" must have '
                     'type MeasurementStatisticalProperties.'
                 )
             self.extend(measurement_statistical_properties)
@@ -872,13 +872,13 @@ class PersonObserverIdentifyingAttributes(Template):
         ----------
         name: str
             name of the person
-        login_name: str
+        login_name: Union[str, None], optional
             login name of the person
-        organization_name: str, optional
+        organization_name: Union[str, None], optional
             name of the person's organization
-        role_in_organization: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        role_in_organization: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             role of the person within the organization
-        role_in_procedure: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        role_in_procedure: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             role of the person in the reported procedure
 
         """  # noqa: E501
@@ -1067,17 +1067,17 @@ class DeviceObserverIdentifyingAttributes(Template):
         ----------
         uid: str
             device UID
-        name: str, optional
+        name: Union[str, None], optional
             name of device
-        manufacturer_name: str, optional
+        manufacturer_name: Union[str, None], optional
             name of device's manufacturer
-        model_name: str, optional
+        model_name: Union[str, None], optional
             name of the device's model
-        serial_number: str, optional
+        serial_number: Union[str, None], optional
             serial number of the device
-        physical_location: str, optional
+        physical_location: Union[str, None], optional
             physical location of the device during the procedure
-        role_in_procedure: str, optional
+        role_in_procedure: Union[str, None], optional
             role of the device in the reported procedure
 
         """
@@ -1440,13 +1440,13 @@ class SubjectContextSpecimen(Template):
         ----------
         uid: str
             unique identifier of the observed specimen
-        identifier: str, optional
+        identifier: Union[str, None], optional
             identifier of the observed specimen (may have limited scope,
             e.g., only relevant with respect to the corresponding container)
-        container_identifier: str, optional
+        container_identifier: Union[str, None], optional
             identifier of the container holding the speciment (e.g., a glass
             slide)
-        specimen_type: highdicom.sr.CodedConcept, optional
+        specimen_type: Union[highdicom.sr.CodedConcept, None], optional
             type of the specimen (see
             :dcm:`CID 8103 <part16/sect_CID_8103.html>`
             "Anatomic Pathology Specimen Types" for options)
@@ -1605,13 +1605,13 @@ class SubjectContextDevice(Template):
         ----------
         name: str
             name of the observed device
-        uid: str, optional
+        uid: Union[str, None], optional
             unique identifier of the observed device
-        manufacturer_name: str, optional
+        manufacturer_name: Union[str, None], optional
             name of the observed device's manufacturer
-        model_name: str, optional
+        model_name: Union[str, None], optional
             name of the observed device's model
-        serial_number: str, optional
+        serial_number: Union[str, None], optional
             serial number of the observed device
         physical_location: str, optional
             physical location of the observed device during the procedure
@@ -1894,12 +1894,12 @@ class ObservationContext(Template):
 
         Parameters
         ----------
-        observer_person_context: [highdicom.sr.ObserverContext, None], optional
+        observer_person_context: Union[highdicom.sr.ObserverContext, None], optional
             description of the person that reported the observation
-        observer_device_context: highdicom.sr.ObserverContext, optional
+        observer_device_context: Union[highdicom.sr.ObserverContext, None], optional
             description of the device that was involved in reporting the
             observation
-        subject_context: highdicom.sr.SubjectContext, optional
+        subject_context: Union[highdicom.sr.SubjectContext, None], optional
             description of the imaging subject in case it is not the patient
             for which the report is generated (e.g., a pathology specimen in
             a whole-slide microscopy image, a fetus in an ultrasound image, or
@@ -2052,32 +2052,32 @@ class Measurement(Template):
             :dcm:`CID 7181 <part16/sect_CID_7181.html>`
             "Abstract Multi-dimensional Image Model Component
             Units" for options)
-        qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Qualification of numeric measurement value or as an alternative
             qualitative description
-        tracking_identifier: highdicom.sr.TrackingIdentifier, optional
+        tracking_identifier: Union[highdicom.sr.TrackingIdentifier, None], optional
             Identifier for tracking measurements
-        algorithm_id: highdicom.sr.AlgorithmIdentification, optional
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             Identification of algorithm used for making measurements
-        derivation: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        derivation: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             How the value was computed (see
             :dcm:`CID 7464 <part16/sect_CID_7464.html>`
             "General Region of Interest Measurement Modifiers"
             for options)
-        finding_sites: Sequence[highdicom.sr.FindingSite], optional
+        finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
-        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
-        properties: highdicom.sr.MeasurementProperties, optional
+        properties: Union[highdicom.sr.MeasurementProperties, None], optional
             Measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
-        referenced_images: Sequence[highdicom.sr.SourceImageForMeasurement], optional
+        referenced_images: Union[Sequence[highdicom.sr.SourceImageForMeasurement], None], optional
             Referenced images which were used as sources for the measurement
-        referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for referenced source images
 
         """  # noqa: E501
@@ -2223,26 +2223,26 @@ class MeasurementsAndQualitativeEvaluations(Template):
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
             Identifier for tracking measurements
-        referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for region of interest
-        time_point_context: highdicom.sr.TimePointContext, optional
+        time_point_context: Union[highdicom.sr.TimePointContext, None], optional
             Description of the time point context
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of object that was measured, e.g., organ or tumor
-        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
-        algorithm_id: highdicom.sr.AlgorithmIdentification, optional
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             identification of algorithm used for making measurements
-        finding_sites: Sequence[highdicom.sr.FindingSite], optional
+        finding_sites: Sequence[highdicom.sr.FindingSite, None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
-        session: str, optional
+        session: Union[str, None], optional
             Description of the session
-        measurements: Sequence[highdicom.sr.Measurement], optional
+        measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
             Numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+        qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
             Coded name-value pairs that describe qualitative evaluations
 
         """  # noqa: E501
@@ -2601,35 +2601,35 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
             identifier for tracking measurements
-        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D]], optional
+        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
             regions of interest in source image(s)
-        referenced_segment: Union[highdicom.sr.ReferencedSegment, highdicom.sr.ReferencedSegmentationFrame], optional
+        referenced_segment: Union[highdicom.sr.ReferencedSegment, highdicom.sr.ReferencedSegmentationFrame, None], optional
             segmentation for region of interest in source image
-        referenced_volume_surface: hidicom.sr.content.VolumeSurface, optional
+        referenced_volume_surface: Union[hidicom.sr.content.VolumeSurface, None], optional
             surface segmentation for region of interest in source image
-        referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             referenced real world value map for region of interest
-        time_point_context: highdicom.sr.TimePointContext, optional
+        time_point_context: Union[highdicom.sr.TimePointContext, None], optional
             description of the time point context
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             type of object that was measured, e.g., organ or tumor
-        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
-        algorithm_id: highdicom.sr.AlgorithmIdentification, optional
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             identification of algorithm used for making measurements
-        finding_sites: Sequence[highdicom.sr.FindingSite], optional
+        finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
-        session: str, optional
+        session: Union[str, None], optional
             description of the session
-        measurements: Sequence[highdicom.sr.Measurement], optional
+        measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
             numeric measurements
-        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+        qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
             coded name-value (question-answer) pairs that describe
             qualitative evaluations
-        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
@@ -2747,33 +2747,33 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
             identifier for tracking measurements
-        referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D], optional
+        referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None], optional
             region of interest in source image
-        referenced_segment: highdicom.sr.ReferencedSegmentationFrame, optional
+        referenced_segment: Union[highdicom.sr.ReferencedSegmentationFrame, None], optional
             segmentation for region of interest in source image
-        referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             referenced real world value map for region of interest
-        time_point_context: highdicom.sr.TimePointContext, optional
+        time_point_context: Union[highdicom.sr.TimePointContext, None], optional
             description of the time point context
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             type of object that was measured, e.g., organ or tumor
-        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
-        algorithm_id: highdicom.sr.AlgorithmIdentification, optional
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             identification of algorithm used for making measurements
-        finding_sites: Sequence[highdicom.sr.FindingSite], optional
+        finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
-        session: str, optional
+        session: Union[str, None], optional
             description of the session
-        measurements: Sequence[highdicom.sr.Measurement], optional
+        measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
             measurements for a region of interest
-        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+        qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
             coded name-value (question-answer) pairs that describe
             qualitative evaluations of a region of interest
-        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
@@ -2888,35 +2888,35 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
             identifier for tracking measurements
-        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D]], optional
+        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
             regions of interest in source image(s)
-        referenced_volume_surface: highdicom.sr.VolumeSurface, optional
+        referenced_volume_surface: Union[highdicom.sr.VolumeSurface, None], optional
             volume of interest in source image(s)
-        referenced_segment: highdicom.sr.ReferencedSegment, optional
+        referenced_segment: Union[highdicom.sr.ReferencedSegment, None], optional
             segmentation for region of interest in source image
-        referenced_real_world_value_map: highdicom.sr.RealWorldValueMap, optional
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             referenced real world value map for region of interest
-        time_point_context: highdicom.sr.TimePointContext, optional
+        time_point_context: Union[highdicom.sr.TimePointContext, None], optional
             description of the time point context
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             type of object that was measured, e.g., organ or tumor
-        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
-        algorithm_id: highdicom.sr.AlgorithmIdentification, optional
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             identification of algorithm used for making measurements
-        finding_sites: Sequence[highdicom.sr.FindingSite], optional
+        finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
-        session: str, optional
+        session: Union[str, None], optional
             description of the session
-        measurements: Sequence[highdicom.sr.Measurement], optional
+        measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
             measurements for a volume of interest
-        qualitative_evaluations: Sequence[highdicom.sr.QualitativeEvaluation], optional
+        qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
             coded name-value (question-answer) pairs that describe
             qualitative evaluations of a volume of interest
-        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
@@ -3007,7 +3007,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         measurement_groups: Union[Sequence[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations]]
             one or more groups of either planar or volumetric ROI measurements
             and qualitative evaluations
-        measurement_properties: highdicom.sr.MeasurementProperties, optional
+        measurement_properties: Union[highdicom.sr.MeasurementProperties, None], optional
             measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
@@ -3066,7 +3066,7 @@ class ImageLibraryEntryDescriptors(Template):
             Number of rows in pixel data frames
         pixel_data_columns: int
             Number of rows in pixel data frames
-        additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
+        additional_descriptors: Union[Sequence[highdicom.sr.value_types.ContentItem], None], optional
             Additional SR Content Items that should be included
 
         """  # noqa: E501
@@ -3172,20 +3172,20 @@ class MeasurementReport(Template):
             one or more coded description(s) of the procedure (see
             :dcm:`CID 100 <part16/sect_CID_100.html>`
             "Quantitative Diagnostic Imaging Procedures" for options)
-        imaging_measurements: Sequence[Union[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations, highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations, highdicom.sr.MeasurementsAndQualitativeEvaluations]], optional
+        imaging_measurements: Union[Sequence[Union[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations, highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations, highdicom.sr.MeasurementsAndQualitativeEvaluations]]], optional
             measurements and qualitative evaluations of images or regions
             within images
-        derived_imaging_measurements: Sequence[highdicom.sr.MeasurementsDerivedFromMultipleROIMeasurements], optional
+        derived_imaging_measurements: Union[Sequence[highdicom.sr.MeasurementsDerivedFromMultipleROIMeasurements], None], optional
             measurements derived from other measurements of images or regions
             within images
             qualitative evaluations of images
-        title: highdicom.sr.CodedConcept, optional
+        title: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             title of the report (see :dcm:`CID 7021 <part16/sect_CID_7021.html>`
             "Measurement Report Document Titles" for options)
-        language_of_content_item_and_descendants: highdicom.sr.LanguageOfContentItemAndDescendants, optional
+        language_of_content_item_and_descendants: Union[highdicom.sr.LanguageOfContentItemAndDescendants, None], optional
             specification of the language of report content items
             (defaults to English)
-        image_library_groups: Sequence[highdicom.sr.ImageLibraryEntry]
+        image_library_groups: Union[Sequence[highdicom.sr.ImageLibraryEntry], None], optional
             Entry descriptors for each image library group
 
         Note
@@ -3361,7 +3361,7 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        observer_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        observer_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of observer ("Device" or "Person") for which should be filtered
 
         Returns
@@ -3409,7 +3409,7 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        subject_class: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        subject_class: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of subject ("Specimen", "Fetus", or "Device") for which should
             be filtered
 
@@ -3474,21 +3474,21 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        tracking_uid: str, optional
+        tracking_uid: Union[str, None], optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding
-        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
-        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of referenced ROI
-        graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
-        referenced_sop_instance_uid: str, optional
+        referenced_sop_instance_uid: Union[str, None], optional
             SOP Instance UID of the referenced instance, which may be a
             segmentation image, source image for the region or segmentation, or
             RT struct, depending on `reference_type`
-        referenced_sop_class_uid: str, optional
+        referenced_sop_class_uid: Union[str, None], optional
             SOP Class UID of the referenced instance, which may be a
             segmentation image, source image for the region or segmentation, or
             RT struct, depending on `reference_type`
@@ -3582,21 +3582,21 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        tracking_uid: str, optional
+        tracking_uid: Union[str, None], optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding
-        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
-        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
+        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Type of referenced ROI
-        graphic_type: highdicom.sr.GraphicTypeValues3D, optional
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
-        referenced_sop_instance_uid: str, optional
+        referenced_sop_instance_uid: Union[str, None], optional
             SOP Instance UID of the referenced instance, which may be a
             segmentation image, source image for the region or segmentation, or
             RT struct, depending on `reference_type`
-        referenced_sop_class_uid: str, optional
+        referenced_sop_class_uid: Union[str, None], optional
             SOP Class UID of the referenced instance, which may be a
             segmentation image, source image for the region or segmentation, or
             RT struct, depending on `reference_type`
@@ -3684,11 +3684,11 @@ class MeasurementReport(Template):
 
         Parameters
         ----------
-        tracking_uid: str, optional
+        tracking_uid: Union[str, None], optional
             Unique tracking identifier
-        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding
-        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
 
         Returns
@@ -3758,7 +3758,7 @@ class ImageLibrary(Template):
         """
         Parameters
         ----------
-        groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptros]]
+        groups: Union[Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptors]], None], optional
             Entry descriptors for each image library group
 
         """

@@ -112,14 +112,14 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
 
     def __init__(
         self,
-        value: Optional[Union[int, float]],
+        value: Union[int, float],
         unit: Union[CodedConcept, Code],
         event_type: Union[CodedConcept, Code]
     ) -> None:
         """
         Parameters
         ----------
-        value: Union[int, float], optional
+        value: Union[int, float]
             Offset in time from a particular event of significance
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             Unit of time, e.g., "Days" or "Seconds"
@@ -169,7 +169,7 @@ class SourceImageForMeasurement(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -209,7 +209,7 @@ class SourceImageForMeasurement(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -251,7 +251,7 @@ class SourceImageForRegion(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -291,7 +291,7 @@ class SourceImageForRegion(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+            referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -333,7 +333,7 @@ class SourceImageForSegmentation(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -373,7 +373,7 @@ class SourceImageForSegmentation(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -470,7 +470,7 @@ class ImageRegion(ScoordContentItem):
             represents a (column, row) coordinate pair
         source_image: highdicom.sr.SourceImageForRegion
             source image to which `graphic_data` relates
-        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str], optional
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
@@ -588,9 +588,9 @@ class VolumeSurface(Scoord3DContentItem):
         frame_of_reference_uid: str
             unique identifier of the frame of reference within which the
             coordinates are defined
-        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
+        source_images: Union[Sequence[highdicom.sr.SourceImageForSegmentation], None], optional
             source images for segmentation
-        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
+        source_series: Union[highdicom.sr.SourceSeriesForSegmentation, None], optional
             source series for segmentation
 
         Note
@@ -703,10 +703,10 @@ class FindingSite(CodeContentItem):
         ----------
         anatomic_location: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
-        laterality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        laterality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded laterality (see :dcm:`CID 244 <part16/sect_CID_244.html>`
             "Laterality" for options)
-        topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded modifier of anatomic location
 
         """  # noqa: E501
@@ -983,12 +983,12 @@ class ReferencedSegment(ContentSequence):
             SOP Instance UID of the referenced segmentation object
         segment_number: int
             number of the segment to which the reference applies
-        frame_numbers: Sequence[int], optional
+        frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
-        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
+        source_images: Union[Sequence[highdicom.sr.SourceImageForSegmentation], None], optional
             source images for segmentation
-        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
+        source_series: Union[highdicom.sr.SourceSeriesForSegmentation, None], optional
             source series for segmentation
 
         Note
@@ -1048,7 +1048,7 @@ class ReferencedSegment(ContentSequence):
             segment
         segment_number: int
             number of the segment to reference within the provided dataset
-        frame_numbers: Optional[Sequence[int]], optional
+        frame_numbers: Union[Sequence[int], None], optional
             list of frames in the segmentation dataset to reference. If
             not provided, the reference is assumed to apply to all frames
             of the given segment number. Note that frame numbers are
