@@ -209,6 +209,8 @@ class SOPClass(Dataset):
 
         """
         tag = tag_for_keyword(keyword)
+        if tag is None:
+            raise ValueError('No tag not found for keyword "{keyword}".')
         try:
             data_element = dataset[tag]
             logger.debug('copied attribute "{}"'.format(keyword))

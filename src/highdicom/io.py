@@ -184,7 +184,7 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
                 f'Length of Frame item #{i} is zero.'
             )
 
-        first_two_bytes = fp.read(2, 1)
+        first_two_bytes = fp.read(2, True)
         if not fp.is_little_endian:
             first_two_bytes = first_two_bytes[::-1]
 

@@ -1,4 +1,5 @@
 from highdicom import legacy
+from highdicom import map
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
@@ -28,6 +29,7 @@ __all__ = [
     'io',
     'IssuerOfIdentifier',
     'legacy',
+    'map',
     'PixelMeasuresSequence',
     'PlanePositionSequence',
     'PlaneOrientationSequence',

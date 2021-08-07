@@ -245,6 +245,7 @@ class Segmentation(SOPClass):
         ------
         ValueError
             When
+
                 * Length of `source_images` is zero.
                 * Items of `source_images` are not all part of the same study
                   and series.
@@ -295,9 +296,7 @@ class Segmentation(SOPClass):
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
-                'Transfer syntax "{}" is not supported'.format(
-                    transfer_syntax_uid
-                )
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
         if pixel_array.ndim == 2:
@@ -517,8 +516,8 @@ class Segmentation(SOPClass):
         if plane_positions is None:
             if pixel_array.shape[0] != len(source_plane_positions):
                 raise ValueError(
-                    'Number of frames in pixel array does not match number '
-                    'of source image frames.'
+                    'Number of pixel array planes does not match number '
+                    'of planes (frames) in referenced source image.'
                 )
             plane_positions = source_plane_positions
         else:
