@@ -40,7 +40,12 @@ class PatientSexValues(Enum):
 
 class PhotometricInterpretationValues(Enum):
 
-    """Enumerated values for Photometric Interpretation attribute."""
+    """Enumerated values for Photometric Interpretation attribute.
+
+    See :dcm:`Section C.7.6.3.1.2<part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2>`
+    for more information.
+
+    """
 
     MONOCHROME1 = 'MONOCHROME1'
     MONOCHROME2 = 'MONOCHROME2'
