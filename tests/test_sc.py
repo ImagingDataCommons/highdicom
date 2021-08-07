@@ -1,3 +1,4 @@
+from pathlib import Path
 from io import BytesIO
 import unittest
 
@@ -5,6 +6,7 @@ import numpy as np
 import pytest
 from pydicom import dcmread
 from pydicom.uid import generate_uid, RLELossless
+from pydicom.valuerep import DA, TM
 
 from highdicom import SpecimenDescription
 from highdicom.sc import SCImage
@@ -27,6 +29,11 @@ class TestSCImage(unittest.TestCase):
         self._container_identifier = str(np.random.choice(100))
         self._specimen_identifier = str(np.random.choice(100))
         self._specimen_uid = generate_uid()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._study_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
 
     @staticmethod
     def get_array_after_writing(instance):
@@ -220,7 +227,7 @@ class TestSCImage(unittest.TestCase):
         assert instance.PatientName is None
         assert instance.PatientSex is None
         assert instance.StudyTime is None
-        assert instance.StudyTime is None
+        assert instance.StudyDate is None
         assert instance.PixelData == self._monochrome_pixel_array.tobytes()
         with pytest.raises(AttributeError):
             instance.ContainerIdentifier
@@ -281,3 +288,41 @@ class TestSCImage(unittest.TestCase):
             self.get_array_after_writing(instance),
             frame
         )
+
+    def test_construct_rgb_from_study_dataset(self):
+        bits_allocated = 8
+        photometric_interpretation = 'RGB'
+        coordinate_system = 'PATIENT'
+        instance = SCImage.from_study_dataset(
+            study_dataset=self._study_dataset,
+            pixel_array=self._rgb_pixel_array,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            laterality=self._laterality
+        )
+        assert instance.BitsAllocated == bits_allocated
+        assert instance.SamplesPerPixel == 3
+        assert instance.PlanarConfiguration == 0
+        assert instance.PhotometricInterpretation == photometric_interpretation
+        assert instance.StudyInstanceUID == self._study_dataset.StudyInstanceUID
+        assert instance.SeriesInstanceUID == self._series_instance_uid
+        assert instance.SOPInstanceUID == self._sop_instance_uid
+        assert instance.SeriesNumber == self._series_number
+        assert instance.InstanceNumber == self._instance_number
+        assert instance.Manufacturer == self._manufacturer
+        assert instance.Laterality == self._laterality
+        assert instance.PatientOrientation == self._patient_orientation
+        assert instance.AccessionNumber == self._study_dataset.AccessionNumber
+        assert instance.PatientName == self._study_dataset.PatientName
+        assert instance.PatientSex == self._study_dataset.PatientSex
+        assert instance.StudyTime == TM(self._study_dataset.StudyTime)
+        assert instance.StudyDate == DA(self._study_dataset.StudyDate)
+        assert instance.StudyID == self._study_dataset.StudyID
+        assert instance.PixelData == self._rgb_pixel_array.tobytes()
