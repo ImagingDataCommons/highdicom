@@ -68,7 +68,7 @@ class CodedConcept(Dataset):
             self.value,
             self.scheme_designator,
             self.meaning,
-            self.coding_scheme_version
+            self.scheme_version
         )
         return Code.__eq__(this, other)
 
