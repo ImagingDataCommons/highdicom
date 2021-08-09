@@ -124,7 +124,7 @@ def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
 
     Parameters
     ----------
-    group_item: highdicom.sr.value_types.ContainerContentItem
+    group_item: highdicom.sr.ContainerContentItem
         SR Content Item representing a "Measurement Group"
 
     Returns
@@ -191,7 +191,7 @@ def _contains_code_items(
 
     Parameters
     ----------
-    parent_item: highdicom.sr.value_types.ContentItem
+    parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
@@ -232,7 +232,7 @@ def _contains_text_items(
 
     Parameters
     ----------
-    parent_item: highdicom.sr.value_types.ContentItem
+    parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
@@ -273,7 +273,7 @@ def _contains_uidref_items(
 
     Parameters
     ----------
-    parent_item: highdicom.sr.value_types.ContentItem
+    parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
@@ -314,7 +314,7 @@ def _contains_scoord_items(
 
     Parameters
     ----------
-    parent_item: highdicom.sr.value_types.ContentItem
+    parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
@@ -355,7 +355,7 @@ def _contains_scoord3d_items(
 
     Parameters
     ----------
-    parent_item: highdicom.sr.value_types.ContentItem
+    parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
     name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
         Name of the child SR Content Item
@@ -3066,7 +3066,7 @@ class ImageLibraryEntryDescriptors(Template):
             Number of rows in pixel data frames
         pixel_data_columns: int
             Number of rows in pixel data frames
-        additional_descriptors: Union[Sequence[highdicom.sr.value_types.ContentItem], None], optional
+        additional_descriptors: Union[Sequence[highdicom.sr.ContentItem], None], optional
             Additional SR Content Items that should be included
 
         """  # noqa: E501
