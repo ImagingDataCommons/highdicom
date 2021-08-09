@@ -83,7 +83,7 @@ class SOPClass(Dataset):
            Name of the patient
         patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: Union[str, highdicom.enum.PatientSexValues, None], optional
+        patient_sex: Union[str, highdicom.PatientSexValues, None], optional
            Patient's sex
         study_id: Union[str, None], optional
            ID of the study
@@ -95,7 +95,7 @@ class SOPClass(Dataset):
            Time of study creation
         referring_physician_name: Union[str, None], optional
             Name of the referring physician
-        content_qualification: Union[str, highdicom.enum.ContentQualificationValues, None], optional
+        content_qualification: Union[str, highdicom.ContentQualificationValues, None], optional
             Indicator of content qualification
         coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the

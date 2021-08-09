@@ -103,13 +103,13 @@ class SCImage(SOPClass):
             Array of unsigned integer pixel values representing a single-frame
             image; either a 2D grayscale image or a 3D color image
             (RGB color space)
-        photometric_interpretation: Union[str, highdicom.enum.PhotometricInterpretationValues]
+        photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation of pixel data; either ``"MONOCHROME1"`` or
             ``"MONOCHROME2"`` for 2D grayscale images or ``"RGB"`` or
             ``"YBR_FULL"`` for 3D color images
         bits_allocated: int
             Number of bits that should be allocated per pixel value
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
         study_instance_uid: str
@@ -132,7 +132,7 @@ class SCImage(SOPClass):
            Name of the patient
         patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: Union[str, highdicom.enum.PatientSexValues, None], optional
+        patient_sex: Union[str, highdicom.PatientSexValues, None], optional
            Patient's sex
         study_id: Union[str, None], optional
            ID of the study
@@ -147,13 +147,13 @@ class SCImage(SOPClass):
         pixel_spacing: Union[Tuple[int, int], None], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
-        laterality: Union[str, highdicom.enum.LateralityValues, None], optional
+        laterality: Union[str, highdicom.LateralityValues, None], optional
             Laterality of the examined body part
         patient_orientation:
-                Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped], None], optional
+                Union[Tuple[str, str], Tuple[highdicom.PatientOrientationValuesBiped, highdicom.PatientOrientationValuesBiped], Tuple[highdicom.PatientOrientationValuesQuadruped, highdicom.PatientOrientationValuesQuadruped], None], optional
             Orientation of the patient along the row and column axes of the
             image (required if `coordinate_system` is ``"PATIENT"``)
-        anatomical_orientation_type: Union[str, highdicom.enum.AnatomicalOrientationTypeValues, None], optional
+        anatomical_orientation_type: Union[str, highdicom.AnatomicalOrientationTypeValues, None], optional
             Type of anatomical orientation of patient relative to image (may be
             provide if `coordinate_system` is ``"PATIENT"`` and patient is
             an animal)

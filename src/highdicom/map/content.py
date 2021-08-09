@@ -152,7 +152,7 @@ class DimensionIndexSequence(DataElementSequence):
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
         """
