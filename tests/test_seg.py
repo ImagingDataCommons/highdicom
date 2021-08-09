@@ -25,10 +25,8 @@ from highdicom import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
-    Segmentation,
     segread,
     DimensionIndexSequence,
-    SegmentDescription,
     SegmentationTypeValues,
     SegmentAlgorithmTypeValues,
     Segmentation,
@@ -38,7 +36,6 @@ from highdicom.seg import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
-from highdicom.uid import UID
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
