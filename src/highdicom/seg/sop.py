@@ -216,7 +216,7 @@ class Segmentation(SOPClass):
             FRACTIONAL segmentation type:
             RLE Lossless (``"1.2.840.10008.1.2.5"``) and
             JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
-        pixel_measures: Union[PixelMeasures, None], optional
+        pixel_measures: Union[highdicom.PixelMeasures, None], optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
             same pixel measures as the source image(s).
