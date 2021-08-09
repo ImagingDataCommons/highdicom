@@ -39,7 +39,7 @@ class PatientSexValues(Enum):
     F = 'F'
     """Female"""
 
-    O = 'O'
+    O = 'O'  # noqa: E741
     """Other"""
 
 
