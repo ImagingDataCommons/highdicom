@@ -33,9 +33,14 @@ class PatientSexValues(Enum):
 
     """Enumerated values for Patient's Sex attribute."""
 
-    MALE = 'M'
-    FEMALE = 'F'
-    OTHER = 'O'
+    M = 'M'
+    """Male"""
+
+    F = 'F'
+    """Female"""
+
+    O = 'O'
+    """Other"""
 
 
 class PhotometricInterpretationValues(Enum):
