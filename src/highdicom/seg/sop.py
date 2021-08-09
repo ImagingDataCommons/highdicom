@@ -207,7 +207,7 @@ class Segmentation(SOPClass):
             a pixel represents a given segment
         content_description: Union[str, None], optional
             Description of the segmentation
-        content_creator_name: Union[str, PersonName, None], optional
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the creator of the segmentation
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
