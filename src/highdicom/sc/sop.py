@@ -142,7 +142,7 @@ class SCImage(SOPClass):
            Date of study creation
         study_time: Union[str, datetime.time, None], optional
            Time of study creation
-        referring_physician_name: Union[str, PersonName, None], optional
+        referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
         pixel_spacing: Union[Tuple[int, int], None], optional
             Physical spacing in millimeter between pixels along the row and
