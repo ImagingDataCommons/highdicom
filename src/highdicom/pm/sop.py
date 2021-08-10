@@ -12,8 +12,8 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
-from highdicom.map.content import RealWorldValueMapping
-from highdicom.map.content import DimensionIndexSequence
+from highdicom.pm.content import RealWorldValueMapping
+from highdicom.pm.content import DimensionIndexSequence
 from highdicom.valuerep import check_person_name
 from pydicom import Dataset
 from pydicom.uid import (
