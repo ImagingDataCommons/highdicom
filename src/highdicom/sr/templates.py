@@ -3507,8 +3507,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1410':
                     continue
             else:
-                contains_rois = _contains_planar_rois(group_item)
-                if not(contains_rois):
+                if not _contains_planar_rois(group_item):
                     continue
 
             matches = []
@@ -3615,8 +3614,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1411':
                     continue
             else:
-                contains_rois = _contains_volumetric_rois(group_item)
-                if not(contains_rois):
+                if not _contains_volumetric_rois(group_item):
                     continue
 
             matches = []
