@@ -17,8 +17,12 @@ class ValueTypeValues(Enum):
     """Reference to UIDs of Composite SOP Instances."""
 
     CONTAINER = 'CONTAINER'
-    """The content of the CONTAINER. The value of a CONTAINER Content Item is
-    the collection of Content Items that it contains."""
+    """The content of the CONTAINER.
+
+    The value of a CONTAINER Content Item is the collection of Content Items
+    that it contains.
+
+    """
 
     DATE = 'DATE'
     """Calendar date."""
@@ -67,16 +71,18 @@ class GraphicTypeValues(Enum):
 
     CIRCLE = 'CIRCLE'
     """A circle defined by two (column,row) pairs.
-    
+
     The first pair is the central point and
     the second pair is a point on the perimeter of the circle.
+
     """
 
     ELLIPSE = 'ELLIPSE'
     """An ellipse defined by four pixel (column,row) pairs.
-    
+
     The first two pairs specify the endpoints of the major axis and
     the second two pairs specify the endpoints of the minor axis.
+
     """
 
     MULTIPOINT = 'MULTIPOINT'
@@ -87,8 +93,9 @@ class GraphicTypeValues(Enum):
 
     POLYLINE = 'POLYLINE'
     """Connected line segments with vertices denoted by (column,row) pairs.
-    
+
     If the first and last pairs are the same it is a closed polygon.
+
     """
 
 
@@ -102,25 +109,27 @@ class GraphicTypeValues3D(Enum):
 
     ELLIPSE = 'ELLIPSE'
     """An ellipse defined by four (x,y,z) triplets.
-    
+
     The first two triplets specify the endpoints of the major axis and
     the second two triplets specify the endpoints of the minor axis.
+
     """
 
     ELLIPSOID = 'ELLIPSOID'
     """A three-dimensional geometric surface defined by six (x,y,z) triplets.
-    
+
     The plane sections of the surface are either ellipses or circles and
     the surface contains three intersecting orthogonal axes:
     "a", "b", and "c".
     The first and second triplets specify the endpoints of axis "a",
     the third and fourth triplets specify the endpoints of axis "b", and
     the fifth and sixth triplets specify the endpoints of axis "c".
+
     """
 
     MULTIPOINT = 'MULTIPOINT'
     """Multiple points each denoted by an (x,y,z) triplet.
-    
+
     The points need not be coplanar.
     """
 
@@ -129,15 +138,17 @@ class GraphicTypeValues3D(Enum):
 
     POLYLINE = 'POLYLINE'
     """Connected line segments with vertices denoted by (x,y,z) triplets.
-    
+
     The points need not be coplanar.
+
     """
 
     POLYGON = 'POLYGON'
     """Connected line segments with vertices denoted by (x,y,z) triplets.
-    
+
     The first and last triplets shall be the same forming a closed polygon.
     The points shall be coplanar.
+
     """
 
 
@@ -151,15 +162,17 @@ class TemporalRangeTypeValues(Enum):
 
     BEGIN = 'BEGIN'
     """A range that begins at the identified temporal point.
-    
+
     It extends beyond the end of the acquired data.
+
     """
 
     END = 'END'
     """A range that ends at the identified temporal point.
-    
+
     It begins before the start of the acquired data and
-    extends to (and includes) the identified temporal point. 
+    extends to (and includes) the identified temporal point.
+
     """
 
     MULTIPOINT = 'MULTIPOINT'
@@ -184,32 +197,51 @@ class RelationshipTypeValues(Enum):
     """
 
     CONTAINS = 'CONTAINS'
-    """Source Item contains Target Content Item."""
+    """Parent item contains child content item."""
 
     HAS_ACQ_CONTEXT = 'HAS ACQ CONTEXT'
-    """The Target Content Item describes the conditions present during data
-    acquisition of the Source Content Item."""
+    """Has acquisition context.
+
+    The child content item describes the conditions present during data
+    acquisition of the source content item.
+
+    """
 
     HAS_CONCEPT_MOD = 'HAS CONCEPT MOD'
-    """Used to qualify or describe the Concept Name of the Source Content Item,
-    such as to create a post-coordinated description of a concept, or to
-    further describe a concept."""
+    """Has concept modifier.
+
+    The child content item qualifies or describes the concept name of the
+    parent content item.
+
+    """
 
     HAS_OBS_CONTEXT = 'HAS OBS CONTEXT'
-    """Target Content Items shall convey any specialization of Observation
-    Context needed for unambiguous documentation of the Source Content Item."""
+    """Has observation context.
+
+    Child content items shall convey any specialization of observation context
+    needed for unambiguous documentation of the parent content item.
+
+    """
 
     HAS_PROPERTIES = 'HAS PROPERTIES'
-    """Description of properties of the Source Content Item."""
+    """Child content items describe properties of the parent content item."""
 
     INFERRED_FROM = 'INFERRED FROM'
-    """Source Content Item conveys a measurement or other inference made from
-    the Target Content Items. Denotes the supporting evidence for a measurement
-    or judgment."""
+    """Parent content item is inferred from the child content item.
+
+    The Parent content item conveys a measurement or other inference made from
+    the child content item(s). Denotes the supporting evidence for a measurement
+    or judgment.
+
+    """
 
     SELECTED_FROM = 'SELECTED FROM'
-    """Source Content Item conveys spatial or temporal coordinates selected
-    from the Target Content Item(s)."""
+    """Parent content item is selected from the child content items.
+
+    The parent content item conveys spatial or temporal coordinates selected
+    from the child content item(s).
+
+    """
 
 
 class PixelOriginInterpretationValues(Enum):
