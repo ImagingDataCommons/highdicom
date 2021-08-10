@@ -143,7 +143,7 @@ class SOPClass(Dataset):
         # Patient
         self.PatientID = patient_id
         self.PatientName = patient_name
-        self.PatientBirthDate = patient_birth_date
+        self.PatientBirthDate = DA(patient_birth_date)
         self.PatientSex = patient_sex
 
         # Study
