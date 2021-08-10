@@ -2194,8 +2194,6 @@ class Measurement(Template):
             measurement.ContentSequence = ContentSequence.from_sequence(
                 item.ContentSequence
             )
-        else:
-            measurement.ContentSequence = ContentSequence()
         return measurement
 
 
