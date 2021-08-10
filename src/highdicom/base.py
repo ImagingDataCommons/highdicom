@@ -149,7 +149,7 @@ class SOPClass(Dataset):
         if patient_name is not None:
             check_person_name(patient_name)
         self.PatientName = patient_name
-        self.PatientBirthDate = patient_birth_date
+        self.PatientBirthDate = DA(patient_birth_date)
         if patient_sex is not None and patient_sex != '':
             patient_sex = PatientSexValues(patient_sex).value
         self.PatientSex = patient_sex
