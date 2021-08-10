@@ -2749,7 +2749,7 @@ class TestEnhancedSR(unittest.TestCase):
         self._ref_dataset = Dataset()
         self._ref_dataset.PatientID = '1'
         self._ref_dataset.PatientName = 'patient'
-        self._ref_dataset.PatientBirthDate = '2000101'
+        self._ref_dataset.PatientBirthDate = '20000101'
         self._ref_dataset.PatientSex = 'o'
         self._ref_dataset.SOPClassUID = '1.2.840.10008.5.1.4.1.1.2.2'
         self._ref_dataset.SOPInstanceUID = generate_uid()

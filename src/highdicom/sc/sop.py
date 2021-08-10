@@ -369,9 +369,9 @@ class SCImage(SOPClass):
             self.PixelData = encoded_frame
 
     @classmethod
-    def from_study_dataset(
+    def from_ref_dataset(
         cls,
-        study_dataset: Dataset,
+        ref_dataset: Dataset,
         pixel_array: np.ndarray,
         photometric_interpretation: Union[
             str,
@@ -413,18 +413,18 @@ class SCImage(SOPClass):
         """Constructor that copies patient and study from an existing dataset.
 
         This provides a more concise way to construct an SCImage when an
-        existing dataset from the study is available. All patient- and study-
-        related attributes required by the main constructor are copied from the
-        ``study_dataset``, if present.
+        existing reference dataset from the study is available. All patient-
+        and study- related attributes required by the main constructor are
+        copied from the ``ref_dataset``, if present.
 
-        The ``study_dataset`` may be any dataset
+        The ``ref_dataset`` may be any dataset
         from the study to which the resulting SC image should belong, and
         contain all the relevant patient and study metadata. It does not need to
         be specifically related to the contents of the SCImage.
 
         Parameters
         ----------
-        study_dataset: pydicom.dataset.Dataset
+        ref_dataset: pydicom.dataset.Dataset
             An existing dataset from the study to which the SCImage should
             belong. Patient- and study-related metadata will be copied from
             this dataset.
@@ -493,22 +493,22 @@ class SCImage(SOPClass):
             photometric_interpretation=photometric_interpretation,
             bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=study_dataset.StudyInstanceUID,
+            study_instance_uid=ref_dataset.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
             manufacturer=manufacturer,
-            patient_id=getattr(study_dataset, 'PatientID', None),
-            patient_name=getattr(study_dataset, 'PatientName', None),
-            patient_birth_date=getattr(study_dataset, 'PatientBirthDate', None),
-            patient_sex=getattr(study_dataset, 'PatientSex', None),
-            accession_number=getattr(study_dataset, 'AccessionNumber', None),
-            study_id=getattr(study_dataset, 'StudyID', None),
-            study_date=getattr(study_dataset, 'StudyDate', None),
-            study_time=getattr(study_dataset, 'StudyTime', None),
+            patient_id=getattr(ref_dataset, 'PatientID', None),
+            patient_name=getattr(ref_dataset, 'PatientName', None),
+            patient_birth_date=getattr(ref_dataset, 'PatientBirthDate', None),
+            patient_sex=getattr(ref_dataset, 'PatientSex', None),
+            accession_number=getattr(ref_dataset, 'AccessionNumber', None),
+            study_id=getattr(ref_dataset, 'StudyID', None),
+            study_date=getattr(ref_dataset, 'StudyDate', None),
+            study_time=getattr(ref_dataset, 'StudyTime', None),
             referring_physician_name=getattr(
-                study_dataset,
+                ref_dataset,
                 'ReferringPhysicianName',
                 None
             ),

@@ -31,7 +31,7 @@ class TestSCImage(unittest.TestCase):
         self._specimen_uid = generate_uid()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
-        self._study_dataset = dcmread(
+        self._ref_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
 
@@ -289,12 +289,12 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
-    def test_construct_rgb_from_study_dataset(self):
+    def test_construct_rgb_from_ref_dataset(self):
         bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
-        instance = SCImage.from_study_dataset(
-            study_dataset=self._study_dataset,
+        instance = SCImage.from_ref_dataset(
+            ref_dataset=self._ref_dataset,
             pixel_array=self._rgb_pixel_array,
             photometric_interpretation=photometric_interpretation,
             bits_allocated=bits_allocated,
@@ -311,7 +311,7 @@ class TestSCImage(unittest.TestCase):
         assert instance.SamplesPerPixel == 3
         assert instance.PlanarConfiguration == 0
         assert instance.PhotometricInterpretation == photometric_interpretation
-        assert instance.StudyInstanceUID == self._study_dataset.StudyInstanceUID
+        assert instance.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SOPInstanceUID == self._sop_instance_uid
         assert instance.SeriesNumber == self._series_number
@@ -319,10 +319,10 @@ class TestSCImage(unittest.TestCase):
         assert instance.Manufacturer == self._manufacturer
         assert instance.Laterality == self._laterality
         assert instance.PatientOrientation == self._patient_orientation
-        assert instance.AccessionNumber == self._study_dataset.AccessionNumber
-        assert instance.PatientName == self._study_dataset.PatientName
-        assert instance.PatientSex == self._study_dataset.PatientSex
-        assert instance.StudyTime == TM(self._study_dataset.StudyTime)
-        assert instance.StudyDate == DA(self._study_dataset.StudyDate)
-        assert instance.StudyID == self._study_dataset.StudyID
+        assert instance.AccessionNumber == self._ref_dataset.AccessionNumber
+        assert instance.PatientName == self._ref_dataset.PatientName
+        assert instance.PatientSex == self._ref_dataset.PatientSex
+        assert instance.StudyTime == TM(self._ref_dataset.StudyTime)
+        assert instance.StudyDate == DA(self._ref_dataset.StudyDate)
+        assert instance.StudyID == self._ref_dataset.StudyID
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
