@@ -39,7 +39,7 @@ class ValueTypeValues(Enum):
     """Listing of spatial coordinates defined in 2D pixel matrix."""
 
     SCOORD3D = 'SCOORD3D'
-    """Listing of spatial 3D coordinates."""
+    """Listing of spatial coordinates defined in 3D frame of reference."""
 
     TCOORD = 'TCOORD'
     """Listing of temporal coordinates."""
@@ -66,14 +66,18 @@ class GraphicTypeValues(Enum):
     """
 
     CIRCLE = 'CIRCLE'
-    """A circle defined by two (column,row) pairs. The first point is the
-    central pixel. The second point is a pixel on the perimeter of the
-    circle."""
+    """A circle defined by two (column,row) pairs.
+    
+    The first pair is the central point and
+    the second pair is a point on the perimeter of the circle.
+    """
 
     ELLIPSE = 'ELLIPSE'
-    """An ellipse defined by four pixel (column,row) pairs, the first two
-    points specifying the endpoints of the major axis and the second two points
-    specifying the endpoints of the minor axis of an ellipse."""
+    """An ellipse defined by four pixel (column,row) pairs.
+    
+    The first two pairs specify the endpoints of the major axis and
+    the second two pairs specify the endpoints of the minor axis.
+    """
 
     MULTIPOINT = 'MULTIPOINT'
     """Multiple pixels each denoted by an (column,row) pair."""
@@ -82,9 +86,10 @@ class GraphicTypeValues(Enum):
     """A single pixel denoted by a single (column,row) pair."""
 
     POLYLINE = 'POLYLINE'
-    """A series of connected line segments with ordered vertices denoted by
-    (column,row) pairs; if the first and last vertices are the same it is a
-    closed polygon."""
+    """Connected line segments with vertices denoted by (column,row) pairs.
+    
+    If the first and last pairs are the same it is a closed polygon.
+    """
 
 
 class GraphicTypeValues3D(Enum):
@@ -96,33 +101,44 @@ class GraphicTypeValues3D(Enum):
     """
 
     ELLIPSE = 'ELLIPSE'
-    """An ellipse defined by four (x,y,z) triplets, the first two triplets
-    specifying the endpoints of the major axis and the second two triplets
-    specifying the endpoints of the minor axis."""
+    """An ellipse defined by four (x,y,z) triplets.
+    
+    The first two triplets specify the endpoints of the major axis and
+    the second two triplets specify the endpoints of the minor axis.
+    """
 
     ELLIPSOID = 'ELLIPSOID'
-    """A three-dimensional geometric surface whose plane sections are either
-    ellipses or circles and contains three intersecting orthogonal axes, "a",
-    "b", and "c"; the ellipsoid is defined by six (x,y,z) triplets, the first
-    and second triplets specifying the endpoints of axis "a", the third and
-    fourth triplets specifying the endpoints of axis "b", and the fifth and
-    sixth triplets specifying the endpoints of axis "c"."""
+    """A three-dimensional geometric surface defined by six (x,y,z) triplets.
+    
+    The plane sections of the surface are either ellipses or circles and
+    the surface contains three intersecting orthogonal axes:
+    "a", "b", and "c".
+    The first and second triplets specify the endpoints of axis "a",
+    the third and fourth triplets specify the endpoints of axis "b", and
+    the fifth and sixth triplets specify the endpoints of axis "c".
+    """
 
     MULTIPOINT = 'MULTIPOINT'
-    """Multiple locations each denoted by an (x,y,z) triplet; the points need
-    not be coplanar."""
+    """Multiple points each denoted by an (x,y,z) triplet.
+    
+    The points need not be coplanar.
+    """
 
     POINT = 'POINT'
-    """A single location denoted by a single (x,y,z) triplet."""
+    """An individual point denoted by a single (x,y,z) triplet."""
 
     POLYLINE = 'POLYLINE'
-    """A series of connected line segments with ordered vertices denoted by
-    (x,y,z) triplets; the points need not be coplanar."""
+    """Connected line segments with vertices denoted by (x,y,z) triplets.
+    
+    The points need not be coplanar.
+    """
 
     POLYGON = 'POLYGON'
-    """A series of connected line segments with ordered vertices denoted by
-    (x,y,z) triplets, where the first and last vertices shall be the same
-    forming a polygon; the points shall be coplanar."""
+    """Connected line segments with vertices denoted by (x,y,z) triplets.
+    
+    The first and last triplets shall be the same forming a closed polygon.
+    The points shall be coplanar.
+    """
 
 
 class TemporalRangeTypeValues(Enum):
@@ -134,12 +150,17 @@ class TemporalRangeTypeValues(Enum):
     """
 
     BEGIN = 'BEGIN'
-    """A range beginning at one temporal point, and extending beyond the end of
-    the acquired data."""
+    """A range that begins at the identified temporal point.
+    
+    It extends beyond the end of the acquired data.
+    """
 
     END = 'END'
-    """A range beginning before the start of the acquired data, and extending
-    to (and including) the identified temporal point."""
+    """A range that ends at the identified temporal point.
+    
+    It begins before the start of the acquired data and
+    extends to (and includes) the identified temporal point. 
+    """
 
     MULTIPOINT = 'MULTIPOINT'
     """Multiple temporal points."""
@@ -199,4 +220,4 @@ class PixelOriginInterpretationValues(Enum):
     """Relative to the individual frame."""
 
     VOLUME = 'VOLUME'
-    """Relative to the Total Image Matrix (for tiled images)."""
+    """Relative to the Total Pixel Matrix of the VOLUME image."""
