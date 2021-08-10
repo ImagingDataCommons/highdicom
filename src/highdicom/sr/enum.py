@@ -36,7 +36,7 @@ class ValueTypeValues(Enum):
     """Name of person."""
 
     SCOORD = 'SCOORD'
-    """Listing of spatial coordinates."""
+    """Listing of spatial coordinates defined in 2D pixel matrix."""
 
     SCOORD3D = 'SCOORD3D'
     """Listing of spatial 3D coordinates."""
