@@ -3505,8 +3505,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1410':
                     continue
             else:
-                contains_rois = _contains_planar_rois(group_item)
-                if not(contains_rois):
+                if not _contains_planar_rois(group_item):
                     continue
 
             matches = []
@@ -3586,7 +3585,7 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
+        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Type of referenced ROI
         graphic_type: highdicom.sr.GraphicTypeValues3D, optional
             Graphic type of image region
@@ -3613,8 +3612,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1411':
                     continue
             else:
-                contains_rois = _contains_volumetric_rois(group_item)
-                if not(contains_rois):
+                if not _contains_volumetric_rois(group_item):
                     continue
 
             matches = []
