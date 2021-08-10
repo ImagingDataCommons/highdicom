@@ -3588,7 +3588,7 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Finding site
-        reference_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D], optional
+        reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Type of referenced ROI
         graphic_type: highdicom.sr.GraphicTypeValues3D, optional
             Graphic type of image region
