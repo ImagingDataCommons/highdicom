@@ -199,15 +199,15 @@ class Segmentation(SOPClass):
             Version(s) of the software that creates the instance
         device_serial_number: str
             Manufacturer's serial number of the device
-        fractional_type: Union[str, highdicom.seg.SegmentationFractionalTypeValues], optional
+        fractional_type: Union[str, highdicom.seg.SegmentationFractionalTypeValues, None], optional
             Type of fractional segmentation that indicates how pixel data
             should be interpreted
         max_fractional_value: int, optional
             Maximum value that indicates probability or occupancy of 1 that
             a pixel represents a given segment
-        content_description: str, optional
+        content_description: Union[str, None], optional
             Description of the segmentation
-        content_creator_name: Optional[Union[str, PersonName]], optional
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the creator of the segmentation
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
@@ -216,16 +216,16 @@ class Segmentation(SOPClass):
             FRACTIONAL segmentation type:
             RLE Lossless (``"1.2.840.10008.1.2.5"``) and
             JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
-        pixel_measures: PixelMeasures, optional
+        pixel_measures: Union[highdicom.PixelMeasures, None], optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
             same pixel measures as the source image(s).
-        plane_orientation: highdicom.PlaneOrientationSequence, optional
+        plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
             Orientation of planes in `pixel_array` relative to axes of
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image as the
             same plane orientation as the source image(s).
-        plane_positions: Sequence[highdicom.PlanePositionSequence], optional
+        plane_positions: Union[Sequence[highdicom.PlanePositionSequence], None], optional
             Position of each plane in `pixel_array` in the three-dimensional
             patient or slide coordinate space.
             If ``None``, it will be assumed that the segmentation image has the
@@ -234,7 +234,7 @@ class Segmentation(SOPClass):
             of frames in `source_images` (in case of multi-frame source images)
             or the number of `source_images` (in case of single-frame source
             images).
-        omit_empty_frames: bool
+        omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
         **kwargs: Any, optional
@@ -2005,7 +2005,7 @@ class Segmentation(SOPClass):
             source frames are not referenced in the source image. To override
             this behavior and return a segmentation frame of all zeros for such
             frames, set this parameter to True.
-        rescale_fractional: bool
+        rescale_fractional: bool, optional
             If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
             True, the raw integer-valued array stored in the segmentation image
             output will be rescaled by the MaximumFractionalValue such that
@@ -2491,7 +2491,7 @@ class Segmentation(SOPClass):
             source frames are not referenced in the source image. To override
             this behavior and return a segmentation frame of all zeros for such
             frames, set this parameter to True.
-        rescale_fractional: bool
+        rescale_fractional: bool, optional
             If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
             True, the raw integer-valued array stored in the segmentation image
             output will be rescaled by the MaximumFractionalValue such that

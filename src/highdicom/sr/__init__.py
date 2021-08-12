@@ -55,6 +55,7 @@ from highdicom.sr.templates import (
 )
 from highdicom.sr import utils
 from highdicom.sr.value_types import (
+    ContentItem,
     ContentSequence,
     CodeContentItem,
     ContainerContentItem,
@@ -97,6 +98,7 @@ __all__ = [
     'ContentSequence',
     'ComprehensiveSR',
     'Comprehensive3DSR',
+    'ContentItem',
     'ContentSequence',
     'CodeContentItem',
     'ContainerContentItem',

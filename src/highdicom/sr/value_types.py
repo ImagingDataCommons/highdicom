@@ -1243,7 +1243,7 @@ class NumContentItem(ContentItem):
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
             "Abstract Multi-dimensional Image Model Component Units")
-        qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
             (see :dcm:`CID 42 <part16/sect_CID_42.html>`
@@ -1388,7 +1388,7 @@ class ContainerContentItem(ContentItem):
         is_content_continous: bool, optional
             whether contained content items are logically linked in a
             continuous manner or separate items (default: ``True``)
-        template_id: str, optional
+        template_id: Union[str, None], optional
             SR template identifier
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             type of relationship with parent content item.
@@ -1575,10 +1575,10 @@ class ImageContentItem(ContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Union[int, Sequence[int]], optional
+        referenced_frame_numbers: Union[int, Sequence[int], None], optional
             number of frame(s) to which the reference applies in case of a
             multi-frame image
-        referenced_segment_numbers: Union[int, Sequence[int]], optional
+        referenced_segment_numbers: Union[int, Sequence[int], None], optional
             number of segment(s) to which the refernce applies in case of a
             segmentation image
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
@@ -1733,13 +1733,6 @@ class ScoordContentItem(ContentItem):
                     'must be four (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
-        elif graphic_type == GraphicTypeValues.ELLIPSOID:
-            if graphic_data.shape[0] != 6 or not graphic_data.shape[1] == 2:
-                raise ValueError(
-                    'Graphic data of a scoord of graphic type "ELLIPSOID" '
-                    'must be six (column, row) pairs in two-dimensional '
-                    'image coordinate space.'
-                )
         else:
             if not graphic_data.shape[0] > 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
@@ -1842,7 +1835,7 @@ class Scoord3DContentItem(ContentItem):
         frame_of_reference_uid: Union[highdicom.UID, str]
             unique identifier of the frame of reference within which the
             coordinates are defined
-        fiducial_uid: str, optional
+        fiducial_uid: Union[str, None], optional
             unique identifier for the content item
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item
@@ -1966,12 +1959,12 @@ class TcoordContentItem(ContentItem):
             concept name
         temporal_range_type: Union[highdicom.sr.TemporalRangeTypeValues, str]
             name of the temporal range type
-        referenced_sample_positions: Sequence[int], optional
+        referenced_sample_positions: Union[Sequence[int], None], optional
             one-based relative sample position of acquired time points
             within the time series
-        referenced_time_offsets: Sequence[float], optional
+        referenced_time_offsets: Union[Sequence[float], None], optional
             seconds after start of the acquisition of the time series
-        referenced_date_time: Sequence[datetime.datetime], optional
+        referenced_date_time: Union[Sequence[datetime.datetime], None], optional
             absolute time points
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
             type of relationship with parent content item

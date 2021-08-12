@@ -29,6 +29,7 @@ from highdicom.enum import (
     LateralityValues,
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
+    PatientSexValues,
 )
 from highdicom.frame import encode_frame
 from highdicom.sc.enum import ConversionTypeValues
@@ -63,7 +64,7 @@ class SCImage(SOPClass):
             patient_id: Optional[str] = None,
             patient_name: Optional[Union[str, PersonName]] = None,
             patient_birth_date: Optional[str] = None,
-            patient_sex: Optional[str] = None,
+            patient_sex: Union[str, PatientSexValues, None] = None,
             accession_number: Optional[str] = None,
             study_id: str = None,
             study_date: Optional[Union[str, datetime.date]] = None,
@@ -103,13 +104,13 @@ class SCImage(SOPClass):
             Array of unsigned integer pixel values representing a single-frame
             image; either a 2D grayscale image or a 3D color image
             (RGB color space)
-        photometric_interpretation: Union[str, highdicom.enum.PhotometricInterpretationValues]
+        photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation of pixel data; either ``"MONOCHROME1"`` or
             ``"MONOCHROME2"`` for 2D grayscale images or ``"RGB"`` or
             ``"YBR_FULL"`` for 3D color images
         bits_allocated: int
             Number of bits that should be allocated per pixel value
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
         study_instance_uid: str
@@ -126,43 +127,43 @@ class SCImage(SOPClass):
             Name of the manufacturer of the device that creates the SC image
             instance (in a research setting this is typically the same
             as `institution_name`)
-        patient_id: str, optional
+        patient_id: Union[str, None], optional
            ID of the patient (medical record number)
-        patient_name: Optional[Union[str, pydicom.valuerep.PersonName]], optional
+        patient_name: Union[str, PersonName, None], optional
            Name of the patient
-        patient_birth_date: str, optional
+        patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: str, optional
+        patient_sex: Union[str, highdicom.PatientSexValues, None], optional
            Patient's sex
-        study_id: str, optional
+        study_id: Union[str, None], optional
            ID of the study
-        accession_number: str, optional
+        accession_number: Union[str, None], optional
            Accession number of the study
-        study_date: Union[str, datetime.date], optional
+        study_date: Union[str, datetime.date, None], optional
            Date of study creation
-        study_time: Union[str, datetime.time], optional
+        study_time: Union[str, datetime.time, None], optional
            Time of study creation
-        referring_physician_name: Optional[Union[str, PersonName]], optional
+        referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
-        pixel_spacing: Tuple[int, int], optional
+        pixel_spacing: Union[Tuple[int, int], None], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
-        laterality: Union[str, highdicom.enum.LateralityValues], optional
+        laterality: Union[str, highdicom.LateralityValues, None], optional
             Laterality of the examined body part
         patient_orientation:
-                Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped]], optional
+                Union[Tuple[str, str], Tuple[highdicom.PatientOrientationValuesBiped, highdicom.PatientOrientationValuesBiped], Tuple[highdicom.PatientOrientationValuesQuadruped, highdicom.PatientOrientationValuesQuadruped], None], optional
             Orientation of the patient along the row and column axes of the
             image (required if `coordinate_system` is ``"PATIENT"``)
-        anatomical_orientation_type: Union[str, highdicom.enum.AnatomicalOrientationTypeValues], optional
+        anatomical_orientation_type: Union[str, highdicom.AnatomicalOrientationTypeValues, None], optional
             Type of anatomical orientation of patient relative to image (may be
             provide if `coordinate_system` is ``"PATIENT"`` and patient is
             an animal)
-        container_identifier: str, optional
+        container_identifier: Union[str, None], optional
             Identifier of the container holding the specimen (required if
             `coordinate_system` is ``"SLIDE"``)
-        issuer_of_container_identifier: highdicom.IssuerOfIdentifier, optional
+        issuer_of_container_identifier: Union[highdicom.IssuerOfIdentifier, None], optional
             Issuer of `container_identifier`
-        specimen_descriptions: Sequence[highdicom.SpecimenDescriptions], optional
+        specimen_descriptions: Union[Sequence[highdicom.SpecimenDescriptions], None], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
         transfer_syntax_uid: str, optional

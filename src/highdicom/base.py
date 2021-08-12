@@ -10,7 +10,11 @@ from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian, UID
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.coding_schemes import CodingSchemeIdentificationItem
-from highdicom.enum import ContentQualificationValues
+from highdicom.enum import (
+    ContentQualificationValues,
+    PatientSexValues,
+)
+from highdicom.valuerep import check_person_name
 from highdicom.version import __version__
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
@@ -37,9 +41,9 @@ class SOPClass(Dataset):
         patient_id: Optional[str] = None,
         patient_name: Optional[Union[str, PersonName]] = None,
         patient_birth_date: Optional[str] = None,
-        patient_sex: Optional[str] = None,
+        patient_sex: Union[str, PatientSexValues, None] = None,
         accession_number: Optional[str] = None,
-        study_id: str = None,
+        study_id: Optional[str] = None,
         study_date: Optional[Union[str, datetime.date]] = None,
         study_time: Optional[Union[str, datetime.time]] = None,
         referring_physician_name: Optional[Union[str, PersonName]] = None,
@@ -64,22 +68,22 @@ class SOPClass(Dataset):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        manufacturer: str
-            Name of the manufacturer (developer) of the device (software)
-            that creates the instance
         modality: str
             Name of the modality
-        transfer_syntax_uid: str, optional
+        manufacturer: Union[str, None], optional
+            Name of the manufacturer (developer) of the device (software)
+            that creates the instance
+        transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
             data elements. Defaults to Implicit VR Little Endian
             (UID ``"1.2.840.10008.1.2"``)
-        patient_id: str, optional
+        patient_id: Union[str, None], optional
            ID of the patient (medical record number)
         patient_name: Union[str, pydicom.valuerep.PersonName, None], optional
            Name of the patient
         patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: Union[str, None], optional
+        patient_sex: Union[str, highdicom.PatientSexValues, None], optional
            Patient's sex
         study_id: Union[str, None], optional
            ID of the study
@@ -91,7 +95,7 @@ class SOPClass(Dataset):
            Time of study creation
         referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
-        content_qualification: Union[str, highdicom.enum.ContentQualificationValues, None], optional
+        content_qualification: Union[str, highdicom.ContentQualificationValues, None], optional
             Indicator of content qualification
         coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the
@@ -144,8 +148,12 @@ class SOPClass(Dataset):
 
         # Patient
         self.PatientID = patient_id
+        if patient_name is not None:
+            check_person_name(patient_name)
         self.PatientName = patient_name
         self.PatientBirthDate = DA(patient_birth_date)
+        if patient_sex is not None and patient_sex != '':
+            patient_sex = PatientSexValues(patient_sex).value
         self.PatientSex = patient_sex
 
         # Study
@@ -228,7 +236,7 @@ class SOPClass(Dataset):
             DICOM Data Set from which attribute should be copied
         ie: str
             DICOM Information Entity (e.g., ``"Patient"`` or ``"Study"``)
-        module: str, optional
+        module: Union[str, None], optional
             DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """

@@ -29,9 +29,28 @@ class DimensionOrganizationTypeValues(Enum):
     TILED_SPARSE = 'TILED_SPARSE'
 
 
+class PatientSexValues(Enum):
+
+    """Enumerated values for Patient's Sex attribute."""
+
+    M = 'M'
+    """Male"""
+
+    F = 'F'
+    """Female"""
+
+    O = 'O'  # noqa: E741
+    """Other"""
+
+
 class PhotometricInterpretationValues(Enum):
 
-    """Enumerated values for Photometric Interpretation attribute."""
+    """Enumerated values for Photometric Interpretation attribute.
+
+    See :dcm:`Section C.7.6.3.1.2<part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2>`
+    for more information.
+
+    """
 
     MONOCHROME1 = 'MONOCHROME1'
     MONOCHROME2 = 'MONOCHROME2'
@@ -65,7 +84,10 @@ class LateralityValues(Enum):
     """Enumerated values for Laterality attribute."""
 
     R = 'R'
+    """Right"""
+
     L = 'L'
+    """Left"""
 
 
 class AnatomicalOrientationTypeValues(Enum):
@@ -83,11 +105,22 @@ class PatientOrientationValuesBiped(Enum):
     """
 
     A = 'A'
+    """Anterior"""
+
     P = 'P'
+    """Posterior"""
+
     R = 'R'
+    """Right"""
+
     L = 'L'
+    """Left"""
+
     H = 'H'
+    """Head"""
+
     F = 'F'
+    """Foot"""
 
 
 class PatientOrientationValuesQuadruped(Enum):
@@ -97,18 +130,43 @@ class PatientOrientationValuesQuadruped(Enum):
     """
 
     LE = 'LE'
+    """Left"""
+
     RT = 'RT'
+    """Right"""
+
     D = 'D'
+    """Dorsal"""
+
     V = 'V'
+    """Ventral"""
+
     CR = 'CR'
+    """Cranial"""
+
     CD = 'CD'
+    """Caudal"""
+
     R = 'R'
+    """Rostral"""
+
     M = 'M'
+    """Medial"""
+
     L = 'L'
+    """Lateral"""
+
     PR = 'PR'
+    """Proximal"""
+
     DI = 'DI'
+    """Distal"""
+
     PA = 'PA'
+    """Palmar"""
+
     PL = 'PL'
+    """Plantar"""
 
 
 class UniversalEntityIDTypeValues(Enum):
@@ -116,9 +174,22 @@ class UniversalEntityIDTypeValues(Enum):
     """Enumerated values for Universal Entity ID Type attribute."""
 
     DNS = 'DNS'
+    """An Internet dotted name. Either in ASCII or as integers."""
+
     EUI64 = 'EUI64'
+    """An IEEE Extended Unique Identifier."""
+
     ISO = 'ISO'
+    """An International Standards Organization Object Identifier."""
+
     URI = 'URI'
+    """Uniform Resource Identifier."""
+
     UUID = 'UUID'
+    """The DCE Universal Unique Identifier."""
+
     X400 = 'X400'
+    """An X.400 MHS identifier."""
+
     X500 = 'X500'
+    """An X.500 directory name."""

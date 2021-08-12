@@ -245,7 +245,7 @@ class ReferenceToImageTransformer(object):
             bottom, increasing Row index) and the rows direction (second value:
             spacing between columns: horizontal, left to right, increasing
             Column index)
-        spacing_between_slices: float
+        spacing_between_slices: float, optional
             Distance (in the coordinate defined by the Frame of Reference)
             between neighboring slices. Default: 1
 

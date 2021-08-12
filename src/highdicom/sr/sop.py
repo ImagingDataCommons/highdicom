@@ -87,24 +87,24 @@ class _SR(SOPClass):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
         verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
+        verifying_organization: Union[str, None], optional
             Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset], optional
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -466,24 +466,24 @@ class EnhancedSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
         verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
+        verifying_organization: Union[str, None], optional
             Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset], optional
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -594,24 +594,24 @@ class ComprehensiveSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
         verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
+        verifying_organization: Union[str, None], optional
             Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -743,24 +743,24 @@ class Comprehensive3DSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
         verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
+        verifying_organization: Union[str, None], optional
             Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included

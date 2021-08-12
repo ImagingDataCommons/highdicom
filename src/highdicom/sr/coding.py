@@ -27,7 +27,7 @@ class CodedConcept(Dataset):
             designator of coding scheme
         meaning: str
             meaning of the code
-        scheme_version: str, optional
+        scheme_version: Union[str, None], optional
             version of coding scheme
 
         """

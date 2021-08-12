@@ -34,6 +34,8 @@ class SpatialLocationsPreservedValues(Enum):
     YES = 'YES'
     NO = 'NO'
     REORIENTED_ONLY = 'REORIENTED_ONLY'
+    """A projection radiograph that has been flipped, and/or rotated by a
+    multiple of 90 degrees."""
 
 
 class SegmentsOverlapValues(Enum):
