@@ -150,12 +150,12 @@ def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
     return False
 
 
-def _contains_volumetric_rois(group_item: Dataset) -> bool:
+def _contains_volumetric_rois(group_item: ContainerContentItem) -> bool:
     """Checks whether a measurement group item contains volumetric ROIs.
 
     Parameters
     ----------
-    group_item: pydicom.dataset.Dataset
+    group_item: highdicom.sr.ContainerContentItem
         SR Content Item representing a "Measurement Group"
 
     Returns
@@ -830,24 +830,26 @@ class MeasurementProperties(Template):
             )
             self.append(selection_status_item)
         if upper_measurement_uncertainty is not None:
-            upper_measurement_uncertainty_item = CodeContentItem(
+            upper_measurement_uncertainty_item = NumContentItem(
                 name=CodedConcept(
                     value='371886008',
                     meaning='+, range of upper measurement uncertainty',
                     scheme_designator='SCT'
                 ),
                 value=upper_measurement_uncertainty,
+                unit=codes.UCUM.NoUnits,
                 relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(upper_measurement_uncertainty_item)
         if lower_measurement_uncertainty is not None:
-            lower_measurement_uncertainty_item = CodeContentItem(
+            lower_measurement_uncertainty_item = NumContentItem(
                 name=CodedConcept(
                     value='371885007',
                     meaning='-, range of lower measurement uncertainty',
                     scheme_designator='SCT'
                 ),
                 value=lower_measurement_uncertainty,
+                unit=codes.UCUM.NoUnits,
                 relationship_type=RelationshipTypeValues.HAS_PROPERTIES
             )
             self.append(lower_measurement_uncertainty_item)
@@ -1049,7 +1051,8 @@ class PersonObserverIdentifyingAttributes(Template):
 class DeviceObserverIdentifyingAttributes(Template):
 
     """:dcm:`TID 1004 <part16/chapter_A.html#sect_TID_1004>`
-     Device Observer Identifying Attributes"""
+     Device Observer Identifying Attributes
+    """
 
     def __init__(
         self,
@@ -1059,7 +1062,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         model_name: Optional[str] = None,
         serial_number: Optional[str] = None,
         physical_location: Optional[str] = None,
-        role_in_procedure: Optional[str] = None
+        role_in_procedure: Optional[Union[Code, CodedConcept]] = None
     ):
         """
 
@@ -1077,10 +1080,10 @@ class DeviceObserverIdentifyingAttributes(Template):
             serial number of the device
         physical_location: Union[str, None], optional
             physical location of the device during the procedure
-        role_in_procedure: Union[str, None], optional
+        role_in_procedure: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             role of the device in the reported procedure
 
-        """
+        """  # noqa: E501
         super().__init__()
         device_observer_item = UIDRefContentItem(
             name=CodedConcept(
@@ -1099,7 +1102,7 @@ class DeviceObserverIdentifyingAttributes(Template):
                     meaning='Device Observer Name',
                     scheme_designator='DCM',
                 ),
-                value=manufacturer_name,
+                value=name,
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             self.append(name_item)
@@ -1432,26 +1435,26 @@ class SubjectContextSpecimen(Template):
         uid: str,
         identifier: Optional[str] = None,
         container_identifier: Optional[str] = None,
-        specimen_type: Optional[str] = None
+        specimen_type: Optional[Union[Code, CodedConcept]] = None
     ):
         """
 
         Parameters
         ----------
         uid: str
-            unique identifier of the observed specimen
+            Unique identifier of the observed specimen
         identifier: Union[str, None], optional
-            identifier of the observed specimen (may have limited scope,
+            Identifier of the observed specimen (may have limited scope,
             e.g., only relevant with respect to the corresponding container)
         container_identifier: Union[str, None], optional
-            identifier of the container holding the speciment (e.g., a glass
+            Identifier of the container holding the speciment (e.g., a glass
             slide)
-        specimen_type: Union[highdicom.sr.CodedConcept, None], optional
-            type of the specimen (see
+        specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
+            Type of the specimen (see
             :dcm:`CID 8103 <part16/sect_CID_8103.html>`
             "Anatomic Pathology Specimen Types" for options)
 
-        """
+        """  # noqa: E501
         super().__init__()
         specimen_uid_item = UIDRefContentItem(
             name=CodedConcept(
@@ -1874,7 +1877,7 @@ class SubjectContext(Template):
         elif self.subject_class == codes.DCM.Fetus:
             return SubjectContextFetus.from_sequence(sequence=self)
         elif self.subject_class == codes.DCM.Device:
-            return SubjectContextDevice(sequence=self)
+            return SubjectContextDevice.from_sequence(sequence=self)
         else:
             raise ValueError('Unexpected subject class "{item.meaning}".')
 
@@ -1988,13 +1991,13 @@ class QualitativeEvaluation(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: ContentSequence
+        sequence: Sequence[Dataset]
     ) -> 'QualitativeEvaluation':
         """Construct object from a sequence of content items.
 
         Parameters
         ----------
-        sequence: highdicom.sr.ContentSequence
+        sequence: Sequence[pydicom.dataset.Dataset]
             Content Sequence containing one SR CODE Content Item
 
         Returns
@@ -2007,18 +2010,15 @@ class QualitativeEvaluation(Template):
             raise ValueError(
                 'Qualitative Evaluation shall contain only one content item.'
             )
-        item = sequence[0]
-        if not isinstance(item, CodeContentItem):
-            raise TypeError(
-                'Qualitative Evaluation shall contain a CODE content item.'
-            )
+        item = CodeContentItem.from_dataset(sequence[0])
         return cls(name=item.name, value=item.value)
 
 
 class Measurement(Template):
 
     """:dcm:`TID 300 <part16/chapter_A.html#sect_TID_300>`
-     Measurement"""
+     Measurement
+    """
 
     def __init__(
         self,
@@ -2191,7 +2191,7 @@ class Measurement(Template):
             qualifier=item.qualifier
         )
         if 'ContentSequence' in item:
-            measurement.ContentSequence = ContentSequence.from_sequence(
+            measurement[0].ContentSequence = ContentSequence.from_sequence(
                 item.ContentSequence
             )
         return measurement
@@ -2213,7 +2213,9 @@ class MeasurementsAndQualitativeEvaluations(Template):
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None
+        qualitative_evaluations: Optional[
+            Sequence[QualitativeEvaluation]
+        ] = None
     ):
         """
 
@@ -2326,7 +2328,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     'Argument "time_point_context" must have type '
                     'TimePointContext.'
                 )
-            group_item.ContentSequence.append(time_point_context)
+            group_item.ContentSequence.extend(time_point_context)
         if referenced_real_world_value_map is not None:
             if not isinstance(referenced_real_world_value_map,
                               RealWorldValueMap):
@@ -2345,28 +2347,12 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
-                if isinstance(evaluation, CodeContentItem):
-                    warnings.warn(
-                        'Passing items of type CodeContentItem as '
-                        'qualitative evaluations deprecated behavior and '
-                        'will be removed in a future version of highdicom.'
-                        'Use items of type highdicom.sr.QualitativeEvaluation '
-                        'instead.',
-                        DeprecationWarning
-                    )
-                    group_item.ContentSequence.extend(
-                        QualitativeEvaluation(
-                            name=evaluation.name,
-                            value=evaluation.value
-                        )
-                    )
-                elif isinstance(evaluation, QualitativeEvaluation):
-                    group_item.ContentSequence.extend(evaluation)
-                else:
+                if not isinstance(evaluation, QualitativeEvaluation):
                     raise TypeError(
-                        'Items of attribute "qualitative_evaluations" must '
+                        'Items of argument "qualitative_evaluations" must '
                         'have type QualitativeEvaluations.'
                     )
+                group_item.ContentSequence.extend(evaluation)
         self.append(group_item)
 
     @classmethod
@@ -2495,7 +2481,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
     def get_measurements(
         self,
         name: Optional[Union[Code, CodedConcept]] = None
-    ) -> List[Measurement]:
+    ) -> List[Union[Measurement]]:
         """Get measurements.
 
         Parameters
@@ -2590,7 +2576,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[QualitativeEvaluation]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -2736,7 +2724,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[QualitativeEvaluation]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -2801,7 +2791,16 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
         ] = None
         if referenced_region is not None:
-            referenced_regions = [referenced_region]
+            # This is just to satisfy mypy
+            if isinstance(referenced_region, ImageRegion):
+                referenced_regions = [referenced_region]
+            elif isinstance(referenced_region, ImageRegion3D):
+                referenced_regions = [referenced_region]
+            else:
+                raise TypeError(
+                    'Argument "referenced_region" must have type '
+                    'ImageRegion or ImageRegion3D.'
+                )
         super().__init__(
             tracking_identifier=tracking_identifier,
             referenced_regions=referenced_regions,
@@ -2890,7 +2889,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_regions: Optional[Union[ImageRegion, ImageRegion3D]] = None,
+        referenced_regions: Optional[
+            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
+        ] = None,
         referenced_volume_surface: Optional[VolumeSurface] = None,
         referenced_segment: Optional[
             Union[ReferencedSegment, ReferencedSegmentationFrame]
@@ -2903,7 +2904,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
         measurements: Sequence[Measurement] = None,
-        qualitative_evaluations: Optional[Sequence[CodeContentItem]] = None,
+        qualitative_evaluations: Optional[
+            Sequence[QualitativeEvaluation]
+        ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
@@ -3033,68 +3036,6 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         )
 
 
-class MeasurementsDerivedFromMultipleROIMeasurements(Template):
-
-    """:dcm:`TID 1420 <part16/chapter_A.html#sect_TID_1420>`
-     Measurements Derived From Multiple ROI Measurements"""
-
-    def __init__(
-        self,
-        derivation: CodedConcept,
-        measurement_groups: Union[
-            Sequence[PlanarROIMeasurementsAndQualitativeEvaluations],
-            Sequence[VolumetricROIMeasurementsAndQualitativeEvaluations]
-        ],
-        measurement_properties: Optional[MeasurementProperties] = None
-    ):
-        """
-
-        Parameters
-        ----------
-        derivation: Sequence[highdicom.sr.CodedConcept]
-            methods for derivation of measurements from multiple ROIs
-            measurements (see
-            :dcm:`CID 7465 <part16/sect_CID_7465.html>`
-            "Measurements Derived From Multiple ROI Measurements"
-            for options)
-        measurement_groups: Union[Sequence[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations], Sequence[highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations]]
-            one or more groups of either planar or volumetric ROI measurements
-            and qualitative evaluations
-        measurement_properties: Union[highdicom.sr.MeasurementProperties, None], optional
-            measurement properties, including evaluations of its normality
-            and/or significance, its relationship to a reference population,
-            and an indication of its selection from a set of measurements
-
-        """  # noqa: E501
-        value_item = NumContentItem(
-            name=derivation,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        value_item.ContentSequence = ContentSequence()
-        for group in measurement_groups:
-            allowed_group_types = (
-                PlanarROIMeasurementsAndQualitativeEvaluations,
-                VolumetricROIMeasurementsAndQualitativeEvaluations,
-            )
-            if not isinstance(group, allowed_group_types):
-                raise TypeError(
-                    'Items of argument "measurement_groups" must have type '
-                    'PlanarROIMeasurementsAndQualitativeEvaluations or '
-                    'VolumetricROIMeasurementsAndQualitativeEvaluations.'
-                )
-            group[0].RelationshipType = 'R-INFERRED FROM'
-            value_item.ContentSequence.extend(group)
-        if measurement_properties is not None:
-            if not isinstance(measurement_properties, MeasurementProperties):
-                raise TypeError(
-                    'Argument "measurement_properties" must have '
-                    'type MeasurementProperties.'
-                )
-            value_item.ContentSequence.extend(measurement_properties)
-        # TODO: how to do R-INFERRED FROM relationship?
-        self.append(value_item)
-
-
 class ImageLibraryEntryDescriptors(Template):
 
     """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
@@ -3189,12 +3130,16 @@ class ImageLibraryEntryDescriptors(Template):
 class MeasurementReport(Template):
 
     """:dcm:`TID 1500 <part16/chapter_A.html#sect_TID_1500>`
-    Measurement Report"""
+    Measurement Report
+    """
 
     def __init__(
         self,
         observation_context: ObservationContext,
-        procedure_reported: Union[CodedConcept, Code],
+        procedure_reported: Union[
+            Union[CodedConcept, Code],
+            Sequence[Union[CodedConcept, Code]],
+        ],
         imaging_measurements: Optional[
             Sequence[
                 Union[
@@ -3203,9 +3148,6 @@ class MeasurementReport(Template):
                     MeasurementsAndQualitativeEvaluations,
                 ]
             ]
-        ] = None,
-        derived_imaging_measurements: Optional[
-            Sequence[MeasurementsDerivedFromMultipleROIMeasurements]
         ] = None,
         title: Optional[Union[CodedConcept, Code]] = None,
         language_of_content_item_and_descendants: Optional[
@@ -3228,10 +3170,6 @@ class MeasurementReport(Template):
         imaging_measurements: Union[Sequence[Union[highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations, highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations, highdicom.sr.MeasurementsAndQualitativeEvaluations]]], optional
             measurements and qualitative evaluations of images or regions
             within images
-        derived_imaging_measurements: Union[Sequence[highdicom.sr.MeasurementsDerivedFromMultipleROIMeasurements], None], optional
-            measurements derived from other measurements of images or regions
-            within images
-            qualitative evaluations of images
         title: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             title of the report (see :dcm:`CID 7021 <part16/sect_CID_7021.html>`
             "Measurement Report Document Titles" for options)
@@ -3240,11 +3178,6 @@ class MeasurementReport(Template):
             (defaults to English)
         image_library_groups: Union[Sequence[highdicom.sr.ImageLibraryEntry], None], optional
             Entry descriptors for each image library group
-
-        Note
-        ----
-        Only one of `imaging_measurements` or `derived_imaging_measurements`
-        shall be specified.
 
         """  # noqa: E501
         if title is None:
@@ -3281,15 +3214,11 @@ class MeasurementReport(Template):
         image_library_item = ImageLibrary(image_library_groups)
         item.ContentSequence.extend(image_library_item)
 
-        num_arguments_provided = sum([
-            imaging_measurements is not None,
-            derived_imaging_measurements is not None
-        ])
-        if num_arguments_provided > 1:
-            raise ValueError(
-                'Only one of the following arguments can be provided: '
-                '"imaging_measurements", "derived_imaging_measurement".'
-            )
+        measurements: Union[
+            MeasurementsAndQualitativeEvaluations,
+            PlanarROIMeasurementsAndQualitativeEvaluations,
+            VolumetricROIMeasurementsAndQualitativeEvaluations,
+        ]
         if imaging_measurements is not None:
             measurement_types = (
                 PlanarROIMeasurementsAndQualitativeEvaluations,
@@ -3319,38 +3248,6 @@ class MeasurementReport(Template):
                         )
                     )
                 container_item.ContentSequence.extend(measurements)
-        elif derived_imaging_measurements is not None:
-            derived_measurement_types = (
-                MeasurementsDerivedFromMultipleROIMeasurements,
-            )
-            container_item = ContainerContentItem(
-                name=CodedConcept(
-                    value='126011',
-                    meaning='Derived Imaging Measurements',
-                    scheme_designator='DCM'
-                ),
-                relationship_type=RelationshipTypeValues.CONTAINS
-            )
-            container_item.ContentSequence = []
-            for measurements in derived_imaging_measurements:
-                if not isinstance(measurements, derived_measurement_types):
-                    raise TypeError(
-                        'Measurements must have one of the following types: '
-                        '"{}"'.format(
-                            '", "'.join(
-                                [
-                                    t.__name__
-                                    for t in derived_measurement_types
-                                ]
-                            )
-                        )
-                    )
-                container_item.ContentSequence.extend(measurements)
-        else:
-            raise TypeError(
-                'One of the following arguments must be provided: '
-                '"imaging_measurements", "derived_imaging_measurements".'
-            )
         item.ContentSequence.append(container_item)
         super().__init__([item], is_root=True)
 
@@ -3363,11 +3260,12 @@ class MeasurementReport(Template):
         )
         if len(imaging_measurement_items) == 0:
             return []
-        return find_content_items(
+        items = find_content_items(
             imaging_measurement_items[0],
             name=codes.DCM.MeasurementGroup,
             value_type=ValueTypeValues.CONTAINER
         )
+        return cast(List[ContainerContentItem], items)
 
     @classmethod
     def from_sequence(cls, sequence: Sequence[Dataset]) -> 'MeasurementReport':
@@ -3705,18 +3603,20 @@ class MeasurementReport(Template):
                 )
                 matches.append(matches_tracking_uid)
             if graphic_type is not None:
-                matches_graphic_type = _contains_scoord_items(
-                    group_item,
-                    name=codes.DCM.ImageRegion,
-                    graphic_type=graphic_type,
-                    relationship_type=RelationshipTypeValues.CONTAINS
-                )
-                matches_graphic_type |= _contains_scoord3d_items(
-                    group_item,
-                    name=codes.DCM.VolumeSurface,
-                    graphic_type=graphic_type,
-                    relationship_type=RelationshipTypeValues.CONTAINS
-                )
+                if isinstance(graphic_type, GraphicTypeValues):
+                    matches_graphic_type = _contains_scoord_items(
+                        group_item,
+                        name=codes.DCM.ImageRegion,
+                        graphic_type=graphic_type,
+                        relationship_type=RelationshipTypeValues.CONTAINS
+                    )
+                else:
+                    matches_graphic_type = _contains_scoord3d_items(
+                        group_item,
+                        name=codes.DCM.VolumeSurface,
+                        graphic_type=graphic_type,
+                        relationship_type=RelationshipTypeValues.CONTAINS
+                    )
                 matches.append(matches_graphic_type)
 
             seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(  # noqa: E501

@@ -1,6 +1,7 @@
 """Content items for Structured Report document instances."""
 import logging
-from typing import Optional, Sequence, Union
+from copy import deepcopy
+from typing import cast, Optional, Sequence, Union
 
 import numpy as np
 from pydicom._storage_sopclass_uids import (
@@ -515,6 +516,46 @@ class ImageRegion(ScoordContentItem):
         )
         self.ContentSequence = [source_image]
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ImageRegion
+            Image region
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ImageRegion
+            Image region
+
+        Note
+        ----
+        Does not create a copy, but modifies `dataset`.
+
+        """
+        item = super()._from_dataset_base(dataset)
+        return cast(ImageRegion, item)
+
 
 class ImageRegion3D(Scoord3DContentItem):
 
@@ -560,6 +601,46 @@ class ImageRegion3D(Scoord3DContentItem):
             frame_of_reference_uid=frame_of_reference_uid,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ImageRegion3D
+            Image region
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ImageRegion3D
+            Image region
+
+        Note
+        ----
+        Does not create a copy, but modifies `dataset`.
+
+        """
+        item = super()._from_dataset_base(dataset)
+        return cast(ImageRegion3D, item)
 
 
 class VolumeSurface(Scoord3DContentItem):
@@ -635,6 +716,46 @@ class VolumeSurface(Scoord3DContentItem):
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'VolumeSurface':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.VolumeSurface
+            Content Item
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'VolumeSurface':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.VolumeSurface
+            Volume Surface
+
+        Note
+        ----
+        Does not create a copy, but modifies `dataset`.
+
+        """
+        item = super()._from_dataset_base(dataset)
+        return cast(VolumeSurface, item)
 
 
 class RealWorldValueMap(CompositeContentItem):
@@ -775,6 +896,46 @@ class FindingSite(CodeContentItem):
                 'in "Finding Site" content item'
             )
         return None
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'FindingSite':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.FindingSite
+            Finding site
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'FindingSite':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.FindingSite
+            Finding site
+
+        Note
+        ----
+        Does not create a copy, but modifies `dataset`.
+
+        """
+        item = super()._from_dataset_base(dataset)
+        return cast(FindingSite, item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
