@@ -212,7 +212,9 @@ class ContentItem(Dataset):
         item = dataset
         item.__class__ = cls
         if hasattr(item, 'ContentSequence'):
-            item.ContentSequence = cls._from_sequence(item.ContentSequence)
+            item.ContentSequence = ContentSequence._from_sequence(
+                item.ContentSequence
+            )
         item.ConceptNameCodeSequence = [
             CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
         ]
