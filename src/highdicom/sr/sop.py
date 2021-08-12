@@ -3,7 +3,7 @@ import datetime
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Mapping, List, Optional, Sequence, Tuple, Union
+from typing import Any, cast, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -19,7 +19,7 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
 from highdicom.sr.utils import find_content_items
-from highdicom.sr.value_types import ContentSequence
+from highdicom.sr.value_types import ContentItem, ContentSequence
 from highdicom.valuerep import check_person_name
 
 
@@ -186,7 +186,9 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
-        self._content = ContentSequence([content], is_root=True)
+        content_copy = deepcopy(content)
+        content_item = ContentItem._from_dataset_derived(content_copy)
+        self._content = ContentSequence([content_item], is_root=True)
         for tag, value in content.items():
             self[tag] = value
 
@@ -675,9 +677,8 @@ class ComprehensiveSR(_SR):
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
         sop_instance = super().from_dataset(dataset)
-        sop_instance.__class__ = cls
-
-        return sop_instance
+        sop_instance.__class__ = ComprehensiveSR
+        return cast(ComprehensiveSR, sop_instance)
 
 
 class Comprehensive3DSR(_SR):
@@ -815,5 +816,5 @@ class Comprehensive3DSR(_SR):
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
         sop_instance = super().from_dataset(dataset)
-        sop_instance.__class__ = cls
-        return sop_instance
+        sop_instance.__class__ = Comprehensive3DSR
+        return cast(Comprehensive3DSR, sop_instance)

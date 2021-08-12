@@ -1,6 +1,6 @@
 """Data Elements that are specific to the Segmentation IOD."""
 from copy import deepcopy
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import cast, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.datadict import tag_for_keyword
@@ -208,7 +208,7 @@ class SegmentDescription(Dataset):
                 CodedConcept.from_dataset(ds)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
-        return desc
+        return cast(SegmentDescription, desc)
 
     @property
     def segment_number(self) -> int:

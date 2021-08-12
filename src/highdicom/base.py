@@ -7,7 +7,7 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filewriter import write_file_meta_info
 from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian, UID
-from pydicom.valuerep import DA, TM
+from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.coding_schemes import CodingSchemeIdentificationItem
 from highdicom.enum import ContentQualificationValues
@@ -35,14 +35,14 @@ class SOPClass(Dataset):
         manufacturer: Optional[str] = None,
         transfer_syntax_uid: Optional[str] = None,
         patient_id: Optional[str] = None,
-        patient_name: Optional[str] = None,
+        patient_name: Optional[Union[str, PersonName]] = None,
         patient_birth_date: Optional[str] = None,
         patient_sex: Optional[str] = None,
         accession_number: Optional[str] = None,
         study_id: str = None,
         study_date: Optional[Union[str, datetime.date]] = None,
         study_time: Optional[Union[str, datetime.time]] = None,
-        referring_physician_name: Optional[str] = None,
+        referring_physician_name: Optional[Union[str, PersonName]] = None,
         content_qualification: Optional[
             Union[str, ContentQualificationValues]
         ] = None,
@@ -75,28 +75,28 @@ class SOPClass(Dataset):
             (UID ``"1.2.840.10008.1.2"``)
         patient_id: str, optional
            ID of the patient (medical record number)
-        patient_name: str, optional
+        patient_name: Union[str, pydicom.valuerep.PersonName, None], optional
            Name of the patient
-        patient_birth_date: str, optional
+        patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: str, optional
+        patient_sex: Union[str, None], optional
            Patient's sex
-        study_id: str, optional
+        study_id: Union[str, None], optional
            ID of the study
-        accession_number: str, optional
+        accession_number: Union[str, None], optional
            Accession number of the study
-        study_date: Union[str, datetime.date], optional
+        study_date: Union[str, datetime.date, None], optional
            Date of study creation
-        study_time: Union[str, datetime.time], optional
+        study_time: Union[str, datetime.time, None], optional
            Time of study creation
-        referring_physician_name: str, optional
+        referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
-        content_qualification: Union[str, highdicom.enum.ContentQualificationValues], optional
+        content_qualification: Union[str, highdicom.enum.ContentQualificationValues, None], optional
             Indicator of content qualification
-        coding_schemes: Sequence[highdicom.sr.CodingSchemeIdentificationItem], optional
+        coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the
             DICOM standard
-        series_description: str, optional
+        series_description: Union[str, None], optional
             Human readable description of the series
 
         Note
@@ -131,7 +131,9 @@ class SOPClass(Dataset):
         self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
         self.file_meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
-        self.file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.9.7433.1.1'
+        self.file_meta.ImplementationClassUID = UID(
+            '1.2.826.0.1.3680043.9.7433.1.1'
+        )
         self.file_meta.ImplementationVersionName = '{} v{}'.format(
             __name__.split('.')[0], __version__
         )

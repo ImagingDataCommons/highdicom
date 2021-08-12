@@ -1,7 +1,7 @@
 """Generic Data Elements that can be included in a variety of IODs."""
 import datetime
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Union, Sequence, Tuple
+from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -110,8 +110,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             ]
         )
         algo_id_sequence = deepcopy(sequence)
-        algo_id_sequence.__class__ = cls
-        return algo_id_sequence
+        algo_id_sequence.__class__ = AlgorithmIdentificationSequence
+        return cast(AlgorithmIdentificationSequence, algo_id_sequence)
 
     @property
     def name(self) -> str:
@@ -234,8 +234,8 @@ class PixelMeasuresSequence(DataElementSequence):
             )
 
         pixel_measures = deepcopy(sequence)
-        pixel_measures.__class__ = cls
-        return pixel_measures
+        pixel_measures.__class__ = PixelMeasuresSequence
+        return cast(PixelMeasuresSequence, pixel_measures)
 
 
 class PlanePositionSequence(DataElementSequence):
@@ -388,8 +388,8 @@ class PlanePositionSequence(DataElementSequence):
             )
 
         plane_position = deepcopy(sequence)
-        plane_position.__class__ = cls
-        return plane_position
+        plane_position.__class__ = PlanePositionSequence
+        return cast(PlanePositionSequence, plane_position)
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -517,8 +517,8 @@ class PlaneOrientationSequence(DataElementSequence):
                 )
 
         plane_orientation = deepcopy(sequence)
-        plane_orientation.__class__ = cls
-        return plane_orientation
+        plane_orientation.__class__ = PlaneOrientationSequence
+        return cast(PlaneOrientationSequence, plane_orientation)
 
 
 class IssuerOfIdentifier(Dataset):
@@ -526,12 +526,12 @@ class IssuerOfIdentifier(Dataset):
     """Dataset describing the issuer or a specimen or container identifier."""
 
     def __init__(
-            self,
-            issuer_of_identifier: str,
-            issuer_of_identifier_type: Optional[
-                Union[str, UniversalEntityIDTypeValues]
-            ] = None
-        ):
+        self,
+        issuer_of_identifier: str,
+        issuer_of_identifier_type: Optional[
+            Union[str, UniversalEntityIDTypeValues]
+        ] = None
+    ):
         """
         Parameters
         ----------
@@ -587,12 +587,12 @@ class SpecimenSampling(ContentSequence):
     """
 
     def __init__(
-            self,
-            method: Union[Code, CodedConcept],
-            parent_specimen_id: str,
-            parent_specimen_type: Union[Code, CodedConcept],
-            issuer_of_parent_specimen_id: Optional[IssuerOfIdentifier] = None
-        ):
+        self,
+        method: Union[Code, CodedConcept],
+        parent_specimen_id: str,
+        parent_specimen_type: Union[Code, CodedConcept],
+        issuer_of_parent_specimen_id: Optional[IssuerOfIdentifier] = None
+    ):
         """
         Parameters
         ----------
@@ -674,22 +674,22 @@ class SpecimenPreparationStep(ContentSequence):
     """
 
     def __init__(
-            self,
-            specimen_id: str,
-            processing_type: Union[Code, CodedConcept],
-            processing_procedure: Union[
-                SpecimenCollection,
-                SpecimenSampling,
-                SpecimenStaining,
-            ],
-            processing_description: Optional[
-                Union[str, Code, CodedConcept]
-            ] = None,
-            processing_datetime: Optional[datetime.datetime] = None,
-            issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
-            fixative: Optional[Union[Code, CodedConcept]] = None,
-            embedding_medium: Optional[Union[Code, CodedConcept]] = None
-        ):
+        self,
+        specimen_id: str,
+        processing_type: Union[Code, CodedConcept],
+        processing_procedure: Union[
+            SpecimenCollection,
+            SpecimenSampling,
+            SpecimenStaining,
+        ],
+        processing_description: Optional[
+            Union[str, Code, CodedConcept]
+        ] = None,
+        processing_datetime: Optional[datetime.datetime] = None,
+        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
+        fixative: Optional[Union[Code, CodedConcept]] = None,
+        embedding_medium: Optional[Union[Code, CodedConcept]] = None
+    ):
         """
         Parameters
         ----------
@@ -717,7 +717,15 @@ class SpecimenPreparationStep(ContentSequence):
         )
         self.append(specimen_identifier_item)
         if issuer_of_specimen_id is not None:
-            self.append(issuer_of_specimen_id)
+            try:
+                entity_id = issuer_of_specimen_id.UniversalEntityID
+            except AttributeError:
+                entity_id = issuer_of_specimen_id.LocalNamespaceEntityID
+            issuer_of_specimen_id_item = TextContentItem(
+                name=codes.DCM.IssuerOfSpecimenIdentifier,
+                value=entity_id
+            )
+            self.append(issuer_of_specimen_id_item)
         # CID 8111
         processing_type_item = CodeContentItem(
             name=codes.DCM.ProcessingType,
@@ -731,6 +739,10 @@ class SpecimenPreparationStep(ContentSequence):
             )
             self.append(processing_datetime_item)
         if processing_description is not None:
+            processing_description_item: Union[
+                TextContentItem,
+                CodeContentItem,
+            ]
             if isinstance(processing_description, str):
                 processing_description_item = TextContentItem(
                     name=codes.DCM.ProcessingStepDescription,
@@ -817,7 +829,8 @@ class SpecimenDescription(Dataset):
                 step_item.SpecimenPreparationStepContentItemSequence = step
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
-            loc_seq = []
+            loc_item: Union[TextContentItem, NumContentItem]
+            loc_seq: List[Union[TextContentItem, NumContentItem]] = []
             if isinstance(specimen_location, str):
                 loc_item = TextContentItem(
                     name=codes.DCM.LocationOfSpecimen,

@@ -112,14 +112,14 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
 
     def __init__(
         self,
-        value: Optional[Union[int, float]],
+        value: Union[int, float],
         unit: Union[CodedConcept, Code],
         event_type: Union[CodedConcept, Code]
     ) -> None:
         """
         Parameters
         ----------
-        value: Union[int, float], optional
+        value: Union[int, float]
             Offset in time from a particular event of significance
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             Unit of time, e.g., "Days" or "Seconds"

@@ -46,14 +46,17 @@ def find_content_items(
         When data set does not contain Content Sequence attribute.
 
     """  # noqa: E501
-    def has_name(item: ContentItem, name: Optional[str]) -> bool:
+    def has_name(
+        item: ContentItem,
+        name: Optional[Union[Code, CodedConcept]]
+    ) -> bool:
         if name is None:
             return True
         return item.name == name
 
     def has_value_type(
-            item: ContentItem,
-            value_type: Optional[Union[ValueTypeValues, str]]
+        item: ContentItem,
+        value_type: Optional[Union[ValueTypeValues, str]]
     ) -> bool:
         if value_type is None:
             return True
