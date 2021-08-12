@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 
-from pydicom.datadict import dictionary_keyword, repeater_has_tag
+from pydicom.datadict import dictionary_keyword
 from pydicom.tag import Tag
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ def _load_json_from_file(filename):
 def _dump_json(data):
     return json.dumps(data, indent=4, sort_keys=True)
 
+
 def _create_sop_to_iods(directory):
     filename = os.path.join(directory, 'sops.json')
     sops = _load_json_from_file(filename)
@@ -35,13 +36,14 @@ def _create_sop_to_iods(directory):
     filename = os.path.join(directory, 'ciods.json')
     ciods = _load_json_from_file(filename)
 
-    sop_id_to_ciod_name = {sop['id'] :sop['ciod'] for sop in sops}
-    ciod_name_to_ciod_id = {ciod['name'] :ciod['id'] for ciod in ciods}
+    sop_id_to_ciod_name = {sop['id']: sop['ciod'] for sop in sops}
+    ciod_name_to_ciod_id = {ciod['name']: ciod['id'] for ciod in ciods}
     sop_id_to_ciod_id = {
         sop_id: ciod_name_to_ciod_id[sop_id_to_ciod_name[sop_id]]
         for sop_id in sop_id_to_ciod_name
     }
     return sop_id_to_ciod_id
+
 
 def _create_iods(directory):
     filename = os.path.join(directory, 'ciod_to_modules.json')
@@ -124,7 +126,6 @@ if __name__ == '__main__':
         fp.write('\n\n')
         sop_to_iods_formatted = _dump_json(sop_to_iods).replace('null', 'None')
         fp.write('SOP_CLASS_UID_IOD_KEY_MAP = {}'.format(sop_to_iods_formatted))
-
 
     modules = _create_modules(directory)
     modules_docstr = (

@@ -1,5 +1,5 @@
 from highdicom import legacy
-from highdicom import map
+from highdicom import pm
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
@@ -64,7 +64,7 @@ __all__ = [
     'frame',
     'io',
     'legacy',
-    'map',
+    'pm',
     'sc',
     'seg',
     'spatial',

@@ -24,14 +24,14 @@ class TestRealWorldValueMapping(unittest.TestCase):
         intercept = 0
         slope = 1
         with pytest.raises(TypeError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
                 value_range=value_range,
             )
         with pytest.raises(TypeError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
@@ -39,7 +39,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
                 slope=slope
             )
         with pytest.raises(TypeError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
@@ -49,7 +49,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
                 lut_data=lut_data
             )
         with pytest.raises(TypeError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
@@ -58,7 +58,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
                 lut_data=lut_data
             )
         with pytest.raises(TypeError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
@@ -74,7 +74,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         value_range = [0, 255]
         intercept = 0
         slope = 1
-        m = hd.map.RealWorldValueMapping(
+        m = hd.pm.RealWorldValueMapping(
             lut_label=lut_label,
             lut_explanation=lut_explanation,
             unit=unit,
@@ -106,7 +106,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         unit = codes.UCUM.NoUnits
         value_range = [0, 255]
         lut_data = [v**2 for v in range(256)]
-        m = hd.map.RealWorldValueMapping(
+        m = hd.pm.RealWorldValueMapping(
             lut_label=lut_label,
             lut_explanation=lut_explanation,
             unit=unit,
@@ -138,7 +138,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         value_range = [0.0, 1.0]
         intercept = 0
         slope = 1
-        m = hd.map.RealWorldValueMapping(
+        m = hd.pm.RealWorldValueMapping(
             lut_label=lut_label,
             lut_explanation=lut_explanation,
             unit=unit,
@@ -174,7 +174,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
             for v in np.arange(value_range[0], value_range[1], 0.1)
         ]
         with pytest.raises(ValueError):
-            hd.map.RealWorldValueMapping(
+            hd.pm.RealWorldValueMapping(
                 lut_label=lut_label,
                 lut_explanation=lut_explanation,
                 unit=unit,
@@ -223,7 +223,7 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = pixel_array.astype(np.float32)
         window_center = 0.5
         window_width = 1.0
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -231,7 +231,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._sm_image],
             pixel_array,
             self._series_instance_uid,
@@ -268,7 +268,7 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -276,7 +276,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._sm_image],
             pixel_array,
             self._series_instance_uid,
@@ -304,7 +304,7 @@ class TestParametricMap(unittest.TestCase):
         window_center = 128
         window_width = 256
 
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -312,7 +312,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._sm_image],
             pixel_array,
             self._series_instance_uid,
@@ -335,7 +335,7 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)
         window_center = 0.0
         window_width = 2.0
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -343,7 +343,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._ct_image],
             pixel_array,
             self._series_instance_uid,
@@ -370,7 +370,7 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 2**12 / 2.0
         window_width = 2**12
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -378,7 +378,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._ct_image],
             pixel_array,
             self._series_instance_uid,
@@ -405,7 +405,7 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 0
         window_width = 2**16
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -413,7 +413,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             [self._ct_image],
             pixel_array,
             self._series_instance_uid,
@@ -448,7 +448,7 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = pixel_array.astype(np.float32)
         window_center = 0.0
         window_width = 2.0
-        real_world_value_mapping = hd.map.RealWorldValueMapping(
+        real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
@@ -456,7 +456,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = hd.map.ParametricMap(
+        pmap = hd.pm.ParametricMap(
             self._ct_series,
             pixel_array,
             self._series_instance_uid,

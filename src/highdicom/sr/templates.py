@@ -2,7 +2,7 @@
 import logging
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import cast, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -1039,7 +1039,7 @@ class PersonObserverIdentifyingAttributes(Template):
         kwargs = {}
         for dataset in sequence:
             dataset_copy = deepcopy(dataset)
-            content_item = ContentItem._from_dataset(dataset_copy)
+            content_item = ContentItem._from_dataset_derived(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1268,7 +1268,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         kwargs = {}
         for dataset in sequence:
             dataset_copy = deepcopy(dataset)
-            content_item = ContentItem._from_dataset(dataset_copy)
+            content_item = ContentItem._from_dataset_derived(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1415,7 +1415,7 @@ class SubjectContextFetus(Template):
         kwargs = {}
         for dataset in sequence:
             dataset_copy = deepcopy(dataset)
-            content_item = ContentItem._from_dataset(dataset_copy)
+            content_item = ContentItem._from_dataset_derived(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1578,7 +1578,7 @@ class SubjectContextSpecimen(Template):
         kwargs = {}
         for dataset in sequence:
             dataset_copy = deepcopy(dataset)
-            content_item = ContentItem._from_dataset(dataset_copy)
+            content_item = ContentItem._from_dataset_derived(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -1789,7 +1789,7 @@ class SubjectContextDevice(Template):
         kwargs = {}
         for dataset in sequence:
             dataset_copy = deepcopy(dataset)
-            content_item = ContentItem._from_dataset(dataset_copy)
+            content_item = ContentItem._from_dataset_derived(dataset_copy)
             for param, name in attr_codes:
                 if content_item.name == name:
                     kwargs[param] = content_item.value
@@ -2194,8 +2194,6 @@ class Measurement(Template):
             measurement.ContentSequence = ContentSequence.from_sequence(
                 item.ContentSequence
             )
-        else:
-            measurement.ContentSequence = ContentSequence()
         return measurement
 
 
@@ -2406,8 +2404,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 'because it does not have name "Measurement Group".'
             )
         instance = ContentSequence.from_sequence(sequence)
-        instance.__class__ = cls
-        return instance
+        instance.__class__ = MeasurementsAndQualitativeEvaluations
+        return cast(MeasurementsAndQualitativeEvaluations, instance)
 
     @property
     def method(self) -> Union[CodedConcept, None]:
@@ -2856,6 +2854,32 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             return ImageRegion3D.from_dataset(matches[0])
         return None
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'PlanarROIMeasurementsAndQualitativeEvaluations':
+        """Construct object from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing "Measurement Group" SR Content Items
+            of Value Type CONTAINER (sequence shall only contain a single item)
+
+        Returns
+        -------
+        highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations
+            Content Sequence containing root CONTAINER SR Content Item
+
+        """
+        instance = super(
+            PlanarROIMeasurementsAndQualitativeEvaluations,
+            cls
+        ).from_sequence(sequence)
+        instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
+        return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
+
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
@@ -2979,6 +3003,35 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
         return None
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'VolumetricROIMeasurementsAndQualitativeEvaluations':
+        """Construct object from a sequence of datasets.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Datasets representing "Measurement Group" SR Content Items
+            of Value Type CONTAINER (sequence shall only contain a single item)
+
+        Returns
+        -------
+        highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations
+            Content Sequence containing root CONTAINER SR Content Item
+
+        """
+        instance = super(
+            VolumetricROIMeasurementsAndQualitativeEvaluations,
+            cls
+        ).from_sequence(sequence)
+        instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
+        return cast(
+            VolumetricROIMeasurementsAndQualitativeEvaluations,
+            instance
+        )
+
 
 class MeasurementsDerivedFromMultipleROIMeasurements(Template):
 
@@ -2986,14 +3039,14 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
      Measurements Derived From Multiple ROI Measurements"""
 
     def __init__(
-            self,
-            derivation: CodedConcept,
-            measurement_groups: Union[
-                Sequence[PlanarROIMeasurementsAndQualitativeEvaluations],
-                Sequence[VolumetricROIMeasurementsAndQualitativeEvaluations]
-            ],
-            measurement_properties: Optional[MeasurementProperties] = None
-        ):
+        self,
+        derivation: CodedConcept,
+        measurement_groups: Union[
+            Sequence[PlanarROIMeasurementsAndQualitativeEvaluations],
+            Sequence[VolumetricROIMeasurementsAndQualitativeEvaluations]
+        ],
+        measurement_properties: Optional[MeasurementProperties] = None
+    ):
         """
 
         Parameters
@@ -3350,8 +3403,8 @@ class MeasurementReport(Template):
                 'because it does not have Template Identifier "1500".'
             )
         instance = ContentSequence.from_sequence(sequence, is_root=True)
-        instance.__class__ = cls
-        return instance
+        instance.__class__ = MeasurementReport
+        return cast(MeasurementReport, instance)
 
     def get_observer_contexts(
         self,
@@ -3376,6 +3429,10 @@ class MeasurementReport(Template):
             if item.name == codes.DCM.ObserverType
         ]
         observer_contexts = []
+        attributes: Union[
+            DeviceObserverIdentifyingAttributes,
+            PersonObserverIdentifyingAttributes,
+        ]
         for i, (index, item) in enumerate(matches):
             if observer_type is not None:
                 if item.value != observer_type:
@@ -3425,6 +3482,11 @@ class MeasurementReport(Template):
             if item.name == codes.DCM.SubjectClass
         ]
         subject_contexts = []
+        attributes: Union[
+            SubjectContextSpecimen,
+            SubjectContextFetus,
+            SubjectContextDevice,
+        ]
         for i, (index, item) in enumerate(matches):
             if subject_class is not None:
                 if item.value != subject_class:
@@ -3442,7 +3504,7 @@ class MeasurementReport(Template):
                     sequence=root_item.ContentSequence[index:next_index]
                 )
             elif item.value == codes.DCM.Device:
-                attributes = SubjectContextDevice(
+                attributes = SubjectContextDevice.from_sequence(
                     sequence=root_item.ContentSequence[index:next_index]
                 )
             else:
@@ -3507,8 +3569,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1410':
                     continue
             else:
-                contains_rois = _contains_planar_rois(group_item)
-                if not(contains_rois):
+                if not _contains_planar_rois(group_item):
                     continue
 
             matches = []
@@ -3615,8 +3676,7 @@ class MeasurementReport(Template):
                 if group_item.template_id != '1411':
                     continue
             else:
-                contains_rois = _contains_volumetric_rois(group_item)
-                if not(contains_rois):
+                if not _contains_volumetric_rois(group_item):
                     continue
 
             matches = []

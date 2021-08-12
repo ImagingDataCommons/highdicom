@@ -9,6 +9,7 @@ from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
+from pydicom.sr.coding import Code
 from pydicom.valuerep import DA, PersonName, TM
 from pydicom.uid import (
     ImplicitVRLittleEndian,
@@ -269,7 +270,8 @@ class SCImage(SOPClass):
                 self.IssuerOftheContainerIdentifierSequence.append(
                     issuer_of_container_identifier
                 )
-            container_type_item = CodedConcept(*codes.SCT.MicroscopeSlide)
+            code: Code = codes.SCT.MicroscopeSlide
+            container_type_item = CodedConcept(*code)
             self.ContainerTypeCodeSequence = [container_type_item]
             self.SpecimenDescriptionSequence = specimen_descriptions
 

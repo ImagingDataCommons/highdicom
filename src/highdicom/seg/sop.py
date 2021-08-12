@@ -6,7 +6,7 @@ from os import PathLike
 import numpy as np
 from collections import defaultdict
 from typing import (
-    Any, Dict, List, Optional, Sequence, Union, Tuple, BinaryIO
+    Any, cast, Dict, List, Optional, Sequence, Union, Tuple, BinaryIO
 )
 
 from pydicom.dataset import Dataset
@@ -420,7 +420,7 @@ class Segmentation(SOPClass):
             self.LossyImageCompressionMethod = \
                 src_img.LossyImageCompressionMethod
 
-        self.SegmentSequence: List[Dataset] = []
+        self.SegmentSequence: List[SegmentDescription] = []
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         shared_func_groups = Dataset()
@@ -1042,7 +1042,7 @@ class Segmentation(SOPClass):
                 'Dataset is not a Segmentation.'
             )
         seg = deepcopy(dataset)
-        seg.__class__ = cls
+        seg.__class__ = Segmentation
 
         sf_groups = seg.SharedFunctionalGroupsSequence[0]
         plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
@@ -1114,7 +1114,7 @@ class Segmentation(SOPClass):
 
         seg._build_luts()
 
-        return seg
+        return cast(Segmentation, seg)
 
     def _build_ref_instance_lut(self) -> None:
         """Build lookup table for all instance referenced in the segmentation.
@@ -1502,19 +1502,19 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        segmented_property_category: Union[Code, CodedConcept, None], optional
+        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             Segmented property category filter to apply.
-        segmented_property_type: Union[Code, CodedConcept, None], optional
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             Segmented property type filter to apply.
-        algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
+        algorithm_type: Union[highdicom.seg.SegmentAlgorithmTypeValues, str, None], optional
             Segmented property type filter to apply.
 
         Returns
         -------
-        List[Tuple[str, UID]]
-            List of all unique (tracking_id, tracking_uid) tuples that are
-            referenced in segment descriptions in this SEG image that match
-            all provided filters.
+        List[Tuple[str, pydicom.uid.UID]]
+            List of all unique (Tracking Identifier, Unique Tracking Identifier)
+            tuples that are referenced in segment descriptions in this
+            Segmentation image that match all provided filters.
 
         Examples
         --------
@@ -1567,6 +1567,7 @@ class Segmentation(SOPClass):
             (desc.tracking_id, UID(desc.tracking_uid))
             for desc in self.SegmentSequence
             if desc.tracking_id is not None and
+            desc.tracking_uid is not None and
             all(f(desc) for f in filter_funcs)
         })
 

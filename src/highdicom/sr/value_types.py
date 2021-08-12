@@ -1,9 +1,21 @@
 """DICOM structured reporting content item value types."""
 import datetime
-import collections
 import warnings
+from collections import defaultdict
 from copy import deepcopy
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    cast,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    overload,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -141,7 +153,7 @@ class ContentItem(Dataset):
             super(ContentItem, self).__setattr__(name, value)
 
     @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
         """Construct object of appropriate subtype from an existing dataset.
 
         Parameters
@@ -161,7 +173,9 @@ class ContentItem(Dataset):
         """
         value_type = ValueTypeValues(dataset.ValueType)
         content_item_cls = _get_content_item_class(value_type)
-        return content_item_cls._from_dataset(dataset)
+        # TODO: No idea whether we can provide a type hint, since the type is
+        # determined at runtime.
+        return content_item_cls._from_dataset(dataset)  # type: ignore
 
     @classmethod
     def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
@@ -193,15 +207,16 @@ class ContentItem(Dataset):
                     'required attribute "Concept Name Content Sequence".'
                 )
 
-        dataset.__class__ = cls
-        if hasattr(dataset, 'ContentSequence'):
-            dataset.ContentSequence = ContentSequence._from_sequence(
-                dataset.ContentSequence
+        item = dataset
+        item.__class__ = cls
+        if hasattr(item, 'ContentSequence'):
+            item.ContentSequence = ContentSequence._from_sequence(
+                item.ContentSequence
             )
-        dataset.ConceptNameCodeSequence = [
-            CodedConcept.from_dataset(dataset.ConceptNameCodeSequence[0])
+        item.ConceptNameCodeSequence = [
+            CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
         ]
-        return dataset
+        return cast(ContentItem, item)
 
     @property
     def name(self) -> CodedConcept:
@@ -234,21 +249,23 @@ class ContentSequence(DataElementSequence):
 
     def __init__(
         self,
-        items: Optional[Sequence] = None,
+        items: Optional[
+            Union[Sequence[ContentItem], 'ContentSequence']
+        ] = None,
         is_root: bool = False
     ) -> None:
         """
 
         Parameters
         ----------
-        items: Union[Sequence[highdicom.sr.ContentItem], None], optional
+        items: Union[Sequence[highdicom.sr.ContentItem], highdicom.sr.ContentSequence, None], optional
             SR Content items
         is_root: bool, optional
             Whether the sequence is used to contain SR Content Items that are
             intended to be added to an SR document at the root of the document
             content tree
 
-        """
+        """  # noqa: E501
         self._is_root = is_root
         if items is not None:
             for i in items:
@@ -276,44 +293,119 @@ class ContentSequence(DataElementSequence):
                             f'established relationship type:\n{i.name}'
                         )
 
-        super(ContentSequence, self).__init__(items)
-        self._lut = collections.defaultdict(list)
+        # The implementation of this class is quite a hack. It is derived from
+        # "pydicom.sequence.Sequence", because this is the only type that is
+        # accepted for Data Elements with Value Representation "SQ"
+        # (see "pydicom.dataset.Dataset.__setattr__").
+        # Methods of the "pydicom.sequence.Sequence" class generally operate on
+        # items of type "pydicom.dataset.Dataset" and accordingly accept
+        # instances of that type as arguments
+        # (see for example "pydicom.dataset.Dataset.__setitem__").
+        # However, we want/need methods to operate on instances of type
+        # "highdicom.sr.ContentItem", and making that possible requires a lot
+        # of "type: ignore[override]" comments. The implementation is thereby
+        # violating the Liskov substitution principle. That's not elegant
+        # (to put it kindly), but we currently don't see a better way without
+        # having to change the implementation in the pydicom library.
 
-    def __setitem__(self, position: int, item: ContentItem) -> None:
-        self.insert(position, item)
+        self._lut: Dict[
+            Union[Code, CodedConcept],
+            List[ContentItem]
+        ] = defaultdict(list)
+        if items is not None:
+            super().__init__(items)
+            for i in items:
+                self._lut[i.name].append(i)
+        else:
+            super().__init__()
 
-    def __delitem__(self, position: int) -> None:
-        item = self[position]
-        index = self._lut[item.name].index(item)
-        del self._lut[item.name][index]
-        super(ContentSequence, self).__delitem__(position)
+    @overload
+    def __setitem__(self, idx: int, val: ContentItem) -> None:
+        pass
 
-    def __contains__(self, item: ContentItem) -> bool:
+    @overload
+    def __setitem__(self, idx: slice, val: Iterable[ContentItem]) -> None:
+        pass
+
+    def __setitem__(
+        self,
+        idx: Union[slice, int],
+        val: Union[Iterable[ContentItem], ContentItem]
+    ) -> None:   # type: ignore[override]
+        if isinstance(val, Iterable):
+            items = val
+        else:
+            items = [val]
+        for i in items:
+            if not isinstance(i, ContentItem):
+                raise TypeError(
+                    'Items of "{}" must have type ContentItem.'.format(
+                        self.__class__.__name__
+                    )
+                )
+        super().__setitem__(idx, val)  # type: ignore
+
+    def __delitem__(
+        self,
+        idx: Union[slice, int]
+    ) -> None:   # type: ignore[override]
+        if isinstance(idx, slice):
+            items = self[idx]
+        else:
+            items = [self[idx]]
+        for i in items:
+            i = cast(ContentItem, i)
+            index = self._lut[i.name].index(i)
+            del self._lut[i.name][index]
+        super().__delitem__(idx)
+
+    def __iter__(self) -> Iterator[ContentItem]:  # type: ignore[override]
+        return super().__iter__()  # type: ignore
+
+    def __contains__(self, val: ContentItem) -> bool:  # type: ignore[override]
         try:
-            self.index(item)
+            self.index(val)
         except ValueError:
             return False
         return True
 
-    def index(self, item: ContentItem) -> int:
-        error_message = f'Item "{item.name}" is not in Sequence.'
+    def index(self, val: ContentItem) -> int:  # type: ignore[override]
+        """Get the index of a given item.
+
+        Parameters
+        ----------
+        val: highdicom.sr.ContentItem
+            SR Content Item
+
+        Returns
+        -------
+        int: Index of the item in the sequence
+
+        """
+        if not isinstance(val, ContentItem):
+            raise TypeError(
+                'Items of "{}" must have type ContentItem.'.format(
+                    self.__class__.__name__
+                )
+            )
+        error_message = f'Item "{val.name}" is not in Sequence.'
         try:
-            matches = self._lut[item.name]
+            matches = self._lut[val.name]
         except KeyError:
             raise ValueError(error_message)
         try:
-            index = matches.index(item)
+            index = matches.index(val)
         except ValueError:
             raise ValueError(error_message)
         return index
 
     def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
-        """Finds contained content items given their name.
+        """Find contained content items given their name.
 
         Parameters
         ----------
         name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Name of content items
+            Name of SR Content Items
 
         Returns
         -------
@@ -324,13 +416,15 @@ class ContentSequence(DataElementSequence):
         return ContentSequence(self._lut[name])
 
     def get_nodes(self) -> 'ContentSequence':
-        """Gets content items that represent nodes in the content tree, i.e.
-        target items that have a `ContentSequence` attribute.
+        """Get content items that represent nodes in the content tree.
+
+        A node is hereby defined as a content item that has a `ContentSequence`
+        attribute.
 
         Returns
         -------
         highdicom.sr.ContentSequence[highdicom.sr.ContentItem]
-            matched content items
+            Matched content items
 
         """
         return self.__class__([
@@ -338,82 +432,89 @@ class ContentSequence(DataElementSequence):
             if hasattr(item, 'ContentSequence')
         ])
 
-    def append(self, item: ContentItem) -> None:
-        """Appends a content item to the sequence.
+    def append(self, val: ContentItem) -> None:  # type: ignore[override]
+        """Append a content item to the sequence.
 
         Parameters
         ----------
         item: highdicom.sr.ContentItem
-            content item
+            SR Content Item
 
         """
-        if not isinstance(item, ContentItem):
+        if not isinstance(val, ContentItem):
             raise TypeError(
                 'Items of "{}" must have type ContentItem.'.format(
                     self.__class__.__name__
                 )
             )
         if self._is_root:
-            if item.relationship_type is not None:
+            if val.relationship_type is not None:
                 raise AttributeError(
                     f'Items to be appended to a {self.__class__.__name__} '
                     'that is the root of the SR content tree must not have '
                     'relationship type.'
                 )
         else:
-            if item.relationship_type is None:
+            if val.relationship_type is None:
                 raise AttributeError(
                     f'Items to be appended to a {self.__class__.__name__} must '
                     'have an established relationship type.'
                 )
-        self._lut[item.name].append(item)
-        super(ContentSequence, self).append(item)
+        self._lut[val.name].append(val)
+        super().append(val)
 
-    def extend(self, items: Sequence[ContentItem]) -> None:
-        """Extends multiple content items to the sequence.
+    def extend(  # type: ignore[override]
+        self,
+        val: Union[Iterable[ContentItem], 'ContentSequence']
+    ) -> None:
+        """Extend multiple content items to the sequence.
 
         Parameters
         ----------
-        items: Sequence[highdicom.sr.ContentItem]
-            content items
+        val: Iterable[highdicom.sr.ContentItem, highdicom.sr.ContentSequence]
+            SR Content Items
 
         """
-        for i in items:
-            self._lut[i.name].append(i)
-            self.append(i)
+        for item in val:
+            self._lut[item.name].append(item)
+            self.append(item)
 
-    def insert(self, position: int, item: ContentItem) -> None:
-        """Inserts a content item into the sequence at a given position.
+    def insert(   # type: ignore[override]
+        self,
+        position: int,
+        val: ContentItem
+    ) -> None:
+        """Insert a content item into the sequence at a given position.
 
         Parameters
         ----------
         position: int
-            index position
-        item: highdicom.sr.ContentItem
-            content item
+            Index position
+        val: highdicom.sr.ContentItem
+            SR Content Item
 
         """
-        if not isinstance(item, ContentItem):
+        if not isinstance(val, ContentItem):
             raise TypeError(
                 'Items of "{}" must have type ContentItem.'.format(
                     self.__class__.__name__
                 )
             )
         if self._is_root:
-            if item.relationship_type is not None:
+            if val.relationship_type is not None:
                 raise AttributeError(
                     f'Items to be included in a {self.__class__.__name__} '
                     'that is the root of the SR content tree must not have '
                     'relationship type.'
                 )
         else:
-            if item.relationship_type is None:
+            if val.relationship_type is None:
                 raise AttributeError(
                     f'Items to be inserted into to a {self.__class__.__name__} '
                     'must have an established relationship type.'
                 )
-        self._lut[item.name].append(item)
-        super(ContentSequence, self).insert(position, item)
+        self._lut[val.name].append(val)
+        super().insert(position, val)
 
     @classmethod
     def from_sequence(
@@ -446,10 +547,9 @@ class ContentSequence(DataElementSequence):
                 index=i
             )
             dataset_copy = deepcopy(dataset)
-            content_items.append(ContentItem._from_dataset(dataset_copy))
-        if cls.__name__ == 'ContentSequence':
-            return ContentSequence(content_items, is_root=is_root)
-        return cls(content_items)
+            item = ContentItem._from_dataset_derived(dataset_copy)
+            content_items.append(item)
+        return ContentSequence(content_items, is_root=is_root)
 
     @classmethod
     def _from_sequence(
@@ -481,10 +581,9 @@ class ContentSequence(DataElementSequence):
                 is_root=is_root,
                 index=i
             )
-            content_items.append(ContentItem._from_dataset(dataset))
-        if cls.__name__ == 'ContentSequence':
-            return ContentSequence(content_items, is_root=is_root)
-        return cls(content_items)
+            item = ContentItem._from_dataset_derived(dataset)
+            content_items.append(item)
+        return ContentSequence(content_items, is_root=is_root)
 
     @classmethod
     def _check_dataset(
@@ -612,7 +711,7 @@ class CodeContentItem(ContentItem):
         item.ConceptCodeSequence = [
             CodedConcept.from_dataset(item.ConceptCodeSequence[0])
         ]
-        return item
+        return cast(CodeContentItem, item)
 
 
 class PnameContentItem(ContentItem):
@@ -691,7 +790,8 @@ class PnameContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.PNAME)
-        return super(PnameContentItem, cls)._from_dataset_base(dataset)
+        item = super(PnameContentItem, cls)._from_dataset_base(dataset)
+        return cast(PnameContentItem, item)
 
 
 class TextContentItem(ContentItem):
@@ -769,7 +869,8 @@ class TextContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.TEXT)
-        return super(TextContentItem, cls)._from_dataset_base(dataset)
+        item = super(TextContentItem, cls)._from_dataset_base(dataset)
+        return cast(TextContentItem, item)
 
 
 class TimeContentItem(ContentItem):
@@ -859,7 +960,8 @@ class TimeContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.TIME)
-        return super(TimeContentItem, cls)._from_dataset_base(dataset)
+        item = super(TimeContentItem, cls)._from_dataset_base(dataset)
+        return cast(TimeContentItem, item)
 
 
 class DateContentItem(ContentItem):
@@ -938,7 +1040,8 @@ class DateContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.DATE)
-        return super(DateContentItem, cls)._from_dataset_base(dataset)
+        item = super(DateContentItem, cls)._from_dataset_base(dataset)
+        return cast(DateContentItem, item)
 
 
 class DateTimeContentItem(ContentItem):
@@ -1035,7 +1138,8 @@ class DateTimeContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.DATETIME)
-        return super(DateTimeContentItem, cls)._from_dataset_base(dataset)
+        item = super(DateTimeContentItem, cls)._from_dataset_base(dataset)
+        return cast(DateTimeContentItem, item)
 
 
 class UIDRefContentItem(ContentItem):
@@ -1113,7 +1217,8 @@ class UIDRefContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.UIDREF)
-        return super(UIDRefContentItem, cls)._from_dataset_base(dataset)
+        item = super(UIDRefContentItem, cls)._from_dataset_base(dataset)
+        return cast(UIDRefContentItem, item)
 
 
 class NumContentItem(ContentItem):
@@ -1247,21 +1352,21 @@ class NumContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.NUM)
-        instance = super(NumContentItem, cls)._from_dataset_base(dataset)
+        item = super(NumContentItem, cls)._from_dataset_base(dataset)
         unit_item = (
-            instance
+            item
             .MeasuredValueSequence[0]
             .MeasurementUnitsCodeSequence[0]
         )
-        instance.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
+        item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
             CodedConcept.from_dataset(unit_item)
         ]
-        if hasattr(instance, 'NumericValueQualifierCodeSequence'):
-            qualifier_item = instance.NumericValueQualifierCodeSequence[0]
-            instance.NumericValueQualifierCodeSequence = [
+        if hasattr(item, 'NumericValueQualifierCodeSequence'):
+            qualifier_item = item.NumericValueQualifierCodeSequence[0]
+            item.NumericValueQualifierCodeSequence = [
                 CodedConcept.from_dataset(qualifier_item)
             ]
-        return instance
+        return cast(NumContentItem, item)
 
 
 class ContainerContentItem(ContentItem):
@@ -1349,7 +1454,8 @@ class ContainerContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.CONTAINER)
-        return super(ContainerContentItem, cls)._from_dataset_base(dataset)
+        item = super(ContainerContentItem, cls)._from_dataset_base(dataset)
+        return cast(ContainerContentItem, item)
 
 
 class CompositeContentItem(ContentItem):
@@ -1439,7 +1545,8 @@ class CompositeContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.COMPOSITE)
-        return super(CompositeContentItem, cls)._from_dataset_base(dataset)
+        item = super(CompositeContentItem, cls)._from_dataset_base(dataset)
+        return cast(CompositeContentItem, item)
 
 
 class ImageContentItem(ContentItem):
@@ -1545,7 +1652,8 @@ class ImageContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.IMAGE)
-        return super(ImageContentItem, cls)._from_dataset_base(dataset)
+        item = super(ImageContentItem, cls)._from_dataset_base(dataset)
+        return cast(ImageContentItem, item)
 
 
 class ScoordContentItem(ContentItem):
@@ -1690,7 +1798,8 @@ class ScoordContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.SCOORD)
-        return super(ScoordContentItem, cls)._from_dataset_base(dataset)
+        item = super(ScoordContentItem, cls)._from_dataset_base(dataset)
+        return cast(ScoordContentItem, item)
 
 
 class Scoord3DContentItem(ContentItem):
@@ -1826,7 +1935,8 @@ class Scoord3DContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.SCOORD3D)
-        return super(Scoord3DContentItem, cls)._from_dataset_base(dataset)
+        item = super(Scoord3DContentItem, cls)._from_dataset_base(dataset)
+        return cast(Scoord3DContentItem, item)
 
 
 class TcoordContentItem(ContentItem):
@@ -1949,4 +2059,5 @@ class TcoordContentItem(ContentItem):
 
         """
         _assert_value_type(dataset, ValueTypeValues.TCOORD)
-        return super(TcoordContentItem, cls)._from_dataset_base(dataset)
+        item = super(TcoordContentItem, cls)._from_dataset_base(dataset)
+        return cast(TcoordContentItem, item)

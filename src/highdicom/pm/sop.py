@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import cast, Dict, List, Optional, Sequence, Tuple, Union
 from enum import Enum
 
 import numpy as np
@@ -12,8 +12,8 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
-from highdicom.map.content import RealWorldValueMapping
-from highdicom.map.content import DimensionIndexSequence
+from highdicom.pm.content import RealWorldValueMapping
+from highdicom.pm.content import DimensionIndexSequence
 from highdicom.valuerep import check_person_name
 from pydicom import Dataset
 from pydicom.uid import (
@@ -51,7 +51,10 @@ class ParametricMap(SOPClass):
         software_versions: Union[str, Tuple[str]],
         device_serial_number: str,
         contains_recognizable_visual_features: bool,
-        real_world_value_mappings: Sequence[RealWorldValueMapping],
+        real_world_value_mappings: Union[
+            Sequence[RealWorldValueMapping],
+            Sequence[Sequence[RealWorldValueMapping]],
+        ],
         window_center: Union[int, float],
         window_width: Union[int, float],
         transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
@@ -384,15 +387,22 @@ class ParametricMap(SOPClass):
             )
             sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
             try:
-                item = real_world_value_mappings[0]
+                real_world_value_mappings[0]
             except IndexError:
                 raise TypeError(error_message)
-            if not isinstance(item, RealWorldValueMapping):
+            if not isinstance(
+                real_world_value_mappings[0],
+                RealWorldValueMapping
+            ):
                 raise TypeError(error_message)
             if pixel_array.ndim == 2:
                 pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
             elif pixel_array.ndim == 3:
                 pixel_array = pixel_array[..., np.newaxis]
+            real_world_value_mappings = cast(
+                Sequence[Sequence[RealWorldValueMapping]],
+                [real_world_value_mappings]
+            )
         elif pixel_array.ndim == 4:
             error_message = (
                 'In case argument "pixel_array" is a 4D array, argument '
@@ -400,11 +410,18 @@ class ParametricMap(SOPClass):
                 'of one or more RealWorldValueMapping items.'
             )
             try:
-                item = real_world_value_mappings[0][0]
+                real_world_value_mappings[0][0]
             except IndexError:
                 raise TypeError(error_message)
-            if not isinstance(item, RealWorldValueMapping):
+            if not isinstance(
+                real_world_value_mappings[0][0],
+                RealWorldValueMapping
+            ):
                 raise TypeError(error_message)
+            real_world_value_mappings = cast(
+                Sequence[Sequence[RealWorldValueMapping]],
+                real_world_value_mappings
+            )
         else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
@@ -553,7 +570,7 @@ class ParametricMap(SOPClass):
         real_world_value_mappings: Sequence[Sequence[RealWorldValueMapping]],
         coordinate_system: CoordinateSystemNames,
         plane_positions: Sequence[PlanePositionSequence],
-    ) -> Tuple[bytes, List[Dataset]]:
+    ) -> Tuple[List[bytes], List[Dataset]]:
         """Create frame items.
 
         Parameters
