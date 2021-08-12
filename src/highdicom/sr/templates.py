@@ -1,6 +1,5 @@
 """DICOM structured reporting templates."""
 import logging
-import warnings
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
 
@@ -1012,7 +1011,8 @@ class PersonObserverIdentifyingAttributes(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'PersonObserverIdentifyingAttributes':
         """Construct object from a sequence of datasets.
 
@@ -1021,6 +1021,10 @@ class PersonObserverIdentifyingAttributes(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items of template
             TID 1003 "Person Observer Identifying Attributes"
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -1243,7 +1247,8 @@ class DeviceObserverIdentifyingAttributes(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'DeviceObserverIdentifyingAttributes':
         """Construct object from a sequence of datasets.
 
@@ -1252,6 +1257,10 @@ class DeviceObserverIdentifyingAttributes(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items of template
             TID 1004 "Device Observer Identifying Attributes"
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -1396,7 +1405,8 @@ class SubjectContextFetus(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'SubjectContextFetus':
         """Construct object from a sequence of datasets.
 
@@ -1405,6 +1415,10 @@ class SubjectContextFetus(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items of template
             TID 1008 "Subject Context, Fetus"
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -1556,7 +1570,8 @@ class SubjectContextSpecimen(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'SubjectContextSpecimen':
         """Construct object from a sequence of datasets.
 
@@ -1565,6 +1580,10 @@ class SubjectContextSpecimen(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items of template
             TID 1009 "Subject Context, Specimen"
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -1764,7 +1783,8 @@ class SubjectContextDevice(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'SubjectContextDevice':
         """Construct object from a sequence of datasets.
 
@@ -1773,6 +1793,10 @@ class SubjectContextDevice(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing SR Content Items of template
             TID 1010 "Subject Context, Device"
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -1991,7 +2015,8 @@ class QualitativeEvaluation(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'QualitativeEvaluation':
         """Construct object from a sequence of content items.
 
@@ -1999,6 +2024,10 @@ class QualitativeEvaluation(Template):
         ----------
         sequence: Sequence[pydicom.dataset.Dataset]
             Content Sequence containing one SR CODE Content Item
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -2165,13 +2194,21 @@ class Measurement(Template):
         self.append(value_item)
 
     @classmethod
-    def from_sequence(cls, sequence: List[Dataset]) -> 'Measurement':
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset],
+        is_root: bool = False
+    ) -> 'Measurement':
         """Construct object from a sequence of content items.
 
         Parameters
         ----------
         sequence: Sequence[pydicom.dataset.Dataset]
             Content Sequence containing one SR NUM Content Items
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -2358,7 +2395,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'MeasurementsAndQualitativeEvaluations':
         """Construct object from a sequence of datasets.
 
@@ -2367,6 +2405,10 @@ class MeasurementsAndQualitativeEvaluations(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing "Measurement Group" SR Content Items
             of Value Type CONTAINER (sequence shall only contain a single item)
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -2856,7 +2898,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'PlanarROIMeasurementsAndQualitativeEvaluations':
         """Construct object from a sequence of datasets.
 
@@ -2865,6 +2908,10 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing "Measurement Group" SR Content Items
             of Value Type CONTAINER (sequence shall only contain a single item)
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -3009,7 +3056,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @classmethod
     def from_sequence(
         cls,
-        sequence: Sequence[Dataset]
+        sequence: Sequence[Dataset],
+        is_root: bool = False
     ) -> 'VolumetricROIMeasurementsAndQualitativeEvaluations':
         """Construct object from a sequence of datasets.
 
@@ -3018,6 +3066,10 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing "Measurement Group" SR Content Items
             of Value Type CONTAINER (sequence shall only contain a single item)
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------
@@ -3233,7 +3285,7 @@ class MeasurementReport(Template):
                 ),
                 relationship_type=RelationshipTypeValues.CONTAINS
             )
-            container_item.ContentSequence = []
+            container_item.ContentSequence = ContentSequence()
             for measurements in imaging_measurements:
                 if not isinstance(measurements, measurement_types):
                     raise TypeError(
@@ -3268,7 +3320,11 @@ class MeasurementReport(Template):
         return cast(List[ContainerContentItem], items)
 
     @classmethod
-    def from_sequence(cls, sequence: Sequence[Dataset]) -> 'MeasurementReport':
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset],
+        is_root: bool = True
+    ) -> 'MeasurementReport':
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -3276,6 +3332,10 @@ class MeasurementReport(Template):
         sequence: Sequence[pydicom.dataset.Dataset]
             Datasets representing "Measurement Report" SR Content Items
             of Value Type CONTAINER (sequence shall only contain a single item)
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
 
         Returns
         -------

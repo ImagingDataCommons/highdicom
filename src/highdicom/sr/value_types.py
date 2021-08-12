@@ -4,7 +4,6 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
-    Any,
     cast,
     Dict,
     Iterable,
@@ -18,6 +17,7 @@ from typing import (
 )
 
 import numpy as np
+from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
@@ -146,7 +146,11 @@ class ContentItem(Dataset):
             relationship_type = RelationshipTypeValues(relationship_type)
             self.RelationshipType = relationship_type.value
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(
+        self,
+        name: str,
+        value: Union[DataElement, DataElementSequence]
+    ) -> None:
         if name == 'ContentSequence':
             super(ContentItem, self).__setattr__(name, ContentSequence(value))
         else:
@@ -154,7 +158,7 @@ class ContentItem(Dataset):
 
     @classmethod
     def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
-        """Construct object of appropriate subtype from an existing dataset.
+        """Construct object of derived type from an existing dataset.
 
         Parameters
         ----------
@@ -173,9 +177,7 @@ class ContentItem(Dataset):
         """
         value_type = ValueTypeValues(dataset.ValueType)
         content_item_cls = _get_content_item_class(value_type)
-        # TODO: No idea whether we can provide a type hint, since the type is
-        # determined at runtime.
-        return content_item_cls._from_dataset(dataset)  # type: ignore
+        return content_item_cls._from_dataset(dataset)
 
     @classmethod
     def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
@@ -210,13 +212,11 @@ class ContentItem(Dataset):
         item = dataset
         item.__class__ = cls
         if hasattr(item, 'ContentSequence'):
-            item.ContentSequence = ContentSequence._from_sequence(
-                item.ContentSequence
-            )
+            item.ContentSequence = cls._from_sequence(item.ContentSequence)
         item.ConceptNameCodeSequence = [
             CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
         ]
-        return cast(ContentItem, item)
+        return item
 
     @property
     def name(self) -> CodedConcept:
@@ -708,9 +708,9 @@ class CodeContentItem(ContentItem):
         """
         _assert_value_type(dataset, ValueTypeValues.CODE)
         item = super(CodeContentItem, cls)._from_dataset_base(dataset)
-        item.ConceptCodeSequence = [
+        item.ConceptCodeSequence = DataElementSequence([
             CodedConcept.from_dataset(item.ConceptCodeSequence[0])
-        ]
+        ])
         return cast(CodeContentItem, item)
 
 
@@ -1363,9 +1363,9 @@ class NumContentItem(ContentItem):
         ]
         if hasattr(item, 'NumericValueQualifierCodeSequence'):
             qualifier_item = item.NumericValueQualifierCodeSequence[0]
-            item.NumericValueQualifierCodeSequence = [
+            item.NumericValueQualifierCodeSequence = DataElementSequence([
                 CodedConcept.from_dataset(qualifier_item)
-            ]
+            ])
         return cast(NumContentItem, item)
 
 
