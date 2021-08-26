@@ -149,7 +149,13 @@ class SOPClass(Dataset):
         # Patient
         self.PatientID = patient_id
         if patient_name is not None:
-            check_person_name(patient_name)
+            try:
+                check_person_name(patient_name)
+            except ValueError:
+                logger.warn(
+                    'value of argument "patient_name" is potentially invalid: '
+                    f'"{patient_name}"'
+                )
         self.PatientName = patient_name
         self.PatientBirthDate = DA(patient_birth_date)
         if patient_sex is not None and patient_sex != '':
