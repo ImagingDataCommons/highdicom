@@ -39,7 +39,7 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=[
         'pydicom>=2.2.1',
-        'numpy>=1.20',
+        'numpy>=1.19',
         'pillow>=8.3'
     ],
 )
