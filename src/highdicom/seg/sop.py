@@ -67,32 +67,32 @@ class Segmentation(SOPClass):
     """
 
     def __init__(
-            self,
-            source_images: Sequence[Dataset],
-            pixel_array: np.ndarray,
-            segmentation_type: Union[str, SegmentationTypeValues],
-            segment_descriptions: Sequence[SegmentDescription],
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            manufacturer: str,
-            manufacturer_model_name: str,
-            software_versions: Union[str, Tuple[str]],
-            device_serial_number: str,
-            fractional_type: Optional[
-                Union[str, SegmentationFractionalTypeValues]
-            ] = SegmentationFractionalTypeValues.PROBABILITY,
-            max_fractional_value: int = 255,
-            content_description: Optional[str] = None,
-            content_creator_name: Optional[Union[str, PersonName]] = None,
-            transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
-            pixel_measures: Optional[PixelMeasuresSequence] = None,
-            plane_orientation: Optional[PlaneOrientationSequence] = None,
-            plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-            omit_empty_frames: bool = True,
-            **kwargs: Any
-        ) -> None:
+        self,
+        source_images: Sequence[Dataset],
+        pixel_array: np.ndarray,
+        segmentation_type: Union[str, SegmentationTypeValues],
+        segment_descriptions: Sequence[SegmentDescription],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: str,
+        manufacturer_model_name: str,
+        software_versions: Union[str, Tuple[str]],
+        device_serial_number: str,
+        fractional_type: Optional[
+            Union[str, SegmentationFractionalTypeValues]
+        ] = SegmentationFractionalTypeValues.PROBABILITY,
+        max_fractional_value: int = 255,
+        content_description: Optional[str] = None,
+        content_creator_name: Optional[Union[str, PersonName]] = None,
+        transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
+        pixel_measures: Optional[PixelMeasuresSequence] = None,
+        plane_orientation: Optional[PlaneOrientationSequence] = None,
+        plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+        omit_empty_frames: bool = True,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
