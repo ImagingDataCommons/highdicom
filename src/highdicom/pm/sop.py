@@ -438,17 +438,15 @@ class ParametricMap(SOPClass):
 
         if plane_positions is None:
             if is_multiframe:
-                plane_positions = (
+                plane_positions = \
                     self.DimensionIndexSequence.get_plane_positions_of_image(
                         self._source_images[0]
                     )
-                )
             else:
-                plane_positions = (
+                plane_positions = \
                     self.DimensionIndexSequence.get_plane_positions_of_series(
                         self._source_images
                     )
-                )
             if len(plane_positions) != pixel_array.shape[0]:
                 raise ValueError(
                     'Number of plane positions in source image(s) does not '
@@ -475,6 +473,7 @@ class ParametricMap(SOPClass):
                         'SpacingBetweenSlices', None
                     ),
                 )
+
         if is_multiframe:
             if coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
@@ -597,7 +596,7 @@ class ParametricMap(SOPClass):
             Functional groups for each frame
 
         """  # noqa
-        spatial_index_values, _ = self.DimensionIndexSequence.get_index_values(
+        _, spatial_index_values = self.DimensionIndexSequence.get_index_values(
             plane_positions
         )
         per_frame_functional_groups = []
