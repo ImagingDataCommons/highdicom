@@ -52,7 +52,7 @@ def compute_plane_position_tiled_full(
     pixel_spacing: Sequence[float],
     slice_thickness: Optional[float] = None,
     spacing_between_slices: Optional[float] = None,
-    slice_index: Optional[float] = None
+    slice_index: Optional[int] = None
 ) -> PlanePositionSequence:
     """Computes the absolute position of a Frame (image plane) in the
     Frame of Reference defined by the three-dimensional slide coordinate
@@ -93,11 +93,11 @@ def compute_plane_position_tiled_full(
         (first value: spacing between rows, vertical, top to bottom,
         increasing Row index) and the row direction (second value: spacing
         between columns, horizontal, left to right, increasing Column index)
-    slice_thickness: float, optional
+    slice_thickness: Union[float, None], optional
         Thickness of a focal plane in micrometers
-    spacing_between_slices: float, optional
+    spacing_between_slices: Union[float, None], optional
         Distance between neighboring focal planes in micrometers
-    slice_index: int, optional
+    slice_index: Union[int, None], optional
         Relative one-based index of the slice in the array of slices
         within the volume
 

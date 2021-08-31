@@ -26,7 +26,7 @@ def iter_segments(dataset: Dataset) -> Iterator:
     AttributeError
         When data set does not contain Content Sequence attribute.
 
-    """  # noqa
+    """  # noqa: E501
     if not hasattr(dataset, 'PixelData'):
         raise AttributeError(
             'Data set does not contain a Pixel Data attribute.'

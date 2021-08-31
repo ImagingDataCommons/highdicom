@@ -1,4 +1,5 @@
 from highdicom import legacy
+from highdicom import pm
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
@@ -15,6 +16,20 @@ from highdicom.content import (
     SpecimenSampling,
     SpecimenStaining,
 )
+from highdicom.enum import (
+    CoordinateSystemNames,
+    ContentQualificationValues,
+    DimensionOrganizationTypeValues,
+    PatientSexValues,
+    PhotometricInterpretationValues,
+    PlanarConfigurationValues,
+    PixelRepresentationValues,
+    LateralityValues,
+    AnatomicalOrientationTypeValues,
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesQuadruped,
+    UniversalEntityIDTypeValues
+)
 from highdicom import frame
 from highdicom import io
 from highdicom import spatial
@@ -23,23 +38,36 @@ from highdicom import utils
 
 __all__ = [
     'AlgorithmIdentificationSequence',
-    'color',
-    'frame',
-    'io',
+    'AnatomicalOrientationTypeValues',
+    'ContentQualificationValues',
+    'CoordinateSystemNames',
+    'DimensionOrganizationTypeValues',
     'IssuerOfIdentifier',
-    'legacy',
+    'LateralityValues',
+    'PatientOrientationValuesBiped',
+    'PatientOrientationValuesQuadruped',
+    'PatientSexValues',
+    'PhotometricInterpretationValues',
     'PixelMeasuresSequence',
-    'PlanePositionSequence',
+    'PixelRepresentationValues',
+    'PlanarConfigurationValues',
     'PlaneOrientationSequence',
-    'sc',
-    'seg',
-    'spatial',
+    'PlanePositionSequence',
     'SpecimenCollection',
     'SpecimenDescription',
     'SpecimenPreparationStep',
     'SpecimenSampling',
     'SpecimenStaining',
-    'sr',
     'UID',
+    'UniversalEntityIDTypeValues',
+    'color',
+    'frame',
+    'io',
+    'legacy',
+    'pm',
+    'sc',
+    'seg',
+    'spatial',
+    'sr',
     'utils',
 ]

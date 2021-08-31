@@ -37,7 +37,7 @@ def _convert_legacy_to_enhanced(
     ----------
     sf_datasets: Sequence[pydicom.dataset.Dataset]
         DICOM data sets of single-frame legacy image instances
-    mf_dataset: pydicom.dataset.Dataset, optional
+    mf_dataset: Union[pydicom.dataset.Dataset, None], optional
         DICOM data set of multi-frame enhanced image instance
 
     Returns

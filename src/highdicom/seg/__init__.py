@@ -1,5 +1,5 @@
 """Package for creation of Segmentation (SEG) instances."""
-from highdicom.seg.sop import Segmentation
+from highdicom.seg.sop import Segmentation, segread
 from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
     SegmentationTypeValues,
@@ -21,6 +21,7 @@ SOP_CLASS_UIDS = {
 __all__ = [
     'DimensionIndexSequence',
     'Segmentation',
+    'segread',
     'SegmentAlgorithmTypeValues',
     'SegmentationFractionalTypeValues',
     'SegmentationTypeValues',

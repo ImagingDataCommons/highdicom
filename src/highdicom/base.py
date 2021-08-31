@@ -4,13 +4,17 @@ from io import BytesIO
 from typing import List, Optional, Sequence, Union
 
 from pydicom.datadict import tag_for_keyword
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filewriter import write_file_meta_info
-from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian
-from pydicom.valuerep import DA, TM
+from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian, UID
+from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.coding_schemes import CodingSchemeIdentificationItem
-from highdicom.enum import ContentQualificationValues
+from highdicom.enum import (
+    ContentQualificationValues,
+    PatientSexValues,
+)
+from highdicom.valuerep import check_person_name
 from highdicom.version import __version__
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
@@ -35,14 +39,14 @@ class SOPClass(Dataset):
         manufacturer: Optional[str] = None,
         transfer_syntax_uid: Optional[str] = None,
         patient_id: Optional[str] = None,
-        patient_name: Optional[str] = None,
+        patient_name: Optional[Union[str, PersonName]] = None,
         patient_birth_date: Optional[str] = None,
-        patient_sex: Optional[str] = None,
+        patient_sex: Union[str, PatientSexValues, None] = None,
         accession_number: Optional[str] = None,
-        study_id: str = None,
+        study_id: Optional[str] = None,
         study_date: Optional[Union[str, datetime.date]] = None,
         study_time: Optional[Union[str, datetime.time]] = None,
-        referring_physician_name: Optional[str] = None,
+        referring_physician_name: Optional[Union[str, PersonName]] = None,
         content_qualification: Optional[
             Union[str, ContentQualificationValues]
         ] = None,
@@ -64,39 +68,39 @@ class SOPClass(Dataset):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        manufacturer: str
-            Name of the manufacturer (developer) of the device (software)
-            that creates the instance
         modality: str
             Name of the modality
-        transfer_syntax_uid: str, optional
+        manufacturer: Union[str, None], optional
+            Name of the manufacturer (developer) of the device (software)
+            that creates the instance
+        transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
             data elements. Defaults to Implicit VR Little Endian
             (UID ``"1.2.840.10008.1.2"``)
-        patient_id: str, optional
+        patient_id: Union[str, None], optional
            ID of the patient (medical record number)
-        patient_name: str, optional
+        patient_name: Union[str, pydicom.valuerep.PersonName, None], optional
            Name of the patient
-        patient_birth_date: str, optional
+        patient_birth_date: Union[str, None], optional
            Patient's birth date
-        patient_sex: str, optional
+        patient_sex: Union[str, highdicom.PatientSexValues, None], optional
            Patient's sex
-        study_id: str, optional
+        study_id: Union[str, None], optional
            ID of the study
-        accession_number: str, optional
+        accession_number: Union[str, None], optional
            Accession number of the study
-        study_date: Union[str, datetime.date], optional
+        study_date: Union[str, datetime.date, None], optional
            Date of study creation
-        study_time: Union[str, datetime.time], optional
+        study_time: Union[str, datetime.time, None], optional
            Time of study creation
-        referring_physician_name: str, optional
+        referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
-        content_qualification: Union[str, highdicom.enum.ContentQualificationValues], optional
+        content_qualification: Union[str, highdicom.ContentQualificationValues, None], optional
             Indicator of content qualification
-        coding_schemes: Sequence[highdicom.sr.CodingSchemeIdentificationItem], optional
+        coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the
             DICOM standard
-        series_description: str, optional
+        series_description: Union[str, None], optional
             Human readable description of the series
 
         Note
@@ -108,7 +112,7 @@ class SOPClass(Dataset):
         required by the corresponding Information Object Definition (IOD).
         Additional optional attributes can subsequently be added to the dataset.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian
@@ -124,14 +128,16 @@ class SOPClass(Dataset):
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
         self.preamble = b'\x00' * 128
-        self.file_meta = Dataset()
+        self.file_meta = FileMetaDataset()
         self.file_meta.DICOMPrefix = 'DICM'
         self.file_meta.FilePreamble = self.preamble
-        self.file_meta.TransferSyntaxUID = transfer_syntax_uid
-        self.file_meta.MediaStorageSOPClassUID = str(sop_class_uid)
-        self.file_meta.MediaStorageSOPInstanceUID = str(sop_instance_uid)
+        self.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
+        self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
+        self.file_meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
-        self.file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.9.7433.1.1'
+        self.file_meta.ImplementationClassUID = UID(
+            '1.2.826.0.1.3680043.9.7433.1.1'
+        )
         self.file_meta.ImplementationVersionName = '{} v{}'.format(
             __name__.split('.')[0], __version__
         )
@@ -142,8 +148,18 @@ class SOPClass(Dataset):
 
         # Patient
         self.PatientID = patient_id
+        if patient_name is not None:
+            try:
+                check_person_name(patient_name)
+            except ValueError:
+                logger.warn(
+                    'value of argument "patient_name" is potentially invalid: '
+                    f'"{patient_name}"'
+                )
         self.PatientName = patient_name
-        self.PatientBirthDate = patient_birth_date
+        self.PatientBirthDate = DA(patient_birth_date)
+        if patient_sex is not None and patient_sex != '':
+            patient_sex = PatientSexValues(patient_sex).value
         self.PatientSex = patient_sex
 
         # Study
@@ -201,6 +217,8 @@ class SOPClass(Dataset):
 
         """
         tag = tag_for_keyword(keyword)
+        if tag is None:
+            raise ValueError('No tag not found for keyword "{keyword}".')
         try:
             data_element = dataset[tag]
             logger.debug('copied attribute "{}"'.format(keyword))
@@ -224,7 +242,7 @@ class SOPClass(Dataset):
             DICOM Data Set from which attribute should be copied
         ie: str
             DICOM Information Entity (e.g., ``"Patient"`` or ``"Study"``)
-        module: str, optional
+        module: Union[str, None], optional
             DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
@@ -279,36 +297,3 @@ class SOPClass(Dataset):
 
         """
         self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
-
-    @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SOPClass':
-        try:
-            inst = cls(
-                study_instance_uid=dataset.StudyInstanceUID,
-                series_instance_uid=dataset.SeriesInstanceUID,
-                series_number=dataset.SeriesNumber,
-                sop_instance_uid=dataset.SOPInstanceUID,
-                sop_class_uid=dataset.SOPClassUID,
-                instance_number=dataset.InstanceNumber,
-                manufacturer=dataset.Manufacturer,
-                modality=dataset.Modality,
-                transfer_syntax_uid=dataset.file_meta.TransferSyntaxUID,
-                patient_id=dataset.PatientID,
-                patient_name=dataset.PatientName,
-                patient_birth_date=dataset.PatientBirthDate,
-                patient_sex=dataset.PatientSex,
-                accession_number=dataset.AccessionNumber,
-                study_id=dataset.StudyID,
-                study_date=dataset.StudyDate,
-                study_time=dataset.StudyTime,
-                referring_physician_name=dataset.ReferringPhysicianName
-            )
-        except AttributeError as error:
-            raise AttributeError(
-                'Required attribute missing: {}'.format(error)
-            )
-        if inst.SOPClassUID != dataset.SOPClassUID:
-            raise AttributeError(
-                'Incorrect SOP Class UID for type "{}".'.format(cls.__name__)
-            )
-        return inst

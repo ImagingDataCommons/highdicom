@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 from pydicom.data import get_testdata_file, get_testdata_files
+from pydicom.datadict import tag_for_keyword
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import (
-    generate_uid,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
@@ -21,19 +21,21 @@ from highdicom import (
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
+    UID,
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
+    segread,
     DimensionIndexSequence,
-    SegmentDescription,
-)
-from highdicom.seg import (
-    SegmentAlgorithmTypeValues,
-    SegmentsOverlapValues,
     SegmentationTypeValues,
+    SegmentAlgorithmTypeValues,
+    Segmentation,
+    SegmentDescription,
+    SegmentsOverlapValues,
+    SegmentationFractionalTypeValues,
 )
-from highdicom.seg import Segmentation
 from highdicom.seg.utils import iter_segments
+from highdicom.sr.coding import CodedConcept
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -60,7 +62,14 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         assert item.AlgorithmFamilyCodeSequence[0] == self._family
         with pytest.raises(AttributeError):
             item.AlgorithmSource
+        with pytest.raises(AttributeError):
             item.AlgorithmParameters
+
+        assert seq.name == self._name
+        assert seq.version == self._version
+        assert seq.family == self._family
+        assert seq.source is None
+        assert seq.parameters is None
 
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
@@ -96,6 +105,8 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         with pytest.raises(AttributeError):
             item.AlgorithmParameters
 
+        assert seq.source == self._source
+
     def test_construction_optional_argument_2(self):
         seq = AlgorithmIdentificationSequence(
             name=self._name,
@@ -110,8 +121,19 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
             for key, value in self._parameters.items()
         ])
         assert item.AlgorithmParameters == parsed_params
+        assert seq.parameters == self._parameters
         with pytest.raises(AttributeError):
             item.AlgorithmSource
+
+    def test_malformed_params(self):
+        seq = AlgorithmIdentificationSequence(
+            self._name,
+            self._family,
+            self._version
+        )
+        seq[0].AlgorithmParameters = 'some invalid parameters'
+        with pytest.raises(ValueError):
+            seq.parameters
 
 
 class TestSegmentDescription(unittest.TestCase):
@@ -125,14 +147,14 @@ class TestSegmentDescription(unittest.TestCase):
             codes.SCT.MorphologicallyAbnormalStructure
         self._segmented_property_type = codes.SCT.Neoplasm
         self._segment_algorithm_type = \
-            SegmentAlgorithmTypeValues.AUTOMATIC.value
+            SegmentAlgorithmTypeValues.AUTOMATIC
         self._algorithm_identification = AlgorithmIdentificationSequence(
             name='bla',
             family=codes.DCM.ArtificialIntelligence,
             version='v1'
         )
         self._tracking_id = 'segment #1'
-        self._tracking_uid = generate_uid()
+        self._tracking_uid = UID()
         self._anatomic_region = codes.SCT.Thorax
         self._anatomic_structure = codes.SCT.Lung
 
@@ -151,7 +173,7 @@ class TestSegmentDescription(unittest.TestCase):
             self._segmented_property_category
         assert item.SegmentedPropertyTypeCodeSequence[0] == \
             self._segmented_property_type
-        assert item.SegmentAlgorithmType == self._segment_algorithm_type
+        assert item.SegmentAlgorithmType == self._segment_algorithm_type.value
         assert item.SegmentAlgorithmName == \
             self._algorithm_identification[0].AlgorithmName
         assert len(item.SegmentationAlgorithmIdentificationSequence) == 1
@@ -160,6 +182,26 @@ class TestSegmentDescription(unittest.TestCase):
             item.TrackingUID
             item.AnatomicRegionSequence
             item.PrimaryAnatomicStructureSequence
+
+        assert item.segment_number == self._segment_number
+        assert item.segment_label == self._segment_label
+        assert isinstance(item.segmented_property_category, CodedConcept)
+        property_category = item.segmented_property_category
+        assert property_category == self._segmented_property_category
+        assert isinstance(item.segmented_property_type, CodedConcept)
+        assert item.segmented_property_type == self._segmented_property_type
+        assert isinstance(item.algorithm_type, SegmentAlgorithmTypeValues)
+        algo_type = item.algorithm_type
+        assert algo_type == SegmentAlgorithmTypeValues(
+            self._segment_algorithm_type
+        )
+        algo_id = item.algorithm_identification
+        assert isinstance(algo_id, AlgorithmIdentificationSequence)
+
+        assert item.tracking_id is None
+        assert item.tracking_uid is None
+        assert len(item.anatomic_regions) == 0
+        assert len(item.primary_anatomic_structures) == 0
 
     def test_construction_invalid_segment_number(self):
         with pytest.raises(ValueError):
@@ -234,13 +276,14 @@ class TestSegmentDescription(unittest.TestCase):
     def test_construction_no_algo_id_manual_seg(self):
         # Omitting the algo id should not give an error if the segmentation
         # type is MANUAL
-        SegmentDescription(
+        item = SegmentDescription(
             segment_number=self._segment_number,
             segment_label=self._segment_label,
             segmented_property_category=self._segmented_property_category,
             segmented_property_type=self._segmented_property_type,
             algorithm_type=SegmentAlgorithmTypeValues.MANUAL
         )
+        assert item.algorithm_identification is None
 
     def test_construction_optional_argument(self):
         item = SegmentDescription(
@@ -255,8 +298,11 @@ class TestSegmentDescription(unittest.TestCase):
         )
         assert item.TrackingID == self._tracking_id
         assert item.TrackingUID == self._tracking_uid
+        assert item.tracking_id == self._tracking_id
+        assert item.tracking_uid == self._tracking_uid
         with pytest.raises(AttributeError):
             item.AnatomicRegionSequence
+        with pytest.raises(AttributeError):
             item.PrimaryAnatomicStructureSequence
 
     def test_construction_optional_argument_2(self):
@@ -272,12 +318,50 @@ class TestSegmentDescription(unittest.TestCase):
         )
         assert len(item.AnatomicRegionSequence) == 1
         assert item.AnatomicRegionSequence[0] == self._anatomic_region
+        assert len(item.anatomic_regions) == 1
+        assert all(
+            isinstance(el, CodedConcept) for el in item.anatomic_regions
+        )
+        assert item.anatomic_regions[0] == self._anatomic_region
+
         assert len(item.PrimaryAnatomicStructureSequence) == 1
         assert item.PrimaryAnatomicStructureSequence[0] == \
             self._anatomic_structure
+        assert len(item.primary_anatomic_structures) == 1
+        assert all(
+            isinstance(el, CodedConcept)
+            for el in item.primary_anatomic_structures
+        )
+        assert item.primary_anatomic_structures[0] == self._anatomic_structure
+
         with pytest.raises(AttributeError):
             item.TrackingID
+        with pytest.raises(AttributeError):
             item.TrackingUID
+
+    def test_construction_mismatched_ids(self):
+        with pytest.raises(TypeError):
+            SegmentDescription(
+                self._segment_number,
+                self._segment_label,
+                self._segmented_property_category,
+                self._segmented_property_type,
+                self._segment_algorithm_type,
+                self._algorithm_identification,
+                tracking_id=self._tracking_id,
+            )
+
+    def test_construction_mismatched_ids_2(self):
+        with pytest.raises(TypeError):
+            SegmentDescription(
+                self._segment_number,
+                self._segment_label,
+                self._segmented_property_category,
+                self._segmented_property_type,
+                self._segment_algorithm_type,
+                self._algorithm_identification,
+                tracking_uid=self._tracking_uid,
+            )
 
 
 class TestPixelMeasuresSequence(unittest.TestCase):
@@ -521,9 +605,9 @@ class TestSegmentation(unittest.TestCase):
                 )
             ),
         ]
-        self._series_instance_uid = generate_uid()
+        self._series_instance_uid = UID()
         self._series_number = 1
-        self._sop_instance_uid = generate_uid()
+        self._sop_instance_uid = UID()
         self._instance_number = 1
         self._manufacturer = 'FavoriteManufacturer'
         self._manufacturer_model_name = 'BestModel'
@@ -2048,6 +2132,626 @@ class TestSegmentation(unittest.TestCase):
         self.check_dimension_index_vals(instance)
 
 
+class TestSegmentationParsing(unittest.TestCase):
+    def setUp(self):
+        self._sm_control_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control.dcm'
+        )
+        self._sm_control_seg = Segmentation.from_dataset(
+            self._sm_control_seg_ds
+        )
+
+        self._ct_binary_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary.dcm'
+        )
+        self._ct_binary_seg = Segmentation.from_dataset(
+            self._ct_binary_seg_ds
+        )
+
+        self._ct_binary_overlap_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary_overlap.dcm'
+        )
+        self._ct_binary_overlap_seg = Segmentation.from_dataset(
+            self._ct_binary_overlap_seg_ds
+        )
+
+        self._ct_binary_fractional_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_binary_fractional.dcm'
+        )
+        self._ct_binary_fractional_seg = Segmentation.from_dataset(
+            self._ct_binary_fractional_seg_ds
+        )
+
+        self._ct_true_fractional_seg_ds = dcmread(
+            'data/test_files/seg_image_ct_true_fractional.dcm'
+        )
+        self._ct_true_fractional_seg = Segmentation.from_dataset(
+            self._ct_true_fractional_seg_ds
+        )
+        self._ct_segs = [
+            self._ct_binary_seg,
+            self._ct_binary_fractional_seg,
+            self._ct_true_fractional_seg
+        ]
+
+    def test_from_dataset(self):
+        assert isinstance(self._sm_control_seg, Segmentation)
+
+    def test_segread(self):
+        seg = segread('data/test_files/seg_image_ct_true_fractional.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_ct_binary_overlap.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_numbers.dcm')
+        assert isinstance(seg, Segmentation)
+
+    def test_properties(self):
+        # SM segs
+        seg_type = self._sm_control_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.BINARY
+        assert self._sm_control_seg.segmentation_fractional_type is None
+        assert self._sm_control_seg.number_of_segments == 20
+        assert self._sm_control_seg.segment_numbers == range(1, 21)
+
+        assert len(self._sm_control_seg.segmented_property_categories) == 1
+        seg_category = self._sm_control_seg.segmented_property_categories[0]
+        assert seg_category == codes.SCT.Tissue
+        seg_property = self._sm_control_seg.segmented_property_types[0]
+        assert seg_property == codes.SCT.ConnectiveTissue
+
+        # CT segs
+        for seg in self._ct_segs:
+            seg_type = seg.segmentation_type
+            assert seg.number_of_segments == 1
+            assert seg.segment_numbers == range(1, 2)
+
+            assert len(seg.segmented_property_categories) == 1
+            seg_category = seg.segmented_property_categories[0]
+            assert seg_category == codes.SCT.Tissue
+            seg_property = seg.segmented_property_types[0]
+            assert seg_property == codes.SCT.Bone
+
+        seg_type = self._ct_binary_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.BINARY
+        seg_type = self._ct_binary_fractional_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.FRACTIONAL
+        seg_type = self._ct_true_fractional_seg.segmentation_type
+        assert seg_type == SegmentationTypeValues.FRACTIONAL
+
+        frac_type = self._ct_binary_fractional_seg.segmentation_fractional_type
+        assert frac_type == SegmentationFractionalTypeValues.PROBABILITY
+        frac_type = self._ct_true_fractional_seg.segmentation_fractional_type
+        assert frac_type == SegmentationFractionalTypeValues.PROBABILITY
+
+    def test_get_source_image_uids(self):
+        uids = self._sm_control_seg.get_source_image_uids()
+        assert len(uids) == 1
+        ins_uids = uids[0]
+        assert len(ins_uids) == 3
+        assert all(isinstance(uid, UID) for uid in ins_uids)
+
+    def test_get_segment_description(self):
+        desc1 = self._sm_control_seg.get_segment_description(1)
+        desc20 = self._sm_control_seg.get_segment_description(20)
+        assert isinstance(desc1, SegmentDescription)
+        assert desc1.segment_number == 1
+        assert isinstance(desc20, SegmentDescription)
+        assert desc20.segment_number == 20
+
+    def test_get_segment_numbers_no_filters(self):
+        seg_nums = self._sm_control_seg.get_segment_numbers()
+        assert seg_nums == list(self._sm_control_seg.segment_numbers)
+
+    def test_get_segment_numbers_with_filters(self):
+        desc1 = self._sm_control_seg.get_segment_description(1)
+
+        seg_nums = self._sm_control_seg.get_segment_numbers(
+            tracking_id=desc1.tracking_id
+        )
+        assert seg_nums == [1]
+
+        seg_nums = self._sm_control_seg.get_segment_numbers(
+            tracking_uid=desc1.tracking_uid
+        )
+        assert seg_nums == [1]
+
+        # All segments match these filters
+        seg_nums = self._sm_control_seg.get_segment_numbers(
+            segmented_property_category=codes.SCT.Tissue,
+            segmented_property_type=codes.SCT.ConnectiveTissue,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC
+        )
+        assert seg_nums == list(self._sm_control_seg.segment_numbers)
+
+    def test_get_tracking_ids(self):
+        desc1 = self._sm_control_seg.get_segment_description(1)
+
+        tracking_id_tuples = self._sm_control_seg.get_tracking_ids()
+        n_segs = self._sm_control_seg.number_of_segments
+        assert len(tracking_id_tuples) == n_segs
+        ids, uids = zip(*tracking_id_tuples)
+        assert desc1.tracking_id in ids
+        assert desc1.tracking_uid in uids
+
+    def test_get_tracking_ids_with_filters(self):
+        desc1 = self._sm_control_seg.get_segment_description(1)
+
+        # All segments in this test image match these filters
+        tracking_id_tuples = self._sm_control_seg.get_tracking_ids(
+            segmented_property_category=codes.SCT.Tissue,
+            segmented_property_type=codes.SCT.ConnectiveTissue,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC
+        )
+        n_segs = self._sm_control_seg.number_of_segments
+        assert len(tracking_id_tuples) == n_segs
+        ids, uids = zip(*tracking_id_tuples)
+        assert desc1.tracking_id in ids
+        assert desc1.tracking_uid in uids
+
+    def test_get_tracking_ids_with_filters_2(self):
+        # No segments in this test image match these filters
+        tracking_id_tuples = self._sm_control_seg.get_tracking_ids(
+            segmented_property_category=codes.SCT.Tissue,
+            segmented_property_type=codes.SCT.Lung,
+        )
+        assert len(tracking_id_tuples) == 0
+
+    def test_get_pixels_by_source_frames(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid
+        )
+
+        out_shape = (
+            len(source_frames_valid),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_invalid_source_frames(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        # (frame 3 has no segment)
+        source_frames_invalid = [1, 3, 4, 5]
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames_invalid
+            )
+
+    def test_get_pixels_by_invalid_source_frames_with_assert(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        # (frame 3 has no segment)
+        source_frames_invalid = [1, 3, 4, 5]
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_invalid,
+            assert_missing_frames_are_empty=True
+        )
+
+        out_shape = (
+            len(source_frames_invalid),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_frames_with_segments(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        segments_valid = [1, 20]
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid,
+            segment_numbers=segments_valid
+        )
+
+        out_shape = (
+            len(source_frames_valid),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            len(segments_valid)
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_frames_with_invalid_segments(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        segments_invalid = [1, 21]  # 21 > 20
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames_valid,
+                segment_numbers=segments_invalid
+            )
+
+    def test_get_pixels_by_source_frames_combine(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        # These segments match the above frames for this test image
+        segments_valid = [6, 7, 8, 9]
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid,
+            segment_numbers=segments_valid,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_frames_valid),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.array([0] + segments_valid))
+
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid,
+            segment_numbers=segments_valid,
+            combine_segments=True,
+            relabel=True
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.arange(len(segments_valid) + 1))
+
+    def test_get_default_dimension_index_pointers(self):
+        ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
+        assert len(ptrs) == 5
+
+    def test_are_dimension_indices_unique(self):
+        ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
+        assert self._sm_control_seg.are_dimension_indices_unique(ptrs)
+
+        ptr_kws = [
+            'ColumnPositionInTotalImagePixelMatrix',
+            'RowPositionInTotalImagePixelMatrix'
+        ]
+        ptrs = [tag_for_keyword(kw) for kw in ptr_kws]
+        assert self._sm_control_seg.are_dimension_indices_unique(ptrs)
+
+        ptr_kws = [
+            'XOffsetInSlideCoordinateSystem',
+            'YOffsetInSlideCoordinateSystem'
+        ]
+        ptrs = [tag_for_keyword(kw) for kw in ptr_kws]
+        assert self._sm_control_seg.are_dimension_indices_unique(ptrs)
+
+        ptr_kws = [
+            'ZOffsetInSlideCoordinateSystem'
+        ]
+        ptrs = [tag_for_keyword(kw) for kw in ptr_kws]
+        assert not self._sm_control_seg.are_dimension_indices_unique(ptrs)
+
+    def test_are_dimension_indices_unique_invalid_ptrs(self):
+        ptr_kws = [
+            'ImagePositionPatient'
+        ]
+        ptrs = [tag_for_keyword(kw) for kw in ptr_kws]
+        with pytest.raises(KeyError):
+            self._sm_control_seg.are_dimension_indices_unique(ptrs)
+
+    def test_get_pixels_by_dimension_index_values(self):
+        ind_values = [
+            (1, 1, 5, 5, 1),
+            (2, 1, 4, 5, 1),
+            (3, 1, 3, 5, 1)
+        ]
+        pixels = self._sm_control_seg.get_pixels_by_dimension_index_values(
+            dimension_index_values=ind_values,
+        )
+
+        out_shape = (
+            len(ind_values),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_dimension_index_values_subset(self):
+        ptr_kws = [
+            'ColumnPositionInTotalImagePixelMatrix',
+            'RowPositionInTotalImagePixelMatrix'
+        ]
+        ptrs = [tag_for_keyword(kw) for kw in ptr_kws]
+
+        ind_values = [
+            (1, 1),
+            (2, 1),
+            (3, 1)
+        ]
+        pixels = self._sm_control_seg.get_pixels_by_dimension_index_values(
+            dimension_index_values=ind_values,
+            dimension_index_pointers=ptrs
+        )
+
+        out_shape = (
+            len(ind_values),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_dimension_index_values_missing(self):
+        ind_values = [
+            (1, 1, 4, 5, 1),
+        ]
+        with pytest.raises(RuntimeError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=ind_values,
+            )
+
+        pixels = self._sm_control_seg.get_pixels_by_dimension_index_values(
+            dimension_index_values=ind_values,
+            assert_missing_frames_are_empty=True
+        )
+
+        out_shape = (
+            len(ind_values),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_dimension_index_values_with_segments(self):
+        ind_values = [
+            (1, 1, 5, 5, 1),
+            (2, 1, 4, 5, 1),
+            (3, 1, 3, 5, 1)
+        ]
+        segments = [1, 6, 11]
+        pixels = self._sm_control_seg.get_pixels_by_dimension_index_values(
+            dimension_index_values=ind_values,
+            segment_numbers=segments
+        )
+
+        out_shape = (
+            len(ind_values),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            len(segments)
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_dimension_index_values_invalid(self):
+        ind_values = [
+            (1, 1, 5, 5, 1),
+            (2, 1, 4, 5, 1),
+            (3, 1, 3, 5, 1)
+        ]
+        ptrs = [tag_for_keyword('ImagePositionPatient')]
+
+        # Invalid pointers
+        with pytest.raises(KeyError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=ind_values,
+                dimension_index_pointers=ptrs
+            )
+        # Invalid values
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=[(-1, 1, 1, 1, 1)],
+            )
+        # Empty values
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=[],
+            )
+        # Empty pointers
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=ind_values,
+                dimension_index_pointers=[]
+            )
+        # Empty segment numbers
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=ind_values,
+                segment_numbers=[]
+            )
+        # Invalid segment numbers
+        with pytest.raises(ValueError):
+            self._sm_control_seg.get_pixels_by_dimension_index_values(
+                dimension_index_values=ind_values,
+                segment_numbers=[-1]
+            )
+
+    def test_get_pixels_by_source_instances(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+            self._ct_binary_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_with_segments(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+        segment_numbers = [1]
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            segment_numbers=segment_numbers
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+            len(segment_numbers)
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_invalid(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Empty SOP uids
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=[],
+            )
+        # Empty SOP uids
+        with pytest.raises(KeyError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=['1.2.3.4'],
+            )
+        # Empty segments
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                segment_numbers=[]
+            )
+        # Invalid segments
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                segment_numbers=[0]
+            )
+
+    def test_get_pixels_by_source_instances_binary_fractional(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_fractional_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_binary_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_fractional_seg.Rows,
+            self._ct_binary_fractional_seg.Columns,
+            self._ct_binary_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.array([0.0, 1.0]))
+
+        pixels = self._ct_binary_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_fractional_seg.Rows,
+            self._ct_binary_fractional_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+        assert np.all(np.unique(pixels) == np.array([0.0, 1.0]))
+
+    def test_get_pixels_by_source_instances_true_fractional(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_true_fractional_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        pixels = self._ct_true_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_true_fractional_seg.Rows,
+            self._ct_true_fractional_seg.Columns,
+            self._ct_true_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert pixels.max() <= 1.0
+        assert pixels.min() >= 0.0
+        assert len(np.unique(pixels)) > 2
+
+        # Without fractional rescaling
+        pixels = self._ct_true_fractional_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            rescale_fractional=False
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_true_fractional_seg.Rows,
+            self._ct_true_fractional_seg.Columns,
+            self._ct_true_fractional_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+        assert pixels.max() == 128
+        assert len(np.unique(pixels)) > 2
+
+        # Can't combine segments with a true fractional segmentation
+        with pytest.raises(ValueError):
+            self._ct_true_fractional_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                combine_segments=True
+            )
+
+    def test_get_pixels_by_source_instances_overlap(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_overlap_seg.Rows,
+            self._ct_binary_overlap_seg.Columns,
+            self._ct_binary_overlap_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        with pytest.raises(RuntimeError):
+            self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                combine_segments=True
+            )
+
+
 class TestSegUtilities(unittest.TestCase):
 
     def setUp(self):
@@ -2096,7 +2800,7 @@ class TestSegUtilities(unittest.TestCase):
                 segmented_property_type=codes.SCT.Neoplasm,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
                 algorithm_identification=algorithm_identification,
-                tracking_uid=generate_uid(),
+                tracking_uid=UID(),
                 tracking_id='first segment'
             ),
             SegmentDescription(
@@ -2106,7 +2810,7 @@ class TestSegUtilities(unittest.TestCase):
                 segmented_property_type=codes.cid7166.ConnectiveTissue,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
                 algorithm_identification=algorithm_identification,
-                tracking_uid=generate_uid(),
+                tracking_uid=UID(),
                 tracking_id='second segment'
             ),
         ]
@@ -2116,9 +2820,9 @@ class TestSegUtilities(unittest.TestCase):
             pixel_array=mask,
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=segment_descriptions,
-            series_instance_uid=generate_uid(),
+            series_instance_uid=UID(),
             series_number=2,
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=UID(),
             instance_number=1,
             manufacturer='Manufacturer',
             manufacturer_model_name='Manufacturer Model',

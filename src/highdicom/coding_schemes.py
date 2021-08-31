@@ -63,7 +63,7 @@ class CodingSchemeIdentificationItem(Dataset):
         resources: Sequence[pydicom.sr.coding.CodingSchemeResourceItem], optional
             one or more resources related to the scheme
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         self.CodingSchemeDesignator = str(designator)
         if name is not None:
