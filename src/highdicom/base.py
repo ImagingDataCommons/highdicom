@@ -138,8 +138,8 @@ class SOPClass(Dataset):
         self.file_meta.ImplementationClassUID = UID(
             '1.2.826.0.1.3680043.9.7433.1.1'
         )
-        self.file_meta.ImplementationVersionName = '{} v{}'.format(
-            __name__.split('.')[0], __version__
+        self.file_meta.ImplementationVersionName = 'highdicom{}'.format(
+            __version__
         )
         self.fix_meta_info(enforce_standard=True)
         with BytesIO() as fp:
