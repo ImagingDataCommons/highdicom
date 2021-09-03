@@ -2553,7 +2553,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
     def get_measurements(
         self,
         name: Optional[Union[Code, CodedConcept]] = None
-    ) -> List[Union[Measurement]]:
+    ) -> List[Measurement]:
         """Get measurements.
 
         Parameters
