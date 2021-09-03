@@ -2042,6 +2042,16 @@ class QualitativeEvaluation(Template):
         item = CodeContentItem.from_dataset(sequence[0])
         return cls(name=item.name, value=item.value)
 
+    @property
+    def name(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: name of the qualitative evaluation"""
+        return self[0].name
+
+    @property
+    def value(self) -> Union[int, float]:
+        """Union[int, float]: coded value of the qualitative evaluation"""
+        return self[0].value
+
 
 class Measurement(Template):
 
@@ -2232,6 +2242,26 @@ class Measurement(Template):
                 item.ContentSequence
             )
         return measurement
+
+    @property
+    def name(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: coded name of the measurement"""
+        return self[0].name
+
+    @property
+    def value(self) -> Union[int, float]:
+        """Union[int, float]: measured value"""
+        return self[0].value
+
+    @property
+    def unit(self) -> CodedConcept:
+        """highdicom.sr.coding.CodedConcept: unit"""
+        return self[0].unit
+
+    @property
+    def qualifier(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        return self[0].qualifier
 
 
 class MeasurementsAndQualitativeEvaluations(Template):
@@ -2523,7 +2553,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
     def get_measurements(
         self,
         name: Optional[Union[Code, CodedConcept]] = None
-    ) -> List[Union[Measurement]]:
+    ) -> List[Measurement]:
         """Get measurements.
 
         Parameters
