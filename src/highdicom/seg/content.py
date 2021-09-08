@@ -467,9 +467,7 @@ class DimensionIndexSequence(DataElementSequence):
             else:
                 # If Dimension Organization Type is TILED_FULL, plane
                 # positions are implicit and need to be computed.
-                plane_positions = compute_plane_position_slide_per_frame(
-                    image
-                )
+                plane_positions = compute_plane_position_slide_per_frame(image)
         else:
             plane_positions = [
                 item.PlanePositionSequence
@@ -525,10 +523,11 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Tuple[numpy.ndarray, numpy.ndarray]
-            2D array of dimension index values and 1D array of planes indices
-            for sorting frames according to their spatial position specified
-            by the dimension index.
+        dimension_index_values: numpy.ndarray
+            2D array of dimension index values
+        plane_indices: numpy.ndarray
+            1D array of planes indices for sorting frames according to their
+            spatial position specified by the dimension index
 
         """
         # For each dimension other than the Referenced Segment Number,

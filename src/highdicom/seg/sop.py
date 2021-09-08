@@ -535,6 +535,33 @@ class Segmentation(SOPClass):
             plane_orientation == source_plane_orientation
         )
 
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            self.ImageOrientationSlide = \
+                plane_orientation[0].ImageOrientationSlide
+            if are_spatial_locations_preserved:
+                self.TotalPixelMatrixOriginSequence = \
+                    source_images[0].TotalPixelMatrixOriginSequence
+            else:
+                plane_position_values = np.array([
+                    (
+                        float(pos[0].XOffsetInSlideCoordinateSystem),
+                        float(pos[0].YOffsetInSlideCoordinateSystem),
+                        float(pos[0].ColumnPositionInTotalImagePixelMatrix),
+                        float(pos[0].RowPositionInTotalImagePixelMatrix),
+                    )
+                    for pos in plane_positions
+                ])
+                row_offsets = plane_position_values[:, -1].astype('uint64')
+                col_offsets = plane_position_values[:, -2].astype('uint64')
+                indices = np.lexsort([row_offsets, col_offsets])
+                index = indices[0]
+                x_offset = plane_position_values[index, 0]
+                y_offset = plane_position_values[index, 1]
+                origin_item = Dataset()
+                origin_item.XOffsetInSlideCoordinateSystem = x_offset
+                origin_item.YOffsetInSlideCoordinateSystem = y_offset
+                self.TotalPixelMatrixOriginSequence = [origin_item]
+
         # Remove empty slices
         if omit_empty_frames:
             pixel_array, plane_positions, source_image_indices = \
