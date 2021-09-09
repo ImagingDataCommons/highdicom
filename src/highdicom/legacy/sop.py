@@ -192,9 +192,9 @@ def _convert_legacy_to_enhanced(
         frame_type_item.PixelRepresentation = pixel_representation
         frame_type_item.VolumetricProperties = volumetric_properties
         if frame_type[0] == 'ORIGINAL':
-            frame_type_item.FrameVolumeBasedCalculationTechnique = 'NONE'
+            frame_type_item.VolumeBasedCalculationTechnique = 'NONE'
         else:
-            frame_type_item.FrameVolumeBasedCalculationTechnique = 'MIXED'
+            frame_type_item.VolumeBasedCalculationTechnique = 'MIXED'
 
         if sop_class_uid == '1.2.840.10008.5.1.4.1.1.4.4':
             # MR Image Frame Type (M)
