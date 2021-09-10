@@ -17,7 +17,9 @@ from highdicom.sr.content import (
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
-    SourceImageForMeasurement
+    SourceImageForMeasurement,
+    SourceImageForSegmentation,
+    SourceSeriesForSegmentation
 )
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -32,6 +34,7 @@ from highdicom.sr.value_types import (
     ContainerContentItem,
     ContentItem,
     ContentSequence,
+    ImageContentItem,
     NumContentItem,
     PnameContentItem,
     TextContentItem,
@@ -2785,9 +2788,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         referenced_region: Optional[
             Union[ImageRegion, ImageRegion3D]
         ] = None,
-        referenced_segment: Optional[
-            Union[ReferencedSegment, ReferencedSegmentationFrame]
-        ] = None,
+        referenced_segment: Optional[ReferencedSegmentationFrame] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
         time_point_context: Optional[TimePointContext] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
@@ -2873,6 +2874,12 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
                     'Argument "referenced_region" must have type '
                     'ImageRegion or ImageRegion3D.'
                 )
+        if referenced_segment is not None:
+            if not isinstance(referenced_segment, ReferencedSegmentationFrame):
+                raise TypeError(
+                    'Argument "referenced_segment" must have type '
+                    'ReferencedSegmentationFrame.'
+                )
         super().__init__(
             tracking_identifier=tracking_identifier,
             referenced_regions=referenced_regions,
@@ -2892,7 +2899,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
     @property
     def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
-        """Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D], None]:
+        """Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None]:
         image region defined by spatial coordinates
         """  # noqa: E501
         # Image Region may be defined by either SCOORD or SCOORD3D
@@ -2905,7 +2912,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         if len(matches) > 1:
             logger.warning(
                 'found more than one "Image Region" content item '
-                'in "Planar ROI Measurements and Qualitative Evalutions" '
+                'in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
         if len(matches) > 0:
@@ -2918,12 +2925,64 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         if len(matches) > 1:
             logger.warning(
                 'found more than one "Image Region" content item '
-                'in "Planar ROI Measurements and Qualitative Evalutions" '
+                'in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
         if len(matches) == 0:
             return ImageRegion3D.from_dataset(matches[0])
         return None
+
+    @property
+    def referenced_segment(
+        self
+    ) -> Union[ImageContentItem, None]:
+        """Union[highdicom.sr.ImageContentItem, None]:
+        segmentation frame referenced by the measurements group
+        """  # noqa: E501
+        root_item = self[0]
+
+        # Find the referenced segmentation frame content item
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.ReferencedSegmentationFrame,
+            value_type=ValueTypeValues.IMAGE
+        )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Referenced Segmentation Frame" content item '
+                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'template'
+            )
+        elif len(matches) == 0:
+            return None
+
+        return ImageContentItem.from_dataset(matches[0])
+
+    @property
+    def source_image_for_segmentation(
+        self
+    ) -> Union[SourceImageForSegmentation, None]:
+        """Union[highdicom.sr.SourceImageForSegmentation, None]:
+        source images used for the referenced segment
+        """  # noqa: E501
+        root_item = self[0]
+
+        # Find the referenced segmentation frame content item
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.SourceImageForSegmentation,
+            value_type=ValueTypeValues.IMAGE
+        )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Source Image For Segmentation" content item '
+                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'template'
+            )
+        elif len(matches) == 0:
+            return None
+
+        return SourceImageForSegmentation.from_dataset(matches[0])
 
     @classmethod
     def from_sequence(
@@ -2970,9 +3029,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
         ] = None,
         referenced_volume_surface: Optional[VolumeSurface] = None,
-        referenced_segment: Optional[
-            Union[ReferencedSegment, ReferencedSegmentationFrame]
-        ] = None,
+        referenced_segment: Optional[ReferencedSegment] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
         time_point_context: Optional[TimePointContext] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
@@ -3031,6 +3088,12 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         together with the corresponding source image(s) or series.
 
         """  # noqa: E501
+        if referenced_segment is not None:
+            if not isinstance(referenced_segment, ReferencedSegment):
+                raise TypeError(
+                    'Argument "referenced_segment" must have type '
+                    'ReferencedSegment.'
+                )
         super().__init__(
             measurements=measurements,
             tracking_identifier=tracking_identifier,
@@ -3082,6 +3145,76 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
                 return VolumeSurface.from_dataset(matches[0])
 
         return None
+
+    @property
+    def referenced_segment(
+        self
+    ) -> Union[ImageContentItem, None]:
+        """Union[highdicom.sr.ReferencedSegment, None]:
+        segment or segmentation frame referenced by the measurements group
+        """  # noqa: E501
+        root_item = self[0]
+
+        # Find the referenced segment content item
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.ReferencedSegment,
+            value_type=ValueTypeValues.IMAGE
+        )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Referenced Segment" content item '
+                'in "Volumetric ROI Measurements and Qualitative Evaluations" '
+                'template'
+            )
+        if len(matches) > 0:
+            return ImageContentItem.from_dataset(matches[0])
+
+    @property
+    def source_images_for_segmentation(
+        self
+    ) -> List[SourceImageForSegmentation]:
+        """List[highdicom.sr.SourceImageForSegmentation]:
+        source images used for the referenced segment
+        """  # noqa: E501
+        root_item = self[0]
+
+        # Find the referenced segmentation frame content item
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.SourceImageForSegmentation,
+            value_type=ValueTypeValues.IMAGE
+        )
+
+        return [
+            SourceImageForSegmentation.from_dataset(match) for match in matches
+        ]
+
+    @property
+    def source_series_for_segmentation(
+        self
+    ) -> Union[SourceSeriesForSegmentation, None]:
+        """Union[highdicom.sr.SourceImageForSegmentation, None]:
+        source series used for the referenced segment
+        """  # noqa: E501
+        root_item = self[0]
+
+        # Find the referenced segmentation frame content item
+        matches = find_content_items(
+            root_item,
+            name=codes.DCM.SourceSeriesForSegmentation,
+            value_type=ValueTypeValues.UIDREF
+        )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Source Series For Segmentation" content item '
+                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'template'
+            )
+        elif len(matches) == 0:
+            return None
+
+        return SourceSeriesForSegmentation.from_dataset(matches[0])
 
     @classmethod
     def from_sequence(
@@ -3638,7 +3771,8 @@ class MeasurementReport(Template):
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
         reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            Type of referenced ROI
+            Type of referenced ROI. Valid values are limited to codes
+            `ImageRegion`, `ReferencedSegment`, and `ReferencedSegmentationFrame`.
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
         referenced_sop_instance_uid: Union[str, None], optional
