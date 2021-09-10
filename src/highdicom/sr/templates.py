@@ -3664,7 +3664,9 @@ class MeasurementReport(Template):
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
         reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            Type of referenced ROI
+            Type of referenced ROI. Valid values are limited to codes
+            `ImageRegion`, `ReferencedSegment`, and
+            `ReferencedSegmentationFrame`.
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
         referenced_sop_instance_uid: Union[str, None], optional
@@ -3772,7 +3774,8 @@ class MeasurementReport(Template):
             Finding site
         reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of referenced ROI. Valid values are limited to codes
-            `ImageRegion`, `ReferencedSegment`, and `ReferencedSegmentationFrame`.
+            `ImageRegion`, `ReferencedSegment`, and
+            `ReferencedSegmentationFrame`.
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
         referenced_sop_instance_uid: Union[str, None], optional
