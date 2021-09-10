@@ -2949,8 +2949,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         )
         if len(matches) > 1:
             logger.warning(
-                'found more than one "Referenced Segmentation Frame" content item '
-                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'found more than one "Referenced Segmentation Frame" content '
+                'item in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
         elif len(matches) == 0:
@@ -2975,8 +2975,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         )
         if len(matches) > 1:
             logger.warning(
-                'found more than one "Source Image For Segmentation" content item '
-                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'found more than one "Source Image For Segmentation" content '
+                'item in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
         elif len(matches) == 0:
@@ -3207,8 +3207,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         )
         if len(matches) > 1:
             logger.warning(
-                'found more than one "Source Series For Segmentation" content item '
-                'in "Planar ROI Measurements and Qualitative Evaluations" '
+                'found more than one "Source Series For Segmentation" content '
+                'item in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
         elif len(matches) == 0:
