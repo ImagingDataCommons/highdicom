@@ -721,10 +721,14 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert i.name == CodedConcept(*name)
         assert i.value == (sop_class_uid, sop_instance_uid)
+        assert i.referenced_sop_instance_uid == sop_instance_uid
+        assert i.referenced_sop_class_uid == sop_class_uid
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
+        assert i.referenced_frame_numbers is None
+        assert i.referenced_segment_numbers is None
 
     def test_image_item_construction_with_multiple_frame_numbers(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -742,6 +746,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedFrameNumber == frame_numbers
+        assert i.referenced_frame_numbers == frame_numbers
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
 
@@ -761,6 +766,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedFrameNumber == frame_number
+        assert i.referenced_frame_numbers == [frame_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
 
@@ -780,6 +786,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedSegmentNumber == segment_number
+        assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber
 
@@ -2221,22 +2228,25 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._src_region_instance_uid = generate_uid()
         self._image_for_region = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._src_region_instance_uid
         )
+        self._src_seg_instance_uid = generate_uid()
         self._image_for_segment = SourceImageForSegmentation(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._src_seg_instance_uid
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image_for_region
         )
+        self._seg_instance_uid = generate_uid()
         self._segment = ReferencedSegmentationFrame(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=self._seg_instance_uid,
             segment_number=1,
             frame_number=1,
             source_image=self._image_for_segment
@@ -2311,11 +2321,31 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert len(seq) == 1
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
+        assert seq.referenced_segment is None
+        assert seq.source_image_for_segmentation is None
 
     def test_construction_with_segment(self):
-        PlanarROIMeasurementsAndQualitativeEvaluations(
+        seq = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment
+        )
+        assert seq.roi is None
+
+        ref_seg = seq.referenced_segment
+        assert isinstance(ref_seg, ImageContentItem)
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers == [1]
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        src_image = seq.source_image_for_segmentation
+        assert isinstance(src_image, SourceImageForSegmentation)
+        assert (
+            src_image.referenced_sop_instance_uid == self._src_seg_instance_uid
+        )
+        assert (
+            src_image.referenced_sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
         )
 
     def test_construction_all_parameters(self):
@@ -2373,12 +2403,17 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             )
             for i in range(3)
         ]
+        self._src_seg_instance_uid = generate_uid()
         self._images_for_segment = [
             SourceImageForSegmentation(
                 referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-                referenced_sop_instance_uid=generate_uid()
+                referenced_sop_instance_uid=self._src_seg_instance_uid
             )
         ]
+        self._src_seg_series_uid = generate_uid()
+        self._series_for_segment = SourceSeriesForSegmentation(
+            self._src_seg_series_uid
+        )
         self._regions = [
             ImageRegion(
                 graphic_type=GraphicTypeValues.POLYLINE,
@@ -2389,11 +2424,18 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             )
             for i in range(3)
         ]
+        self._seg_instance_uid = generate_uid()
         self._segment = ReferencedSegment(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=self._seg_instance_uid,
             segment_number=1,
             source_images=self._images_for_segment
+        )
+        self._segment_from_series = ReferencedSegment(
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
+            sop_instance_uid=self._seg_instance_uid,
+            segment_number=1,
+            source_series=self._series_for_segment
         )
         self._real_world_value_map = RealWorldValueMap(
             referenced_sop_instance_uid=generate_uid()
@@ -2442,6 +2484,10 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1411'
+        assert all(isinstance(region, ImageRegion) for region in template.roi)
+        assert template.referenced_segment is None
+        assert len(template.source_images_for_segmentation) == 0
+        assert template.source_series_for_segmentation is None
 
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
@@ -2461,10 +2507,43 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert seq[0].name == name
 
     def test_constructed_with_segment(self):
-        VolumetricROIMeasurementsAndQualitativeEvaluations(
+        template = VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment
         )
+        ref_seg = template.referenced_segment
+        assert isinstance(ref_seg, ImageContentItem)
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers is None
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        src_images = template.source_images_for_segmentation
+        assert len(src_images) == len(self._images_for_segment)
+        assert (
+            src_images[0].referenced_sop_instance_uid ==
+            self._src_seg_instance_uid
+        )
+        assert template.source_series_for_segmentation is None
+
+    def test_constructed_with_segment_from_series(self):
+        template = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_segment=self._segment_from_series
+        )
+        ref_seg = template.referenced_segment
+        assert isinstance(ref_seg, ImageContentItem)
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers is None
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        assert len(template.source_images_for_segmentation) == 0
+        src_series = template.source_series_for_segmentation
+        assert isinstance(src_series, SourceSeriesForSegmentation)
+        assert src_series.value == self._src_seg_series_uid
 
     def test_construction_all_parameters(self):
         VolumetricROIMeasurementsAndQualitativeEvaluations(

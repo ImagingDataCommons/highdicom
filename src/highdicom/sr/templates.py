@@ -2928,7 +2928,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
                 'in "Planar ROI Measurements and Qualitative Evaluations" '
                 'template'
             )
-        if len(matches) == 0:
+        if len(matches) > 0:
             return ImageRegion3D.from_dataset(matches[0])
         return None
 
