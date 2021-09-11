@@ -2985,7 +2985,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         return SourceImageForSegmentation.from_dataset(matches[0])
 
     @property
-    def referenced_segment(
+    def referenced_segmentation_frame(
         self
     ) -> Union[ReferencedSegmentationFrame, None]:
         """Union[highdicom.sr.ImageContentItem, None]:

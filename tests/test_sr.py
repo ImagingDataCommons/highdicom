@@ -2321,7 +2321,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert len(seq) == 1
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
-        assert seq.referenced_segment is None
+        assert seq.referenced_segmentation_frame is None
 
     def test_construction_with_segment(self):
         seq = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -2330,7 +2330,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         assert seq.roi is None
 
-        ref_seg = seq.referenced_segment
+        ref_seg = seq.referenced_segmentation_frame
         assert isinstance(ref_seg, ReferencedSegmentationFrame)
         assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
         sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
