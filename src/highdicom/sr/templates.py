@@ -47,6 +47,7 @@ DEFAULT_LANGUAGE = CodedConcept(
     scheme_designator='RFC5646',
     meaning='English (United States)'
 )
+_REGION_IN_SPACE = Code('130488', 'DCM', 'Region in Space')
 
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ def _count_roi_items(
         if (item.name == codes.DCM.ReferencedSegmentationFrame and
                 item.value_type == ValueTypeValues.IMAGE):
             n_referenced_segmentation_frame_items += 1
-        if (item.name == Code('130488', 'DCM', 'Region in Space') and
+        if (item.name == _REGION_IN_SPACE and
                 item.value_type == ValueTypeValues.COMPOSITE):
             n_region_in_space_items += 1
     return (
@@ -2774,6 +2775,36 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
+
+    @property
+    def reference_type(self) -> Code:
+        """pydicom.sr.coding.Code
+
+        The "type" of the ROI reference as a coded concept. This will be one of
+        the following coded concepts from the DCM coding scheme:
+
+        - Image Region
+        - Referenced Segment
+        - Referenced Segmentation Frame
+        - Volume Surface
+        - Region In Space
+
+        """
+        allowed_reference_types = [
+            codes.DCM.ImageRegion,
+            codes.DCM.ReferencedSegment,
+            codes.DCM.ReferencedSegmentationFrame,
+            codes.DCM.VolumeSurface,
+            _REGION_IN_SPACE
+        ]
+        for item in self[0].ContentSequence:
+            for concept_name in allowed_reference_types:
+                if item.name == concept_name:
+                    return concept_name
+        else:
+            raise RuntimeError(
+                'Could not find any allowed ROI reference type.'
+            )
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(

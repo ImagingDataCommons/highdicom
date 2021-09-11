@@ -2305,6 +2305,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
+        assert template.reference_type == codes.DCM.ImageRegion
 
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
@@ -2322,6 +2323,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
         assert seq.referenced_segmentation_frame is None
+        assert seq.reference_type == codes.DCM.ImageRegion
 
     def test_construction_with_segment(self):
         seq = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -2329,6 +2331,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_segment=self._segment
         )
         assert seq.roi is None
+        assert seq.reference_type == codes.DCM.ReferencedSegmentationFrame
 
         ref_seg = seq.referenced_segmentation_frame
         assert isinstance(ref_seg, ReferencedSegmentationFrame)
