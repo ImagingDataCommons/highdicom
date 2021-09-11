@@ -2322,7 +2322,6 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
         assert seq.referenced_segment is None
-        assert seq.source_image_for_segmentation is None
 
     def test_construction_with_segment(self):
         seq = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -2332,14 +2331,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert seq.roi is None
 
         ref_seg = seq.referenced_segment
-        assert isinstance(ref_seg, ImageContentItem)
+        assert isinstance(ref_seg, ReferencedSegmentationFrame)
         assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
-        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         assert ref_seg.referenced_sop_class_uid == sop_class_uid
         assert ref_seg.referenced_frame_numbers == [1]
         assert ref_seg.referenced_segment_numbers == [1]
 
-        src_image = seq.source_image_for_segmentation
+        src_image = ref_seg.source_image_for_segmentation
         assert isinstance(src_image, SourceImageForSegmentation)
         assert (
             src_image.referenced_sop_instance_uid == self._src_seg_instance_uid
@@ -2486,8 +2485,6 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1411'
         assert all(isinstance(region, ImageRegion) for region in template.roi)
         assert template.referenced_segment is None
-        assert len(template.source_images_for_segmentation) == 0
-        assert template.source_series_for_segmentation is None
 
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
@@ -2512,20 +2509,21 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_segment=self._segment
         )
         ref_seg = template.referenced_segment
-        assert isinstance(ref_seg, ImageContentItem)
+        assert isinstance(ref_seg, ReferencedSegment)
+        assert ref_seg.has_source_images()
         assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
-        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         assert ref_seg.referenced_sop_class_uid == sop_class_uid
         assert ref_seg.referenced_frame_numbers is None
         assert ref_seg.referenced_segment_numbers == [1]
 
-        src_images = template.source_images_for_segmentation
+        src_images = ref_seg.source_images_for_segmentation
         assert len(src_images) == len(self._images_for_segment)
         assert (
             src_images[0].referenced_sop_instance_uid ==
             self._src_seg_instance_uid
         )
-        assert template.source_series_for_segmentation is None
+        assert ref_seg.source_series_for_segmentation is None
 
     def test_constructed_with_segment_from_series(self):
         template = VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -2533,15 +2531,16 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_segment=self._segment_from_series
         )
         ref_seg = template.referenced_segment
-        assert isinstance(ref_seg, ImageContentItem)
+        assert isinstance(ref_seg, ReferencedSegment)
+        assert not ref_seg.has_source_images()
         assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
-        sop_class_uid =  '1.2.840.10008.5.1.4.1.1.66.4'
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
         assert ref_seg.referenced_sop_class_uid == sop_class_uid
         assert ref_seg.referenced_frame_numbers is None
         assert ref_seg.referenced_segment_numbers == [1]
 
-        assert len(template.source_images_for_segmentation) == 0
-        src_series = template.source_series_for_segmentation
+        assert len(ref_seg.source_images_for_segmentation) == 0
+        src_series = ref_seg.source_series_for_segmentation
         assert isinstance(src_series, SourceSeriesForSegmentation)
         assert src_series.value == self._src_seg_series_uid
 

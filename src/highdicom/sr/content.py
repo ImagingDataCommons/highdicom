@@ -1,7 +1,7 @@
 """Content items for Structured Report document instances."""
 import logging
 from copy import deepcopy
-from typing import cast, Optional, Sequence, Union
+from typing import cast, List, Optional, Sequence, Union
 
 import numpy as np
 from pydicom._storage_sopclass_uids import (
@@ -11,6 +11,7 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.dataset import Dataset
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
+from highdicom.uid import UID
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -1066,6 +1067,65 @@ class ReferencedSegmentationFrame(ContentSequence):
         self.append(source_image)
 
     @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'ReferencedSegmentationFrame':
+        """Construct an object from an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            content items with the following names in this order:
+            'Referenced Segmentation Frame', 'Source Image For Segmentation'.
+
+        Returns
+        -------
+        highdicom.sr.ReferencedSegmentationFrame
+            Constructed ReferencedSegmentationFrame object, containing copies
+            of the original content items.
+
+        """
+        if len(sequence) != 2:
+            raise ValueError(
+                'Sequence must contain exactly two content items.'
+            )
+
+        # Check the first item
+        seg_item = sequence[0]
+        if seg_item.value_type != ValueTypeValues.IMAGE:
+            raise ValueError(
+                'First content item must have Value Type IMAGE.'
+            )
+        if seg_item.name != codes.DCM.ReferencedSegmentationFrame:
+            raise ValueError(
+                'First content item must have concept name '
+                'ReferencedSegmentationFrame.'
+            )
+
+        # Check the second item
+        src_item = sequence[1]
+        if src_item.value_type != ValueTypeValues.IMAGE:
+            raise ValueError(
+                'Second content item must have Value Type IMAGE.'
+            )
+        if src_item.name != codes.DCM.SourceImageForSegmentation:
+            raise ValueError(
+                'Second content item must have concept name '
+                'SourceImageForSegmentation.'
+            )
+
+        new_seq = ContentSequence(
+            [
+                ImageContentItem.from_dataset(seg_item),
+                SourceImageForSegmentation.from_dataset(src_item)
+            ]
+        )
+        new_seq.__class__ = cls
+        return new_seq
+
+    @classmethod
     def from_segmentation(
         cls,
         segmentation: Dataset,
@@ -1192,6 +1252,41 @@ class ReferencedSegmentationFrame(ContentSequence):
             source_image=source_image
         )
 
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_class_uid
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_instance_uid
+
+    @property
+    def referenced_frame_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced frame numbers
+        """
+        return self[0].referenced_frame_numbers
+
+    @property
+    def referenced_segment_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced segment numbers
+        """
+        return self[0].referenced_segment_numbers
+
+    @property
+    def source_image_for_segmentation(self) -> SourceImageForSegmentation:
+        """highdicom.sr.SourceImageForSegmentation
+            Source image for the referenced segmentation
+        """
+        return self[1]
+
 
 class ReferencedSegment(ContentSequence):
 
@@ -1268,6 +1363,91 @@ class ReferencedSegment(ContentSequence):
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'ReferencedSegment':
+        """Construct an object from an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            an initial content items with concept name
+            'Referenced Segmentation Frame', followed by either a single
+            content item with concept name 'Source Series For Segmentation', or
+            1 or more content items with concept name
+            'Source Image For Segmentation'.
+
+        Returns
+        -------
+        highdicom.sr.ReferencedSegment
+            Constructed ReferencedSegment object, containing copies
+            of the original content items.
+
+        """
+        if len(sequence) < 2:
+            raise ValueError(
+                'Sequence must contain two or more content items.'
+            )
+
+        # Check the first item
+        seg_item = sequence[0]
+        if seg_item.value_type != ValueTypeValues.IMAGE:
+            raise ValueError(
+                'First content item must have Value Type IMAGE.'
+            )
+        if seg_item.name != codes.DCM.ReferencedSegment:
+            raise ValueError(
+                'First content item must have concept name '
+                'ReferencedSegmentationFrame.'
+            )
+
+        # Check the second item
+        first_src_item = sequence[1]
+
+        # Subsequent items are SourceImageForSegmentation. 1-n are allowed
+        if first_src_item.value_type == ValueTypeValues.IMAGE:
+            src_images = []
+            for item in sequence[1:]:
+                if item.value_type != ValueTypeValues.IMAGE:
+                    raise ValueError(
+                        'TBD'
+                    )
+                if item.name != codes.DCM.SourceImageForSegmentation:
+                    raise ValueError(
+                        'Second and subsequent IMAGE content item must have '
+                        'concept name SourceImageForSegmentation.'
+                    )
+                src_images.append(SourceImageForSegmentation.from_dataset(item))
+
+            new_seq = ContentSequence(
+                [ImageContentItem.from_dataset(seg_item)] + src_images
+            )
+
+        # Subsequent item is SourceSeriesForSegmentation. Must be exactly 1 item
+        elif first_src_item.value_type == ValueTypeValues.UIDREF:
+            if first_src_item.name != codes.DCM.SourceSeriesForSegmentation:
+                raise ValueError(
+                    'Second content item of type UIDREF must have concept name '
+                    'SourceSeriesForSegmentation.'
+                )
+            new_seq = ContentSequence(
+                [
+                    ImageContentItem.from_dataset(seg_item),
+                    SourceSeriesForSegmentation.from_dataset(first_src_item)
+                ]
+            )
+
+        else:
+            raise ValueError(
+                'Second content item must have Value Type IMAGE or UIDREF.'
+            )
+
+        new_seq.__class__ = cls
+        return new_seq
 
     @classmethod
     def from_segmentation(
@@ -1441,3 +1621,71 @@ class ReferencedSegment(ContentSequence):
             source_images=source_images if source_images else None,
             source_series=source_series
         )
+
+    def has_source_images(self) -> bool:
+        """Returns whether the object contains information about source images.
+
+        ReferencedSegment objects must either contain information about source
+        images or source series (and not both).
+
+        Returns
+        -------
+        bool:
+            True if the object contains information about source images. False
+            if the image contains information about the source series.
+
+        """
+        return self[1].name == codes.DCM.SourceImageForSegmentation
+
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_class_uid
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_instance_uid
+
+    @property
+    def referenced_frame_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced frame numbers
+        """
+        return self[0].referenced_frame_numbers
+
+    @property
+    def referenced_segment_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced segment numbers
+        """
+        return self[0].referenced_segment_numbers
+
+    @property
+    def source_images_for_segmentation(
+        self
+    ) -> List[SourceImageForSegmentation]:
+        """List[highdicom.sr.SourceImageForSegmentation]
+            Source images for the referenced segmentation
+        """
+        if self.has_source_images():
+            return self[1:]
+        else:
+            return []
+
+    @property
+    def source_series_for_segmentation(self) -> Union[
+        SourceSeriesForSegmentation,
+        None
+    ]:
+        """Union[highdicom.sr.SourceSeriesForSegmentation, None]
+            Source series for the referenced segmentation
+        """
+        if self.has_source_images():
+            return None
+        else:
+            return self[1]

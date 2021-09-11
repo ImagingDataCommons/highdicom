@@ -2933,11 +2933,11 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         return None
 
     @property
-    def referenced_segment(
+    def _referenced_segmentation_frame_item(
         self
     ) -> Union[ImageContentItem, None]:
         """Union[highdicom.sr.ImageContentItem, None]:
-        segmentation frame referenced by the measurements group
+        image content item for referenced segmentation frame
         """  # noqa: E501
         root_item = self[0]
 
@@ -2959,7 +2959,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         return ImageContentItem.from_dataset(matches[0])
 
     @property
-    def source_image_for_segmentation(
+    def _source_image_for_segmentation_item(
         self
     ) -> Union[SourceImageForSegmentation, None]:
         """Union[highdicom.sr.SourceImageForSegmentation, None]:
@@ -2983,6 +2983,36 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             return None
 
         return SourceImageForSegmentation.from_dataset(matches[0])
+
+    @property
+    def referenced_segment(
+        self
+    ) -> Union[ReferencedSegmentationFrame, None]:
+        """Union[highdicom.sr.ImageContentItem, None]:
+        segmentation frame referenced by the measurements group
+        """  # noqa: E501
+        # Need to find the two content items that form the returned
+        # Referenced Segmentation Frame. Order is non-significant in the
+        # template so these must be found independently
+
+        # ReferencedSegmentationFrame content item
+        ref_seg_item = self._referenced_segmentation_frame_item
+        if ref_seg_item is None:
+            return None
+
+        # SourceImageForSegmentation content item
+        src_image_item = self._source_image_for_segmentation_item
+        if src_image_item is None:
+            raise KeyError(
+                'Measurements group contains no "Source Image for '
+                'Segmentation" content items.'
+            )
+
+        return ReferencedSegmentationFrame.from_sequence(
+            ContentSequence(
+                [ref_seg_item, src_image_item]
+            )
+        )
 
     @classmethod
     def from_sequence(
@@ -3147,7 +3177,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         return None
 
     @property
-    def referenced_segment(
+    def _referenced_segment_item(
         self
     ) -> Union[ImageContentItem, None]:
         """Union[highdicom.sr.ReferencedSegment, None]:
@@ -3171,7 +3201,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             return ImageContentItem.from_dataset(matches[0])
 
     @property
-    def source_images_for_segmentation(
+    def _source_image_for_segmentation_items(
         self
     ) -> List[SourceImageForSegmentation]:
         """List[highdicom.sr.SourceImageForSegmentation]:
@@ -3191,7 +3221,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         ]
 
     @property
-    def source_series_for_segmentation(
+    def _source_series_for_segmentation_item(
         self
     ) -> Union[SourceSeriesForSegmentation, None]:
         """Union[highdicom.sr.SourceImageForSegmentation, None]:
@@ -3215,6 +3245,44 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             return None
 
         return SourceSeriesForSegmentation.from_dataset(matches[0])
+
+    @property
+    def referenced_segment(
+        self
+    ) -> Union[ReferencedSegment, None]:
+        """Union[highdicom.sr.ImageContentItem, None]:
+        segmentation frame referenced by the measurements group
+        """  # noqa: E501
+        # Need to find the two content items that form the returned
+        # Referenced Segment. Order is non-significant in the template so these
+        # must be found independently
+
+        # ReferencedSegment content item
+        ref_seg_item = self._referenced_segment_item
+        if ref_seg_item is None:
+            return None
+
+        # SourceImageForSegmentation content item(s)
+        src_image_items = self._source_image_for_segmentation_items
+        if len(src_image_items) == 0:
+            src_series_item = self._source_series_for_segmentation_item
+            if src_series_item is None:
+                raise KeyError(
+                    'Measurements group contains no "Source Image for '
+                    'Segmentation" content items nor "Source Series For '
+                    'Segmentation" content items.'
+                )
+            return ReferencedSegment.from_sequence(
+                ContentSequence(
+                    [ref_seg_item, src_series_item]
+                )
+            )
+        else:
+            return ReferencedSegment.from_sequence(
+                ContentSequence(
+                    [ref_seg_item] + src_image_items
+                )
+            )
 
     @classmethod
     def from_sequence(

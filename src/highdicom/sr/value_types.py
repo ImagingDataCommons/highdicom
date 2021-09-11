@@ -1633,7 +1633,7 @@ class ImageContentItem(ContentItem):
 
     @property
     def referenced_frame_numbers(self) -> Union[List[int], None]:
-        """highdicom.UID
+        """Union[List[int], None]
             referenced frame numbers
         """
         if not hasattr(
@@ -1652,7 +1652,7 @@ class ImageContentItem(ContentItem):
 
     @property
     def referenced_segment_numbers(self) -> Union[List[int], None]:
-        """highdicom.UID
+        """Union[List[int], None]
             referenced segment numbers
         """
         if not hasattr(
