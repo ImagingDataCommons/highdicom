@@ -1,7 +1,7 @@
 """DICOM structured reporting templates."""
 import logging
 from copy import deepcopy
-from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing import cast, Iterable, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -182,6 +182,84 @@ def _contains_volumetric_rois(group_item: ContainerContentItem) -> bool:
        ):
         return True
     return False
+
+
+def _get_planar_roi_reference_type(
+    group_item: ContainerContentItem,
+) -> Union[Code, None]:
+    """Get the planar roi reference type for a measurement group.
+
+    Parameters
+    ----------
+    group_item: highdicom.sr.ContainerContentItem
+        SR Content Item representing a "Measurement Group"
+
+    Returns
+    -------
+    pydicom.sr.coding.Code
+        The reference_type of the measurement group as a coded concept. None
+        if no reference type is found.
+
+    """
+    return _get_roi_reference_type(
+        group_item,
+        PlanarROIMeasurementsAndQualitativeEvaluations.\
+            _allowed_roi_reference_types
+    )
+
+
+def _get_volumetric_roi_reference_type(
+    group_item: ContainerContentItem,
+) -> Union[Code, None]:
+    """Get the volumetric roi reference type for a measurement group.
+
+    Parameters
+    ----------
+    group_item: highdicom.sr.ContainerContentItem
+        SR Content Item representing a "Measurement Group"
+
+    Returns
+    -------
+    pydicom.sr.coding.Code
+        The reference_type of the measurement group as a coded concept. None
+        if no reference type is found.
+
+    """
+    return _get_roi_reference_type(
+        group_item,
+        VolumetricROIMeasurementsAndQualitativeEvaluations.\
+            _allowed_roi_reference_types
+    )
+
+
+def _get_roi_reference_type(
+    group_item: ContainerContentItem,
+    allowed_reference_types: Iterable[Code]
+) -> Union[Code, None]:
+    """Get the roi reference type for a measurement group.
+
+    Parameters
+    ----------
+    group_item: highdicom.sr.ContainerContentItem
+        SR Content Item representing a "Measurement Group"
+    allowed_reference_types: Iterable[Code]
+        Codes that are allowed as concept names for ROI references.
+
+    Returns
+    -------
+    pydicom.sr.coding.Code
+        The reference_type of the measurement group as a coded concept. None
+        if no reference type is found.
+
+    """
+    for item in group_item.ContentSequence:
+        for concept_name in allowed_reference_types:
+            found_concept = CodedConcept.from_dataset(
+                item.ConceptNameCodeSequence[0]
+            )
+            if found_concept == concept_name:
+                return concept_name
+    return None
 
 
 def _contains_code_items(
@@ -2776,42 +2854,18 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                 )
             group_item.ContentSequence.extend(referenced_segment)
 
-    @property
-    def reference_type(self) -> Code:
-        """pydicom.sr.coding.Code
-
-        The "type" of the ROI reference as a coded concept. This will be one of
-        the following coded concepts from the DCM coding scheme:
-
-        - Image Region
-        - Referenced Segment
-        - Referenced Segmentation Frame
-        - Volume Surface
-        - Region In Space
-
-        """
-        allowed_reference_types = [
-            codes.DCM.ImageRegion,
-            codes.DCM.ReferencedSegment,
-            codes.DCM.ReferencedSegmentationFrame,
-            codes.DCM.VolumeSurface,
-            _REGION_IN_SPACE
-        ]
-        for item in self[0].ContentSequence:
-            for concept_name in allowed_reference_types:
-                if item.name == concept_name:
-                    return concept_name
-        else:
-            raise RuntimeError(
-                'Could not find any allowed ROI reference type.'
-            )
-
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
         _ROIMeasurementsAndQualitativeEvaluations):
 
     """:dcm:`TID 1410 <part16/chapter_A.html#sect_TID_1410>`
      Planar ROI Measurements and Qualitative Evaluations"""
+
+    _allowed_roi_reference_types = {
+        codes.DCM.ImageRegion,
+        codes.DCM.ReferencedSegmentationFrame,
+        _REGION_IN_SPACE
+    }
 
     def __init__(
         self,
@@ -2927,6 +2981,27 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             geometric_purpose=geometric_purpose
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1410'
+
+    @property
+    def reference_type(self) -> Code:
+        """pydicom.sr.coding.Code
+
+        The "type" of the ROI reference as a coded concept. This will be one of
+        the following coded concepts from the DCM coding scheme:
+
+        - Image Region
+        - Referenced Segmentation Frame
+        - Region In Space
+
+        """
+        for item in self[0].ContentSequence:
+            for concept_name in self._allowed_roi_reference_types:
+                if item.name == concept_name:
+                    return concept_name
+        else:
+            raise RuntimeError(
+                'Could not find any allowed ROI reference type.'
+            )
 
     @property
     def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
@@ -3083,6 +3158,13 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     """:dcm:`TID 1411 <part16/chapter_A.html#sect_TID_1411>`
      Volumetric ROI Measurements and Qualitative Evaluations"""
 
+    _allowed_roi_reference_types = {
+        codes.DCM.ImageRegion,
+        codes.DCM.ReferencedSegment,
+        codes.DCM.VolumeSurface,
+        _REGION_IN_SPACE
+    }
+
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
@@ -3172,6 +3254,28 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             geometric_purpose=geometric_purpose
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1411'
+
+    @property
+    def reference_type(self) -> Code:
+        """pydicom.sr.coding.Code
+
+        The "type" of the ROI reference as a coded concept. This will be one of
+        the following coded concepts from the DCM coding scheme:
+
+        - Image Region
+        - Referenced Segment
+        - Volume Surface
+        - Region In Space
+
+        """
+        for item in self[0].ContentSequence:
+            for concept_name in self._allowed_roi_reference_types:
+                if item.name == concept_name:
+                    return concept_name
+        else:
+            raise RuntimeError(
+                'Could not find any allowed ROI reference type.'
+            )
 
     @property
     def roi(
@@ -3764,8 +3868,8 @@ class MeasurementReport(Template):
             Finding site
         reference_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Type of referenced ROI. Valid values are limited to codes
-            `ImageRegion`, `ReferencedSegment`, and
-            `ReferencedSegmentationFrame`.
+            `ImageRegion`, `ReferencedSegment`, `ReferencedSegmentationFrame`,
+            `VolumeSurface` and `RegionInSpace`.
         graphic_type: Union[highdicom.sr.GraphicTypeValues, highdicom.sr.GraphicTypeValues3D, None], optional
             Graphic type of image region
         referenced_sop_instance_uid: Union[str, None], optional
@@ -3784,6 +3888,18 @@ class MeasurementReport(Template):
 
         """  # noqa: E501
         # FIXME: reference type and referenced sop instance uid
+
+        # Check a valid code was passed
+        if reference_type is not None:
+            allowed_vals = PlanarROIMeasurementsAndQualitativeEvaluations.\
+                _allowed_roi_reference_types
+            if reference_type not in allowed_vals:
+                raise ValueError(
+                    f'Concept {reference_type} is not valid as a reference '
+                    'type in Planar ROI Measurements and Qualitative '
+                    'Evaluations.'
+                )
+
         measurement_group_items = self._find_measurement_groups()
         sequences = []
         for group_item in measurement_group_items:
@@ -3811,6 +3927,14 @@ class MeasurementReport(Template):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 matches.append(matches_finding_sites)
+            if reference_type is not None:
+                found_reference_type = _get_planar_roi_reference_type(
+                    group_item
+                )
+                if found_reference_type is None:
+                    matches.append(False)
+                else:
+                    matches.append(found_reference_type == reference_type)
             if tracking_uid is not None:
                 matches_tracking_uid = _contains_uidref_items(
                     group_item,
@@ -3893,6 +4017,18 @@ class MeasurementReport(Template):
 
         """  # noqa: E501
         # FIXME: reference type and referenced sop instance uid
+
+        # Check a valid code was passed
+        if reference_type is not None:
+            allowed_vals = VolumetricROIMeasurementsAndQualitativeEvaluations.\
+                _allowed_roi_reference_types
+            if reference_type not in allowed_vals:
+                raise ValueError(
+                    f'Concept {reference_type} is not valid as a reference '
+                    'type in Volumetric ROI Measurements and Qualitative '
+                    'Evaluations.'
+                )
+
         sequences = []
         measurement_group_items = self._find_measurement_groups()
         for group_item in measurement_group_items:
@@ -3920,6 +4056,14 @@ class MeasurementReport(Template):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 matches.append(matches_finding_sites)
+            if reference_type is not None:
+                found_reference_type = _get_volumetric_roi_reference_type(
+                    group_item
+                )
+                if found_reference_type is None:
+                    matches.append(False)
+                else:
+                    matches.append(found_reference_type == reference_type)
             if tracking_uid is not None:
                 matches_tracking_uid = _contains_uidref_items(
                     group_item,

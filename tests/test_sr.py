@@ -2488,6 +2488,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1411'
         assert all(isinstance(region, ImageRegion) for region in template.roi)
         assert template.referenced_segment is None
+        assert template.reference_type == codes.DCM.ImageRegion
 
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
@@ -2505,12 +2506,14 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert isinstance(seq, PlanarROIMeasurementsAndQualitativeEvaluations)
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
+        assert seq.reference_type == codes.DCM.ImageRegion
 
     def test_constructed_with_segment(self):
         template = VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment
         )
+        assert template.reference_type == codes.DCM.ReferencedSegment
         ref_seg = template.referenced_segment
         assert isinstance(ref_seg, ReferencedSegment)
         assert ref_seg.has_source_images()
@@ -2533,6 +2536,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment_from_series
         )
+        assert template.reference_type == codes.DCM.ReferencedSegment
         ref_seg = template.referenced_segment
         assert isinstance(ref_seg, ReferencedSegment)
         assert not ref_seg.has_source_images()
@@ -2680,6 +2684,14 @@ class TestMeasurementReport(unittest.TestCase):
             measurements=self._measurements,
             qualitative_evaluations=self._qualitative_evaluations,
         )
+        self._roi_group_3d = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=[self._region],
+            finding_type=self._finding_type,
+            finding_sites=[self._finding_site],
+            measurements=self._measurements,
+            qualitative_evaluations=self._qualitative_evaluations,
+        )
 
     def test_construction(self):
         measurement_report = MeasurementReport(
@@ -2740,11 +2752,99 @@ class TestMeasurementReport(unittest.TestCase):
         assert len(matches) == 0
 
         matches = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegmentationFrame
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
             tracking_uid=self._tracking_identifier[1].value
         )
         assert len(matches) == 1
 
         matches = measurement_report.get_planar_roi_measurement_groups(
+            tracking_uid=generate_uid()
+        )
+        assert len(matches) == 0
+
+    def test_construction_3d(self):
+        measurement_report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=[self._roi_group_3d]
+        )
+        item = measurement_report[0]
+        assert len(item.ContentSequence) == 13
+
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
+
+        content_item_expectations = [
+            # Observation context
+            (0, '121049'),
+            # Observer context - Person
+            (1, '121005'),
+            (2, '121008'),
+            # Observer context - Device
+            (3, '121005'),
+            (4, '121012'),
+            # Subject context - Specimen
+            (5, '121024'),
+            (6, '121039'),
+            (7, '121041'),
+            (8, '371439000'),
+            (9, '111700'),
+            # Procedure reported
+            (10, '121058'),
+            # Image library
+            (11, '111028'),
+            # Imaging measurements
+            (12, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_type=self._finding_type
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_type=codes.SCT.Tissue
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_site=self._finding_site.value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_site=codes.SCT.Colon
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegment
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            tracking_uid=self._tracking_identifier[1].value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
             tracking_uid=generate_uid()
         )
         assert len(matches) == 0
