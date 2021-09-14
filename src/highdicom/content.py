@@ -560,9 +560,9 @@ class SpecimenCollection(ContentSequence):
     """
 
     def __init__(
-            self,
-            procedure: Union[Code, CodedConcept]
-        ):
+        self,
+        procedure: Union[Code, CodedConcept]
+    ):
         """
         Parameters
         ----------
@@ -570,7 +570,7 @@ class SpecimenCollection(ContentSequence):
             Procedure used to collect the examined specimen
 
         """  # noqa: E501
-        super().__init__()
+        super().__init__(is_root=True)
         item = CodeContentItem(
             name=codes.SCT.SpecimenCollection,
             value=procedure
@@ -606,7 +606,7 @@ class SpecimenSampling(ContentSequence):
             Issuer who created the parent specimen
 
         """  # noqa: E501
-        super().__init__()
+        super().__init__(is_root=True)
         # CID 8110
         method_item = CodeContentItem(
             name=codes.DCM.SamplingMethod,
@@ -645,9 +645,9 @@ class SpecimenStaining(ContentSequence):
     """
 
     def __init__(
-            self,
-            substances: Sequence[Union[Code, CodedConcept]]
-        ):
+        self,
+        substances: Sequence[Union[Code, CodedConcept]]
+    ):
         """
         Parameters
         ----------
@@ -655,7 +655,7 @@ class SpecimenStaining(ContentSequence):
             Substances used to stain examined specimen(s)
 
         """  # noqa: E501
-        super().__init__()
+        super().__init__(is_root=True)
         # CID 8112
         for s in substances:
             item = CodeContentItem(
@@ -710,7 +710,7 @@ class SpecimenPreparationStep(ContentSequence):
             Embedding medium used during processing
 
         """  # noqa: E501
-        super().__init__()
+        super().__init__(is_root=True)
         specimen_identifier_item = TextContentItem(
             name=codes.DCM.SpecimenIdentifier,
             value=specimen_id
