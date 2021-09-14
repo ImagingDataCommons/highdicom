@@ -642,19 +642,13 @@ class CodeContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            coded value or an enumerated item representing a coded value
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Coded value or an enumerated item representing a coded value
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(CodeContentItem, self).__init__(
             ValueTypeValues.CODE, name, relationship_type
         )
@@ -730,19 +724,13 @@ class PnameContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[str, pydicom.valuerep.PersonName]
-            name of the person
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Name of the person
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(PnameContentItem, self).__init__(
             ValueTypeValues.PNAME, name, relationship_type
         )
@@ -810,19 +798,13 @@ class TextContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: str
-            description of the concept in free text
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Description of the concept in free text
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(TextContentItem, self).__init__(
             ValueTypeValues.TEXT, name, relationship_type
         )
@@ -889,19 +871,13 @@ class TimeContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[str, datetime.time, pydicom.valuerep.TM]
-            time
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Time
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(TimeContentItem, self).__init__(
             ValueTypeValues.TIME, name, relationship_type
         )
@@ -980,19 +956,13 @@ class DateContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[str, datetime.date, pydicom.valuerep.DA]
-            date
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Date
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(DateContentItem, self).__init__(
             ValueTypeValues.DATE, name, relationship_type
         )
@@ -1060,19 +1030,13 @@ class DateTimeContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[str, datetime.datetime, pydicom.valuerep.DT]
-            datetime
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Datetime
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(DateTimeContentItem, self).__init__(
             ValueTypeValues.DATETIME, name, relationship_type
         )
@@ -1158,19 +1122,13 @@ class UIDRefContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[highdicom.UID, str]
-            unique identifier
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Unique identifier
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(UIDRefContentItem, self).__init__(
             ValueTypeValues.UIDREF, name, relationship_type
         )
@@ -1239,27 +1197,21 @@ class NumContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         value: Union[int, float]
-            numeric value
+            Numeric value
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
+            Coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
             "Abstract Multi-dimensional Image Model Component Units")
         qualifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            qualification of numeric value or as an alternative to
+            Qualification of numeric value or as an alternative to
             numeric value, e.g., reason for absence of numeric value
             (see :dcm:`CID 42 <part16/sect_CID_42.html>`
             "Numeric Value Qualifier" for options)
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(NumContentItem, self).__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
@@ -1475,21 +1427,15 @@ class CompositeContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced object
         referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced object
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(CompositeContentItem, self).__init__(
             ValueTypeValues.COMPOSITE, name, relationship_type
         )
@@ -1572,27 +1518,21 @@ class ImageContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         referenced_sop_class_uid: Union[highdicom.UID, str]
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: Union[highdicom.UID, str]
             SOP Instance UID of the referenced image object
         referenced_frame_numbers: Union[int, Sequence[int], None], optional
-            number of frame(s) to which the reference applies in case of a
+            Number of frame(s) to which the reference applies in case of a
             multi-frame image
         referenced_segment_numbers: Union[int, Sequence[int], None], optional
-            number of segment(s) to which the refernce applies in case of a
+            Number of segment(s) to which the refernce applies in case of a
             segmentation image
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(ImageContentItem, self).__init__(
             ValueTypeValues.IMAGE, name, relationship_type
         )
@@ -1684,30 +1624,24 @@ class ScoordContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
-            name of the graphic type
+            Name of the graphic type
         graphic_data: numpy.ndarray[numpy.int]
-            array of ordered spatial coordinates, where each row of the array
+            Array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
         pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
-            whether pixel coordinates specified by `graphic_data` are defined
+            Whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
         fiducial_uid: Union[highdicom.UID, str, None], optional
-            unique identifier for the content item
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Unique identifier for the content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(ScoordContentItem, self).__init__(
             ValueTypeValues.SCOORD, name, relationship_type
         )
@@ -1828,27 +1762,21 @@ class Scoord3DContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
-            name of the graphic type
+            Name of the graphic type
         graphic_data: numpy.ndarray[numpy.float]
-            array of spatial coordinates, where each row of the array
+            Array of spatial coordinates, where each row of the array
             represents a (x, y, z) coordinate triplet
         frame_of_reference_uid: Union[highdicom.UID, str]
-            unique identifier of the frame of reference within which the
+            Unique identifier of the frame of reference within which the
             coordinates are defined
         fiducial_uid: Union[str, None], optional
-            unique identifier for the content item
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Unique identifier for the content item
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(Scoord3DContentItem, self).__init__(
             ValueTypeValues.SCOORD3D, name, relationship_type
         )
@@ -1958,26 +1886,20 @@ class TcoordContentItem(ContentItem):
         Parameters
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            concept name
+            Concept name
         temporal_range_type: Union[highdicom.sr.TemporalRangeTypeValues, str]
-            name of the temporal range type
+            Name of the temporal range type
         referenced_sample_positions: Union[Sequence[int], None], optional
-            one-based relative sample position of acquired time points
+            One-based relative sample position of acquired time points
             within the time series
         referenced_time_offsets: Union[Sequence[float], None], optional
-            seconds after start of the acquisition of the time series
+            Seconds after start of the acquisition of the time series
         referenced_date_time: Union[Sequence[datetime.datetime], None], optional
-            absolute time points
-        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str]
-            type of relationship with parent content item
+            Absolute time points
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
 
         """  # noqa: E501
-        if relationship_type is None:
-            warnings.warn(
-                'A future release will require that relationship types be '
-                f'provided for items of type {self.__class__.__name__}.',
-                DeprecationWarning
-            )
         super(TcoordContentItem, self).__init__(
             ValueTypeValues.TCOORD, name, relationship_type
         )
