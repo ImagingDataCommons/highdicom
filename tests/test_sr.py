@@ -2643,9 +2643,10 @@ class TestMeasurementReport(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._source_image_region_uid = generate_uid()
         self._image = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._source_image_region_uid
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypeValues.CIRCLE,
