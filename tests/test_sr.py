@@ -2139,6 +2139,12 @@ class TestMeasurement(unittest.TestCase):
         with pytest.raises(AttributeError):
             item.NumericValueQualifierCodeSequence
 
+        # Direct property access
+        assert measurement.name == self._name
+        assert measurement.value == self._value
+        assert measurement.unit == self._unit
+        assert measurement.qualifier is None
+
     def test_construction_with_missing_required_parameters(self):
         with pytest.raises(TypeError):
             Measurement(
@@ -2188,6 +2194,23 @@ class TestMeasurement(unittest.TestCase):
         assert subitem.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
         assert not hasattr(subitem, 'ContentSequence')
+
+
+class TestQualitativeEvaluation(unittest.TestCase):
+
+    def setUp(self):
+        self._name = codes.DCM.LevelOfSignificance
+        self._value = codes.SCT.HighlySignificant
+
+    def test_construction(self):
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value
+        )
+
+        assert len(evaluation) == 1
+        assert evaluation.name == self._name
+        assert evaluation.value == self._value
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
