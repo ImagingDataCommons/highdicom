@@ -772,7 +772,7 @@ class SpecimenPreparationStep(ContentSequence):
             self.append(tissue_fixative_item)
         if embedding_medium is not None:
             embedding_medium_item = CodeContentItem(
-                name=codes.SCT.EmbeddingMedium,
+                name=codes.SCT.TissueEmbeddingMedium,
                 value=embedding_medium
             )
             self.append(embedding_medium_item)
