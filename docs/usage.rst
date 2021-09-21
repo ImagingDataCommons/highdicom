@@ -378,7 +378,7 @@ labelled bounding box region drawn over a CT image.
     image_dataset = dcmread('/path/to/image.dcm')
 
     # Create an image for display by windowing the original image and drawing a
-    # bounding box over it using OpenCV
+    # bounding box over it using Pillow's ImageDraw module
     slope = getattr(image_dataset, 'RescaleSlope', 1)
     intercept = getattr(image_dataset, 'RescaleIntercept', 0)
     original_image = image_dataset.pixel_array * slope + intercept
