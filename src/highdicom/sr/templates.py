@@ -186,7 +186,7 @@ def _contains_volumetric_rois(group_item: ContainerContentItem) -> bool:
 
 def _get_planar_roi_reference_item(
     group_item: ContainerContentItem,
-) -> Tuple[Code, Dataset]:
+) -> Tuple[Code, ContentItem]:
     """Get the content item representing a planar measurement group's ROI.
 
     Parameters
@@ -198,9 +198,8 @@ def _get_planar_roi_reference_item(
     -------
     highdicom.sr.CodedConcept
         Coded concept representing the concept name of the ROI reference item.
-    pydicom.dataset.Dataset
-        Dataset representing the content item that defines the reference to the
-        ROI.
+    highdicom.sr.ContentItem
+        Content item that defines the reference to the ROI.
 
     """
     reference_type, items = _get_roi_reference_items(
@@ -217,7 +216,7 @@ def _get_planar_roi_reference_item(
 
 def _get_volumetric_roi_reference_items(
     group_item: ContainerContentItem,
-) -> Tuple[Code, List[Dataset]]:
+) -> Tuple[Code, List[ContentItem]]:
     """Get the content items representing a volumetric measurement group's ROI.
 
     Parameters
@@ -229,9 +228,8 @@ def _get_volumetric_roi_reference_items(
     -------
     highdicom.sr.CodedConcept
         Coded concept representing the concept name of the ROI reference item.
-    List[pydicom.dataset.Dataset]
-        Datasets representing the content item that defines the reference to the
-        ROI.
+    List[highdicom.sr.ContentItem]
+        Content items that defines the reference to the ROI.
 
     """
     return _get_roi_reference_items(
@@ -243,7 +241,7 @@ def _get_volumetric_roi_reference_items(
 def _get_roi_reference_items(
     group_item: ContainerContentItem,
     allowed_reference_types: Iterable[Code]
-) -> Tuple[Code, List[Dataset]]:
+) -> Tuple[Code, List[ContentItem]]:
     """Get the content items representing a measurement group's roi reference.
 
     Parameters
@@ -257,9 +255,8 @@ def _get_roi_reference_items(
     -------
     highdicom.sr.CodedConcept
         Coded concept representing the concept name of the ROI reference item.
-    List[pydicom.dataset.Dataset]
-        Datasets representing the content item that defines the reference to the
-        ROI.
+    List[highdicom.sr.ContentItem]
+        Content items that defines the reference to the ROI.
 
     Raises
     ------
@@ -281,22 +278,17 @@ def _get_roi_reference_items(
     returned_items = []
     reference_type = None
     for item in group_item.ContentSequence:
-        rel_type = RelationshipTypeValues(item.RelationshipType)
-        if rel_type != RelationshipTypeValues.CONTAINS:
+        if item.relationship_type != RelationshipTypeValues.CONTAINS:
             # All ROI reference content items have relationship type CONTAINS
             continue
 
-        found_concept = CodedConcept.from_dataset(
-            item.ConceptNameCodeSequence[0]
-        )
-        if found_concept in allowed_reference_types:
-            expected_value_types = ref_type_value_type_map[found_concept]
-            found_value_type = ValueTypeValues(item.ValueType)
-            if found_value_type in expected_value_types:
+        if item.name in allowed_reference_types:
+            expected_value_types = ref_type_value_type_map[item.name]
+            if item.value_type in expected_value_types:
                 if reference_type is None:
-                    reference_type = found_concept
+                    reference_type = item.name
                 else:
-                    if found_concept != reference_type:
+                    if item.name != reference_type:
                         raise RuntimeError(
                             'Multiple different reference types were found.'
                         )
@@ -478,108 +470,15 @@ def _contains_image_items(
         relationship_type=relationship_type
     )
     for item in matched_items:
-        sop_seq = item.ReferencedSOPSequence[0]
         if referenced_sop_class_uid is not None:
-            if sop_seq.ReferencedSOPClassUID != referenced_sop_class_uid:
+            if item.referenced_sop_class_uid != referenced_sop_class_uid:
                 continue
         if referenced_sop_instance_uid is not None:
             if referenced_sop_instance_uid is not None:
                 found_uid = sop_seq.ReferencedSOPInstanceUID
-                if found_uid != referenced_sop_instance_uid:
+                if item.referenced_sop_instance_uid != referenced_sop_instance_uid:  # noqa: E501
                     continue
         return True
-    return False
-
-
-def _contains_scoord_items(
-    parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None,
-    source_image_sop_instance_uid: Optional[str] = None
-) -> bool:
-    """Checks whether an item contains a specific item with value type SCOORD.
-
-    Parameters
-    ----------
-    parent_item: highdicom.sr.ContentItem
-        Parent SR Content Item
-    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-        Name of the child SR Content Item
-    graphic_type: Union[highdicom.sr.GraphicTypeValues, None], optional
-        Graphic type of the child SR Content Item
-    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
-        Relationship between child and parent SR Content Item
-    source_image_sop_instance_uid: Union[str, None], optional
-        SOP Instance UID of the source image.
-
-    Returns
-    -------
-    bool
-        Whether any of the SR Content Items contained in `parent_item`
-        match the filter criteria
-
-    """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.SCOORD,
-        relationship_type=relationship_type
-    )
-    for item in matched_items:
-        if graphic_type is not None:
-            if item.GraphicType != graphic_type.value:
-                continue
-        if source_image_sop_instance_uid is not None:
-            if not _contains_image_items(
-                item,
-                name=codes.DCM.OriginalSource,
-                referenced_sop_instance_uid=source_image_sop_instance_uid,
-                relationship_type=RelationshipTypeValues.SELECTED_FROM
-            ):
-                continue
-        return True
-    return False
-
-
-def _contains_scoord3d_items(
-    parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
-    graphic_type: Optional[GraphicTypeValues3D] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None
-) -> bool:
-    """Checks whether an item contains specific items with value type SCOORD3D.
-
-    Parameters
-    ----------
-    parent_item: highdicom.sr.ContentItem
-        Parent SR Content Item
-    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-        Name of the child SR Content Item
-    graphic_type: Union[highdicom.sr.GraphicTypeValues3D, None], optional
-        Graphic type of the child SR Content Item
-    relationship_type: Union[highdicom.sr.RelationshipTypeValues, None], optional
-        Relationship between child and parent SR Content Item
-
-    Returns
-    -------
-    bool
-        Whether any of the SR Content Items contained in `parent_item`
-        match the filter criteria
-
-    """  # noqa: E501
-    matched_items = find_content_items(
-        parent_item,
-        name=name,
-        value_type=ValueTypeValues.SCOORD3D,
-        relationship_type=relationship_type
-    )
-    for item in matched_items:
-        if graphic_type is not None:
-            if item.GraphicType == graphic_type.value:
-                return True
-        else:
-            return True
     return False
 
 
@@ -3178,7 +3077,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         elif len(matches) == 0:
             return None
 
-        return ImageContentItem.from_dataset(matches[0])
+        return matches[0]
 
     @property
     def _source_image_for_segmentation_item(
@@ -4011,6 +3910,23 @@ class MeasurementReport(Template):
                     'Argument "graphic_type" must be of type GraphicTypeValues, '
                     'GraphicTypeValues3D or None.'
                 )
+            if isinstance(graphic_type, GraphicTypeValues):
+                if graphic_type == GraphicTypeValues.MULTIPOINT:
+                    raise ValueError(
+                        'Graphic type "MULTIPOINT" is not valid for image '
+                        'regions within a planar ROI measurements group.'
+                    )
+            else:
+                if graphic_type in (
+                    GraphicTypeValues3D.MULTIPOINT,
+                    GraphicTypeValues3D.POLYLINE,
+                    GraphicTypeValues3D.ELLIPSOID
+                ):
+                    raise ValueError(
+                        f'Graphic type 3D value "{graphic_type}" is not valid '
+                        'for image regions within a planar ROI measurements '
+                        'group.'
+                    )
 
         # Check a valid code was passed
         if reference_type is not None:
@@ -4030,9 +3946,6 @@ class MeasurementReport(Template):
                         'Specifying a graphic type is invalid when using '
                         f'a reference type "{reference_type.meaning}"'
                     )
-
-            # TODO check incompatibility between specific graphic types and
-            # the reference type
 
         measurement_group_items = self._find_measurement_groups()
         sequences = []
@@ -4124,8 +4037,7 @@ class MeasurementReport(Template):
                     if found_ref_type == codes.DCM.ImageRegion:
                         # If 2D image region, check items in its content
                         # sequence for source images
-                        found_val_type = ValueTypeValues(ref_item.ValueType)
-                        if found_val_type == ValueTypeValues.SCOORD:
+                        if ref_item.value_type == ValueTypeValues.SCOORD:
                             # (SCOORD3 will not contain direct UID
                             # references)
                             if _contains_image_items(
@@ -4213,6 +4125,22 @@ class MeasurementReport(Template):
                     'graphic_type must be of type GraphicTypeValues or '
                     'GraphicTypeValues3D, or None.'
                 )
+            if isinstance(graphic_type, GraphicTypeValues):
+                if graphic_type == GraphicTypeValues.MULTIPOINT:
+                    raise ValueError(
+                        'Graphic type "MULTIPOINT" is not valid for image '
+                        'regions within a volumetric ROI measurements group.'
+                    )
+            else:
+                if graphic_type in (
+                    GraphicTypeValues3D.MULTIPOINT,
+                    GraphicTypeValues3D.POLYLINE,
+                ):
+                    raise ValueError(
+                        f'Graphic type 3D value "{graphic_type}" is not valid '
+                        'for image regions within a planar ROI measurements '
+                        'group.'
+                    )
 
         # Check a valid code was passed
         if reference_type is not None:
@@ -4236,6 +4164,22 @@ class MeasurementReport(Template):
                         'Specifying a graphic type is invalid when using '
                         f'a reference type "{reference_type.meaning}"'
                     )
+
+                # Check incompatibility of graphic_type and reference_type
+                if reference_type == codes.DCM.ImageRegion:
+                    if isinstance(graphic_type, GraphicTypeValues3D):
+                        raise TypeError(
+                            'When specifying a reference type of '
+                            '"Image Region", the "graphic_type" argument must '
+                            'be of type GraphicTypeValues.'
+                        )
+                elif reference_type == codes.DCM.VolumeSurface:
+                    if isinstance(graphic_type, GraphicTypeValues):
+                        raise TypeError(
+                            'When specifying a reference type of '
+                            '"Volume Surface", the "graphic_type" argument '
+                            'must be of type GraphicTypeValues3D.'
+                        )
 
         sequences = []
         measurement_group_items = self._find_measurement_groups()
@@ -4329,8 +4273,7 @@ class MeasurementReport(Template):
                         # If 2D image region, check items in its content
                         # sequence for source images
                         for ref_item in ref_items:
-                            found_val_type = ValueTypeValues(ref_item.ValueType)
-                            if found_val_type == ValueTypeValues.SCOORD:
+                            if ref_item.value_type == ValueTypeValues.SCOORD:
                                 # (SCOORD3 will not contain direct UID
                                 # references)
                                 if _contains_image_items(
