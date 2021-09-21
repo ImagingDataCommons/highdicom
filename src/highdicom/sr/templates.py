@@ -449,7 +449,7 @@ def _contains_image_items(
     referenced_sop_instance_uid: Union[str, None] = None,
     relationship_type: Optional[RelationshipTypeValues] = None
 ) -> bool:
-    """Checks whether an item contains a specific item with value type IMAGE.
+    """Check whether an item contains a specific item with value type IMAGE.
 
     Parameters
     ----------
