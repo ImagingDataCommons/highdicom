@@ -496,7 +496,7 @@ def _contains_scoord_items(
     name: Union[Code, CodedConcept],
     graphic_type: Optional[GraphicTypeValues] = None,
     relationship_type: Optional[RelationshipTypeValues] = None,
-    source_image_sop_instance_uid=None
+    source_image_sop_instance_uid: Optional[str] = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type SCOORD.
 
