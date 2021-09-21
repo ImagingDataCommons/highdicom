@@ -8,6 +8,7 @@ from highdicom import (
     PlaneOrientationSequence,
     PlanePositionSequence,
     SpecimenCollection,
+    SpecimenPreparationStep,
     SpecimenSampling,
     SpecimenStaining,
 )
