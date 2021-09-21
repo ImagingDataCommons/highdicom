@@ -4010,8 +4010,8 @@ class MeasurementReport(Template):
                 (GraphicTypeValues, GraphicTypeValues3D)
             ):
                 raise TypeError(
-                    'graphic_type must be of type GraphicTypeValues or '
-                    'GraphicTypeValues3D, or None.'
+                    'Argument "graphic_type" must be of type GraphicTypeValues, '
+                    'GraphicTypeValues3D or None.'
                 )
 
         # Check a valid code was passed
