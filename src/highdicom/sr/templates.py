@@ -4002,8 +4002,6 @@ class MeasurementReport(Template):
             Sequence of content items for each matched measurement group
 
         """  # noqa: E501
-        # FIXME: reference type and referenced sop instance uid
-
         if graphic_type is not None:
             if not isinstance(
                 graphic_type,
@@ -4206,8 +4204,6 @@ class MeasurementReport(Template):
             Sequence of content items for each matched measurement group
 
         """  # noqa: E501
-        # FIXME: reference type and referenced sop instance uid
-
         if graphic_type is not None:
             if not isinstance(
                 graphic_type,
