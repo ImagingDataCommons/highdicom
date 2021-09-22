@@ -2753,13 +2753,12 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     )
                 group_item.ContentSequence.append(region)
         elif referenced_volume_surface is not None:
-            if not isinstance(referenced_volume_surface,
-                              VolumeSurface):
+            if not isinstance( referenced_volume_surface, VolumeSurface):
                 raise TypeError(
                     'Items of argument "referenced_volume_surface" must have '
                     'type VolumeSurface.'
                 )
-            group_item.ContentSequence.append(referenced_volume_surface)
+            group_item.ContentSequence.extend(referenced_volume_surface)
         elif referenced_segment is not None:
             if not isinstance(
                     referenced_segment,
