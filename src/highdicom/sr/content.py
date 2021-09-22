@@ -1375,8 +1375,8 @@ class ReferencedSegment(ContentSequence):
         ----------
         sequence: Sequence[Dataset]
             Sequence of datasets to be converted. This is expected to contain
-            an initial content items with concept name
-            'Referenced Segmentation Frame', followed by either a single
+            an initial content item with concept name
+            'Referenced Segment', followed by either a single
             content item with concept name 'Source Series For Segmentation', or
             1 or more content items with concept name
             'Source Image For Segmentation'.
