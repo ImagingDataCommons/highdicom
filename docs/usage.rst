@@ -188,6 +188,7 @@ image:
     import numpy as np
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
+    from pydicom.uid import generate_uid
 
     # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
