@@ -2850,13 +2850,12 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     )
                 group_item.ContentSequence.append(region)
         elif referenced_volume_surface is not None:
-            if not isinstance(referenced_volume_surface,
-                              VolumeSurface):
+            if not isinstance( referenced_volume_surface, VolumeSurface):
                 raise TypeError(
                     'Items of argument "referenced_volume_surface" must have '
                     'type VolumeSurface.'
                 )
-            group_item.ContentSequence.append(referenced_volume_surface)
+            group_item.ContentSequence.extend(referenced_volume_surface)
         elif referenced_segment is not None:
             if not isinstance(
                     referenced_segment,
@@ -3184,7 +3183,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         self,
         tracking_identifier: TrackingIdentifier,
         referenced_regions: Optional[
-            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
+            Union[Sequence[ImageRegion]]
         ] = None,
         referenced_volume_surface: Optional[VolumeSurface] = None,
         referenced_segment: Optional[ReferencedSegment] = None,
@@ -3207,7 +3206,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
             identifier for tracking measurements
-        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
+        referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], None], optional
             regions of interest in source image(s)
         referenced_volume_surface: Union[highdicom.sr.VolumeSurface, None], optional
             volume of interest in source image(s)
@@ -3246,6 +3245,16 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         together with the corresponding source image(s) or series.
 
         """  # noqa: E501
+        if referenced_regions is not None and any(
+            isinstance(r, ImageRegion3D) for r in referenced_regions
+        ):
+            raise TypeError(
+                'Including items of type ImageRegion3D in "referenced_regions" '
+                'is invalid within a volumetric ROI measurement group is '
+                'invalid. To specify the referenced region in 3D frame of '
+                'reference coordinates, use the "referenced_volume_surface" '
+                'argument instead.'
+            )
         if referenced_segment is not None:
             if not isinstance(referenced_segment, ReferencedSegment):
                 raise TypeError(

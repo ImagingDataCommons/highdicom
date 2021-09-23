@@ -731,16 +731,16 @@ class ImageRegion3D(Scoord3DContentItem):
         return cast(ImageRegion3D, item)
 
 
-class VolumeSurface(Scoord3DContentItem):
+class VolumeSurface(ContentSequence):
 
-    """Content item representing a volume surface in the the three-dimensional
+    """Content sequence representing a volume surface in the the three-dimensional
     patient/slide coordinate system in millimeter unit.
     """
 
     def __init__(
         self,
         graphic_type: Union[GraphicTypeValues3D, str],
-        graphic_data: np.ndarray,
+        graphic_data: Union[np.ndarray, Sequence[np.ndarray]],
         frame_of_reference_uid: str,
         source_images: Optional[
             Sequence[SourceImageForSegmentation]
@@ -751,9 +751,30 @@ class VolumeSurface(Scoord3DContentItem):
         Parameters
         ----------
         graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
-            name of the graphic type
-        graphic_data: Sequence[Sequence[int]]
-            ordered set of (row, column, frame) coordinate pairs
+            name of the graphic type. Permissible values are "ELLIPSOID",
+            "POINT", "ELLIPSE" or "POLYGON".
+        graphic_data: Union[np.ndarray, Sequence[np.ndarray]]
+            List of graphic data for elements of the volume surface. Each item
+            of the list should be a 2D numpy array representing the graphic
+            data for a single element of type ``graphic_type``.
+
+            If ``graphic_type`` is "ELLIPSOID" or "POINT", the volume surface
+            will consist of a single element that defines the entire surface.
+            Therefore, a single 2D numpy array should be passed for
+            ``graphic_data`` as a list of length 1. For reasons of backwards
+            compatibility, it is also possible to pass a numpy array directly.
+
+            If ``graphic_type`` is "ELLIPSE" or "POLYGON", the volume surface
+            will consist of two or more planar regions that together define the
+            surface. Therefore a list of two or more 2D numpy arrays should be
+            passed for ``graphic_data``.
+
+            Each 2D numpy array should have dimension N x 3 where each row of
+            the array represents a coordinate in the 3D frame of reference. The
+            number, N, and meaning of the coordinates depends upon the value of
+            "graphic_type". See :class:`highdicom.sr.GraphicTypeValues3D` for
+            details.
+
         frame_of_reference_uid: str
             unique identifier of the frame of reference within which the
             coordinates are defined
@@ -767,23 +788,51 @@ class VolumeSurface(Scoord3DContentItem):
         Either one or more source images or one source series must be provided.
 
         """  # noqa: E501
+        super().__init__()
         graphic_type = GraphicTypeValues3D(graphic_type)
-        if graphic_type != GraphicTypeValues3D.ELLIPSOID:
+
+        # Allow single 2D numpy array for backwards compatibility
+        if isinstance(graphic_data, np.ndarray) and graphic_data.ndim == 2:
+            graphic_data = [graphic_data]
+
+        if graphic_type in (
+            GraphicTypeValues3D.ELLIPSOID,
+            GraphicTypeValues3D.POINT
+        ):
+            if len(graphic_data) > 1:
+                raise ValueError(
+                    'If graphic type is "ELLIPSOID" or "POINT", graphic data '
+                    'should consist of a single item.'
+                )
+        elif graphic_type in (
+            GraphicTypeValues3D.ELLIPSE,
+            GraphicTypeValues3D.POLYGON
+        ):
+            if len(graphic_data) < 2:
+                raise ValueError(
+                    'If graphic type is "ELLIPSE" or "POLYGON", graphic data '
+                    'should consist of two or more items.'
+                )
+        else:
             raise ValueError(
-                'Graphic type for volume surface must be "ELLIPSOID".'
+                f'Graphic type "{graphic_type}" is not valid for volume '
+                'surfaces.'
             )
-        super().__init__(
-            name=CodedConcept(
-                value='121231',
-                meaning='Volume Surface',
-                scheme_designator='DCM'
-            ),
-            frame_of_reference_uid=frame_of_reference_uid,
-            graphic_type=graphic_type,
-            graphic_data=graphic_data,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        self.ContentSequence = ContentSequence()
+
+        for graphic_data_item in graphic_data:
+            self.append(
+                Scoord3DContentItem(
+                    name=CodedConcept(
+                        value='121231',
+                        meaning='Volume Surface',
+                        scheme_designator='DCM'
+                    ),
+                    frame_of_reference_uid=frame_of_reference_uid,
+                    graphic_type=graphic_type,
+                    graphic_data=graphic_data_item,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+            )
         if source_images is not None:
             for image in source_images:
                 if not isinstance(image, SourceImageForSegmentation):
@@ -791,42 +840,19 @@ class VolumeSurface(Scoord3DContentItem):
                         'Items of argument "source_image" must have type '
                         'SourceImageForSegmentation.'
                     )
-                self.ContentSequence.append(image)
+                self.append(image)
         elif source_series is not None:
             if not isinstance(source_series, SourceSeriesForSegmentation):
                 raise TypeError(
                     'Argument "source_series" must have type '
                     'SourceSeriesForSegmentation.'
                 )
-            self.ContentSequence.append(source_series)
+            self.append(source_series)
         else:
             raise ValueError(
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
-
-    @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'VolumeSurface':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
-
-        Returns
-        -------
-        highdicom.sr.VolumeSurface
-            Constructed object
-
-        """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'VolumeSurface':
-        item = super()._from_dataset_base(dataset)
-        return cast(VolumeSurface, item)
 
 
 class RealWorldValueMap(CompositeContentItem):

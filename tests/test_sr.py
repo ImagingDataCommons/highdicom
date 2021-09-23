@@ -155,6 +155,137 @@ class TestImageRegion(unittest.TestCase):
             )
 
 
+class TestVolumeSurface(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._frame_of_reference_uid = generate_uid()
+        self._source_images = [
+            SourceImageForSegmentation(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.77.1.6',
+                referenced_sop_instance_uid=generate_uid(),
+            )
+        ]
+        self._source_series = SourceSeriesForSegmentation(generate_uid())
+        delta = np.array([[0.0, 0.0, 1.0]])
+        self._point = np.array([[1.0, 2.0, 3.0]])
+        self._point_2 = self._point + delta
+        self._ellipsoid = np.array([
+            [-1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, 1.0],
+        ])
+        self._ellipsoid_2 = self._ellipsoid + delta
+        self._ellipse = np.array([
+            [-1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ])
+        self._ellipse_2 = self._ellipse + delta
+        self._polygon = np.array([
+            [1.0, 1.0, 0.0],
+            [2.0, 2.0, 0.0],
+            [3.0, 3.0, 0.0],
+            [1.0, 1.0, 0.0]
+        ])
+        self._polygon_2 = self._polygon + delta
+
+    def test_from_point(self):
+        surface = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POINT,
+            graphic_data=[self._point],
+            frame_of_reference_uid=self._frame_of_reference_uid,
+            source_images=self._source_images
+        )
+
+    def test_from_point_with_series(self):
+        surface = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POINT,
+            graphic_data=[self._point],
+            frame_of_reference_uid=self._frame_of_reference_uid,
+            source_series=self._source_series
+        )
+
+    def test_from_two_points(self):
+        # Two points are invalid
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.POINT,
+                graphic_data=[self._point, self._point_2],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+
+    def test_from_ellipsoid(self):
+        surface = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.ELLIPSOID,
+            graphic_data=[self._ellipsoid],
+            frame_of_reference_uid=self._frame_of_reference_uid,
+            source_images=self._source_images
+        )
+
+    def test_from_two_ellipsoids(self):
+        # Two ellipsoids are invalid
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.ELLIPSOID,
+                graphic_data=[self._ellipsoid, self._ellipsoid_2],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+
+    def test_from_ellipses(self):
+        surface = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.ELLIPSE,
+            graphic_data=[self._ellipse, self._ellipse_2],
+            frame_of_reference_uid=self._frame_of_reference_uid,
+            source_images=self._source_images
+        )
+
+    def test_from_one_ellipse(self):
+        # One ellipse is invalid
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.ELLIPSE,
+                graphic_data=[self._ellipse],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+
+    def test_from_polygons(self):
+        surface = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            graphic_data=[self._polygon, self._polygon_2],
+            frame_of_reference_uid=self._frame_of_reference_uid,
+            source_images=self._source_images
+        )
+
+    def test_from_one_ellipse(self):
+        # One polygon is invalid
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.POLYGON,
+                graphic_data=[self._polygon],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+
+    def test_invalid_graphic_types(self):
+        # Polyline and multipoint are invalid
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.POLYLINE,
+                graphic_data=[self._polygon],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+        with pytest.raises(ValueError):
+            VolumeSurface(
+                graphic_type=GraphicTypeValues3D.MULTIPOINT,
+                graphic_data=[self._polygon],
+                frame_of_reference_uid=self._frame_of_reference_uid
+            )
+
+
 class TestAlgorithmIdentification(unittest.TestCase):
 
     def setUp(self):
@@ -2244,6 +2375,16 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             source_image=self._image_for_region
         )
         self._seg_instance_uid = generate_uid()
+        self._region_3d = ImageRegion3D(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            graphic_data=np.array([
+                [1.0, 1.0, 0.0],
+                [2.0, 2.0, 0.0],
+                [3.0, 3.0, 0.0],
+                [1.0, 1.0, 0.0]
+            ]),
+            frame_of_reference_uid=generate_uid()
+        )
         self._segment = ReferencedSegmentationFrame(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
             sop_instance_uid=self._seg_instance_uid,
@@ -2306,6 +2447,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_construction_with_region_3d(self):
+        template = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region_3d
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
 
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
@@ -2427,6 +2576,19 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             for i in range(3)
         ]
         self._seg_instance_uid = generate_uid()
+        self._regions_3d = [
+            ImageRegion3D(
+                graphic_type=GraphicTypeValues3D.POLYGON,
+                graphic_data=np.array([
+                    [1.0, 1.0, i],
+                    [2.0, 2.0, i],
+                    [3.0, 3.0, i],
+                    [1.0, 1.0, i]
+                ]),
+                frame_of_reference_uid=generate_uid()
+            )
+            for i in range(3)
+        ]
         self._segment = ReferencedSegment(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
             sop_instance_uid=self._seg_instance_uid,
@@ -2490,6 +2652,13 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert template.referenced_segment is None
         assert template.reference_type == codes.DCM.ImageRegion
 
+    def test_constructed_with_regions_3d(self):
+        with pytest.raises(TypeError):
+            template = VolumetricROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_regions=self._regions_3d
+            )
+
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
         container_name_ds = _build_coded_concept_dataset(name)
@@ -2499,11 +2668,14 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         container_ds.RelationshipType = 'CONTAINS'
         container_ds.ConceptNameCodeSequence = [container_name_ds]
         container_ds.ContentSequence = self._regions
-        seq = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+        seq = VolumetricROIMeasurementsAndQualitativeEvaluations.from_sequence(
             [container_ds]
         )
         assert len(seq) == 1
-        assert isinstance(seq, PlanarROIMeasurementsAndQualitativeEvaluations)
+        assert isinstance(
+            seq,
+            VolumetricROIMeasurementsAndQualitativeEvaluations
+        )
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
         assert seq.reference_type == codes.DCM.ImageRegion
@@ -2585,7 +2757,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             referenced_volume_surface=volume
         )
         assert len(measurements) == 1
-        assert len(measurements[0].ContentSequence) == 3
+        assert len(measurements[0].ContentSequence) == 4
 
     def test_constructed_without_reference(self):
         with pytest.raises(ValueError):
