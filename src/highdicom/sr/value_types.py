@@ -1880,6 +1880,11 @@ class Scoord3DContentItem(ContentItem):
         """GraphicTypeValues3D: graphic type"""
         return GraphicTypeValues3D(self.GraphicType)
 
+    @property
+    def frame_of_reference_uid(self) -> UID:
+        """highdicom.UID: frame of reference UID"""
+        return UID(self.ReferencedFrameOfReferenceUID)
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
         """Construct object from an existing dataset.

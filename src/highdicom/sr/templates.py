@@ -3111,28 +3111,11 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         """Union[highdicom.sr.ImageContentItem, None]:
         segmentation frame referenced by the measurements group
         """  # noqa: E501
-        # Need to find the two content items that form the returned
-        # Referenced Segmentation Frame. Order is non-significant in the
-        # template so these must be found independently
-
-        # ReferencedSegmentationFrame content item
-        ref_seg_item = self._referenced_segmentation_frame_item
-        if ref_seg_item is None:
-            return None
-
-        # SourceImageForSegmentation content item
-        src_image_item = self._source_image_for_segmentation_item
-        if src_image_item is None:
-            raise KeyError(
-                'Measurements group contains no "Source Image for '
-                'Segmentation" content items.'
+        if self.reference_type == codes.DCM.ReferencedSegmentationFrame:
+            return ReferencedSegmentationFrame.from_sequence(
+                self[0].ContentSequence
             )
-
-        return ReferencedSegmentationFrame.from_sequence(
-            ContentSequence(
-                [ref_seg_item, src_image_item]
-            )
-        )
+        return None
 
     @classmethod
     def from_sequence(
@@ -3341,7 +3324,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     ) -> Union[ImageContentItem, None]:
         """Union[highdicom.sr.ReferencedSegment, None]:
         segment or segmentation frame referenced by the measurements group
-        """  # noqa: E501
+        """
         root_item = self[0]
 
         # Find the referenced segment content item
@@ -3365,14 +3348,15 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     ) -> List[SourceImageForSegmentation]:
         """List[highdicom.sr.SourceImageForSegmentation]:
         source images used for the referenced segment
-        """  # noqa: E501
+        """
         root_item = self[0]
 
         # Find the referenced segmentation frame content item
         matches = find_content_items(
             root_item,
             name=codes.DCM.SourceImageForSegmentation,
-            value_type=ValueTypeValues.IMAGE
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
         )
 
         return [
@@ -3385,7 +3369,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     ) -> Union[SourceSeriesForSegmentation, None]:
         """Union[highdicom.sr.SourceImageForSegmentation, None]:
         source series used for the referenced segment
-        """  # noqa: E501
+        """
         root_item = self[0]
 
         # Find the referenced segmentation frame content item
@@ -3411,37 +3395,10 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     ) -> Union[ReferencedSegment, None]:
         """Union[highdicom.sr.ImageContentItem, None]:
         segmentation frame referenced by the measurements group
-        """  # noqa: E501
-        # Need to find the two content items that form the returned
-        # Referenced Segment. Order is non-significant in the template so these
-        # must be found independently
-
-        # ReferencedSegment content item
-        ref_seg_item = self._referenced_segment_item
-        if ref_seg_item is None:
-            return None
-
-        # SourceImageForSegmentation content item(s)
-        src_image_items = self._source_image_for_segmentation_items
-        if len(src_image_items) == 0:
-            src_series_item = self._source_series_for_segmentation_item
-            if src_series_item is None:
-                raise KeyError(
-                    'Measurements group contains no "Source Image for '
-                    'Segmentation" content items nor "Source Series For '
-                    'Segmentation" content items.'
-                )
-            return ReferencedSegment.from_sequence(
-                ContentSequence(
-                    [ref_seg_item, src_series_item]
-                )
-            )
-        else:
-            return ReferencedSegment.from_sequence(
-                ContentSequence(
-                    [ref_seg_item] + src_image_items
-                )
-            )
+        """
+        if self.reference_type == codes.DCM.ReferencedSegment:
+            return ReferencedSegment.from_sequence(self[0].ContentSequence)
+        return None
 
     @classmethod
     def from_sequence(

@@ -854,6 +854,98 @@ class VolumeSurface(ContentSequence):
                 '"source_images" or "source_series".'
             )
 
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'VolumeSurface':
+        """Construct an object from an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            one or more content items with concept name
+            'Volume Surface', and either a single
+            content item with concept name 'Source Series For Segmentation', or
+            1 or more content items with concept name
+            'Source Image For Segmentation'.
+
+        Returns
+        -------
+        highdicom.sr.VolumeSurface
+            Constructed VolumeSurface object, containing copies
+            of the original content items.
+
+        """
+        vol_surface_items = find_content_items(
+            sequence,
+            name=codes.DCM.VolumeSurface,
+            value_type=ValueTypeValues.SCOORD3D,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(vol_surface_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain one or more content items with '
+                'concept name "Volume Surface". Found 0.'
+            )
+
+        source_image_items = find_content_items(
+            sequence,
+            name=codes.DCM.SourceImageForSegmentation,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        source_series_items = find_content_items(
+            sequence,
+            name=codes.DCM.SourceSeriesForSegmentation,
+            value_type=ValueTypeValues.UIDREF,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(source_image_items) == 0 and len(source_series_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain either at least one content item '
+                'with concept name "Source Image For Segmentation" or one '
+                'content item with concept name "Source Series For '
+                'Segmentation". Found neither.'
+            )
+        if len(source_image_items) > 0 and len(source_series_items) > 0:
+            raise RuntimeError(
+                'Sequence should not contain both content items '
+                'with concept name "Source Image For Segmentation" and a'
+                'content item with concept name "Source Series For '
+                'Segmentation".'
+            )
+
+        new_vol_surf_items = [
+            Scoord3DContentItem.from_dataset(item)
+            for item in vol_surface_items
+        ]
+        if len(source_image_items) > 0:
+            new_source_image_items = [
+                SourceImageForSegmentation.from_dataset(item)
+                for item in source_image_items
+            ]
+            new_seq = ContentSequence(
+                new_vol_surf_items + new_source_image_items
+            )
+        else:
+            if len(source_series_items) > 1:
+                raise RuntimeError(
+                    'Sequence should contain at most one content item '
+                    'with concept name "Source Series For Segmentation". Found '
+                    f'{len(source_series_items)}.'
+                )
+            new_source_series_item = SourceSeriesForSegmentation.from_dataset(
+                source_series_items[0]
+            )
+            new_seq = ContentSequence(
+                new_vol_surf_items + [new_source_series_item]
+            )
+
+        new_seq.__class__ = cls
+        return new_seq
+
 
 class RealWorldValueMap(CompositeContentItem):
 
@@ -1097,55 +1189,53 @@ class ReferencedSegmentationFrame(ContentSequence):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'ReferencedSegmentationFrame':
-        """Construct an object from an existing content sequence.
+        """Construct an object from items within an existing content sequence.
 
         Parameters
         ----------
         sequence: Sequence[Dataset]
             Sequence of datasets to be converted. This is expected to contain
-            content items with the following names in this order:
-            'Referenced Segmentation Frame', 'Source Image For Segmentation'.
+            content items with the following names:
+            "Referenced Segmentation Frame", "Source Image For Segmentation".
+            Any other other items will be ignored.
 
         Returns
         -------
         highdicom.sr.ReferencedSegmentationFrame
             Constructed ReferencedSegmentationFrame object, containing copies
-            of the original content items.
+            of the relevant original content items.
 
         """
-        if len(sequence) != 2:
-            raise ValueError(
-                'Sequence must contain exactly two content items.'
+        seg_frame_items = find_content_items(
+            sequence,
+            name=codes.DCM.ReferencedSegmentationFrame,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(seg_frame_items) != 1:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Referenced Segmentation Frame". Found '
+                f'{len(seg_frame_items)}.'
             )
 
-        # Check the first item
-        seg_item = sequence[0]
-        if seg_item.value_type != ValueTypeValues.IMAGE:
-            raise ValueError(
-                'First content item must have Value Type IMAGE.'
-            )
-        if seg_item.name != codes.DCM.ReferencedSegmentationFrame:
-            raise ValueError(
-                'First content item must have concept name '
-                'ReferencedSegmentationFrame.'
-            )
-
-        # Check the second item
-        src_item = sequence[1]
-        if src_item.value_type != ValueTypeValues.IMAGE:
-            raise ValueError(
-                'Second content item must have Value Type IMAGE.'
-            )
-        if src_item.name != codes.DCM.SourceImageForSegmentation:
-            raise ValueError(
-                'Second content item must have concept name '
-                'SourceImageForSegmentation.'
+        source_image_items = find_content_items(
+            sequence,
+            name=codes.DCM.SourceImageForSegmentation,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(source_image_items) != 1:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Source Image For Segmentation". Found '
+                f'{len(source_image_items)}.'
             )
 
         new_seq = ContentSequence(
             [
-                ImageContentItem.from_dataset(seg_item),
-                SourceImageForSegmentation.from_dataset(src_item)
+                ImageContentItem.from_dataset(seg_frame_items[0]),
+                SourceImageForSegmentation.from_dataset(source_image_items[0])
             ]
         )
         new_seq.__class__ = cls
@@ -1395,17 +1485,17 @@ class ReferencedSegment(ContentSequence):
         cls,
         sequence: Sequence[Dataset]
     ) -> 'ReferencedSegment':
-        """Construct an object from an existing content sequence.
+        """Construct an object from items within an existing content sequence.
 
         Parameters
         ----------
         sequence: Sequence[Dataset]
             Sequence of datasets to be converted. This is expected to contain
-            an initial content item with concept name
-            'Referenced Segment', followed by either a single
-            content item with concept name 'Source Series For Segmentation', or
-            1 or more content items with concept name
-            'Source Image For Segmentation'.
+            a content item with concept name "Referenced Segmentation Frame",
+            and either at least one content item with concept name
+            "Source Image For Segmentation" or a single content item with
+            concept name "Source Series For Segmentation".
+            Any other other items will be ignored.
 
         Returns
         -------
@@ -1414,62 +1504,66 @@ class ReferencedSegment(ContentSequence):
             of the original content items.
 
         """
-        if len(sequence) < 2:
-            raise ValueError(
-                'Sequence must contain two or more content items.'
+        seg_frame_items = find_content_items(
+            sequence,
+            name=codes.DCM.ReferencedSegment,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(seg_frame_items) != 0:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Referenced Segment". Found 0.'
             )
 
-        # Check the first item
-        seg_item = sequence[0]
-        if seg_item.value_type != ValueTypeValues.IMAGE:
-            raise ValueError(
-                'First content item must have Value Type IMAGE.'
+        source_image_items = find_content_items(
+            sequence,
+            name=codes.DCM.SourceImageForSegmentation,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        source_series_items = find_content_items(
+            sequence,
+            name=codes.DCM.SourceSeriesForSegmentation,
+            value_type=ValueTypeValues.UIDREF,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(source_image_items) == 0 and len(source_series_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain either at least one content item '
+                'with concept name "Source Image For Segmentation" or one '
+                'content item with concept name "Source Series For '
+                'Segmentation". Found neither.'
             )
-        if seg_item.name != codes.DCM.ReferencedSegment:
-            raise ValueError(
-                'First content item must have concept name '
-                'ReferencedSegmentationFrame.'
+        if len(source_image_items) > 0 and len(source_series_items) > 0:
+            raise RuntimeError(
+                'Sequence should not contain both content items '
+                'with concept name "Source Image For Segmentation" and a'
+                'content item with concept name "Source Series For '
+                'Segmentation".'
             )
 
-        # Check the second item
-        first_src_item = sequence[1]
-
-        # Subsequent items are SourceImageForSegmentation. 1-n are allowed
-        if first_src_item.value_type == ValueTypeValues.IMAGE:
-            src_images = []
-            for item in sequence[1:]:
-                if item.value_type != ValueTypeValues.IMAGE:
-                    raise ValueError(
-                        'TBD'
-                    )
-                if item.name != codes.DCM.SourceImageForSegmentation:
-                    raise ValueError(
-                        'Second and subsequent IMAGE content item must have '
-                        'concept name SourceImageForSegmentation.'
-                    )
-                src_images.append(SourceImageForSegmentation.from_dataset(item))
-
+        new_seg_item = ImageContentItem.from_dataset(seg_frame_items[0])
+        if len(source_image_items) > 0:
+            new_source_image_items = [
+                SourceImageForSegmentation.from_dataset(item)
+                for item in source_image_items
+            ]
             new_seq = ContentSequence(
-                [ImageContentItem.from_dataset(seg_item)] + src_images
+                [new_seg_item] + new_source_image_items
             )
-
-        # Subsequent item is SourceSeriesForSegmentation. Must be exactly 1 item
-        elif first_src_item.value_type == ValueTypeValues.UIDREF:
-            if first_src_item.name != codes.DCM.SourceSeriesForSegmentation:
-                raise ValueError(
-                    'Second content item of type UIDREF must have concept name '
-                    'SourceSeriesForSegmentation.'
-                )
-            new_seq = ContentSequence(
-                [
-                    ImageContentItem.from_dataset(seg_item),
-                    SourceSeriesForSegmentation.from_dataset(first_src_item)
-                ]
-            )
-
         else:
-            raise ValueError(
-                'Second content item must have Value Type IMAGE or UIDREF.'
+            if len(source_series_items) > 1:
+                raise RuntimeError(
+                    'Sequence should contain at most one content item '
+                    'with concept name "Source Series For Segmentation". Found '
+                    f'{len(source_series_items)}.'
+                )
+            new_source_series_item = SourceSeriesForSegmentation.from_dataset(
+                source_series_items[0]
+            )
+            new_seq = ContentSequence(
+                [new_seg_item, new_source_series_item]
             )
 
         new_seq.__class__ = cls

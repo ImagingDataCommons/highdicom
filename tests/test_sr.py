@@ -201,6 +201,7 @@ class TestVolumeSurface(unittest.TestCase):
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert len(surface) == 2
 
     def test_from_point_with_series(self):
         surface = VolumeSurface(
@@ -261,7 +262,7 @@ class TestVolumeSurface(unittest.TestCase):
             source_images=self._source_images
         )
 
-    def test_from_one_ellipse(self):
+    def test_from_one_polygon(self):
         # One polygon is invalid
         with pytest.raises(ValueError):
             VolumeSurface(
