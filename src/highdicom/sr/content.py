@@ -878,30 +878,50 @@ class VolumeSurface(ContentSequence):
             of the original content items.
 
         """
-        vol_surface_items = find_content_items(
-            sequence,
-            name=codes.DCM.VolumeSurface,
-            value_type=ValueTypeValues.SCOORD3D,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
+        vol_surface_items = []
+        source_image_items = []
+        source_series_items = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name_item == codes.DCM.VolumeSurface) and
+                (value_type == ValueTypeValues.SCOORD3D) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                vol_surface_items.append(
+                    Scoord3DContentItem.from_dataset(item)
+                )
+            elif (
+                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+            elif (
+                (name_item == codes.DCM.SourceSeriesForSegmentation) and
+                (value_type == ValueTypeValues.UIDREF) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_series_items.append(
+                    SourceSeriesForSegmentation.from_dataset(item)
+                )
+
         if len(vol_surface_items) == 0:
             raise RuntimeError(
                 'Expected sequence to contain one or more content items with '
                 'concept name "Volume Surface". Found 0.'
             )
 
-        source_image_items = find_content_items(
-            sequence,
-            name=codes.DCM.SourceImageForSegmentation,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        source_series_items = find_content_items(
-            sequence,
-            name=codes.DCM.SourceSeriesForSegmentation,
-            value_type=ValueTypeValues.UIDREF,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
         if len(source_image_items) == 0 and len(source_series_items) == 0:
             raise RuntimeError(
                 'Expected sequence to contain either at least one content item '
@@ -917,17 +937,9 @@ class VolumeSurface(ContentSequence):
                 'Segmentation".'
             )
 
-        new_vol_surf_items = [
-            Scoord3DContentItem.from_dataset(item)
-            for item in vol_surface_items
-        ]
         if len(source_image_items) > 0:
-            new_source_image_items = [
-                SourceImageForSegmentation.from_dataset(item)
-                for item in source_image_items
-            ]
             new_seq = ContentSequence(
-                new_vol_surf_items + new_source_image_items
+                vol_surface_items + source_image_items
             )
         else:
             if len(source_series_items) > 1:
@@ -936,11 +948,8 @@ class VolumeSurface(ContentSequence):
                     'with concept name "Source Series For Segmentation". Found '
                     f'{len(source_series_items)}.'
                 )
-            new_source_series_item = SourceSeriesForSegmentation.from_dataset(
-                source_series_items[0]
-            )
             new_seq = ContentSequence(
-                new_vol_surf_items + [new_source_series_item]
+                vol_surface_items + [source_series_item]
             )
 
         new_seq.__class__ = cls
@@ -1206,25 +1215,41 @@ class ReferencedSegmentationFrame(ContentSequence):
             of the relevant original content items.
 
         """
-        seg_frame_items = find_content_items(
-            sequence,
-            name=codes.DCM.ReferencedSegmentationFrame,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
+        seg_frame_items = []
+        source_image_items = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name_item == codes.DCM.ReferencedSegmentationFrame) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                seg_frame_items.append(
+                    ImageContentItem.from_dataset(item)
+                )
+            elif (
+                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+
         if len(seg_frame_items) != 1:
             raise RuntimeError(
                 'Expected sequence to contain exactly one content item with '
                 'concept name "Referenced Segmentation Frame". Found '
                 f'{len(seg_frame_items)}.'
             )
-
-        source_image_items = find_content_items(
-            sequence,
-            name=codes.DCM.SourceImageForSegmentation,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
         if len(source_image_items) != 1:
             raise RuntimeError(
                 'Expected sequence to contain exactly one content item with '
@@ -1232,12 +1257,7 @@ class ReferencedSegmentationFrame(ContentSequence):
                 f'{len(source_image_items)}.'
             )
 
-        new_seq = ContentSequence(
-            [
-                ImageContentItem.from_dataset(seg_frame_items[0]),
-                SourceImageForSegmentation.from_dataset(source_image_items[0])
-            ]
-        )
+        new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
         return new_seq
 
@@ -1504,30 +1524,50 @@ class ReferencedSegment(ContentSequence):
             of the original content items.
 
         """
-        seg_frame_items = find_content_items(
-            sequence,
-            name=codes.DCM.ReferencedSegment,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        if len(seg_frame_items) != 0:
+        seg_frame_items = []
+        source_image_items = []
+        source_series_items = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name_item == codes.DCM.ReferencedSegment) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                seg_frame_items.append(
+                    ImageContentItem.from_dataset(item)
+                )
+            elif (
+                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+            elif (
+                (name_item == codes.DCM.SourceSeriesForSegmentation) and
+                (value_type == ValueTypeValues.UIDREF) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_series_items.append(
+                    SourceSeriesForSegmentation.from_dataset(item)
+                )
+
+
+        if len(seg_frame_items) != 1:
             raise RuntimeError(
                 'Expected sequence to contain exactly one content item with '
                 'concept name "Referenced Segment". Found 0.'
             )
-
-        source_image_items = find_content_items(
-            sequence,
-            name=codes.DCM.SourceImageForSegmentation,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        source_series_items = find_content_items(
-            sequence,
-            name=codes.DCM.SourceSeriesForSegmentation,
-            value_type=ValueTypeValues.UIDREF,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
         if len(source_image_items) == 0 and len(source_series_items) == 0:
             raise RuntimeError(
                 'Expected sequence to contain either at least one content item '
@@ -1543,14 +1583,9 @@ class ReferencedSegment(ContentSequence):
                 'Segmentation".'
             )
 
-        new_seg_item = ImageContentItem.from_dataset(seg_frame_items[0])
         if len(source_image_items) > 0:
-            new_source_image_items = [
-                SourceImageForSegmentation.from_dataset(item)
-                for item in source_image_items
-            ]
             new_seq = ContentSequence(
-                [new_seg_item] + new_source_image_items
+                seg_frame_items + source_image_items
             )
         else:
             if len(source_series_items) > 1:
@@ -1559,11 +1594,8 @@ class ReferencedSegment(ContentSequence):
                     'with concept name "Source Series For Segmentation". Found '
                     f'{len(source_series_items)}.'
                 )
-            new_source_series_item = SourceSeriesForSegmentation.from_dataset(
-                source_series_items[0]
-            )
             new_seq = ContentSequence(
-                [new_seg_item, new_source_series_item]
+                seg_frame_items + source_series_items
             )
 
         new_seq.__class__ = cls
