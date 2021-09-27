@@ -38,10 +38,13 @@ def _create_sop_to_iods(directory):
 
     sop_id_to_ciod_name = {sop['id']: sop['ciod'] for sop in sops}
     ciod_name_to_ciod_id = {ciod['name']: ciod['id'] for ciod in ciods}
-    sop_id_to_ciod_id = {
-        sop_id: ciod_name_to_ciod_id[sop_id_to_ciod_name[sop_id]]
-        for sop_id in sop_id_to_ciod_name
-    }
+    sop_id_to_ciod_id = {}
+    for sop_id in sop_id_to_ciod_name:
+        ciod_name = sop_id_to_ciod_name[sop_id]
+        try:
+            sop_id_to_ciod_id[sop_id] = ciod_name_to_ciod_id[ciod_name]
+        except KeyError:
+            logger.error(f'could not map IOD "{ciod_name}"')
     return sop_id_to_ciod_id
 
 
