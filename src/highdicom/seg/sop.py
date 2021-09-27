@@ -1,14 +1,13 @@
-"""Module for the SOP class of the Segmentation IOD."""
-from copy import deepcopy
-from collections import OrderedDict
+"""Module for SOP classes of the SEG modality."""
 import logging
+from collections import defaultdict, OrderedDict
+from copy import deepcopy
 from os import PathLike
-import numpy as np
-from collections import defaultdict
 from typing import (
     Any, cast, Dict, List, Optional, Sequence, Union, Tuple, BinaryIO
 )
 
+import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
@@ -60,11 +59,7 @@ _NO_FRAME_REF_VALUE = -1
 
 class Segmentation(SOPClass):
 
-    """SOP class for a Segmentation, which represents one or more
-    regions of interest (ROIs) as mask images (raster graphics) in
-    two-dimensional image space.
-
-    """
+    """SOP class for the Segmentation IOD."""
 
     def __init__(
         self,
@@ -1018,12 +1013,12 @@ class Segmentation(SOPClass):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
-        """Create a Segmentation object from an existing pydicom dataset.
+        """Create instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Pydicom dataset representing a SEG image.
+            Dataset representing a Segmentation image.
 
         Returns
         -------
@@ -1038,9 +1033,7 @@ class Segmentation(SOPClass):
             )
         # Checks on integrity of input dataset
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
-            raise ValueError(
-                'Dataset is not a Segmentation.'
-            )
+            raise ValueError('Dataset is not a Segmentation.')
         seg = deepcopy(dataset)
         seg.__class__ = Segmentation
 
