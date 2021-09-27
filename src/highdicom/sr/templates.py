@@ -3287,34 +3287,24 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def roi(
         self
-    ) -> Union[VolumeSurface, List[ImageRegion3D], List[ImageRegion], None]:
-        """Union[highdicom.sr.VolumeSurface, List[highdicom.sr.ImageRegion], List[highdicom.sr.ImageRegion3D]], None]:
+    ) -> Union[VolumeSurface, List[ImageRegion], None]:
+        """Union[highdicom.sr.VolumeSurface, List[highdicom.sr.ImageRegion], None]:
         volume surface or image regions defined by spatial coordinates
         """  # noqa: E501
-        root_item = self[0]
-        matches = find_content_items(
-            root_item,
-            name=codes.DCM.ImageRegion,
-            value_type=ValueTypeValues.SCOORD
-        )
-        if len(matches) > 0:
+        reference_type = self.reference_type
+        if reference_type == codes.DCM.ImageRegion:
+            root_item = self[0]
+            matches = find_content_items(
+                root_item,
+                name=codes.DCM.ImageRegion,
+                value_type=ValueTypeValues.SCOORD
+            )
             return [
                 ImageRegion.from_dataset(item)
                 for item in matches
             ]
-        matches = find_content_items(
-            root_item,
-            name=codes.DCM.VolumeSurface,
-            value_type=ValueTypeValues.SCOORD3D
-        )
-        if len(matches) > 0:
-            if len(matches) > 1:
-                return [
-                    ImageRegion3D.from_dataset(item)
-                    for item in matches
-                ]
-            else:
-                return VolumeSurface.from_dataset(matches[0])
+        elif reference_type == codes.DCM.VolumeSurface:
+            return VolumeSurface.from_sequence(self[0].ContentSequence)
 
         return None
 
