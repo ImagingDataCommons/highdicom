@@ -475,8 +475,8 @@ def _contains_image_items(
                 continue
         if referenced_sop_instance_uid is not None:
             if referenced_sop_instance_uid is not None:
-                found_uid = sop_seq.ReferencedSOPInstanceUID
-                if item.referenced_sop_instance_uid != referenced_sop_instance_uid:  # noqa: E501
+                found_uid = item.referenced_sop_instance_uid
+                if found_uid != referenced_sop_instance_uid:
                     continue
         return True
     return False
@@ -3893,6 +3893,19 @@ class MeasurementReport(Template):
                         'for image regions within a planar ROI measurements '
                         'group.'
                     )
+                # There is no way to check SCOORD3D for referenced UIDs
+                if (
+                    (referenced_sop_class_uid is not None) or
+                    (referenced_sop_instance_uid is not None)
+                ):
+                    raise TypeError(
+                        'Supplying a referenced_sop_class_uid or '
+                        'referenced_sop_instance_uidis not valid'
+                        'when graphic_type is an instance of '
+                        'GraphicTypeValues3D, since SCOORD3D content items do '
+                        'not contain references to specific source image '
+                        'instances.'
+                    )
 
         # Check a valid code was passed
         if reference_type is not None:
@@ -3910,7 +3923,7 @@ class MeasurementReport(Template):
                 if reference_type != codes.DCM.ImageRegion:
                     raise ValueError(
                         'Specifying a graphic type is invalid when using '
-                        f'a reference type "{reference_type.meaning}"'
+                        f'reference type "{reference_type.meaning}"'
                     )
 
         measurement_group_items = self._find_measurement_groups()
@@ -3961,16 +3974,24 @@ class MeasurementReport(Template):
                 found_ref_type, ref_item = _get_planar_roi_reference_item(
                     group_item
                 )
+                value_type = ValueTypeValues(ref_item.ValueType)
 
                 if reference_type is not None:
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
-                    if hasattr(ref_item, 'GraphicType'):
-                        found_gt = type(graphic_type)(ref_item.GraphicType)
-                        matches.append(found_gt == graphic_type)
+                    if isinstance(graphic_type, GraphicTypeValues):
+                        if ref_item.value_type == ValueTypeValues.SCOORD:
+                            found_gt = GraphicTypeValues(ref_item.GraphicType)
+                            matches.append(found_gt == graphic_type)
+                        else:
+                            matches.append(False)
                     else:
-                        matches.append(False)
+                        if ref_item.value_type == ValueTypeValues.SCOORD3D:
+                            found_gt = GraphicTypeValues3D(ref_item.GraphicType)
+                            matches.append(found_gt == graphic_type)
+                        else:
+                            matches.append(False)
 
                 if (
                     (referenced_sop_instance_uid is not None) or
@@ -4008,7 +4029,7 @@ class MeasurementReport(Template):
                             # references)
                             if _contains_image_items(
                                 ref_item,
-                                name=codes.DCM.SourceImageForRegion,
+                                name=None,
                                 referenced_sop_class_uid=referenced_sop_class_uid,  # noqa: E501
                                 referenced_sop_instance_uid=referenced_sop_instance_uid,  # noqa: E501
                                 relationship_type=RelationshipTypeValues.SELECTED_FROM  # noqa: E501
@@ -4107,6 +4128,19 @@ class MeasurementReport(Template):
                         'for image regions within a planar ROI measurements '
                         'group.'
                     )
+                # There is no way to check SCOORD3D for referenced UIDs
+                if (
+                    (referenced_sop_class_uid is not None) or
+                    (referenced_sop_instance_uid is not None)
+                ):
+                    raise TypeError(
+                        'Supplying a referenced_sop_class_uid or '
+                        'referenced_sop_instance_uidis not valid'
+                        'when graphic_type is an instance of '
+                        'GraphicTypeValues3D, since SCOORD3D content items do '
+                        'not contain references to specific source image '
+                        'instances.'
+                    )
 
         # Check a valid code was passed
         if reference_type is not None:
@@ -4195,16 +4229,24 @@ class MeasurementReport(Template):
                 found_ref_type, ref_items = _get_volumetric_roi_reference_items(
                     group_item
                 )
+                value_type = ValueTypeValues(ref_items[0].ValueType)
 
                 if reference_type is not None:
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
-                    if hasattr(ref_items[0], 'GraphicType'):
-                        found_gt = type(graphic_type)(ref_items[0].GraphicType)
-                        matches.append(found_gt == graphic_type)
+                    if isinstance(graphic_type, GraphicTypeValues):
+                        if ref_item.value_type == ValueTypeValues.SCOORD:
+                            found_gt = GraphicTypeValues(ref_item.GraphicType)
+                            matches.append(found_gt == graphic_type)
+                        else:
+                            matches.append(False)
                     else:
-                        matches.append(False)
+                        if ref_item.value_type == ValueTypeValues.SCOORD3D:
+                            found_gt = GraphicTypeValues3D(ref_item.GraphicType)
+                            matches.append(found_gt == graphic_type)
+                        else:
+                            matches.append(False)
 
                 if (
                     (referenced_sop_instance_uid is not None) or
@@ -4244,7 +4286,7 @@ class MeasurementReport(Template):
                                 # references)
                                 if _contains_image_items(
                                     ref_item,
-                                    name=codes.DCM.SourceImageForRegion,
+                                    name=None,
                                     referenced_sop_class_uid=referenced_sop_class_uid,  # noqa: E501
                                     referenced_sop_instance_uid=referenced_sop_instance_uid,  # noqa: E501
                                     relationship_type=RelationshipTypeValues.SELECTED_FROM  # noqa: E501
