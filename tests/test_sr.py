@@ -4032,6 +4032,192 @@ class TestGetPlanarMeasurementGroups(unittest.TestCase):
             )
 
 
+class TestGetVolumetricMeasurementGroups(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+        # Read in series of source images
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ref_seg = dcmread(
+            'data/test_files/seg_image_ct_binary_single_frame.dcm'
+        )
+
+        # Measurement group with image region of type polyline
+        self._polyline_src_sop_uid = self._ct_series[0].SOPInstanceUID
+        self._polyline_src_sop_class_uid = self._ct_series[0].SOPClassUID
+        self._polyline_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._polyline_src_sop_class_uid,
+            referenced_sop_instance_uid=self._polyline_src_sop_uid,
+        )
+        self._polyline = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [1.0, 1.0]
+        ])
+        self._img_reg_polyline = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=self._polyline,
+            source_image=self._polyline_src
+        )
+        self._polyline_uid = UID()
+        self._polyline_id = 'polyline'
+        polyline_tracker = TrackingIdentifier(
+            uid=self._polyline_uid,
+            identifier=self._polyline_id
+        )
+        self._polyline_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=polyline_tracker,
+            referenced_regions=[self._img_reg_polyline],
+        )
+
+        # Measurement group with image region of type circle
+        self._circle_src_sop_uid = self._ct_series[1].SOPInstanceUID
+        self._circle_src_sop_class_uid = self._ct_series[1].SOPClassUID
+        self._circle_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._circle_src_sop_class_uid,
+            referenced_sop_instance_uid=self._circle_src_sop_uid,
+        )
+        self._circle = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0]
+        ])
+        self._img_reg_circle = ImageRegion(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+            source_image=self._circle_src
+        )
+        self._circle_uid = UID()
+        self._circle_id = 'circle'
+        circle_tracker = TrackingIdentifier(
+            uid=self._circle_uid,
+            identifier=self._circle_id
+        )
+        self._circle_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=circle_tracker,
+            referenced_regions=[self._img_reg_circle],
+        )
+
+        # Measurement group with image region 3D of type point
+        self._point_src_sop_uid = self._ct_series[2].SOPInstanceUID
+        self._point_src_sop_class_uid = self._ct_series[2].SOPClassUID
+        self._point_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._point_src_sop_class_uid,
+            referenced_sop_instance_uid=self._point_src_sop_uid,
+        )
+        self._point = np.array([[1.0, 2.0]])
+        self._img_reg_point = ImageRegion(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=self._point,
+            source_image=self._point_src
+        )
+        self._point_uid = UID()
+        self._point_id = 'point'
+        point_tracker = TrackingIdentifier(
+            uid=self._point_uid,
+            identifier=self._point_id
+        )
+        self._point_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point_tracker,
+            referenced_regions=[self._img_reg_point],
+        )
+
+        # Measurement group with image region 3D of type point
+        self._point3d_src_image = SourceImageForSegmentation.from_source_image(
+            self._ct_series[3]
+        )
+        self._point3d = np.array([[1.0, 2.0, 3.0]])
+        self._vol_surf_point = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POINT,
+            graphic_data=self._point3d,
+            source_images=[self._point3d_src_image],
+            frame_of_reference_uid=self._ct_series[3].FrameOfReferenceUID
+        )
+        self._point3d_uid = UID()
+        self._point3d_id = 'point3d'
+        point3d_tracker = TrackingIdentifier(
+            uid=self._point3d_uid,
+            identifier=self._point3d_id
+        )
+        self._point3d_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point3d_tracker,
+            referenced_volume_surface=self._vol_surf_point,
+        )
+
+        # Measurement group with segmentation frame
+        self._seg_src_image = SourceImageForSegmentation(
+            referenced_sop_class_uid=self._ct_series[0].SOPClassUID,
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID,
+        )
+        self._ref_segment = ReferencedSegment(
+            sop_class_uid=self._ref_seg.SOPClassUID,
+            sop_instance_uid=self._ref_seg.SOPInstanceUID,
+            segment_number=1,
+            source_images=[self._seg_src_image]
+        )
+        self._seg_uid = UID()
+        self._seg_id = 'seg'
+        seg_tracker = TrackingIdentifier(
+            uid=self._seg_uid,
+            identifier=self._seg_id
+        )
+        self._seg_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=seg_tracker,
+            referenced_segment=self._ref_segment,
+        )
+
+        # Save the sr and re-read it
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Bar^Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=UID()
+            )
+        )
+        self._observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        self._all_grps = [
+            self._polyline_grp,
+            self._circle_grp,
+            self._point_grp,
+            self._point3d_grp,
+            self._seg_grp
+        ]
+        report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=self._all_grps,
+        )
+        sr = Comprehensive3DSR(
+            evidence=self._ct_series + [self._ref_seg],
+            content=report[0],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            record_evidence=False
+        )
+        with BytesIO() as buf:
+            sr.save_as(buf)
+            buf.seek(0)
+            sr_from_file = dcmread(buf)
+        self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
+        self._content = self._sr.content
+
+    def test_dummy(self):
+        pass
+
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
 
     def setUp(self):
