@@ -207,7 +207,7 @@ class TestVolumeSurface(unittest.TestCase):
         assert len(surface) == 2
 
     def test_from_point_with_series(self):
-        surface = VolumeSurface(
+        VolumeSurface(
             graphic_type=GraphicTypeValues3D.POINT,
             graphic_data=[self._point],
             frame_of_reference_uid=self._frame_of_reference_uid,
@@ -224,7 +224,7 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_ellipsoid(self):
-        surface = VolumeSurface(
+        VolumeSurface(
             graphic_type=GraphicTypeValues3D.ELLIPSOID,
             graphic_data=[self._ellipsoid],
             frame_of_reference_uid=self._frame_of_reference_uid,
@@ -241,7 +241,7 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_ellipses(self):
-        surface = VolumeSurface(
+        VolumeSurface(
             graphic_type=GraphicTypeValues3D.ELLIPSE,
             graphic_data=[self._ellipse, self._ellipse_2],
             frame_of_reference_uid=self._frame_of_reference_uid,
@@ -258,7 +258,7 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_polygons(self):
-        surface = VolumeSurface(
+        VolumeSurface(
             graphic_type=GraphicTypeValues3D.POLYGON,
             graphic_data=[self._polygon, self._polygon_2],
             frame_of_reference_uid=self._frame_of_reference_uid,
@@ -2658,7 +2658,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
-            template = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            VolumetricROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_regions=self._regions_3d
             )
@@ -4217,6 +4217,7 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
 
     def test_dummy(self):
         pass
+
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
 

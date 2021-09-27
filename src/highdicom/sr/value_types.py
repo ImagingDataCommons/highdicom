@@ -1,6 +1,5 @@
 """DICOM structured reporting content item value types."""
 import datetime
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import (

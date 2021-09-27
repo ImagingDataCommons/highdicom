@@ -892,7 +892,7 @@ class VolumeSurface(ContentSequence):
             rel_type = RelationshipTypeValues(item.RelationshipType)
 
             if (
-                (name_item == codes.DCM.VolumeSurface) and
+                (name == codes.DCM.VolumeSurface) and
                 (value_type == ValueTypeValues.SCOORD3D) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -900,7 +900,7 @@ class VolumeSurface(ContentSequence):
                     Scoord3DContentItem.from_dataset(item)
                 )
             elif (
-                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (name == codes.DCM.SourceImageForSegmentation) and
                 (value_type == ValueTypeValues.IMAGE) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -908,7 +908,7 @@ class VolumeSurface(ContentSequence):
                     SourceImageForSegmentation.from_dataset(item)
                 )
             elif (
-                (name_item == codes.DCM.SourceSeriesForSegmentation) and
+                (name == codes.DCM.SourceSeriesForSegmentation) and
                 (value_type == ValueTypeValues.UIDREF) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -949,7 +949,7 @@ class VolumeSurface(ContentSequence):
                     f'{len(source_series_items)}.'
                 )
             new_seq = ContentSequence(
-                vol_surface_items + [source_series_item]
+                vol_surface_items + source_series_items
             )
 
         new_seq.__class__ = cls
@@ -1228,7 +1228,7 @@ class ReferencedSegmentationFrame(ContentSequence):
             rel_type = RelationshipTypeValues(item.RelationshipType)
 
             if (
-                (name_item == codes.DCM.ReferencedSegmentationFrame) and
+                (name == codes.DCM.ReferencedSegmentationFrame) and
                 (value_type == ValueTypeValues.IMAGE) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -1236,7 +1236,7 @@ class ReferencedSegmentationFrame(ContentSequence):
                     ImageContentItem.from_dataset(item)
                 )
             elif (
-                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (name == codes.DCM.SourceImageForSegmentation) and
                 (value_type == ValueTypeValues.IMAGE) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -1538,7 +1538,7 @@ class ReferencedSegment(ContentSequence):
             rel_type = RelationshipTypeValues(item.RelationshipType)
 
             if (
-                (name_item == codes.DCM.ReferencedSegment) and
+                (name == codes.DCM.ReferencedSegment) and
                 (value_type == ValueTypeValues.IMAGE) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -1546,7 +1546,7 @@ class ReferencedSegment(ContentSequence):
                     ImageContentItem.from_dataset(item)
                 )
             elif (
-                (name_item == codes.DCM.SourceImageForSegmentation) and
+                (name == codes.DCM.SourceImageForSegmentation) and
                 (value_type == ValueTypeValues.IMAGE) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
@@ -1554,14 +1554,13 @@ class ReferencedSegment(ContentSequence):
                     SourceImageForSegmentation.from_dataset(item)
                 )
             elif (
-                (name_item == codes.DCM.SourceSeriesForSegmentation) and
+                (name == codes.DCM.SourceSeriesForSegmentation) and
                 (value_type == ValueTypeValues.UIDREF) and
                 (rel_type == RelationshipTypeValues.CONTAINS)
             ):
                 source_series_items.append(
                     SourceSeriesForSegmentation.from_dataset(item)
                 )
-
 
         if len(seg_frame_items) != 1:
             raise RuntimeError(

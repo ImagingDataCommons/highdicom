@@ -2850,7 +2850,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     )
                 group_item.ContentSequence.append(region)
         elif referenced_volume_surface is not None:
-            if not isinstance( referenced_volume_surface, VolumeSurface):
+            if not isinstance(referenced_volume_surface, VolumeSurface):
                 raise TypeError(
                     'Items of argument "referenced_volume_surface" must have '
                     'type VolumeSurface.'
@@ -3873,8 +3873,8 @@ class MeasurementReport(Template):
                 (GraphicTypeValues, GraphicTypeValues3D)
             ):
                 raise TypeError(
-                    'Argument "graphic_type" must be of type GraphicTypeValues, '
-                    'GraphicTypeValues3D or None.'
+                    'Argument "graphic_type" must be of type '
+                    'GraphicTypeValues, GraphicTypeValues3D, or None.'
                 )
             if isinstance(graphic_type, GraphicTypeValues):
                 if graphic_type == GraphicTypeValues.MULTIPOINT:
@@ -3974,20 +3974,20 @@ class MeasurementReport(Template):
                 found_ref_type, ref_item = _get_planar_roi_reference_item(
                     group_item
                 )
-                value_type = ValueTypeValues(ref_item.ValueType)
+                ref_value_type = ValueTypeValues(ref_item.ValueType)
 
                 if reference_type is not None:
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
                     if isinstance(graphic_type, GraphicTypeValues):
-                        if ref_item.value_type == ValueTypeValues.SCOORD:
+                        if ref_value_type == ValueTypeValues.SCOORD:
                             found_gt = GraphicTypeValues(ref_item.GraphicType)
                             matches.append(found_gt == graphic_type)
                         else:
                             matches.append(False)
                     else:
-                        if ref_item.value_type == ValueTypeValues.SCOORD3D:
+                        if ref_value_type == ValueTypeValues.SCOORD3D:
                             found_gt = GraphicTypeValues3D(ref_item.GraphicType)
                             matches.append(found_gt == graphic_type)
                         else:
@@ -4229,21 +4229,25 @@ class MeasurementReport(Template):
                 found_ref_type, ref_items = _get_volumetric_roi_reference_items(
                     group_item
                 )
-                value_type = ValueTypeValues(ref_items[0].ValueType)
+                ref_value_type = ValueTypeValues(ref_items[0].ValueType)
 
                 if reference_type is not None:
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
                     if isinstance(graphic_type, GraphicTypeValues):
-                        if ref_item.value_type == ValueTypeValues.SCOORD:
-                            found_gt = GraphicTypeValues(ref_item.GraphicType)
+                        if ref_value_type == ValueTypeValues.SCOORD:
+                            found_gt = GraphicTypeValues(
+                                ref_items[0].GraphicType
+                            )
                             matches.append(found_gt == graphic_type)
                         else:
                             matches.append(False)
                     else:
-                        if ref_item.value_type == ValueTypeValues.SCOORD3D:
-                            found_gt = GraphicTypeValues3D(ref_item.GraphicType)
+                        if ref_value_type == ValueTypeValues.SCOORD3D:
+                            found_gt = GraphicTypeValues3D(
+                                ref_items[0].GraphicType
+                            )
                             matches.append(found_gt == graphic_type)
                         else:
                             matches.append(False)
