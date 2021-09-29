@@ -204,14 +204,41 @@ class TestVolumeSurface(unittest.TestCase):
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+
         assert len(surface) == 2
+        assert surface.graphic_type == GraphicTypeValues3D.POINT
+        graphic_items = surface.graphic_data_items
+        assert len(graphic_items) == 1
+        assert isinstance(graphic_items[0], Scoord3DContentItem)
+        assert np.array_equal(graphic_items[0].value, self._point)
+        assert graphic_items[0].graphic_type == GraphicTypeValues3D.POINT
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_point_with_series(self):
-        VolumeSurface(
+        surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.POINT,
             graphic_data=[self._point],
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_series=self._source_series
+        )
+        assert surface.graphic_type == GraphicTypeValues3D.POINT
+        graphic_items = surface.graphic_data_items
+        assert len(graphic_items) == 1
+        assert isinstance(graphic_items[0], Scoord3DContentItem)
+        assert np.array_equal(graphic_items[0].value, self._point)
+        assert graphic_items[0].graphic_type == GraphicTypeValues3D.POINT
+
+        assert not surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 0
+        assert isinstance(
+            surface.source_series_for_segmentation,
+            SourceSeriesForSegmentation
         )
 
     def test_from_two_points(self):
@@ -224,12 +251,24 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_ellipsoid(self):
-        VolumeSurface(
+        surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.ELLIPSOID,
             graphic_data=[self._ellipsoid],
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
+        graphic_items = surface.graphic_data_items
+        assert len(graphic_items) == 1
+        assert isinstance(graphic_items[0], Scoord3DContentItem)
+        assert np.array_equal(graphic_items[0].value, self._ellipsoid)
+        assert graphic_items[0].graphic_type == GraphicTypeValues3D.ELLIPSOID
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_two_ellipsoids(self):
         # Two ellipsoids are invalid
@@ -241,12 +280,26 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_ellipses(self):
-        VolumeSurface(
+        arrays = [self._ellipse, self._ellipse_2]
+        surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.ELLIPSE,
-            graphic_data=[self._ellipse, self._ellipse_2],
+            graphic_data=arrays,
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.ELLIPSE
+        graphic_items = surface.graphic_data_items
+        assert len(graphic_items) == 2
+        for item, arr in zip(graphic_items, arrays):
+            assert isinstance(item, Scoord3DContentItem)
+            assert np.array_equal(item.value, arr)
+            assert item.graphic_type == GraphicTypeValues3D.ELLIPSE
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_one_ellipse(self):
         # One ellipse is invalid
@@ -258,12 +311,26 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_polygons(self):
-        VolumeSurface(
+        arrays = [self._polygon, self._polygon_2]
+        surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.POLYGON,
-            graphic_data=[self._polygon, self._polygon_2],
+            graphic_data=arrays,
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.POLYGON
+        graphic_items = surface.graphic_data_items
+        assert len(graphic_items) == 2
+        for item, arr in zip(graphic_items, arrays):
+            assert isinstance(item, Scoord3DContentItem)
+            assert np.array_equal(item.value, arr)
+            assert item.graphic_type == GraphicTypeValues3D.POLYGON
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_one_polygon(self):
         # One polygon is invalid
@@ -2460,14 +2527,6 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
 
-    def test_construction_with_region_3d(self):
-        template = PlanarROIMeasurementsAndQualitativeEvaluations(
-            tracking_identifier=self._tracking_identifier,
-            referenced_region=self._region_3d
-        )
-        root_item = template[0]
-        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
-
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
         container_name_ds = _build_coded_concept_dataset(name)
@@ -2667,13 +2726,6 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
             VolumetricROIMeasurementsAndQualitativeEvaluations(
-                tracking_identifier=self._tracking_identifier,
-                referenced_regions=self._regions_3d
-            )
-
-    def test_constructed_with_regions_3d(self):
-        with pytest.raises(TypeError):
-            template = VolumetricROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_regions=self._regions_3d
             )
@@ -3708,6 +3760,14 @@ class TestSRUtilities(unittest.TestCase):
 
 class TestGetPlanarMeasurementGroups(unittest.TestCase):
 
+    """Integration test for SR parsing.
+
+    Constructs an SR with a measurement report containing a variety of planar
+    measurement groups, and tests the ability to filter the measurement groups
+    by various parameters.
+
+    """
+
     def setUp(self):
         super().setUp()
 
@@ -3881,6 +3941,10 @@ class TestGetPlanarMeasurementGroups(unittest.TestCase):
             instance_number=1,
             record_evidence=False
         )
+
+        # Write out to a buffer and read back in to revert to a standard
+        # pydicom dataset and test the conversion functionality sets up
+        # everything correctly for parsing.
         with BytesIO() as buf:
             sr.save_as(buf)
             buf.seek(0)
@@ -4049,6 +4113,14 @@ class TestGetPlanarMeasurementGroups(unittest.TestCase):
 
 class TestGetVolumetricMeasurementGroups(unittest.TestCase):
 
+    """Integration test for SR parsing.
+
+    Constructs an SR with a measurement report containing a variety of
+    volumetric measurement groups, and tests the ability to filter the
+    measurement groups by various parameters.
+
+    """
+
     def setUp(self):
         super().setUp()
 
@@ -4061,7 +4133,7 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             'data/test_files/seg_image_ct_binary_single_frame.dcm'
         )
 
-        # Measurement group with image region of type polyline
+        # Measurement group with image region 3D of type polyline
         self._polyline_src_sop_uid = self._ct_series[0].SOPInstanceUID
         self._polyline_src_sop_class_uid = self._ct_series[0].SOPClassUID
         self._polyline_src = SourceImageForRegion(
@@ -4090,7 +4162,7 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             referenced_regions=[self._img_reg_polyline],
         )
 
-        # Measurement group with image region of type circle
+        # Measurement group with image region 3D of type circle
         self._circle_src_sop_uid = self._ct_series[1].SOPInstanceUID
         self._circle_src_sop_class_uid = self._ct_series[1].SOPClassUID
         self._circle_src = SourceImageForRegion(
@@ -4141,7 +4213,7 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             referenced_regions=[self._img_reg_point],
         )
 
-        # Measurement group with image region 3D of type point
+        # Measurement group with a volume surface of type point
         self._point3d_src_image = SourceImageForSegmentation.from_source_image(
             self._ct_series[3]
         )
@@ -4161,6 +4233,41 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
         self._point3d_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=point3d_tracker,
             referenced_volume_surface=self._vol_surf_point,
+        )
+
+        # Measurement group with a volume surface of type polygon
+        self._polygon3d_src_img = SourceImageForSegmentation.from_source_image(
+            self._ct_series[3]
+        )
+        self._polygon3d = [
+            np.array([
+                [1.0, 1.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [3.0, 3.0, 1.0],
+                [1.0, 1.0, 1.0]
+            ]),
+            np.array([
+                [1.0, 1.0, 2.0],
+                [2.0, 2.0, 2.0],
+                [3.0, 3.0, 2.0],
+                [1.0, 1.0, 2.0]
+            ])
+        ]
+        self._vol_surf_polygon = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            graphic_data=self._polygon3d,
+            source_images=[self._polygon3d_src_img],
+            frame_of_reference_uid=self._ct_series[3].FrameOfReferenceUID
+        )
+        self._polygon3d_uid = UID()
+        self._polygon3d_id = 'polygon3d'
+        polygon3d_tracker = TrackingIdentifier(
+            uid=self._polygon3d_uid,
+            identifier=self._polygon3d_id
+        )
+        self._polygon3d_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(  # noqa: E501
+            tracking_identifier=polygon3d_tracker,
+            referenced_volume_surface=self._vol_surf_polygon,
         )
 
         # Measurement group with segmentation frame
@@ -4207,6 +4314,7 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             self._circle_grp,
             self._point_grp,
             self._point3d_grp,
+            self._polygon3d_grp,
             self._seg_grp
         ]
         report = MeasurementReport(
@@ -4223,6 +4331,10 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             instance_number=1,
             record_evidence=False
         )
+
+        # Write out to a buffer and read back in to revert to a standard
+        # pydicom dataset and test the conversion functionality sets up
+        # everything correctly for parsing.
         with BytesIO() as buf:
             sr.save_as(buf)
             buf.seek(0)
@@ -4230,8 +4342,223 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
 
-    def test_dummy(self):
-        pass
+    def test_all_groups(self):
+        grps = self._content.get_volumetric_roi_measurement_groups()
+        assert len(grps) == len(self._all_grps)
+
+    def test_get_image_region_groups(self):
+        # Find all groups with reference type ImageRegion
+        # (includes the polyline, circle and point groups)
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(grps) == 3
+
+    def test_get_polyline_groups(self):
+        # Find the polyline group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        assert len(grps) == 1
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.POLYLINE
+        assert np.array_equal(rois[0].value, self._polyline)
+
+    def test_get_circle_groups(self):
+        # Find the circle group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.CIRCLE
+        assert np.array_equal(rois[0].value, self._circle)
+
+    def test_get_point_groups(self):
+        # Find the point group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point_id
+        assert grps[0].tracking_uid == self._point_uid
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.POINT
+        assert np.array_equal(rois[0].value, self._point)
+
+    def test_get_point3d_groups(self):
+        # Find the point 3D group, with and without specifying the
+        # reference type as volume surface
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.VolumeSurface,
+            graphic_type=GraphicTypeValues3D.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point3d_id
+        assert grps[0].tracking_uid == self._point3d_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point3d_id
+        assert grps[0].tracking_uid == self._point3d_uid
+        vol = grps[0].roi
+        assert isinstance(vol, VolumeSurface)
+        assert vol.graphic_type == GraphicTypeValues3D.POINT
+        items = vol.graphic_data_items
+        assert len(items) == 1
+        assert isinstance(items[0], Scoord3DContentItem)
+        assert np.array_equal(items[0].value, self._point3d)
+
+    def test_get_polygon3d_groups(self):
+        # Find the polygon 3D group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.VolumeSurface,
+            graphic_type=GraphicTypeValues3D.POLYGON
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._polygon3d_id
+        assert grps[0].tracking_uid == self._polygon3d_uid
+
+        vol = grps[0].roi
+        assert isinstance(vol, VolumeSurface)
+        assert vol.graphic_type == GraphicTypeValues3D.POLYGON
+        items = vol.graphic_data_items
+        assert len(items) == len(self._polygon3d)
+        for item, arr in zip(items, self._polygon3d):
+            assert isinstance(item, Scoord3DContentItem)
+            assert np.array_equal(item.value, arr)
+
+    def test_find_seg_groups(self):
+        # Find the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegment,
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._seg_id
+        assert grps[0].tracking_uid == self._seg_uid
+        ref_seg = grps[0].referenced_segment
+        assert isinstance(ref_seg, ReferencedSegment)
+        ins_uid = ref_seg.referenced_sop_instance_uid
+        class_uid = ref_seg.referenced_sop_class_uid
+        assert ins_uid == self._ref_seg.SOPInstanceUID
+        assert class_uid == self._ref_seg.SOPClassUID
+
+    def test_get_groups_invalid_reference_types(self):
+        with pytest.raises(ValueError):
+            # ReferencedSegment is invalid for planar groups
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegmentationFrame
+            )
+
+    def test_get_planar_groups(self):
+        grps = self._content.get_planar_roi_measurement_groups()
+        assert len(grps) == 0
+
+    def test_get_groups_by_tracking_id(self):
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            tracking_uid=self._polyline_uid
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._polyline_uid
+
+    def test_get_groups_by_ref_uid_1(self):
+        # Should match the polyline and seg groups
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID
+        )
+        assert len(grps) == 2
+        found_tracking_uids = {g.tracking_uid for g in grps}
+        assert found_tracking_uids == {self._polyline_uid, self._seg_uid}
+
+    def test_get_groups_by_ref_uid_2(self):
+        # Should match the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_class_uid=SegmentationStorage
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_by_ref_uid_3(self):
+        # Should match the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ref_seg.SOPInstanceUID
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_invalid_graphic_type_1(self):
+        # Any graphic type is invalid when reference type is not ImageRegion
+        # or VolumeSurface
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegment,
+                graphic_type=GraphicTypeValues.CIRCLE
+            )
+
+    def test_get_groups_invalid_graphic_type_2(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues.MULTIPOINT
+            )
+
+    def test_get_groups_invalid_graphic_type_3(self):
+        # Specifying a GraphicTypeValues3D with ImageRegion is not allowed
+        # for volumetric measurement groups (unlike planar groups)
+        with pytest.raises(TypeError):
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ImageRegion,
+                graphic_type=GraphicTypeValues3D.ELLIPSE
+            )
+
+    def test_get_groups_invalid_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.MULTIPOINT
+            )
+
+    def test_get_groups_with_ref_uid_and_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(TypeError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.POINT,
+                referenced_sop_instance_uid=UID()
+            )
 
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):

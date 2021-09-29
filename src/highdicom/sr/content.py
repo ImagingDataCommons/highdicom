@@ -789,13 +789,13 @@ class VolumeSurface(ContentSequence):
 
         """  # noqa: E501
         super().__init__()
-        graphic_type = GraphicTypeValues3D(graphic_type)
+        self._graphic_type = GraphicTypeValues3D(graphic_type)
 
         # Allow single 2D numpy array for backwards compatibility
         if isinstance(graphic_data, np.ndarray) and graphic_data.ndim == 2:
             graphic_data = [graphic_data]
 
-        if graphic_type in (
+        if self._graphic_type in (
             GraphicTypeValues3D.ELLIPSOID,
             GraphicTypeValues3D.POINT
         ):
@@ -804,7 +804,7 @@ class VolumeSurface(ContentSequence):
                     'If graphic type is "ELLIPSOID" or "POINT", graphic data '
                     'should consist of a single item.'
                 )
-        elif graphic_type in (
+        elif self._graphic_type in (
             GraphicTypeValues3D.ELLIPSE,
             GraphicTypeValues3D.POLYGON
         ):
@@ -815,7 +815,7 @@ class VolumeSurface(ContentSequence):
                 )
         else:
             raise ValueError(
-                f'Graphic type "{graphic_type}" is not valid for volume '
+                f'Graphic type "{self._graphic_type}" is not valid for volume '
                 'surfaces.'
             )
 
@@ -828,7 +828,7 @@ class VolumeSurface(ContentSequence):
                         scheme_designator='DCM'
                     ),
                     frame_of_reference_uid=frame_of_reference_uid,
-                    graphic_type=graphic_type,
+                    graphic_type=self._graphic_type,
                     graphic_data=graphic_data_item,
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
@@ -922,6 +922,13 @@ class VolumeSurface(ContentSequence):
                 'concept name "Volume Surface". Found 0.'
             )
 
+        for item in vol_surface_items:
+            if item.graphic_type != vol_surface_items[0].graphic_type:
+                raise RuntimeError(
+                    'Expected all VolumeSurface content items to have a common '
+                    'graphic type.'
+                )
+
         if len(source_image_items) == 0 and len(source_series_items) == 0:
             raise RuntimeError(
                 'Expected sequence to contain either at least one content item '
@@ -953,7 +960,57 @@ class VolumeSurface(ContentSequence):
             )
 
         new_seq.__class__ = cls
+        new_seq._graphic_type = vol_surface_items[0].graphic_type
         return new_seq
+
+    @property
+    def graphic_type(self) -> GraphicTypeValues3D:
+        """highdicom.sr.GraphicTypeValues3D: Graphic type."""
+        return self._graphic_type
+
+    def has_source_images(self) -> bool:
+        """Returns whether the object contains information about source images.
+
+        ReferencedSegment objects must either contain information about source
+        images or source series (and not both).
+
+        Returns
+        -------
+        bool:
+            True if the object contains information about source images. False
+            if the image contains information about the source series.
+
+        """
+        return len(self._lut[codes.DCM.SourceImageForSegmentation]) > 0
+
+    @property
+    def source_images_for_segmentation(
+        self
+    ) -> List[SourceImageForSegmentation]:
+        """List[highdicom.sr.SourceImageForSegmentation]:
+            Source images for the volume surface.
+        """
+        return self._lut[codes.DCM.SourceImageForSegmentation]
+
+    @property
+    def source_series_for_segmentation(
+        self
+    ) -> Optional[SourceSeriesForSegmentation]:
+        """Optional[highdicom.sr.SourceSeriesForSegmentation]:
+            Source series for the volume surface.
+        """
+        items = self._lut[codes.DCM.SourceSeriesForSegmentation]
+        if len(items) == 0:
+            return None
+        else:
+            return items[0]
+
+    @property
+    def graphic_data_items(self) -> List[Scoord3DContentItem]:
+        """List[highdicom.sr.Scoord3DContentItem]:
+            Graphic data elements that comprise the volume surface.
+        """
+        return self._lut[codes.DCM.VolumeSurface]
 
 
 class RealWorldValueMap(CompositeContentItem):
