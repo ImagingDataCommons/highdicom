@@ -2460,6 +2460,14 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
 
+    def test_construction_with_region_3d(self):
+        template = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region_3d
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
+
     def test_from_sequence_with_region(self):
         name = codes.DCM.MeasurementGroup
         container_name_ds = _build_coded_concept_dataset(name)
@@ -2659,6 +2667,13 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
             VolumetricROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_regions=self._regions_3d
+            )
+
+    def test_constructed_with_regions_3d(self):
+        with pytest.raises(TypeError):
+            template = VolumetricROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_regions=self._regions_3d
             )

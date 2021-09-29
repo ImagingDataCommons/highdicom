@@ -758,21 +758,21 @@ class VolumeSurface(ContentSequence):
             of the list should be a 2D numpy array representing the graphic
             data for a single element of type ``graphic_type``.
 
-            If ``graphic_type`` is "ELLIPSOID" or "POINT", the volume surface
-            will consist of a single element that defines the entire surface.
-            Therefore, a single 2D numpy array should be passed for
-            ``graphic_data`` as a list of length 1. For reasons of backwards
-            compatibility, it is also possible to pass a numpy array directly.
+            If `graphic_type` is ``"ELLIPSOID"`` or ``"POINT"``, the volume
+            surface will consist of a single element that defines the entire
+            surface. Therefore, a single 2D NumPy array should be passed
+            as a list of length 1. For reasons of backwards compatibility,
+            it is also possible to pass a NumPy array directly.
 
-            If ``graphic_type`` is "ELLIPSE" or "POLYGON", the volume surface
-            will consist of two or more planar regions that together define the
-            surface. Therefore a list of two or more 2D numpy arrays should be
-            passed for ``graphic_data``.
+            If `graphic_type` is ``"ELLIPSE"`` or ``"POLYGON"``, the volume
+            surface will consist of two or more planar regions that together
+            define the surface. Therefore a list of two or more 2D NumPy
+            arrays should be passed.
 
-            Each 2D numpy array should have dimension N x 3 where each row of
-            the array represents a coordinate in the 3D frame of reference. The
+            Each 2D NumPy array should have dimension N x 3 where each row of
+            the array represents a coordinate in the 3D Frame of Reference. The
             number, N, and meaning of the coordinates depends upon the value of
-            "graphic_type". See :class:`highdicom.sr.GraphicTypeValues3D` for
+            `graphic_type`. See :class:`highdicom.sr.GraphicTypeValues3D` for
             details.
 
         frame_of_reference_uid: str
