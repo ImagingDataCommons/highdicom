@@ -22,6 +22,7 @@ from highdicom.sr.enum import (
 )
 from highdicom.sr.utils import find_content_items
 from highdicom.sr.value_types import (
+    ContentItem,
     CodeContentItem,
     CompositeContentItem,
     ContentSequence,
@@ -878,9 +879,9 @@ class VolumeSurface(ContentSequence):
             of the original content items.
 
         """
-        vol_surface_items = []
-        source_image_items = []
-        source_series_items = []
+        vol_surface_items: List[ContentItem] = []
+        source_image_items: List[ContentItem] = []
+        source_series_items: List[ContentItem] = []
         for item in sequence:
             name_item = item.ConceptNameCodeSequence[0]
             name = Code(
@@ -960,6 +961,7 @@ class VolumeSurface(ContentSequence):
             )
 
         new_seq.__class__ = cls
+        new_seq = cast(VolumeSurface, new_seq)
         new_seq._graphic_type = vol_surface_items[0].graphic_type
         return new_seq
 
@@ -1003,14 +1005,17 @@ class VolumeSurface(ContentSequence):
         if len(items) == 0:
             return None
         else:
-            return items[0]
+            return cast(SourceSeriesForSegmentation, items[0])
 
     @property
     def graphic_data_items(self) -> List[Scoord3DContentItem]:
         """List[highdicom.sr.Scoord3DContentItem]:
             Graphic data elements that comprise the volume surface.
         """
-        return self._lut[codes.DCM.VolumeSurface]
+        return cast(
+            List[Scoord3DContentItem],
+            self._lut[codes.DCM.VolumeSurface]
+        )
 
 
 class RealWorldValueMap(CompositeContentItem):
@@ -1581,9 +1586,9 @@ class ReferencedSegment(ContentSequence):
             of the original content items.
 
         """
-        seg_frame_items = []
-        source_image_items = []
-        source_series_items = []
+        seg_frame_items: List[ContentItem] = []
+        source_image_items: List[ContentItem] = []
+        source_series_items: List[ContentItem] = []
         for item in sequence:
             name_item = item.ConceptNameCodeSequence[0]
             name = Code(
@@ -1655,7 +1660,7 @@ class ReferencedSegment(ContentSequence):
             )
 
         new_seq.__class__ = cls
-        return new_seq
+        return cast(ReferencedSegment, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -1881,7 +1886,7 @@ class ReferencedSegment(ContentSequence):
             Source images for the referenced segmentation
         """
         if self.has_source_images():
-            return self[1:]
+            return list(self[1:])
         else:
             return []
 
@@ -1896,4 +1901,4 @@ class ReferencedSegment(ContentSequence):
         if self.has_source_images():
             return None
         else:
-            return self[1]
+            return cast(SourceSeriesForSegmentation, self[1])
