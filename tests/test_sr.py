@@ -213,6 +213,8 @@ class TestVolumeSurface(unittest.TestCase):
         assert np.array_equal(graphic_items[0].value, self._point)
         assert graphic_items[0].graphic_type == GraphicTypeValues3D.POINT
 
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
         assert surface.has_source_images()
         src_img = surface.source_images_for_segmentation
         assert len(src_img) == 1
@@ -232,6 +234,8 @@ class TestVolumeSurface(unittest.TestCase):
         assert isinstance(graphic_items[0], Scoord3DContentItem)
         assert np.array_equal(graphic_items[0].value, self._point)
         assert graphic_items[0].graphic_type == GraphicTypeValues3D.POINT
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
 
         assert not surface.has_source_images()
         src_img = surface.source_images_for_segmentation
@@ -264,6 +268,8 @@ class TestVolumeSurface(unittest.TestCase):
         assert np.array_equal(graphic_items[0].value, self._ellipsoid)
         assert graphic_items[0].graphic_type == GraphicTypeValues3D.ELLIPSOID
 
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
         assert surface.has_source_images()
         src_img = surface.source_images_for_segmentation
         assert len(src_img) == 1
@@ -295,6 +301,8 @@ class TestVolumeSurface(unittest.TestCase):
             assert np.array_equal(item.value, arr)
             assert item.graphic_type == GraphicTypeValues3D.ELLIPSE
 
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
         assert surface.has_source_images()
         src_img = surface.source_images_for_segmentation
         assert len(src_img) == 1
@@ -325,6 +333,8 @@ class TestVolumeSurface(unittest.TestCase):
             assert isinstance(item, Scoord3DContentItem)
             assert np.array_equal(item.value, arr)
             assert item.graphic_type == GraphicTypeValues3D.POLYGON
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
 
         assert surface.has_source_images()
         src_img = surface.source_images_for_segmentation

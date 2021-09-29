@@ -970,6 +970,11 @@ class VolumeSurface(ContentSequence):
         """highdicom.sr.GraphicTypeValues3D: Graphic type."""
         return self._graphic_type
 
+    @property
+    def frame_of_reference_uid(self) -> UID:
+        """highdicom.UID: Frame of reference UID."""
+        return UID(self.graphic_data_items[0].frame_of_reference_uid)
+
     def has_source_images(self) -> bool:
         """Returns whether the object contains information about source images.
 
