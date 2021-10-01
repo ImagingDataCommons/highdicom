@@ -762,8 +762,7 @@ class VolumeSurface(ContentSequence):
             If `graphic_type` is ``"ELLIPSOID"`` or ``"POINT"``, the volume
             surface will consist of a single element that defines the entire
             surface. Therefore, a single 2D NumPy array should be passed
-            as a list of length 1. For reasons of backwards compatibility,
-            it is also possible to pass a NumPy array directly.
+            as a list of length 1 or as a NumPy array directly.
 
             If `graphic_type` is ``"ELLIPSE"`` or ``"POLYGON"``, the volume
             surface will consist of two or more planar regions that together
