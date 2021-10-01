@@ -973,7 +973,7 @@ class VolumeSurface(ContentSequence):
     @property
     def frame_of_reference_uid(self) -> UID:
         """highdicom.UID: Frame of reference UID."""
-        return UID(self.graphic_data_items[0].frame_of_reference_uid)
+        return UID(self._graphic_data_items[0].frame_of_reference_uid)
 
     def has_source_images(self) -> bool:
         """Returns whether the object contains information about source images.
@@ -1013,7 +1013,7 @@ class VolumeSurface(ContentSequence):
             return cast(SourceSeriesForSegmentation, items[0])
 
     @property
-    def graphic_data_items(self) -> List[Scoord3DContentItem]:
+    def _graphic_data_items(self) -> List[Scoord3DContentItem]:
         """List[highdicom.sr.Scoord3DContentItem]:
             Graphic data elements that comprise the volume surface.
         """
@@ -1021,6 +1021,14 @@ class VolumeSurface(ContentSequence):
             List[Scoord3DContentItem],
             self._lut[codes.DCM.VolumeSurface]
         )
+
+    @property
+    def graphic_data(self) -> List[np.ndarray]:
+        """List[np.ndarray]:
+            Graphic data arrays that comprise the volume surface.
+            See constructor documentation for format.
+        """
+        return [item.value for item in self._graphic_data_items]
 
 
 class RealWorldValueMap(CompositeContentItem):
