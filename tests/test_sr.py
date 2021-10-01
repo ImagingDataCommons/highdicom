@@ -208,8 +208,7 @@ class TestVolumeSurface(unittest.TestCase):
         assert len(surface) == 2
         assert surface.graphic_type == GraphicTypeValues3D.POINT
         graphic_data = surface.graphic_data
-        assert len(graphic_data) == 1
-        assert np.array_equal(graphic_data[0], self._point)
+        assert np.array_equal(graphic_data, self._point)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid
 
@@ -228,8 +227,7 @@ class TestVolumeSurface(unittest.TestCase):
         )
         assert surface.graphic_type == GraphicTypeValues3D.POINT
         graphic_data = surface.graphic_data
-        assert len(graphic_data) == 1
-        assert np.array_equal(graphic_data[0], self._point)
+        assert np.array_equal(graphic_data, self._point)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid
 
@@ -259,8 +257,8 @@ class TestVolumeSurface(unittest.TestCase):
         )
         assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
         graphic_data = surface.graphic_data
-        assert len(graphic_data) == 1
-        assert np.array_equal(graphic_data[0], self._ellipsoid)
+        print(graphic_data)
+        assert np.array_equal(graphic_data, self._ellipsoid)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid
 
@@ -4438,9 +4436,8 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
         vol = grps[0].roi
         assert isinstance(vol, VolumeSurface)
         assert vol.graphic_type == GraphicTypeValues3D.POINT
-        items = vol.graphic_data
-        assert len(items) == 1
-        assert np.array_equal(items[0], self._point3d)
+        graphic_data = vol.graphic_data
+        assert np.array_equal(graphic_data, self._point3d)
 
     def test_get_polygon3d_groups(self):
         # Find the polygon 3D group

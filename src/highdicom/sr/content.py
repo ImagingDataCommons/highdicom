@@ -1024,11 +1024,20 @@ class VolumeSurface(ContentSequence):
 
     @property
     def graphic_data(self) -> List[np.ndarray]:
-        """List[np.ndarray]:
+        """Union[np.ndarray, List[np.ndarray]]:
             Graphic data arrays that comprise the volume surface.
-            See constructor documentation for format.
+            For volume surfaces with graphic type ``"ELLIPSOID"``
+            or ``"POINT"``, this will be a single 2D Numpy array representing
+            the graphic data. Otherwise, it will be a list of 2D Numpy arrays
+            representing graphic data for each element of the volume surface.
         """
-        return [item.value for item in self._graphic_data_items]
+        if self.graphic_type in (
+            GraphicTypeValues3D.ELLIPSOID,
+            GraphicTypeValues3D.POINT
+        ):
+            return self._graphic_data_items[0].value
+        else:
+            return [item.value for item in self._graphic_data_items]
 
 
 class RealWorldValueMap(CompositeContentItem):
