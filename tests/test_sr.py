@@ -1,18 +1,20 @@
 import unittest
 from copy import deepcopy
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from pydicom.data import get_testdata_file
+from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
-from pydicom.uid import generate_uid, UID
+from pydicom.uid import generate_uid
 from pydicom.valuerep import DA, DS, DT, TM, PersonName
+from pydicom._storage_sopclass_uids import SegmentationStorage
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
@@ -71,6 +73,7 @@ from highdicom.sr import (
     VolumetricROIMeasurementsAndQualitativeEvaluations,
 )
 from highdicom.sr.utils import find_content_items
+from highdicom import UID
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:
@@ -202,12 +205,38 @@ class TestVolumeSurface(unittest.TestCase):
             source_images=self._source_images
         )
 
+        assert len(surface) == 2
+        assert surface.graphic_type == GraphicTypeValues3D.POINT
+        graphic_data = surface.graphic_data
+        assert np.array_equal(graphic_data, self._point)
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
+
     def test_from_point_with_series(self):
         surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.POINT,
             graphic_data=[self._point],
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_series=self._source_series
+        )
+        assert surface.graphic_type == GraphicTypeValues3D.POINT
+        graphic_data = surface.graphic_data
+        assert np.array_equal(graphic_data, self._point)
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
+        assert not surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 0
+        assert isinstance(
+            surface.source_series_for_segmentation,
+            SourceSeriesForSegmentation
         )
 
     def test_from_two_points(self):
@@ -226,6 +255,18 @@ class TestVolumeSurface(unittest.TestCase):
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
+        graphic_data = surface.graphic_data
+        print(graphic_data)
+        assert np.array_equal(graphic_data, self._ellipsoid)
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_two_ellipsoids(self):
         # Two ellipsoids are invalid
@@ -237,12 +278,26 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_ellipses(self):
+        arrays = [self._ellipse, self._ellipse_2]
         surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.ELLIPSE,
-            graphic_data=[self._ellipse, self._ellipse_2],
+            graphic_data=arrays,
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.ELLIPSE
+        graphic_data = surface.graphic_data
+        assert len(graphic_data) == 2
+        for item, arr in zip(graphic_data, arrays):
+            assert np.array_equal(item, arr)
+
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
 
     def test_from_one_ellipse(self):
         # One ellipse is invalid
@@ -254,14 +309,28 @@ class TestVolumeSurface(unittest.TestCase):
             )
 
     def test_from_polygons(self):
+        arrays = [self._polygon, self._polygon_2]
         surface = VolumeSurface(
             graphic_type=GraphicTypeValues3D.POLYGON,
-            graphic_data=[self._polygon, self._polygon_2],
+            graphic_data=arrays,
             frame_of_reference_uid=self._frame_of_reference_uid,
             source_images=self._source_images
         )
+        assert surface.graphic_type == GraphicTypeValues3D.POLYGON
+        graphic_data = surface.graphic_data
+        assert len(graphic_data) == 2
+        for item, arr in zip(graphic_data, arrays):
+            assert np.array_equal(item, arr)
 
-    def test_from_one_ellipse(self):
+        assert surface.frame_of_reference_uid == self._frame_of_reference_uid
+
+        assert surface.has_source_images()
+        src_img = surface.source_images_for_segmentation
+        assert len(src_img) == 1
+        assert isinstance(src_img[0], SourceImageForSegmentation)
+        assert surface.source_series_for_segmentation is None
+
+    def test_from_one_polygon(self):
         # One polygon is invalid
         with pytest.raises(ValueError):
             VolumeSurface(
@@ -852,10 +921,14 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert i.name == CodedConcept(*name)
         assert i.value == (sop_class_uid, sop_instance_uid)
+        assert i.referenced_sop_instance_uid == sop_instance_uid
+        assert i.referenced_sop_class_uid == sop_class_uid
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
+        assert i.referenced_frame_numbers is None
+        assert i.referenced_segment_numbers is None
 
     def test_image_item_construction_with_multiple_frame_numbers(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -873,6 +946,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedFrameNumber == frame_numbers
+        assert i.referenced_frame_numbers == frame_numbers
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
 
@@ -892,6 +966,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedFrameNumber == frame_number
+        assert i.referenced_frame_numbers == [frame_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedSegmentNumber
 
@@ -911,6 +986,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
         assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
         assert ref_sop_item.ReferencedSegmentNumber == segment_number
+        assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber
 
@@ -2352,19 +2428,22 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._src_region_instance_uid = generate_uid()
         self._image_for_region = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._src_region_instance_uid
         )
+        self._src_seg_instance_uid = generate_uid()
         self._image_for_segment = SourceImageForSegmentation(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._src_seg_instance_uid
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=np.array([[1.0, 1.0], [2.0, 2.0]]),
             source_image=self._image_for_region
         )
+        self._seg_instance_uid = generate_uid()
         self._region_3d = ImageRegion3D(
             graphic_type=GraphicTypeValues3D.POLYGON,
             graphic_data=np.array([
@@ -2377,7 +2456,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         self._segment = ReferencedSegmentationFrame(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=self._seg_instance_uid,
             segment_number=1,
             frame_number=1,
             source_image=self._image_for_segment
@@ -2436,6 +2515,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
+        assert template.reference_type == codes.DCM.ImageRegion
 
     def test_construction_with_region_3d(self):
         template = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -2460,11 +2540,32 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert len(seq) == 1
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
+        assert seq.referenced_segmentation_frame is None
+        assert seq.reference_type == codes.DCM.ImageRegion
 
     def test_construction_with_segment(self):
-        PlanarROIMeasurementsAndQualitativeEvaluations(
+        seq = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment
+        )
+        assert seq.roi is None
+        assert seq.reference_type == codes.DCM.ReferencedSegmentationFrame
+
+        ref_seg = seq.referenced_segmentation_frame
+        assert isinstance(ref_seg, ReferencedSegmentationFrame)
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers == [1]
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        src_image = ref_seg.source_image_for_segmentation
+        assert isinstance(src_image, SourceImageForSegmentation)
+        assert (
+            src_image.referenced_sop_instance_uid == self._src_seg_instance_uid
+        )
+        assert (
+            src_image.referenced_sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
         )
 
     def test_construction_all_parameters(self):
@@ -2522,12 +2623,17 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             )
             for i in range(3)
         ]
+        self._src_seg_instance_uid = generate_uid()
         self._images_for_segment = [
             SourceImageForSegmentation(
                 referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-                referenced_sop_instance_uid=generate_uid()
+                referenced_sop_instance_uid=self._src_seg_instance_uid
             )
         ]
+        self._src_seg_series_uid = generate_uid()
+        self._series_for_segment = SourceSeriesForSegmentation(
+            self._src_seg_series_uid
+        )
         self._regions = [
             ImageRegion(
                 graphic_type=GraphicTypeValues.POLYLINE,
@@ -2538,6 +2644,7 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             )
             for i in range(3)
         ]
+        self._seg_instance_uid = generate_uid()
         self._regions_3d = [
             ImageRegion3D(
                 graphic_type=GraphicTypeValues3D.POLYGON,
@@ -2553,9 +2660,15 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._segment = ReferencedSegment(
             sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
-            sop_instance_uid=generate_uid(),
+            sop_instance_uid=self._seg_instance_uid,
             segment_number=1,
             source_images=self._images_for_segment
+        )
+        self._segment_from_series = ReferencedSegment(
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
+            sop_instance_uid=self._seg_instance_uid,
+            segment_number=1,
+            source_series=self._series_for_segment
         )
         self._real_world_value_map = RealWorldValueMap(
             referenced_sop_instance_uid=generate_uid()
@@ -2604,10 +2717,13 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1411'
+        assert all(isinstance(region, ImageRegion) for region in template.roi)
+        assert template.referenced_segment is None
+        assert template.reference_type == codes.DCM.ImageRegion
 
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
-            template = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            VolumetricROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_regions=self._regions_3d
             )
@@ -2631,12 +2747,50 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
         assert isinstance(seq[0], ContainerContentItem)
         assert seq[0].name == name
+        assert seq.reference_type == codes.DCM.ImageRegion
 
     def test_constructed_with_segment(self):
-        VolumetricROIMeasurementsAndQualitativeEvaluations(
+        template = VolumetricROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_segment=self._segment
         )
+        assert template.reference_type == codes.DCM.ReferencedSegment
+        ref_seg = template.referenced_segment
+        assert isinstance(ref_seg, ReferencedSegment)
+        assert ref_seg.has_source_images()
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers is None
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        src_images = ref_seg.source_images_for_segmentation
+        assert len(src_images) == len(self._images_for_segment)
+        assert (
+            src_images[0].referenced_sop_instance_uid ==
+            self._src_seg_instance_uid
+        )
+        assert ref_seg.source_series_for_segmentation is None
+
+    def test_constructed_with_segment_from_series(self):
+        template = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_segment=self._segment_from_series
+        )
+        assert template.reference_type == codes.DCM.ReferencedSegment
+        ref_seg = template.referenced_segment
+        assert isinstance(ref_seg, ReferencedSegment)
+        assert not ref_seg.has_source_images()
+        assert ref_seg.referenced_sop_instance_uid == self._seg_instance_uid
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.66.4'
+        assert ref_seg.referenced_sop_class_uid == sop_class_uid
+        assert ref_seg.referenced_frame_numbers is None
+        assert ref_seg.referenced_segment_numbers == [1]
+
+        assert len(ref_seg.source_images_for_segmentation) == 0
+        src_series = ref_seg.source_series_for_segmentation
+        assert isinstance(src_series, SourceSeriesForSegmentation)
+        assert src_series.value == self._src_seg_series_uid
 
     def test_construction_all_parameters(self):
         VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -2730,9 +2884,10 @@ class TestMeasurementReport(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._source_image_region_uid = generate_uid()
         self._image = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
-            referenced_sop_instance_uid=generate_uid()
+            referenced_sop_instance_uid=self._source_image_region_uid
         )
         self._region = ImageRegion(
             graphic_type=GraphicTypeValues.CIRCLE,
@@ -2766,6 +2921,14 @@ class TestMeasurementReport(unittest.TestCase):
         self._roi_group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
+            finding_type=self._finding_type,
+            finding_sites=[self._finding_site],
+            measurements=self._measurements,
+            qualitative_evaluations=self._qualitative_evaluations,
+        )
+        self._roi_group_3d = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=[self._region],
             finding_type=self._finding_type,
             finding_sites=[self._finding_site],
             measurements=self._measurements,
@@ -2831,11 +2994,99 @@ class TestMeasurementReport(unittest.TestCase):
         assert len(matches) == 0
 
         matches = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegmentationFrame
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_planar_roi_measurement_groups(
             tracking_uid=self._tracking_identifier[1].value
         )
         assert len(matches) == 1
 
         matches = measurement_report.get_planar_roi_measurement_groups(
+            tracking_uid=generate_uid()
+        )
+        assert len(matches) == 0
+
+    def test_construction_3d(self):
+        measurement_report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=[self._roi_group_3d]
+        )
+        item = measurement_report[0]
+        assert len(item.ContentSequence) == 13
+
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
+
+        content_item_expectations = [
+            # Observation context
+            (0, '121049'),
+            # Observer context - Person
+            (1, '121005'),
+            (2, '121008'),
+            # Observer context - Device
+            (3, '121005'),
+            (4, '121012'),
+            # Subject context - Specimen
+            (5, '121024'),
+            (6, '121039'),
+            (7, '121041'),
+            (8, '371439000'),
+            (9, '111700'),
+            # Procedure reported
+            (10, '121058'),
+            # Image library
+            (11, '111028'),
+            # Imaging measurements
+            (12, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_type=self._finding_type
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_type=codes.SCT.Tissue
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_site=self._finding_site.value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            finding_site=codes.SCT.Colon
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegment
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
+            tracking_uid=self._tracking_identifier[1].value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_volumetric_roi_measurement_groups(
             tracking_uid=generate_uid()
         )
         assert len(matches) == 0
@@ -3503,6 +3754,806 @@ class TestSRUtilities(unittest.TestCase):
             recursive=True
         )
         assert len(items) == 6
+
+
+class TestGetPlanarMeasurementGroups(unittest.TestCase):
+
+    """Integration test for SR parsing.
+
+    Constructs an SR with a measurement report containing a variety of planar
+    measurement groups, and tests the ability to filter the measurement groups
+    by various parameters.
+
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Read in series of source images
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ref_seg = dcmread(
+            'data/test_files/seg_image_ct_binary_single_frame.dcm'
+        )
+
+        # Measurement group with image region of type polyline
+        self._polyline_src_sop_uid = self._ct_series[0].SOPInstanceUID
+        self._polyline_src_sop_class_uid = self._ct_series[0].SOPClassUID
+        self._polyline_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._polyline_src_sop_class_uid,
+            referenced_sop_instance_uid=self._polyline_src_sop_uid,
+        )
+        self._polyline = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [1.0, 1.0]
+        ])
+        self._img_reg_polyline = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=self._polyline,
+            source_image=self._polyline_src
+        )
+        self._polyline_uid = UID()
+        self._polyline_id = 'polyline'
+        polyline_tracker = TrackingIdentifier(
+            uid=self._polyline_uid,
+            identifier=self._polyline_id
+        )
+        self._polyline_grp = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=polyline_tracker,
+            referenced_region=self._img_reg_polyline,
+        )
+
+        # Measurement group with image region of type circle
+        self._circle_src_sop_uid = self._ct_series[1].SOPInstanceUID
+        self._circle_src_sop_class_uid = self._ct_series[1].SOPClassUID
+        self._circle_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._circle_src_sop_class_uid,
+            referenced_sop_instance_uid=self._circle_src_sop_uid,
+        )
+        self._circle = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0]
+        ])
+        self._img_reg_circle = ImageRegion(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+            source_image=self._circle_src
+        )
+        self._circle_uid = UID()
+        self._circle_id = 'circle'
+        circle_tracker = TrackingIdentifier(
+            uid=self._circle_uid,
+            identifier=self._circle_id
+        )
+        self._circle_grp = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=circle_tracker,
+            referenced_region=self._img_reg_circle,
+        )
+
+        # Measurement group with image region 3D of type point
+        self._point_src_sop_uid = self._ct_series[2].SOPInstanceUID
+        self._point_src_sop_class_uid = self._ct_series[2].SOPClassUID
+        self._point_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._point_src_sop_class_uid,
+            referenced_sop_instance_uid=self._point_src_sop_uid,
+        )
+        self._point = np.array([[1.0, 2.0]])
+        self._img_reg_point = ImageRegion(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=self._point,
+            source_image=self._point_src
+        )
+        self._point_uid = UID()
+        self._point_id = 'point'
+        point_tracker = TrackingIdentifier(
+            uid=self._point_uid,
+            identifier=self._point_id
+        )
+        self._point_grp = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point_tracker,
+            referenced_region=self._img_reg_point,
+        )
+
+        # Measurement group with image region 3D of type point
+        self._point3d_src_sop_uid = self._ct_series[3].SOPInstanceUID
+        self._point3d_src_sop_class_uid = self._ct_series[3].SOPClassUID
+        self._point3d = np.array([[1.0, 2.0, 3.0]])
+        self._img_reg_point3d = ImageRegion3D(
+            graphic_type=GraphicTypeValues3D.POINT,
+            graphic_data=self._point3d,
+            frame_of_reference_uid=self._ct_series[0].FrameOfReferenceUID
+        )
+        self._point3d_uid = UID()
+        self._point3d_id = 'point3d'
+        point3d_tracker = TrackingIdentifier(
+            uid=self._point3d_uid,
+            identifier=self._point3d_id
+        )
+        self._point3d_grp = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point3d_tracker,
+            referenced_region=self._img_reg_point3d,
+        )
+
+        # Measurement group with segmentation frame
+        self._seg_frame_src_image = SourceImageForSegmentation(
+            referenced_sop_class_uid=self._ct_series[0].SOPClassUID,
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID,
+        )
+        self._ref_seg_frame = ReferencedSegmentationFrame(
+            sop_class_uid=self._ref_seg.SOPClassUID,
+            sop_instance_uid=self._ref_seg.SOPInstanceUID,
+            frame_number=1,
+            segment_number=1,
+            source_image=self._seg_frame_src_image
+        )
+        self._seg_uid = UID()
+        self._seg_id = 'seg_frame'
+        seg_tracker = TrackingIdentifier(
+            uid=self._seg_uid,
+            identifier=self._seg_id
+        )
+        self._seg_grp = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=seg_tracker,
+            referenced_segment=self._ref_seg_frame,
+        )
+
+        # Save the sr and re-read it
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Bar^Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=UID()
+            )
+        )
+        self._observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        self._all_grps = [
+            self._polyline_grp,
+            self._circle_grp,
+            self._point_grp,
+            self._point3d_grp,
+            self._seg_grp
+        ]
+        report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=self._all_grps,
+        )
+        sr = Comprehensive3DSR(
+            evidence=self._ct_series + [self._ref_seg],
+            content=report[0],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            record_evidence=False
+        )
+
+        # Write out to a buffer and read back in to revert to a standard
+        # pydicom dataset and test the conversion functionality sets up
+        # everything correctly for parsing.
+        with BytesIO() as buf:
+            sr.save_as(buf)
+            buf.seek(0)
+            sr_from_file = dcmread(buf)
+        self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
+        self._content = self._sr.content
+
+    def test_all_groups(self):
+        grps = self._content.get_planar_roi_measurement_groups()
+        assert len(grps) == len(self._all_grps)
+
+    def test_get_image_region_groups(self):
+        # Find all groups with reference type ImageRegion
+        # (includes the polyline, circle and point x 2 groups)
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(grps) == 4
+
+    def test_get_polyline_groups(self):
+        # Find the polyline group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        grps = self._content.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        assert len(grps) == 1
+        assert np.array_equal(grps[0].roi.value, self._polyline)
+
+    def test_get_circle_groups(self):
+        # Find the circle group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+        grps = self._content.get_planar_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+        assert np.array_equal(grps[0].roi.value, self._circle)
+
+    def test_get_point_groups(self):
+        # Find the point group
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point_id
+        assert grps[0].tracking_uid == self._point_uid
+        assert np.array_equal(grps[0].roi.value, self._point)
+
+    def test_get_point3d_groups(self):
+        # Find the point group
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues3D.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point3d_id
+        assert grps[0].tracking_uid == self._point3d_uid
+        assert np.array_equal(grps[0].roi.value, self._point3d)
+
+    def test_find_seg_groups(self):
+        # Find the seg group
+        grps = self._content.get_planar_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegmentationFrame,
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._seg_id
+        assert grps[0].tracking_uid == self._seg_uid
+        ref_seg_frame = grps[0].referenced_segmentation_frame
+        assert isinstance(ref_seg_frame, ReferencedSegmentationFrame)
+        ins_uid = ref_seg_frame.referenced_sop_instance_uid
+        class_uid = ref_seg_frame.referenced_sop_class_uid
+        assert ins_uid == self._ref_seg.SOPInstanceUID
+        assert class_uid == self._ref_seg.SOPClassUID
+
+    def test_get_groups_invalid_reference_types(self):
+        with pytest.raises(ValueError):
+            # ReferencedSegment is invalid for planar groups
+            self._content.get_planar_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegment
+            )
+
+    def test_get_volumetric_groups(self):
+        grps = self._content.get_volumetric_roi_measurement_groups()
+        assert len(grps) == 0
+
+    def test_get_groups_by_tracking_id(self):
+        grps = self._content.get_planar_roi_measurement_groups(
+            tracking_uid=self._polyline_uid
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._polyline_uid
+
+    def test_get_groups_by_ref_uid_1(self):
+        # Should match the polyline and seg groups
+        grps = self._content.get_planar_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID
+        )
+        assert len(grps) == 2
+        found_tracking_uids = {g.tracking_uid for g in grps}
+        assert found_tracking_uids == {self._polyline_uid, self._seg_uid}
+
+    def test_get_groups_by_ref_uid_2(self):
+        # Should match the seg group
+        grps = self._content.get_planar_roi_measurement_groups(
+            referenced_sop_class_uid=SegmentationStorage
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_by_ref_uid_3(self):
+        # Should match the seg group
+        grps = self._content.get_planar_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ref_seg.SOPInstanceUID
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_invalid_graphic_type_1(self):
+        # Any graphic type is invalid when reference type is not ImageRegion
+        with pytest.raises(ValueError):
+            self._content.get_planar_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegmentationFrame,
+                graphic_type=GraphicTypeValues.CIRCLE
+            )
+
+    def test_get_groups_invalid_graphic_type_2(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_planar_roi_measurement_groups(
+                graphic_type=GraphicTypeValues.MULTIPOINT
+            )
+
+    def test_get_groups_invalid_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_planar_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.MULTIPOINT
+            )
+
+    def test_get_groups_with_ref_uid_and_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(TypeError):
+            self._content.get_planar_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.POINT,
+                referenced_sop_instance_uid=UID()
+            )
+
+
+class TestGetVolumetricMeasurementGroups(unittest.TestCase):
+
+    """Integration test for SR parsing.
+
+    Constructs an SR with a measurement report containing a variety of
+    volumetric measurement groups, and tests the ability to filter the
+    measurement groups by various parameters.
+
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Read in series of source images
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ref_seg = dcmread(
+            'data/test_files/seg_image_ct_binary_single_frame.dcm'
+        )
+
+        # Measurement group with image region 3D of type polyline
+        self._polyline_src_sop_uid = self._ct_series[0].SOPInstanceUID
+        self._polyline_src_sop_class_uid = self._ct_series[0].SOPClassUID
+        self._polyline_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._polyline_src_sop_class_uid,
+            referenced_sop_instance_uid=self._polyline_src_sop_uid,
+        )
+        self._polyline = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [1.0, 1.0]
+        ])
+        self._img_reg_polyline = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=self._polyline,
+            source_image=self._polyline_src
+        )
+        self._polyline_uid = UID()
+        self._polyline_id = 'polyline'
+        polyline_tracker = TrackingIdentifier(
+            uid=self._polyline_uid,
+            identifier=self._polyline_id
+        )
+        self._polyline_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=polyline_tracker,
+            referenced_regions=[self._img_reg_polyline],
+        )
+
+        # Measurement group with image region 3D of type circle
+        self._circle_src_sop_uid = self._ct_series[1].SOPInstanceUID
+        self._circle_src_sop_class_uid = self._ct_series[1].SOPClassUID
+        self._circle_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._circle_src_sop_class_uid,
+            referenced_sop_instance_uid=self._circle_src_sop_uid,
+        )
+        self._circle = np.array([
+            [1.0, 1.0],
+            [2.0, 2.0]
+        ])
+        self._img_reg_circle = ImageRegion(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+            source_image=self._circle_src
+        )
+        self._circle_uid = UID()
+        self._circle_id = 'circle'
+        circle_tracker = TrackingIdentifier(
+            uid=self._circle_uid,
+            identifier=self._circle_id
+        )
+        self._circle_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=circle_tracker,
+            referenced_regions=[self._img_reg_circle],
+        )
+
+        # Measurement group with image region 3D of type point
+        self._point_src_sop_uid = self._ct_series[2].SOPInstanceUID
+        self._point_src_sop_class_uid = self._ct_series[2].SOPClassUID
+        self._point_src = SourceImageForRegion(
+            referenced_sop_class_uid=self._point_src_sop_class_uid,
+            referenced_sop_instance_uid=self._point_src_sop_uid,
+        )
+        self._point = np.array([[1.0, 2.0]])
+        self._img_reg_point = ImageRegion(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=self._point,
+            source_image=self._point_src
+        )
+        self._point_uid = UID()
+        self._point_id = 'point'
+        point_tracker = TrackingIdentifier(
+            uid=self._point_uid,
+            identifier=self._point_id
+        )
+        self._point_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point_tracker,
+            referenced_regions=[self._img_reg_point],
+        )
+
+        # Measurement group with a volume surface of type point
+        self._point3d_src_image = SourceImageForSegmentation.from_source_image(
+            self._ct_series[3]
+        )
+        self._point3d = np.array([[1.0, 2.0, 3.0]])
+        self._vol_surf_point = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POINT,
+            graphic_data=self._point3d,
+            source_images=[self._point3d_src_image],
+            frame_of_reference_uid=self._ct_series[3].FrameOfReferenceUID
+        )
+        self._point3d_uid = UID()
+        self._point3d_id = 'point3d'
+        point3d_tracker = TrackingIdentifier(
+            uid=self._point3d_uid,
+            identifier=self._point3d_id
+        )
+        self._point3d_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=point3d_tracker,
+            referenced_volume_surface=self._vol_surf_point,
+        )
+
+        # Measurement group with a volume surface of type polygon
+        self._polygon3d_src_img = SourceImageForSegmentation.from_source_image(
+            self._ct_series[3]
+        )
+        self._polygon3d = [
+            np.array([
+                [1.0, 1.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [3.0, 3.0, 1.0],
+                [1.0, 1.0, 1.0]
+            ]),
+            np.array([
+                [1.0, 1.0, 2.0],
+                [2.0, 2.0, 2.0],
+                [3.0, 3.0, 2.0],
+                [1.0, 1.0, 2.0]
+            ])
+        ]
+        self._vol_surf_polygon = VolumeSurface(
+            graphic_type=GraphicTypeValues3D.POLYGON,
+            graphic_data=self._polygon3d,
+            source_images=[self._polygon3d_src_img],
+            frame_of_reference_uid=self._ct_series[3].FrameOfReferenceUID
+        )
+        self._polygon3d_uid = UID()
+        self._polygon3d_id = 'polygon3d'
+        polygon3d_tracker = TrackingIdentifier(
+            uid=self._polygon3d_uid,
+            identifier=self._polygon3d_id
+        )
+        self._polygon3d_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(  # noqa: E501
+            tracking_identifier=polygon3d_tracker,
+            referenced_volume_surface=self._vol_surf_polygon,
+        )
+
+        # Measurement group with segmentation frame
+        self._seg_src_image = SourceImageForSegmentation(
+            referenced_sop_class_uid=self._ct_series[0].SOPClassUID,
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID,
+        )
+        self._ref_segment = ReferencedSegment(
+            sop_class_uid=self._ref_seg.SOPClassUID,
+            sop_instance_uid=self._ref_seg.SOPInstanceUID,
+            segment_number=1,
+            source_images=[self._seg_src_image]
+        )
+        self._seg_uid = UID()
+        self._seg_id = 'seg'
+        seg_tracker = TrackingIdentifier(
+            uid=self._seg_uid,
+            identifier=self._seg_id
+        )
+        self._seg_grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=seg_tracker,
+            referenced_segment=self._ref_segment,
+        )
+
+        # Save the sr and re-read it
+        observer_person_context = ObserverContext(
+            observer_type=codes.DCM.Person,
+            observer_identifying_attributes=PersonObserverIdentifyingAttributes(
+                name='Bar^Foo'
+            )
+        )
+        observer_device_context = ObserverContext(
+            observer_type=codes.DCM.Device,
+            observer_identifying_attributes=DeviceObserverIdentifyingAttributes(
+                uid=UID()
+            )
+        )
+        self._observation_context = ObservationContext(
+            observer_person_context=observer_person_context,
+            observer_device_context=observer_device_context,
+        )
+        self._all_grps = [
+            self._polyline_grp,
+            self._circle_grp,
+            self._point_grp,
+            self._point3d_grp,
+            self._polygon3d_grp,
+            self._seg_grp
+        ]
+        report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=self._all_grps,
+        )
+        sr = Comprehensive3DSR(
+            evidence=self._ct_series + [self._ref_seg],
+            content=report[0],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            record_evidence=False
+        )
+
+        # Write out to a buffer and read back in to revert to a standard
+        # pydicom dataset and test the conversion functionality sets up
+        # everything correctly for parsing.
+        with BytesIO() as buf:
+            sr.save_as(buf)
+            buf.seek(0)
+            sr_from_file = dcmread(buf)
+        self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
+        self._content = self._sr.content
+
+    def test_all_groups(self):
+        grps = self._content.get_volumetric_roi_measurement_groups()
+        assert len(grps) == len(self._all_grps)
+
+    def test_get_image_region_groups(self):
+        # Find all groups with reference type ImageRegion
+        # (includes the polyline, circle and point groups)
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion
+        )
+        assert len(grps) == 3
+
+    def test_get_polyline_groups(self):
+        # Find the polyline group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.POLYLINE
+        )
+        assert grps[0].tracking_identifier == self._polyline_id
+        assert grps[0].tracking_uid == self._polyline_uid
+        assert len(grps) == 1
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.POLYLINE
+        assert np.array_equal(rois[0].value, self._polyline)
+
+    def test_get_circle_groups(self):
+        # Find the circle group with and without explicitly
+        # specifying the reference_type as ImageRegion
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues.CIRCLE
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._circle_id
+        assert grps[0].tracking_uid == self._circle_uid
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.CIRCLE
+        assert np.array_equal(rois[0].value, self._circle)
+
+    def test_get_point_groups(self):
+        # Find the point group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ImageRegion,
+            graphic_type=GraphicTypeValues.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point_id
+        assert grps[0].tracking_uid == self._point_uid
+
+        # Check the graphic data matches
+        rois = grps[0].roi
+        assert len(rois) == 1  # a single ImageRegion
+        assert isinstance(rois[0], ImageRegion)
+        assert rois[0].graphic_type == GraphicTypeValues.POINT
+        assert np.array_equal(rois[0].value, self._point)
+
+    def test_get_point3d_groups(self):
+        # Find the point 3D group, with and without specifying the
+        # reference type as volume surface
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.VolumeSurface,
+            graphic_type=GraphicTypeValues3D.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point3d_id
+        assert grps[0].tracking_uid == self._point3d_uid
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            graphic_type=GraphicTypeValues3D.POINT
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._point3d_id
+        assert grps[0].tracking_uid == self._point3d_uid
+        vol = grps[0].roi
+        assert isinstance(vol, VolumeSurface)
+        assert vol.graphic_type == GraphicTypeValues3D.POINT
+        graphic_data = vol.graphic_data
+        assert np.array_equal(graphic_data, self._point3d)
+
+    def test_get_polygon3d_groups(self):
+        # Find the polygon 3D group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.VolumeSurface,
+            graphic_type=GraphicTypeValues3D.POLYGON
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._polygon3d_id
+        assert grps[0].tracking_uid == self._polygon3d_uid
+
+        vol = grps[0].roi
+        assert isinstance(vol, VolumeSurface)
+        assert vol.graphic_type == GraphicTypeValues3D.POLYGON
+        items = vol.graphic_data
+        assert len(items) == len(self._polygon3d)
+        for item, arr in zip(items, self._polygon3d):
+            assert np.array_equal(item, arr)
+
+    def test_find_seg_groups(self):
+        # Find the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            reference_type=codes.DCM.ReferencedSegment,
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_identifier == self._seg_id
+        assert grps[0].tracking_uid == self._seg_uid
+        ref_seg = grps[0].referenced_segment
+        assert isinstance(ref_seg, ReferencedSegment)
+        ins_uid = ref_seg.referenced_sop_instance_uid
+        class_uid = ref_seg.referenced_sop_class_uid
+        assert ins_uid == self._ref_seg.SOPInstanceUID
+        assert class_uid == self._ref_seg.SOPClassUID
+
+    def test_get_groups_invalid_reference_types(self):
+        with pytest.raises(ValueError):
+            # ReferencedSegment is invalid for planar groups
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegmentationFrame
+            )
+
+    def test_get_planar_groups(self):
+        grps = self._content.get_planar_roi_measurement_groups()
+        assert len(grps) == 0
+
+    def test_get_groups_by_tracking_id(self):
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            tracking_uid=self._polyline_uid
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._polyline_uid
+
+    def test_get_groups_by_ref_uid_1(self):
+        # Should match the polyline and seg groups
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ct_series[0].SOPInstanceUID
+        )
+        assert len(grps) == 2
+        found_tracking_uids = {g.tracking_uid for g in grps}
+        assert found_tracking_uids == {self._polyline_uid, self._seg_uid}
+
+    def test_get_groups_by_ref_uid_2(self):
+        # Should match the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_class_uid=SegmentationStorage
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_by_ref_uid_3(self):
+        # Should match the seg group
+        grps = self._content.get_volumetric_roi_measurement_groups(
+            referenced_sop_instance_uid=self._ref_seg.SOPInstanceUID
+        )
+        assert len(grps) == 1
+        assert grps[0].tracking_uid == self._seg_uid
+
+    def test_get_groups_invalid_graphic_type_1(self):
+        # Any graphic type is invalid when reference type is not ImageRegion
+        # or VolumeSurface
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ReferencedSegment,
+                graphic_type=GraphicTypeValues.CIRCLE
+            )
+
+    def test_get_groups_invalid_graphic_type_2(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues.MULTIPOINT
+            )
+
+    def test_get_groups_invalid_graphic_type_3(self):
+        # Specifying a GraphicTypeValues3D with ImageRegion is not allowed
+        # for volumetric measurement groups (unlike planar groups)
+        with pytest.raises(TypeError):
+            self._content.get_volumetric_roi_measurement_groups(
+                reference_type=codes.DCM.ImageRegion,
+                graphic_type=GraphicTypeValues3D.ELLIPSE
+            )
+
+    def test_get_groups_invalid_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(ValueError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.MULTIPOINT
+            )
+
+    def test_get_groups_with_ref_uid_and_graphic_type_3d(self):
+        # Multipoint is always invalid
+        with pytest.raises(TypeError):
+            self._content.get_volumetric_roi_measurement_groups(
+                graphic_type=GraphicTypeValues3D.POINT,
+                referenced_sop_instance_uid=UID()
+            )
 
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
