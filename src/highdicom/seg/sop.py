@@ -530,6 +530,39 @@ class Segmentation(SOPClass):
             plane_orientation == source_plane_orientation
         )
 
+        plane_position_values, plane_sort_index = \
+            self.DimensionIndexSequence.get_index_values(plane_positions)
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            self.ImageOrientationSlide = \
+                plane_orientation[0].ImageOrientationSlide
+            if are_spatial_locations_preserved:
+                self.TotalPixelMatrixOriginSequence = \
+                    source_images[0].TotalPixelMatrixOriginSequence
+            else:
+                row_index = self.DimensionIndexSequence.get_index_position(
+                    'RowPositionInTotalImagePixelMatrix'
+                )
+                row_offsets = plane_position_values[:, row_index]
+                col_index = self.DimensionIndexSequence.get_index_position(
+                    'ColumnPositionInTotalImagePixelMatrix'
+                )
+                col_offsets = plane_position_values[:, col_index]
+                frame_indices = np.lexsort([row_offsets, col_offsets])
+                frame_index = frame_indices[0]
+                x_index = self.DimensionIndexSequence.get_index_position(
+                    'XOffsetInSlideCoordinateSystem'
+                )
+                x_offset = plane_position_values[frame_index, x_index]
+                y_index = self.DimensionIndexSequence.get_index_position(
+                    'XOffsetInSlideCoordinateSystem'
+                )
+                y_offset = plane_position_values[frame_index, y_index]
+                origin_item = Dataset()
+                origin_item.XOffsetInSlideCoordinateSystem = x_offset
+                origin_item.YOffsetInSlideCoordinateSystem = y_offset
+                self.TotalPixelMatrixOriginSequence = [origin_item]
+
         # Remove empty slices
         if omit_empty_frames:
             pixel_array, plane_positions, source_image_indices = \
@@ -537,8 +570,12 @@ class Segmentation(SOPClass):
         else:
             source_image_indices = list(range(pixel_array.shape[0]))
 
-        plane_position_values, plane_sort_index = \
-            self.DimensionIndexSequence.get_index_values(plane_positions)
+        plane_position_values = plane_position_values[source_image_indices]
+        _, plane_sort_index = np.unique(
+            plane_position_values,
+            axis=0,
+            return_index=True
+        )
 
         # Get unique values of attributes in the Plane Position Sequence or
         # Plane Position Slide Sequence, which define the position of the plane
@@ -961,7 +998,7 @@ class Segmentation(SOPClass):
         pixel_array = np.stack(non_empty_frames)
         plane_positions = non_empty_plane_positions
 
-        return pixel_array, plane_positions, source_image_indices
+        return (pixel_array, plane_positions, source_image_indices)
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.

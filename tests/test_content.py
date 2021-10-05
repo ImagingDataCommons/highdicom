@@ -172,7 +172,7 @@ class TestSpecimenStaining(TestCase):
         assert eosin_item.value == substances[1]
         assert eosin_item.relationship_type is None
 
-        
+
 class TestSpecimenPreparationStep(TestCase):
 
     def test_construction_collection(self):
@@ -233,7 +233,7 @@ class TestSpecimenPreparationStep(TestCase):
         assert method_item.value == method
         assert method_item.relationship_type is None
         parent_specimen_id_item = seq[3]
-        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier
+        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier  # noqa E501
         assert parent_specimen_id_item.value == parent_specimen_id
         assert parent_specimen_id_item.relationship_type is None
         parent_specimen_type_item = seq[4]
@@ -272,4 +272,3 @@ class TestSpecimenPreparationStep(TestCase):
         assert staining_item.name == codes.SCT.UsingSubstance
         assert staining_item.value == substance
         assert staining_item.relationship_type is None
-
