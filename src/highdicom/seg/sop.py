@@ -560,7 +560,7 @@ class Segmentation(SOPClass):
                 )
                 x_offset = plane_position_values[frame_index, x_index]
                 y_index = self.DimensionIndexSequence.get_index_position(
-                    'XOffsetInSlideCoordinateSystem'
+                    'YOffsetInSlideCoordinateSystem'
                 )
                 y_offset = plane_position_values[frame_index, y_index]
                 origin_item = Dataset()
