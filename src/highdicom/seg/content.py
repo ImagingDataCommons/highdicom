@@ -467,9 +467,7 @@ class DimensionIndexSequence(DataElementSequence):
             else:
                 # If Dimension Organization Type is TILED_FULL, plane
                 # positions are implicit and need to be computed.
-                plane_positions = compute_plane_position_slide_per_frame(
-                    image
-                )
+                plane_positions = compute_plane_position_slide_per_frame(image)
         else:
             plane_positions = [
                 item.PlanePositionSequence
@@ -511,6 +509,38 @@ class DimensionIndexSequence(DataElementSequence):
 
         return plane_positions
 
+    def get_index_position(self, pointer: str) -> int:
+        """Get relative position of a given dimension in the dimension index.
+
+        Parameters
+        ----------
+        pointer: str
+            Name of the dimension (keyword of the attribute),
+            e.g., ``"ReferencedSegmentNumber"``
+
+        Returns
+        -------
+        int
+            Zero-based relative position
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence("SLIDE")
+        >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
+        >>> segment_numbers = dimension_index[i]
+
+        """
+        indices = [
+            i
+            for i, indexer in enumerate(self)
+            if indexer.DimensionIndexPointer == tag_for_keyword(pointer)
+        ]
+        if len(indices) == 0:
+            raise ValueError(
+                f'Dimension index does not contain a dimension "{pointer}".'
+            )
+        return indices[0]
+
     def get_index_values(
         self,
         plane_positions: Sequence[PlanePositionSequence]
@@ -525,10 +555,11 @@ class DimensionIndexSequence(DataElementSequence):
 
         Returns
         -------
-        Tuple[numpy.ndarray, numpy.ndarray]
-            2D array of dimension index values and 1D array of planes indices
-            for sorting frames according to their spatial position specified
-            by the dimension index.
+        dimension_index_values: numpy.ndarray
+            2D array of dimension index values
+        plane_indices: numpy.ndarray
+            1D array of planes indices for sorting frames according to their
+            spatial position specified by the dimension index
 
         """
         # For each dimension other than the Referenced Segment Number,

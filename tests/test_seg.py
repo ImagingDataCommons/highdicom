@@ -801,7 +801,12 @@ class TestSegmentation(unittest.TestCase):
         assert instance.ContentCreatorName is None
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio
+        with pytest.raises(AttributeError):
             instance.LossyImageCompressionMethod
+        with pytest.raises(AttributeError):
+            instance.ImageOrientationSlide
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixOriginSequence
         assert len(instance.SegmentSequence) == 1
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
@@ -885,9 +890,10 @@ class TestSegmentation(unittest.TestCase):
         assert pm_item.PixelSpacing == src_pm_item.PixelSpacing
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
         assert len(shared_item.PlaneOrientationSequence) == 1
-        po_item = shared_item.PlaneOrientationSequence[0]
-        assert po_item.ImageOrientationSlide == \
+        assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
+        assert instance.TotalPixelMatrixOriginSequence == \
+            self._sm_image.TotalPixelMatrixOriginSequence
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 6
 
