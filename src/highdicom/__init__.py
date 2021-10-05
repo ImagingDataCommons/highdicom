@@ -3,6 +3,7 @@ from highdicom import pm
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
+from highdicom import ann
 from highdicom import color
 from highdicom.content import (
     AlgorithmIdentificationSequence,
@@ -60,6 +61,7 @@ __all__ = [
     'SpecimenStaining',
     'UID',
     'UniversalEntityIDTypeValues',
+    'ann',
     'color',
     'frame',
     'io',

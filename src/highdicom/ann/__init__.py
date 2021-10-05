@@ -1,4 +1,11 @@
 """Package for creation of Annotation (ANN) instances."""
+from highdicom.ann.content import Measurements, AnnotationGroup
+from highdicom.ann.enum import (
+    AnnotationCoordinateTypeValues,
+    AnnotationGroupGenerationTypeValues,
+    GraphicTypeValues,
+    PixelOriginInterpretationValues,
+)
 from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations
 
 SOP_CLASS_UIDS = {
@@ -6,5 +13,11 @@ SOP_CLASS_UIDS = {
 }
 
 __all__ = [
+    'AnnotationCoordinateTypeValues',
+    'AnnotationGroup',
+    'AnnotationGroupGenerationTypeValues',
+    'GraphicTypeValues',
+    'Measurements',
     'MicroscopyBulkSimpleAnnotations',
+    'PixelOriginInterpretationValues',
 ]
