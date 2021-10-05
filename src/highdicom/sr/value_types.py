@@ -1,6 +1,5 @@
 """DICOM structured reporting content item value types."""
 import datetime
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -19,6 +18,7 @@ from typing import (
 import numpy as np
 from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
+from pydicom.multival import MultiValue
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.valuerep import DA, DS, TM, DT, PersonName
@@ -1556,6 +1556,58 @@ class ImageContentItem(ContentItem):
             UID(item.ReferencedSOPInstanceUID),
         )
 
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPClassUID)
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Instance UID
+        """
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
+
+    @property
+    def referenced_frame_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced frame numbers
+        """
+        if not hasattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedFrameNumber',
+        ):
+            return None
+        val = getattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedFrameNumber',
+        )
+        if isinstance(val, MultiValue):
+            return [int(v) for v in val]
+        else:
+            return [int(val)]
+
+    @property
+    def referenced_segment_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced segment numbers
+        """
+        if not hasattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedSegmentNumber',
+        ):
+            return None
+        val = getattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedSegmentNumber',
+        )
+        if isinstance(val, MultiValue):
+            return [int(v) for v in val]
+        else:
+            return [int(val)]
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
         """Construct object from an existing dataset.
@@ -1826,6 +1878,11 @@ class Scoord3DContentItem(ContentItem):
     def graphic_type(self) -> GraphicTypeValues3D:
         """GraphicTypeValues3D: graphic type"""
         return GraphicTypeValues3D(self.GraphicType)
+
+    @property
+    def frame_of_reference_uid(self) -> UID:
+        """highdicom.UID: frame of reference UID"""
+        return UID(self.ReferencedFrameOfReferenceUID)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':

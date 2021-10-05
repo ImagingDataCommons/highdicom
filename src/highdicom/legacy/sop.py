@@ -190,9 +190,9 @@ def _convert_legacy_to_enhanced(
         frame_type_item = Dataset()
         frame_type_item.FrameType = frame_type
         if pixel_representation == 0:
-          frame_type_item.PixelPresentation = 'MONOCHROME'
+            frame_type_item.PixelPresentation = 'MONOCHROME'
         else:
-          frame_type_item.PixelPresentation = 'COLOR'
+            frame_type_item.PixelPresentation = 'COLOR'
         frame_type_item.VolumetricProperties = volumetric_properties
         if frame_type[0] == 'ORIGINAL':
             frame_type_item.VolumeBasedCalculationTechnique = 'NONE'
@@ -339,9 +339,9 @@ def _convert_legacy_to_enhanced(
     if len(unique_image_types) > 1:
         mf_dataset.ImageType[2] = 'MIXED'
     if pixel_representation == 0:
-      mf_dataset.PixelPresentation = 'MONOCHROME'
+        mf_dataset.PixelPresentation = 'MONOCHROME'
     else:
-      mf_dataset.PixelPresentation = 'COLOR'
+        mf_dataset.PixelPresentation = 'COLOR'
     mf_dataset.VolumetricProperties = volumetric_properties
 
     # Shared Functional Groups
