@@ -89,6 +89,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             ),
             **kwargs
         )
+        self.copy_specimen_information(src_img)
+        self.copy_patient_and_study_information(src_img)
 
         annotation_coordinate_type = AnnotationCoordinateTypeValues(
             annotation_coordinate_type
