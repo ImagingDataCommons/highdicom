@@ -2053,7 +2053,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         self._src_series_ins_uid = self._seg_dataset.\
             ReferencedSeriesSequence[0].SeriesInstanceUID
         self._ref_segment_number = 35
-        self._ref_frame_number = 38
+        self._ref_frame_numbers = [38, 39]
         self._invalid_ref_frame_number = 0
         self._src_image = SourceImageForSegmentation(
             self._src_sop_class_uid,
@@ -2065,7 +2065,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
             segment_number=self._ref_segment_number,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
             source_image=self._src_image
         )
         assert len(ref_seg) == 2
@@ -2083,7 +2083,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            self._ref_frame_number
+            self._ref_frame_numbers
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2094,10 +2094,10 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_segmentation(self):
+    def test_from_segmentation_with_frame_number(self):
         ref_seg = ReferencedSegmentationFrame.from_segmentation(
             self._seg_dataset,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
         )
         assert len(ref_seg) == 2
         assert (
@@ -2114,7 +2114,38 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            self._ref_frame_number
+            self._ref_frame_numbers
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_with_segment_number(self):
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
+            self._seg_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_numbers
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2139,7 +2170,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             del frame_info.DerivationImageSequence
         ref_seg = ReferencedSegmentationFrame.from_segmentation(
             segmentation=temp_dataset,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2161,7 +2192,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         with pytest.raises(AttributeError):
             ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
-                frame_number=self._ref_frame_number,
+                frame_number=self._ref_frame_numbers,
             )
 
     def test_from_segmentation_no_referenced_series_sequence(self):
@@ -2175,7 +2206,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         with pytest.raises(AttributeError):
             ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
-                frame_number=self._ref_frame_number,
+                frame_number=self._ref_frame_numbers,
             )
 
 
