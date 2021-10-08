@@ -53,10 +53,12 @@ class Measurements(Dataset):
         self.MeasurementUnitsCodeSequence = [unit]
 
         is_nan = np.isnan(values)
+        stored_values = np.array(values[~is_nan], np.float32)
         item = Dataset()
-        item.FloatingPointValues = [float(v) for v in values[~is_nan]]
+        item.FloatingPointValues = stored_values.tobytes()
         if np.any(is_nan):
-            item.AnnotationIndexList = [i + 1 for i in np.where(~is_nan)[0]]
+            stored_indices = (np.where(~is_nan)[0] + 1).astype(np.int32)
+            item.AnnotationIndexList = stored_indices.tobytes()
         self.MeasurementValuesSequence = [item]
 
     @property
@@ -86,10 +88,12 @@ class Measurements(Dataset):
 
         """
         item = self.MeasurementValuesSequence[0]
-        values = np.zeros((number_of_annotations, ), dtype=float)
-        stored_values = np.array(item.FloatingPointValues)
+        values = np.zeros((number_of_annotations, ), np.float32)
+        stored_values = np.frombuffer(item.FloatingPointValues, np.float32)
         if hasattr(item, 'AnnotationIndexList'):
-            stored_indices = np.array(item.AnnotationIndexList) - 1
+            stored_indices = np.frombuffer(item.AnnotationIndexList, np.int32)
+            # Convert from DICOM one-based to Python zero-based indexing
+            stored_indices = stored_indices - 1
             all_indices = np.arange(number_of_annotations)
             missing_indices = np.setdiff1d(all_indices, stored_indices)
             values[missing_indices] = np.nan
@@ -300,7 +304,7 @@ class AnnotationGroup(Dataset):
             GraphicTypeValues.POLYLINE,
         ):
             point_indices = np.concatenate([
-                np.ones((item.shape[0] * dimensionality, ), dtype=int) + i
+                np.ones((item.shape[0] * dimensionality, ), np.int32) + i
                 for i, item in enumerate(graphic_data)
             ])
             self.LongPrimitivePointIndexList = point_indices.tobytes()
@@ -400,14 +404,18 @@ class AnnotationGroup(Dataset):
         )
         try:
             coordinates_data = getattr(self, 'DoublePointCoordinatesData')
+            coordinates = np.frombuffer(coordinates_data, np.float64)
         except AttributeError:
             coordinates_data = getattr(self, 'PointCoordinatesData')
-        coordinates = np.frombuffer(coordinates_data, dtype=float)
+            coordinates = np.frombuffer(coordinates_data, np.float32)
         coordinates = coordinates[coordinate_index]
 
         if hasattr(self, 'CommonZCoordinateValue'):
             coordinates = coordinates.reshape(-1, 2)
-            z_values = np.zeros((coordinates.shape[0], 1), dtype=float)
+            if coordinates.dtype == np.double:
+                z_values = np.zeros((coordinates.shape[0], 1), np.float64)
+            else:
+                z_values = np.zeros((coordinates.shape[0], 1), np.float32)
             z_values[:] = float(self.CommonZCoordinateValue)
             return np.concatenate([coordinates, z_values], axis=1)
         else:
@@ -431,7 +439,7 @@ class AnnotationGroup(Dataset):
             names = [item.name for item in self.MeasurementsSequence]
             units = [item.unit for item in self.MeasurementsSequence]
         else:
-            values = np.empty((number_of_annotations, 0), dtype=float)
+            values = np.empty((number_of_annotations, 0), np.float32)
             names = []
             units = []
         return (names, values, units)
@@ -464,7 +472,7 @@ class AnnotationGroup(Dataset):
         ):
             point_indices = np.frombuffer(
                 self.LongPrimitivePointIndexList,
-                dtype=int
+                dtype=np.int32
             )
             coordinate_index = np.where(point_indices == annotation_number)[0]
         else:

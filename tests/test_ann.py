@@ -46,21 +46,23 @@ class TestMeasurements(unittest.TestCase):
         item = measurements.MeasurementValuesSequence[0]
         num_stored = len(values) - len(missing_indices)
         stored_indices = np.setdiff1d(np.arange(num_total), missing_indices)
-        assert len(item.FloatingPointValues) == num_stored
-        assert len(item.AnnotationIndexList) == num_stored
+        retrieved_values = np.frombuffer(item.FloatingPointValues, np.float32)
+        retrieved_indices = np.frombuffer(item.AnnotationIndexList, np.int32)
+        assert len(retrieved_values) == num_stored
+        assert len(retrieved_indices) == num_stored
         np.testing.assert_array_equal(
-            np.array(item.AnnotationIndexList),
+            retrieved_indices,
             stored_indices + 1
         )
         np.testing.assert_allclose(
-            np.array(item.FloatingPointValues),
+            retrieved_values,
             values[stored_indices]
         )
 
     def test_construction_missing_name(self):
         with pytest.raises(TypeError):
             Measurements(
-                values=np.ones((10, ), dtype=float),
+                values=np.ones((10, ), dtype=np.float32),
                 unit=codes.UCUM.Millimeter
             )
 
@@ -68,7 +70,7 @@ class TestMeasurements(unittest.TestCase):
         with pytest.raises(TypeError):
             Measurements(
                 name=codes.SCT.Diameter,
-                values=np.ones((10, ), dtype=float),
+                values=np.ones((10, ), dtype=np.float32),
             )
 
     def test_construction_missing_values(self):
@@ -90,19 +92,18 @@ class TestMeasurements(unittest.TestCase):
         unit.CodingSchemeDesignator = 'UCUM'
         unit.CodeMeaning = 'Millimeter'
         dataset.MeasurementUnitsCodeSequence = [unit]
-        values = Dataset()
-        values.FloatingPointValues = [1.4, 1.2, 0.5]
-        values.AnnotationIndexList = [1, 2, 3]
-        dataset.MeasurementValuesSequence = [values]
+        values = np.array([1.4, 1.2, 0.5], np.float32)
+        index = np.array([1, 2, 3], np.int32)
+        measurement_values = Dataset()
+        measurement_values.FloatingPointValues = values.tobytes()
+        measurement_values.AnnotationIndexList = index.tobytes()
+        dataset.MeasurementValuesSequence = [measurement_values]
 
         measurements = Measurements.from_dataset(dataset)
 
         assert measurements.name == CodedConcept.from_dataset(name)
         assert measurements.unit == CodedConcept.from_dataset(unit)
-        np.testing.assert_allclose(
-            measurements.get_values(3),
-            np.array(values.FloatingPointValues)
-        )
+        np.testing.assert_allclose(measurements.get_values(3), values)
 
 
 class TestAnnotationGroup(unittest.TestCase):
@@ -179,7 +180,7 @@ class TestAnnotationGroup(unittest.TestCase):
         assert names[0] == measurement_names[0]
         assert len(units) == 1
         assert units[0] == measurement_units[0]
-        assert values.dtype == float
+        assert values.dtype == np.float32
         assert values.shape == (2, 1)
         np.testing.assert_allclose(values, measurement_values)
 
@@ -219,7 +220,7 @@ class TestAnnotationGroup(unittest.TestCase):
         assert names == []
         assert units == []
         assert values.size == 0
-        assert values.dtype == float
+        assert values.dtype == np.float32
         assert values.shape == (3, 0)
 
     def test_alternative_construction_from_dataset_missing_attributes(self):
