@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import pytest
 from pydicom import dcmread
-from pydicom.uid import generate_uid, RLELossless
+from pydicom.uid import generate_uid, RLELossless, JPEG2000Lossless
 from pydicom.valuerep import DA, TM
 
 from highdicom import SpecimenDescription
@@ -283,6 +283,60 @@ class TestSCImage(unittest.TestCase):
         )
 
         assert instance.file_meta.TransferSyntaxUID == RLELossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_monochrome_jpeg2000(self):
+        bits_allocated = 8  # RLE requires multiple of 8 bits
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000Lossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_rgb_jpeg2000(self):
+        bits_allocated = 8  # RLE requires multiple of 8 bits
+        photometric_interpretation = 'YBR_FULL'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000Lossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
 
         assert np.array_equal(
             self.get_array_after_writing(instance),

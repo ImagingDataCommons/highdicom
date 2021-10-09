@@ -15,6 +15,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
     RLELossless,
+    JPEG2000Lossless,
 )
 
 from highdicom.base import SOPClass
@@ -179,6 +180,7 @@ class SCImage(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
             RLELossless,
+            JPEG2000Lossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
