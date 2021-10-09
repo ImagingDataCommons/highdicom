@@ -621,13 +621,14 @@ class Segmentation(SOPClass):
                 # dimension will already have been converted to bool, leaving
                 # only "label maps" here, which must be converted to binary
                 # masks.
-                planes = np.zeros(pixel_array.shape, dtype=np.bool_)
-                planes[pixel_array == segment_number] = True
+                planes = np.zeros(pixel_array.shape, dtype=np.uint8)
+                planes[pixel_array == segment_number] = 1
             elif pixel_array.dtype == np.bool_:
                 if pixel_array.ndim == 4:
                     planes = pixel_array[:, :, :, segment_number - 1]
                 else:
                     planes = pixel_array
+                planes = planes.astype(np.uint8)
             else:
                 raise TypeError('Pixel array has an invalid data type.')
 
