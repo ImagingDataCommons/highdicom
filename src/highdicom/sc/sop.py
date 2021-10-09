@@ -15,6 +15,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
     RLELossless,
+    JPEGBaseline,
     JPEG2000Lossless,
 )
 
@@ -169,8 +170,12 @@ class SCImage(SOPClass):
             `coordinate_system` is ``"SLIDE"``)
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
-            data elements. The following lossless compressed transfer syntaxes
-            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``).
+            data elements. The following compressed transfer syntaxes
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``), JPEG
+            2000 Lossless (``"1.2.840.10008.1.2.4.90"``), JPEG Baseline
+            (``"1.2.840.10008.1.2.4.50"``). Note that JPEG Baseline is a
+            lossy compression method that will lead to a loss of detail in
+            the image.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -180,6 +185,7 @@ class SCImage(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
             RLELossless,
+            JPEGBaseline,
             JPEG2000Lossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
@@ -482,7 +488,8 @@ class SCImage(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
-            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``).
+            are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``), JPEG 2000
+            Lossless (``"1.2.840.10008.1.2.4.90"``).
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`

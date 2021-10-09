@@ -5,11 +5,16 @@ import unittest
 import numpy as np
 import pytest
 from pydicom import dcmread
-from pydicom.uid import generate_uid, RLELossless, JPEG2000Lossless
+from pydicom.uid import (
+    RLELossless,
+    JPEGBaseline,
+    JPEG2000Lossless
+)
 from pydicom.valuerep import DA, TM
 
 from highdicom import SpecimenDescription
 from highdicom.sc import SCImage
+from highdicom import UID
 
 
 class TestSCImage(unittest.TestCase):
@@ -18,9 +23,9 @@ class TestSCImage(unittest.TestCase):
         super().setUp()
         self._rgb_pixel_array = np.zeros((10, 10, 3), dtype=np.uint8)
         self._monochrome_pixel_array = np.zeros((10, 10), dtype=np.uint16)
-        self._study_instance_uid = generate_uid()
-        self._series_instance_uid = generate_uid()
-        self._sop_instance_uid = generate_uid()
+        self._study_instance_uid = UID()
+        self._series_instance_uid = UID()
+        self._sop_instance_uid = UID()
         self._series_number = int(np.random.choice(100))
         self._instance_number = int(np.random.choice(100))
         self._manufacturer = 'ABC'
@@ -28,7 +33,7 @@ class TestSCImage(unittest.TestCase):
         self._patient_orientation = ['A', 'R']
         self._container_identifier = str(np.random.choice(100))
         self._specimen_identifier = str(np.random.choice(100))
-        self._specimen_uid = generate_uid()
+        self._specimen_uid = UID()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
         self._ref_dataset = dcmread(
@@ -289,8 +294,61 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
+    def test_monochrome_jpeg_baseline(self):
+        bits_allocated = 8
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.zeros((256, 256), dtype=np.uint8)
+        frame[25:55, 25:55] = 255
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGBaseline
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=5  # tolerance for lossy compression
+        )
+
+    def test_rgb_jpeg_baseline(self):
+        bits_allocated = 8
+        photometric_interpretation = 'YBR_FULL_422'
+        coordinate_system = 'PATIENT'
+        frame = np.zeros((256, 256, 3), dtype=np.uint8)
+        frame[25:55, 25:55, 0] = 255
+        frame[35:65, 35:55, 1] = 255
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGBaseline
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline
+
     def test_monochrome_jpeg2000(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
+        bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
@@ -317,7 +375,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_jpeg2000(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
+        bits_allocated = 8
         photometric_interpretation = 'YBR_FULL'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
