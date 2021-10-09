@@ -7,7 +7,7 @@ import pytest
 from pydicom import dcmread
 from pydicom.uid import (
     RLELossless,
-    JPEGBaseline,
+    JPEGBaseline8Bit,
     JPEG2000Lossless
 )
 from pydicom.valuerep import DA, TM
@@ -312,10 +312,10 @@ class TestSCImage(unittest.TestCase):
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
             patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGBaseline
+            transfer_syntax_uid=JPEGBaseline8Bit
         )
 
-        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline
+        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
         assert np.allclose(
             self.get_array_after_writing(instance),
@@ -342,10 +342,10 @@ class TestSCImage(unittest.TestCase):
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
             patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGBaseline
+            transfer_syntax_uid=JPEGBaseline8Bit
         )
 
-        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline
+        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
     def test_monochrome_jpeg2000(self):
         bits_allocated = 8
