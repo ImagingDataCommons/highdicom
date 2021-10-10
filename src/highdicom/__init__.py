@@ -3,6 +3,7 @@ from highdicom import color
 from highdicom import ko
 from highdicom import legacy
 from highdicom import pm
+from highdicom import pr
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
@@ -69,6 +70,7 @@ __all__ = [
     'ko',
     'legacy',
     'pm',
+    'pr',
     'sc',
     'seg',
     'spatial',
