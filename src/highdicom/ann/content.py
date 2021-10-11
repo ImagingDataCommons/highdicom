@@ -502,7 +502,22 @@ class AnnotationGroup(Dataset):
     def get_measurements(self) -> Tuple[
         List[CodedConcept], np.ndarray, List[CodedConcept]
     ]:
-        """numpy.ndarray: Matrix of measurement values"""
+        """Get measurements.
+
+        Returns
+        -------
+        names: List[highdicom.sr.CodedConcept]
+            Names of measurements
+        values: numpy.ndarray
+            Two-dimensional array of measurement floating point values. The
+            array has shape n x m, where where *n* is the number of annotations
+            and *m* is the number of measurements. The array may contain
+            ``numpy.nan`` values in case a measurement is not available for a
+            given annotation.
+        units: List[highdicom.sr.CodedConcept]
+            Units of measurements
+
+        """
         number_of_annotations = self.number_of_annotations
         if hasattr(self, 'MeasurementsSequence'):
             values = np.vstack([
