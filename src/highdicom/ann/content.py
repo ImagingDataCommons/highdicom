@@ -77,7 +77,7 @@ class Measurements(Dataset):
         Parameters
         ----------
         number_of_annotations: int
-            Number of annotations in the annoation group
+            Number of annotations in the annotation group
 
         Returns
         -------
@@ -85,6 +85,12 @@ class Measurements(Dataset):
             One-dimensional array of floating-point numbers of length
             `number_of_annotations`. The array may be sparse and annotations
             for which no measurements are available have value ``numpy.nan``.
+
+        Raises
+        ------
+        IndexError
+            In case the measured values cannot be indexed given the indices
+            stored in the Annotation Index List.
 
         """
         item = self.MeasurementValuesSequence[0]
@@ -101,9 +107,10 @@ class Measurements(Dataset):
             values[stored_indices] = stored_values
         except IndexError as error:
             raise IndexError(
-                'Could not get values because of incorrect annotation indices: '
-                f'{error}. The specified "number_of_annotations" may be '
-                'incorrect.'
+                'Could not get values of measurements because of incorrect '
+                f'annotation indices: {error}. This may either be due to '
+                'incorrect encoding of the measurements or due to incorrectly '
+                'specified "number_of_annotations".'
             )
         return values
 
@@ -370,9 +377,20 @@ class AnnotationGroup(Dataset):
             for i, item in enumerate(measurements):
                 if not isinstance(item, Measurements):
                     raise TypeError(
-                        f'Item #{i} of argument "measurements" must have type '
-                        'Measurements.'
+                        f'Item #{i + 1} of argument "measurements" must have '
+                        'type Measurements.'
                     )
+                error_message = (
+                    f'The number of values of item #{i + 1} of argument '
+                    '"measurements" must match the number of annotations.'
+                )
+                try:
+                    measured_values = item.get_values(self.NumberOfAnnotations)
+                except IndexError:
+                    raise ValueError(error_message)
+                if len(measured_values) != self.NumberOfAnnotations:
+                    # This should not occur, but safety first.
+                    raise ValueError(error_message)
                 self.MeasurementsSequence.append(item)
 
     @property
