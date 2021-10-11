@@ -2974,11 +2974,10 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
                     'ImageRegion or ImageRegion3D.'
                 )
         if referenced_segment is not None:
-            if not isinstance(referenced_segment,
-                              (ReferencedSegmentationFrame, ReferencedSegment)):
+            if not isinstance(referenced_segment, ReferencedSegmentationFrame):
                 raise TypeError(
                     'Argument "referenced_segment" must have type '
-                    'ReferencedSegmentationFrame or ReferencedSegment.'
+                    'ReferencedSegmentationFrame.'
                 )
         super().__init__(
             tracking_identifier=tracking_identifier,
