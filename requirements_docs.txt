@@ -1,5 +1,5 @@
 sphinx-autodoc-typehints==1.12.0
-sphinx-pyreverse==0.0.16
-sphinx-rtd-theme==0.5.2
+sphinx-pyreverse==0.0.17
+sphinx-rtd-theme==1.0.0
 sphinxcontrib-autoprogram==0.1.7
 sphinxcontrib-websupport==1.2.4
