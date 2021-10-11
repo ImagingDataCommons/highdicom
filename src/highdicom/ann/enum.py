@@ -7,7 +7,26 @@ class AnnotationCoordinateTypeValues(Enum):
     """Enumerated values for attribute Annotation Coordinate Type."""
 
     SCOORD = '2D'
+    """Two-dimensional spatial coordinates denoted by (Column,Row) pairs.
+
+    The coordinate system is the pixel matrix of an image and individual
+    coordinates are defined relative to center of the (1,1) pixel of either
+    the total pixel matrix of the entire image or of the pixel matrix of an
+    individual frame, depending on the value of Pixel Origin Interpretation.
+
+    Coordinates have pixel unit.
+
+    """
+
     SCOORD3D = '3D'
+    """Three-dimensional spatial coordinates denoted by (X,Y,Z) triplets.
+
+    The coordinate system is the Frame of Reference (slide or patient) and the
+    coordinates are defined relative to origin of the Frame of Reference.
+
+    Coordinates have millimeter (X and Y axes) and micrometer unit (Z axis).
+
+    """
 
 
 class AnnotationGroupGenerationTypeValues(Enum):
@@ -86,4 +105,17 @@ class PixelOriginInterpretationValues(Enum):
     """Enumerated values for attribute Pixel Origin Interpretation."""
 
     FRAME = 'FRAME'
+    """Relative to an individual image frame.
+
+    Coordinates have been defined and need to be interpreted relative to the
+    (1,1) pixel of an individual image frame.
+
+    """
+
     VOLUME = 'VOLUME'
+    """Relative to the Total Pixel Matrix of a VOLUME image.
+
+    Coordinates have been defined and need to be interpreted relative to the
+    (1,1) pixel of the Total Pixel Matrix of the entire image.
+
+    """

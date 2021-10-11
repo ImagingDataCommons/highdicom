@@ -43,10 +43,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         manufacturer_model_name: str,
         software_versions: Union[str, Tuple[str]],
         device_serial_number: str,
-        content_description: Optional[str, None] = None,
-        content_creator_name: Optional[
-            Union[str, PersonName]
-        ] = None,
+        content_description: Optional[str] = None,
+        content_creator_name: Optional[Union[str, PersonName]] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         pixel_origin_interpretation: Union[
             str,
