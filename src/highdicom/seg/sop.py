@@ -203,7 +203,7 @@ class Segmentation(SOPClass):
         content_description: Union[str, None], optional
             Description of the segmentation
         content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
-            Name of the creator of the segmentation
+            Name of the creator of the segmentation (if created manually)
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
@@ -369,7 +369,7 @@ class Segmentation(SOPClass):
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.PixelRepresentation = 0
-        self.ContentLabel = 'ISO_IR 192'  # UTF-8
+        self.ContentLabel = 'Segmentation'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

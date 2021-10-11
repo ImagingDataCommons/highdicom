@@ -12,6 +12,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
+from pydicom.valuerep import PersonName
 
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
@@ -22,6 +23,7 @@ from highdicom.ann.enum import (
 from highdicom.ann.content import AnnotationGroup
 from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
+from highdicom.valuerep import check_person_name
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -41,6 +43,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         manufacturer_model_name: str,
         software_versions: Union[str, Tuple[str]],
         device_serial_number: str,
+        content_description: Optional[str, None] = None,
+        content_creator_name: Optional[
+            Union[str, PersonName]
+        ] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         pixel_origin_interpretation: Union[
             str,
@@ -79,6 +85,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             Version(s) of the software that creates the instance
         device_serial_number: str
             Manufacturer's serial number of the device
+        content_description: Union[str, None], optional
+            Description of the annotation
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the creator of the annotation (if created manually)
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
@@ -129,6 +139,13 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         )
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+
+        # Microscopy Bulk Simple Annotations
+        self.ContentLabel = 'Annotation'
+        self.ContentDescription = content_description
+        if content_creator_name is not None:
+            check_person_name(content_creator_name)
+        self.ContentCreatorName = content_creator_name
 
         annotation_coordinate_type = AnnotationCoordinateTypeValues(
             annotation_coordinate_type
@@ -182,6 +199,12 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 raise TypeError(
                     f'Item #{i} of argument "annotation_groups" must have '
                     'type AnnotationGroup.'
+                )
+            if group.AnnotationGroupNumber != i + 1:
+                raise ValueError(
+                    f'Item #{i} of argument "annotation_groups" must have '
+                    'Annotation Group Number {i + 1} instead of '
+                    f'{group.AnnotationGroupNumber}.'
                 )
             group_numbers[i] = group.AnnotationGroupNumber
             self.AnnotationGroupSequence.append(group)
