@@ -514,9 +514,6 @@ class AnnotationGroup(Dataset):
 
         coordinate_index = np.arange(start, end)
 
-        print(point_indices)
-        print(graphic_type, start, end, coordinate_index)
-
         return coordinate_index
 
     @classmethod
