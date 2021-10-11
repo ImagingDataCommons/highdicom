@@ -885,6 +885,8 @@ class TestContentItem(unittest.TestCase):
         assert i.name == CodedConcept(*name)
         with pytest.raises(AttributeError):
             assert i.value
+        with pytest.raises(AttributeError):
+            assert i.ContentSequence
 
     def test_composite_item_construction(self):
         name = codes.DCM.RealWorldValueMapUsedForMeasurement
@@ -2345,6 +2347,8 @@ class TestMeasurement(unittest.TestCase):
         assert unit_item == self._unit
         with pytest.raises(AttributeError):
             item.NumericValueQualifierCodeSequence
+        with pytest.raises(AttributeError):
+            item.ContentSequence
 
         # Direct property access
         assert measurement.name == self._name
