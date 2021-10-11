@@ -1468,8 +1468,9 @@ class ReferencedSegmentationFrame(ContentSequence):
                         )
                     src = drv_image.SourceImageSequence[0]
                     source_image = SourceImageForSegmentation(
-                        referenced_sop_class_uid=src.ReferencedSOPClassUID,
-                        referenced_sop_instance_uid=src.ReferencedSOPInstanceUID
+                        src.ReferencedSOPClassUID,
+                        src.ReferencedSOPInstanceUID,
+                        frame_numbers
                     )
                     found_source_image = True
                     break
