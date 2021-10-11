@@ -80,6 +80,16 @@ highdicom.legacy package
    :undoc-members:
    :show-inheritance:
 
+.. _highdicom-ann-subpackage:
+
+highdicom.ann package
+---------------------
+
+.. automodule:: highdicom.ann
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
 
 .. _highdicom-seg-subpackage:
 
