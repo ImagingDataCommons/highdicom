@@ -41,14 +41,52 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         manufacturer_model_name: str,
         software_versions: Union[str, Tuple[str]],
         device_serial_number: str,
-        transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         pixel_origin_interpretation: Union[
             str,
             PixelOriginInterpretationValues
         ] = PixelOriginInterpretationValues.VOLUME,
         **kwargs: Any
     ) -> None:
+        """
+        Parameters
+        ----------
+        source_images: Sequence[pydicom.dataset.Dataset]
+            Image instances from which annotations were derived
+        annotation_coordinate_type: Union[str, highdicom.ann.AnnotationCoordinateTypeValues]
+            Type of coordinates (two-dimensional coordinates relative to origin
+            of Total Pixel Matrix in pixel unit or three-dimensional
+            coordinates relative to origin of Frame of Reference (Slide) in
+            millimeter/micrometer unit)
+        annotation_groups: Sequence[highdicom.ann.AnnotationGroup]
+            Groups of annotations (vector graphics and corresponding
+            measurements)
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: Union[str, None], optional
+            Name of the manufacturer (developer) of the device (software)
+            that creates the instance
+        manufacturer_model_name: str
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        device_serial_number: str
+            Manufacturer's serial number of the device
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements.
+        **kwargs: Any, optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
 
+        """  # noqa: E501
         src_img = source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
         if is_multiframe and len(source_images) > 1:

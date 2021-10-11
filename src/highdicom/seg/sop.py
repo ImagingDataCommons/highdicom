@@ -81,7 +81,7 @@ class Segmentation(SOPClass):
         max_fractional_value: int = 255,
         content_description: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
-        transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         pixel_measures: Optional[PixelMeasuresSequence] = None,
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
