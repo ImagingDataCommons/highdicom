@@ -264,11 +264,9 @@ class AnnotationGroup(Dataset):
                 'same dimensions.'
             )
 
-        if coordinates.dtype.kind != 'f':
-            raise ValueError(
-                'Items of argument "graphic_data" must be arrays of '
-                'floating-point numbers.'
-            )
+        if coordinates.dtype.kind in ('u', 'i'):
+            coordinates = coordinates.astype(np.float32)
+
         if coordinates.ndim != 2:
             raise ValueError(
                 'Items of argument "graphic_data" must be two-dimensional '
