@@ -191,7 +191,9 @@ class AnnotationGroup(Dataset):
         graphic_type: Union[str, highdicom.ann.GraphicTypeValues]
             Graphic type of annotated regions of interest
         graphic_data: Sequence[numpy.ndarray]
-            Graphic data (coordinates) of annotated regions of interest
+            Array of ordered spatial coordinates, where each row of an array
+            represents a (Column, Row) coordinate pair or (X, Y, Z) coordinate
+            triplet.
         algorithm_type: Union[str, highdicom.ann.AnnotationGroupGenerationTypeValues]
             Type of algorithm that was used to generate the annotation
         algorithm_identification: Union[highdicom.AlgorithmIdentificationSequence, None], optional
@@ -306,9 +308,11 @@ class AnnotationGroup(Dataset):
             GraphicTypeValues.POLYGON,
             GraphicTypeValues.POLYLINE,
         ):
+            spans = [item.shape[0] * dimensionality for item in graphic_data]
+            point_indices = np.cumsum(spans, dtype=np.int32) + 1
             point_indices = np.concatenate([
-                np.ones((item.shape[0] * dimensionality, ), np.int32) + i
-                for i, item in enumerate(graphic_data)
+                np.array([1], dtype=np.int32),
+                point_indices[:-1]
             ])
             self.LongPrimitivePointIndexList = point_indices.tobytes()
 
@@ -401,16 +405,18 @@ class AnnotationGroup(Dataset):
         else:
             coordinate_dimensionality = 3
 
-        coordinate_index = self._get_coordinate_index(
-            annotation_number,
-            coordinate_dimensionality
-        )
         try:
             coordinates_data = getattr(self, 'DoublePointCoordinatesData')
             coordinates = np.frombuffer(coordinates_data, np.float64)
         except AttributeError:
             coordinates_data = getattr(self, 'PointCoordinatesData')
             coordinates = np.frombuffer(coordinates_data, np.float32)
+
+        coordinate_index = self._get_coordinate_index(
+            annotation_number,
+            coordinate_dimensionality=coordinate_dimensionality,
+            number_of_coordinates=coordinates.shape[0],
+        )
         coordinates = coordinates[coordinate_index]
 
         if hasattr(self, 'CommonZCoordinateValue'):
@@ -450,7 +456,8 @@ class AnnotationGroup(Dataset):
     def _get_coordinate_index(
         self,
         annotation_number: int,
-        coordinate_dimensionality: int
+        coordinate_dimensionality: int,
+        number_of_coordinates: int
     ) -> np.ndarray:
         """Get coordinate index.
 
@@ -460,6 +467,8 @@ class AnnotationGroup(Dataset):
             One-based identification number of the annotation
         coordinate_dimensionality: int
             Dimensionality of coordinate points
+        number_of_coordinates: int
+            Total number of coordinate points
 
         Returns
         -------
@@ -468,6 +477,7 @@ class AnnotationGroup(Dataset):
             coordinate points for a given annotation
 
         """  # noqa: E501
+        annotation_index = annotation_number - 1
         graphic_type = self.graphic_type
         if graphic_type in (
             GraphicTypeValues.POLYGON,
@@ -477,7 +487,11 @@ class AnnotationGroup(Dataset):
                 self.LongPrimitivePointIndexList,
                 dtype=np.int32
             )
-            coordinate_index = np.where(point_indices == annotation_number)[0]
+            start = point_indices[annotation_index] - 1
+            try:
+                end = point_indices[annotation_index + 1] - 1
+            except IndexError:
+                end = number_of_coordinates
         else:
             if hasattr(self, 'CommonZCoordinateValue'):
                 stored_coordinate_dimensionality = 2
@@ -495,9 +509,13 @@ class AnnotationGroup(Dataset):
                     'Encountered unexpected graphic type '
                     f'"{graphic_type.value}".'
                 )
-            start = (annotation_number - 1) * length
+            start = annotation_index * length
             end = start + length
-            coordinate_index = np.arange(start, end)
+
+        coordinate_index = np.arange(start, end)
+
+        print(point_indices)
+        print(graphic_type, start, end, coordinate_index)
 
         return coordinate_index
 
