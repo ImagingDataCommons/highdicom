@@ -108,19 +108,30 @@ class TestMeasurements(unittest.TestCase):
 
 class TestAnnotationGroup(unittest.TestCase):
 
-    def test_construction(self):
-        property_category = Code('91723000', 'SCT', 'Anatomical Structure')
-        property_type = Code('4421005', 'SCT', 'Cell')
-        number = 1
-        label = 'first'
-        uid = UID()
-        graphic_type = GraphicTypeValues.POLYGON
-        algorithm_type = AnnotationGroupGenerationTypeValues.AUTOMATIC
-        algorithm_identification = AlgorithmIdentificationSequence(
+    def setUp(self):
+        super().setUp()
+        self._property_category = Code(
+            '91723000',
+            'SCT',
+            'Anatomical Structure'
+        )
+        self._property_type = Code(
+            '4421005',
+            'SCT',
+            'Cell'
+        )
+        self._algorithm_type = AnnotationGroupGenerationTypeValues.AUTOMATIC
+        self._algorithm_identification = AlgorithmIdentificationSequence(
             name='test',
             family=codes.DCM.ArtificialIntelligence,
             version='1.0'
         )
+
+    def test_construction(self):
+        number = 1
+        label = 'first'
+        uid = UID()
+        graphic_type = GraphicTypeValues.POLYGON
         graphic_data = [
             np.array([
                 [1.0, 1.0, 0.0],
@@ -150,21 +161,21 @@ class TestAnnotationGroup(unittest.TestCase):
             number=number,
             uid=uid,
             label=label,
-            annotated_property_category=property_category,
-            annotated_property_type=property_type,
+            annotated_property_category=self._property_category,
+            annotated_property_type=self._property_type,
             graphic_type=graphic_type,
             graphic_data=graphic_data,
-            algorithm_type=algorithm_type,
-            algorithm_identification=algorithm_identification,
+            algorithm_type=self._algorithm_type,
+            algorithm_identification=self._algorithm_identification,
             measurements=measurements,
             description='annotation'
         )
 
         assert group.graphic_type == graphic_type
-        assert group.annotated_property_category == property_category
-        assert group.annotated_property_type == property_type
-        assert group.algorithm_type == algorithm_type
-        assert group.algorithm_identification == algorithm_identification
+        assert group.annotated_property_category == self._property_category
+        assert group.annotated_property_type == self._property_type
+        assert group.algorithm_type == self._algorithm_type
+        assert group.algorithm_identification == self._algorithm_identification
 
         np.testing.assert_allclose(
             group.get_coordinates(annotation_number=1, coordinate_type='3D'),
@@ -227,6 +238,86 @@ class TestAnnotationGroup(unittest.TestCase):
         dataset = Dataset()
         with pytest.raises(AttributeError):
             AnnotationGroup.from_dataset(dataset)
+
+    def test_construction_with_wrong_graphic_data_point(self):
+        with pytest.raises(ValueError):
+            AnnotationGroup(
+                number=1,
+                uid=UID(),
+                label='foo',
+                annotated_property_category=self._property_category,
+                annotated_property_type=self._property_type,
+                graphic_type=GraphicTypeValues.POINT,
+                graphic_data=[
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [0.5, 3.0, 0.0],
+                        [1.0, 3.0, 0.0],
+                    ]),
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [1.0, 2.0, 0.0],
+                        [2.0, 2.0, 0.0],
+                        [2.0, 1.0, 0.0],
+                    ]),
+                ],
+                algorithm_type=self._algorithm_type,
+                algorithm_identification=self._algorithm_identification,
+                description='annotation'
+            )
+
+    def test_construction_with_wrong_graphic_data_polygon(self):
+        with pytest.raises(ValueError):
+            AnnotationGroup(
+                number=1,
+                uid=UID(),
+                label='foo',
+                annotated_property_category=self._property_category,
+                annotated_property_type=self._property_type,
+                graphic_type=GraphicTypeValues.POLYGON,
+                graphic_data=[
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [0.5, 3.0, 0.0],
+                    ]),
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [1.0, 2.0, 0.0],
+                        [2.0, 2.0, 0.0],
+                        [2.0, 1.0, 0.0],
+                    ]),
+                ],
+                algorithm_type=self._algorithm_type,
+                algorithm_identification=self._algorithm_identification,
+                description='annotation'
+            )
+
+    def test_construction_with_wrong_graphic_data_rectangle(self):
+        with pytest.raises(ValueError):
+            AnnotationGroup(
+                number=1,
+                uid=UID(),
+                label='foo',
+                annotated_property_category=self._property_category,
+                annotated_property_type=self._property_type,
+                graphic_type=GraphicTypeValues.RECTANGLE,
+                graphic_data=[
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [0.5, 3.0, 0.0],
+                        [1.0, 3.0, 0.0],
+                    ]),
+                    np.array([
+                        [1.0, 1.0, 0.0],
+                        [1.0, 2.0, 0.0],
+                        [2.0, 2.0, 0.0],
+                        [2.0, 1.0, 0.0],
+                    ]),
+                ],
+                algorithm_type=self._algorithm_type,
+                algorithm_identification=self._algorithm_identification,
+                description='annotation'
+            )
 
 
 class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):

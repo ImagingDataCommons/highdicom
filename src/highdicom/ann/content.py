@@ -258,6 +258,52 @@ class AnnotationGroup(Dataset):
         graphic_type = GraphicTypeValues(graphic_type)
         self.GraphicType = graphic_type.value
 
+        for i in range(len(graphic_data)):
+            num_coords = graphic_data[i].shape[0]
+            if graphic_type == GraphicTypeValues.POINT:
+                if num_coords != 1:
+                    raise ValueError(
+                        f'Graphic data of annotation #{i + 1} of graphic type '
+                        '"POINT" must be a single coordinate.'
+                    )
+            elif graphic_type == GraphicTypeValues.RECTANGLE:
+                if num_coords != 4:
+                    raise ValueError(
+                        f'Graphic data of annotation #{i + 1} of graphic type '
+                        '"RECTANGLE" must be four coordinates.'
+                    )
+            elif graphic_type == GraphicTypeValues.ELLIPSE:
+                if num_coords != 4:
+                    raise ValueError(
+                        f'Graphic data of annotation #{i + 1} of graphic type '
+                        '"ELLIPSE" must be four coordinates.'
+                    )
+            elif graphic_type == GraphicTypeValues.POLYLINE:
+                if num_coords < 2:
+                    raise ValueError(
+                        f'Graphic data of annotation #{i + 1} of graphic type '
+                        '"POLYLINE" must be at least two coordinates.'
+                    )
+            elif graphic_type == GraphicTypeValues.POLYGON:
+                if num_coords < 3:
+                    raise ValueError(
+                        f'Graphic data of annotation #{i + 1} of graphic type '
+                        '"POLYGON" must be at least three coordinates.'
+                    )
+                if np.allclose(graphic_data[i][0], graphic_data[i][-1]):
+                    raise ValueError(
+                        'The first and last coordinate of graphic data of '
+                        f'annotation #{i + 1} of graphic type "POLYGON" '
+                        'must not be identical. '
+                        'Note that the ANN Graphic Type is different in this '
+                        'respect from the corresponding SR Graphic Type.'
+                    )
+            else:
+                raise ValueError(
+                    f'Graphic data of annotation #{i + 1} has an unknown '
+                    'graphic type.'
+                )
+
         try:
             coordinates = np.concatenate(graphic_data, axis=0)
         except ValueError:
