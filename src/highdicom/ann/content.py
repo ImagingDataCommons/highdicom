@@ -199,7 +199,7 @@ class AnnotationGroup(Dataset):
             Graphic type of annotated regions of interest
         graphic_data: Sequence[numpy.ndarray]
             Array of ordered spatial coordinates, where each row of an array
-            represents a (Column, Row) coordinate pair or (X, Y, Z) coordinate
+            represents a (Column,Row) coordinate pair or (X,Y,Z) coordinate
             triplet.
         algorithm_type: Union[str, highdicom.ann.AnnotationGroupGenerationTypeValues]
             Type of algorithm that was used to generate the annotation

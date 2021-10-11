@@ -70,31 +70,31 @@ class GraphicTypeValues(Enum):
     """
 
     CIRCLE = 'CIRCLE'
-    """A circle defined by two (column,row) pairs.
+    """A circle defined by two (Column,Row) coordinates.
 
-    The first pair is the central point and
-    the second pair is a point on the perimeter of the circle.
+    The first coordinate is the central point and
+    the second coordinate is a point on the perimeter of the circle.
 
     """
 
     ELLIPSE = 'ELLIPSE'
-    """An ellipse defined by four pixel (column,row) pairs.
+    """An ellipse defined by four pixel (Column,Row) coordinates.
 
-    The first two pairs specify the endpoints of the major axis and
-    the second two pairs specify the endpoints of the minor axis.
+    The first two coordinates specify the endpoints of the major axis and
+    the second two coordinates specify the endpoints of the minor axis.
 
     """
 
     MULTIPOINT = 'MULTIPOINT'
-    """Multiple pixels each denoted by an (column,row) pair."""
+    """Multiple pixels each denoted by an (Column,Row) coordinates."""
 
     POINT = 'POINT'
-    """A single pixel denoted by a single (column,row) pair."""
+    """A single pixel denoted by a single (Column,Row) coordinate."""
 
     POLYLINE = 'POLYLINE'
-    """Connected line segments with vertices denoted by (column,row) pairs.
+    """Connected line segments with vertices denoted by (Column,Row) coordinate.
 
-    If the first and last pairs are the same it is a closed polygon.
+    If the first and last coordinates are the same it is a closed polygon.
 
     """
 
@@ -108,45 +108,46 @@ class GraphicTypeValues3D(Enum):
     """
 
     ELLIPSE = 'ELLIPSE'
-    """An ellipse defined by four (x,y,z) triplets.
+    """An ellipse defined by four (X,Y,Z) coordinates.
 
-    The first two triplets specify the endpoints of the major axis and
-    the second two triplets specify the endpoints of the minor axis.
+    The first two coordinates specify the endpoints of the major axis and
+    the second two coordinates specify the endpoints of the minor axis.
 
     """
 
     ELLIPSOID = 'ELLIPSOID'
-    """A three-dimensional geometric surface defined by six (x,y,z) triplets.
+    """A three-dimensional geometric surface defined by six (X,Y,Z) coordinates.
 
     The plane sections of the surface are either ellipses or circles and
     the surface contains three intersecting orthogonal axes:
     "a", "b", and "c".
-    The first and second triplets specify the endpoints of axis "a",
-    the third and fourth triplets specify the endpoints of axis "b", and
-    the fifth and sixth triplets specify the endpoints of axis "c".
+    The first and second coordinates specify the endpoints of axis "a",
+    the third and fourth coordinates specify the endpoints of axis "b", and
+    the fifth and sixth coordinates specify the endpoints of axis "c".
 
     """
 
     MULTIPOINT = 'MULTIPOINT'
-    """Multiple points each denoted by an (x,y,z) triplet.
+    """Multiple points each denoted by an (X,Y,Z) coordinate.
 
     The points need not be coplanar.
+
     """
 
     POINT = 'POINT'
-    """An individual point denoted by a single (x,y,z) triplet."""
+    """An individual point denoted by a single (X,Y,Z) coordinate."""
 
     POLYLINE = 'POLYLINE'
-    """Connected line segments with vertices denoted by (x,y,z) triplets.
+    """Connected line segments with vertices denoted by (X,Y,Z) coordinates.
 
-    The points need not be coplanar.
+    The coordinates need not be coplanar.
 
     """
 
     POLYGON = 'POLYGON'
-    """Connected line segments with vertices denoted by (x,y,z) triplets.
+    """Connected line segments with vertices denoted by (X,Y,Z) coordinates.
 
-    The first and last triplets shall be the same forming a closed polygon.
+    The first and last coordinates shall be the same forming a closed polygon.
     The points shall be coplanar.
 
     """

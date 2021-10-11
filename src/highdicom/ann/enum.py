@@ -25,7 +25,7 @@ class GraphicTypeValues(Enum):
 
     Note
     ----
-    Coordinates may be either (column,row) pairs defined in the 2-dimensional
+    Coordinates may be either (Column,Row) pairs defined in the 2-dimensional
     Total Pixel Matrix or (X,Y,Z) triplets defined in the 3-dimensional
     Frame of Reference (patient or slide coordinate system).
 
@@ -38,10 +38,47 @@ class GraphicTypeValues(Enum):
     """
 
     POINT = 'POINT'
+    """An individual piont defined by a single coordinate."""
+
     POLYLINE = 'POLYLINE'
+    """Connected line segments defined by two or more ordered coordinates.
+
+    The coordinates shall be coplanar.
+
+    """
+
     POLYGON = 'POLYGON'
+    """Connected line segments defined by three or more ordered coordinates.
+
+    The coordinates shall be coplanar and form a closed polygon.
+
+    Warning
+    -------
+    In contrast to the corresponding SR Graphic Type for content items of
+    SCOORD3D value type, the first and last points shall NOT be the same.
+
+    """
+
     ELLIPSE = 'ELLIPSE'
+    """An ellipse defined by four pixel (Column,Row) pairs.
+
+    The first two coordinates specify the endpoints of the major axis and
+    the second two coordinates specify the endpoints of the minor axis.
+
+    """
+
     RECTANGLE = 'RECTANGLE'
+    """Connected line segments defined by three or more ordered coordinates.
+
+    The coordinates shall be coplanar and form a closed, rectangular polygon.
+    The first coordinate is the top left hand corner, the second coordinate is
+    the top right hand corner, the third coordinate is the bottom right hand
+    corner, and the forth coordinate is the bottom left hand corner.
+
+    The edges of the rectangle need not be aligned with the axes of the
+    coordinate system.
+
+    """
 
 
 class PixelOriginInterpretationValues(Enum):
