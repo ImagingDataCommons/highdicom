@@ -89,17 +89,22 @@ class Measurements(Dataset):
         """
         item = self.MeasurementValuesSequence[0]
         values = np.zeros((number_of_annotations, ), np.float32)
+        values[:] = np.nan
         stored_values = np.frombuffer(item.FloatingPointValues, np.float32)
         if hasattr(item, 'AnnotationIndexList'):
             stored_indices = np.frombuffer(item.AnnotationIndexList, np.int32)
             # Convert from DICOM one-based to Python zero-based indexing
             stored_indices = stored_indices - 1
-            all_indices = np.arange(number_of_annotations)
-            missing_indices = np.setdiff1d(all_indices, stored_indices)
-            values[missing_indices] = np.nan
         else:
             stored_indices = np.arange(number_of_annotations)
-        values[stored_indices] = stored_values
+        try:
+            values[stored_indices] = stored_values
+        except IndexError as error:
+            raise IndexError(
+                'Could not get values because of incorrect annotation indices: '
+                f'{error}. The specified "number_of_annotations" may be '
+                'incorrect.'
+            )
         return values
 
     @classmethod
