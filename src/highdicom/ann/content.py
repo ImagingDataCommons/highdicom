@@ -377,11 +377,11 @@ class AnnotationGroup(Dataset):
             for i, item in enumerate(measurements):
                 if not isinstance(item, Measurements):
                     raise TypeError(
-                        f'Item #{i + 1} of argument "measurements" must have '
+                        f'Item #{i} of argument "measurements" must have '
                         'type Measurements.'
                     )
                 error_message = (
-                    f'The number of values of item #{i + 1} of argument '
+                    f'The number of values of item #{i} of argument '
                     '"measurements" must match the number of annotations.'
                 )
                 try:
