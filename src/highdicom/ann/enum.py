@@ -24,7 +24,7 @@ class AnnotationCoordinateTypeValues(Enum):
     The coordinate system is the Frame of Reference (slide or patient) and the
     coordinates are defined relative to origin of the Frame of Reference.
 
-    Coordinates have millimeter (X and Y axes) and micrometer unit (Z axis).
+    Coordinates have millimeter unit.
 
     """
 
