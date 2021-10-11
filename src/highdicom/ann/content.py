@@ -34,7 +34,7 @@ class Measurements(Dataset):
             Concept name
         values: numpy.ndarray
             One-dimensional array of floating-point values. Some values may be
-            NaN (``numpy.nan``) if no measurement may be available for a given
+            NaN (``numpy.nan``) if no measurement is available for a given
             annotation. Values must be sorted such that the *n*-th value
             represents the measurement for the *n*-th annotation.
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
@@ -255,7 +255,7 @@ class AnnotationGroup(Dataset):
             coordinates = np.concatenate(graphic_data, axis=0)
         except ValueError:
             raise ValueError(
-                'Items of argument "graphic_datat" must be arrays with the '
+                'Items of argument "graphic_data" must be arrays with the '
                 'same dimensions.'
             )
 
@@ -274,7 +274,7 @@ class AnnotationGroup(Dataset):
                 'Items of argument "graphic_data" must be two-dimensional '
                 'arrays where the second array dimension has size 2 or 3.'
             )
-        if np.sum(~np.isfinite(coordinates)) > 0:
+        if not np.all(np.isfinite(coordinates)):
             raise ValueError(
                 'Items of argument "graphic_data" must be arrays of finite '
                 'floating-point numbers. Some values are not finite, '
