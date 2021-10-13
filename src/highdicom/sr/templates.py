@@ -2725,7 +2725,7 @@ class MeasurementsDerivedFromMultipleROIMeasurements(Template):
         # TODO: how to do R-INFERRED FROM relationship?
         self.append(value_item)
 
-
+#  TODO: Should I add in conditionals to test for presence of non-manditory items?
 class ImageLibraryEntryDescriptors(Template):
 
     """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
@@ -2853,9 +2853,6 @@ class ImageLibraryEntryDescriptors(Template):
         """
         descriptors = []
         pixel_spacing = dataset.PixelSpacing
-        image_position = dataset.ImagePositionPatient
-        image_orientation = dataset.ImageOrientationPatient
-
         descriptors.append(NumContentItem(
             name=CodedConcept(
                 value='111026',
@@ -2912,6 +2909,8 @@ class ImageLibraryEntryDescriptors(Template):
                 scheme_designator='UCUM'
             )
         ))
+
+        image_position = dataset.ImagePositionPatient
         descriptors.append(NumContentItem(
             name=CodedConcept(
                 value='110901',
@@ -2955,6 +2954,8 @@ class ImageLibraryEntryDescriptors(Template):
                     scheme_designator='UCUM'
                 )
             ))
+
+        image_orientation = dataset.ImageOrientationPatient
         descriptors.append(NumContentItem(
             name=CodedConcept(
                 value='110904',
