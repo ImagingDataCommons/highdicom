@@ -1237,7 +1237,7 @@ class ReferencedSegmentationFrame(ContentSequence):
         self,
         sop_class_uid: str,
         sop_instance_uid: str,
-        frame_number: int,
+        frame_number: Union[int, Sequence[int]],
         segment_number: int,
         source_image: SourceImageForSegmentation
     ) -> None:
@@ -1249,11 +1249,13 @@ class ReferencedSegmentationFrame(ContentSequence):
         sop_instance_uid: str
             SOP Instance UID of the referenced image object
         segment_number: int
-            number of the segment to which the refernce applies
-        frame_number: int
-            number of the frame to which the reference applies
+            Number of the segment to which the reference applies
+        frame_number: Union[int, Sequence[int]]
+            Number of the frame to which the reference applies. If the
+            referenced segmentation image is tiled, more than one frame may be
+            specified.
         source_image: highdicom.sr.SourceImageForSegmentation
-            source image for segmentation
+            Source image for segmentation
 
         """
         super().__init__()
@@ -1349,7 +1351,8 @@ class ReferencedSegmentationFrame(ContentSequence):
     def from_segmentation(
         cls,
         segmentation: Dataset,
-        frame_number: int
+        frame_number: Optional[Union[int, Sequence[int]]] = None,
+        segment_number: Optional[int] = None
     ) -> 'ReferencedSegmentationFrame':
         """Construct the content item directly from a segmentation dataset
 
@@ -1358,9 +1361,10 @@ class ReferencedSegmentationFrame(ContentSequence):
         segmentation: pydicom.dataset.Dataset
             Dataset representing a segmentation containing the referenced
             segment.
-        frame_number: int
-            Number of the frame to which the reference applies. Note that
-            one-based indexing is used to index the frames.
+        frame_number: Union[int, Sequence[int], None], optional
+            Number of the frame(s) that should be referenced
+        segment_number: Union[int, None], optional
+            Number of the segment to which the reference applies
 
         Returns
         -------
@@ -1395,47 +1399,82 @@ class ReferencedSegmentationFrame(ContentSequence):
         """
         if segmentation.SOPClassUID != SegmentationStorage:
             raise ValueError(
-                'Input dataset should be a segmentation storage instance'
+                'Argument "segmentation" should represent a Segmentation.'
             )
 
-        # Move from DICOM 1-based indexing to python 0-based
-        frame_index = frame_number - 1
-        if frame_index < 0 or frame_index >= segmentation.NumberOfFrames:
-            raise ValueError(
-                f'Frame {frame_number} is an invalid frame number within the '
-                'provided dataset. Note that frame indices are 1-based.'
-            )
-
-        frame_info = segmentation.PerFrameFunctionalGroupsSequence[frame_index]
-
-        segment_info = frame_info.SegmentIdentificationSequence[0]
-        segment_number = segment_info.ReferencedSegmentNumber
-
-        # Try to deduce the single source image from per-frame functional
-        # groups
-        found_source_image = False
-        if hasattr(frame_info, 'DerivationImageSequence'):
-            if len(frame_info.DerivationImageSequence) != 1:
-                raise ValueError(
-                    'Could not deduce a single source image from the '
-                    'provided dataset. Found multiple items in '
-                    'DerivationImageSequence for the given frame.'
+        if frame_number is None:
+            if segment_number is None:
+                raise TypeError(
+                    'Argument "segment_number" is required if argument '
+                    '"frame_number" is not provided.'
                 )
-            drv_image = frame_info.DerivationImageSequence[0]
+            frame_numbers = [
+                i + 1
+                for i, item in enumerate(
+                    segmentation.PerFrameFunctionalGroupsSequence
+                )
+                if segment_number == (
+                    item
+                    .SegmentIdentificationSequence[0]
+                    .ReferencedSegmentNumber
+                )
+            ]
+            if len(frame_numbers) == 0:
+                raise ValueError(
+                    f'Could not find a frame for segment #{segment_number}.'
+                )
+            elif len(frame_numbers) > 1:
+                if not hasattr(segmentation, 'TotalPixelMatrixRows'):
+                    raise ValueError(
+                        'Found more than one frame for segment '
+                        f'#{segment_number}, but the total pixel matrix of '
+                        'the segmentation image is not tiled.'
+                    )
+        else:
+            if isinstance(frame_number, int):
+                frame_numbers = [frame_number]
+            else:
+                frame_numbers = frame_number
 
-            if hasattr(drv_image, 'SourceImageSequence'):
-                if len(drv_image.SourceImageSequence) != 1:
+        number_of_frames = int(segmentation.NumberOfFrames)
+        segment_numbers = []
+        found_source_image = False
+        for frame_number in frame_numbers:
+            if frame_number < 1 or frame_number > number_of_frames:
+                raise ValueError(
+                    'Value {frame_number} is not a valid frame number.'
+                )
+            frame_index = frame_number - 1
+            item = segmentation.PerFrameFunctionalGroupsSequence[frame_index]
+            segment_numbers.append(
+                item
+                .SegmentIdentificationSequence[0]
+                .ReferencedSegmentNumber
+            )
+            if hasattr(item, 'DerivationImageSequence'):
+                if len(item.DerivationImageSequence) != 1:
                     raise ValueError(
                         'Could not deduce a single source image from the '
-                        'provided dataset. Found multiple items in '
-                        'SourceImageSequence for the given frame.'
+                        'provided segmentation. Found multiple items in '
+                        f'Derivation Image Sequence for frame #{frame_number}.'
                     )
-                src = drv_image.SourceImageSequence[0]
-                source_image = SourceImageForSegmentation(
-                    referenced_sop_class_uid=src.ReferencedSOPClassUID,
-                    referenced_sop_instance_uid=src.ReferencedSOPInstanceUID
-                )
-                found_source_image = True
+                drv_image = item.DerivationImageSequence[0]
+
+                if hasattr(drv_image, 'SourceImageSequence'):
+                    if len(drv_image.SourceImageSequence) != 1:
+                        raise ValueError(
+                            'Could not deduce a single source image from the '
+                            'provided segmentation. Found multiple items in '
+                            f'Source Image Sequence for frame #{frame_number}.'
+                        )
+                    src = drv_image.SourceImageSequence[0]
+                    source_image = SourceImageForSegmentation(
+                        src.ReferencedSOPClassUID,
+                        src.ReferencedSOPInstanceUID,
+                        frame_numbers
+                    )
+                    found_source_image = True
+                    break
 
         if not found_source_image:
             if hasattr(segmentation, 'ReferencedSeriesSequence'):
@@ -1444,8 +1483,8 @@ class ReferencedSegmentationFrame(ContentSequence):
                     if len(ref_series.ReferencedInstanceSequence) != 1:
                         raise ValueError(
                             'Could not deduce a single source image from the '
-                            'provided dataset. Found multiple instances in '
-                            'ReferencedInstanceSequence.'
+                            'provided segmentation. Found multiple instances '
+                            'in Referenced Instance Sequence.'
                         )
                     src = ref_series.ReferencedInstanceSequence[0]
                     source_image = SourceImageForSegmentation(
@@ -1455,20 +1494,30 @@ class ReferencedSegmentationFrame(ContentSequence):
                 else:
                     raise AttributeError(
                         'The ReferencedSeriesSequence in the segmentation '
-                        'dataset does not contain the expected information'
+                        'dataset does not contain the expected information.'
                     )
             else:
                 raise AttributeError(
-                    'Could not deduce source images. Dataset contains neither '
-                    'a DerivationImageSequence for the given frame, nor a '
-                    'ReferencedSeriesSequence '
+                    'Could not deduce source images. Segmentation contains '
+                    'neither a Derivation Image Sequence for the given frame, '
+                    'nor a Referenced Series Sequence '
                 )
+
+        segment_numbers = list(set(segment_numbers))
+        if len(segment_numbers) > 1:
+            raise ValueError(
+                f'Found more than one segment for frames {frame_numbers}.'
+            )
 
         return cls(
             sop_class_uid=segmentation.SOPClassUID,
             sop_instance_uid=segmentation.SOPInstanceUID,
-            frame_number=frame_number,
-            segment_number=segment_number,
+            frame_number=(
+                frame_numbers
+                if len(frame_numbers) > 1
+                else frame_numbers[0]
+            ),
+            segment_number=segment_numbers[0],
             source_image=source_image
         )
 
