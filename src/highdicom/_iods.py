@@ -1,8 +1,9 @@
-"""DICOM information object definitions (IODs)
-auto-generated on 2021-01-19 at 11:34:25.
+"""DICOM Information Object Definitions (IODs)
+auto-generated on 2021-08-12 at 18:23:25.
 """
+from typing import Dict, List
 
-IOD_MODULE_MAP = {
+IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
     "12-lead-ecg": [
         {
             "ie": "Patient",
@@ -857,6 +858,83 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
+    "body-position-waveform": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "breast-projection-x-ray-image": [
         {
             "ie": "Patient",
@@ -1234,6 +1312,108 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "RT Radiation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
+    "c-arm-photon-electron-radiation-record": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-record-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "c-arm-photon-electron-delivery-device",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "c-arm-photon-electron-beam",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
             "key": "radiotherapy-common-instance",
             "usage": "M"
         }
@@ -1949,12 +2129,12 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Procedure Protocol",
-            "key": "defined-ct-acquisition",
+            "key": "general-defined-acquisition",
             "usage": "U"
         },
         {
             "ie": "Procedure Protocol",
-            "key": "defined-ct-reconstruction",
+            "key": "general-defined-reconstruction",
             "usage": "U"
         },
         {
@@ -2008,6 +2188,11 @@ IOD_MODULE_MAP = {
             "ie": "Frame of Reference",
             "key": "frame-of-reference",
             "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
         },
         {
             "ie": "Equipment",
@@ -2257,6 +2442,108 @@ IOD_MODULE_MAP = {
             "ie": "Spatial Registration",
             "key": "sop-common",
             "usage": "M"
+        }
+    ],
+    "dermoscopic-photography-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "vl-photographic-equipment",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "acquisition-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "vl-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "vl-photographic-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "dermoscopic-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "U"
         }
     ],
     "digital-intra-oral-x-ray-image": [
@@ -2793,6 +3080,160 @@ IOD_MODULE_MAP = {
             "ie": "Image",
             "key": "common-instance-reference",
             "usage": "U"
+        }
+    ],
+    "electromyogram": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
+    "electrooculogram": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
         }
     ],
     "encapsulated-cda": [
@@ -3925,6 +4366,73 @@ IOD_MODULE_MAP = {
             "ie": "Image",
             "key": "frame-extraction",
             "usage": "C"
+        }
+    ],
+    "enhanced-x-ray-radiation-dose-structured-report": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "sr-document-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sr-document-general",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sr-document-content",
+            "usage": "M"
+        },
+        {
+            "ie": "Document",
+            "key": "sop-common",
+            "usage": "M"
         }
     ],
     "enhanced-xa-image": [
@@ -5978,6 +6486,83 @@ IOD_MODULE_MAP = {
             "ie": "MR Spectroscopy",
             "key": "frame-extraction",
             "usage": "C"
+        }
+    ],
+    "multi-channel-respiratory-waveform": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
         }
     ],
     "multi-frame-grayscale-byte-sc-image": [
@@ -9112,6 +9697,185 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
+    "robotic-arm-radiation-record": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-record-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "robotic-arm-delivery-device",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "robotic-arm-path",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
+    "routine-scalp-electroencephalogram": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "rt-beams-delivery-instruction": [
         {
             "ie": "Patient",
@@ -10042,6 +10806,180 @@ IOD_MODULE_MAP = {
             "usage": "U"
         }
     ],
+    "rt-radiation-record-set": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-record-set",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-dose-contribution-record",
+            "usage": "C"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
+    "rt-radiation-salvage-record": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-record-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-salvage-record",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
     "rt-radiation-set": [
         {
             "ie": "Patient",
@@ -10646,6 +11584,83 @@ IOD_MODULE_MAP = {
             "usage": "M"
         }
     ],
+    "sleep-electroencephalogram": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "spatial-fiducials": [
         {
             "ie": "Patient",
@@ -11018,6 +12033,11 @@ IOD_MODULE_MAP = {
             "usage": "M"
         },
         {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
             "ie": "Equipment",
             "key": "general-equipment",
             "usage": "M"
@@ -11092,6 +12112,11 @@ IOD_MODULE_MAP = {
         {
             "ie": "Series",
             "key": "optical-surface-scanner-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
             "usage": "M"
         },
         {
@@ -11305,6 +12330,108 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "RT Radiation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
+    "tomotherapeutic-radiation-record": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-delivery-device-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "rt-radiation-record-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "tomotherapeutic-delivery-device",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "tomotherapeutic-beam",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Delivered Radiation",
             "key": "radiotherapy-common-instance",
             "usage": "M"
         }
@@ -11621,6 +12748,16 @@ IOD_MODULE_MAP = {
         },
         {
             "ie": "Image",
+            "key": "overlay-plane",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-overlay",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
             "key": "voi-lut",
             "usage": "U"
         },
@@ -11893,6 +13030,11 @@ IOD_MODULE_MAP = {
         {
             "ie": "Series",
             "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
             "usage": "U"
         },
         {
@@ -13719,6 +14861,170 @@ IOD_MODULE_MAP = {
             "usage": "C"
         }
     ],
+    "xa-defined-procedure-protocol": [
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "protocol-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "clinical-trial-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-specification",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "equipment-specification",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "instructions",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-positioning",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "general-defined-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "general-defined-reconstruction",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "defined-storage",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
+    "xa-performed-procedure-protocol": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "xa-protocol-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "protocol-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-protocol-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "instructions",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "patient-positioning",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-xa-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-xa-reconstruction",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "performed-storage",
+            "usage": "U"
+        },
+        {
+            "ie": "Procedure Protocol",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "xa-xrf-grayscale-softcopy-presentation-state": [
         {
             "ie": "Patient",
@@ -13900,6 +15206,8 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.200.1": "ct-defined-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.200.2": "ct-performed-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.200.3": "protocol-approval",
+    "1.2.840.10008.5.1.4.1.1.200.7": "xa-defined-procedure-protocol",
+    "1.2.840.10008.5.1.4.1.1.200.8": "xa-performed-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.3.1": "us-multi-frame-image",
     "1.2.840.10008.5.1.4.1.1.30": "parametric-map",
     "1.2.840.10008.5.1.4.1.1.4": "mr-image",
@@ -13914,7 +15222,12 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.481.13": "c-arm-photon-electron-radiation",
     "1.2.840.10008.5.1.4.1.1.481.14": "tomotherapeutic-radiation",
     "1.2.840.10008.5.1.4.1.1.481.15": "robotic-arm-radiation",
+    "1.2.840.10008.5.1.4.1.1.481.16": "rt-radiation-record-set",
+    "1.2.840.10008.5.1.4.1.1.481.17": "rt-radiation-salvage-record",
+    "1.2.840.10008.5.1.4.1.1.481.18": "tomotherapeutic-radiation-record",
+    "1.2.840.10008.5.1.4.1.1.481.19": "c-arm-photon-electron-radiation-record",
     "1.2.840.10008.5.1.4.1.1.481.2": "rt-dose",
+    "1.2.840.10008.5.1.4.1.1.481.20": "robotic-arm-radiation-record",
     "1.2.840.10008.5.1.4.1.1.481.3": "rt-structure-set",
     "1.2.840.10008.5.1.4.1.1.481.4": "rt-beams-treatment-record",
     "1.2.840.10008.5.1.4.1.1.481.5": "rt-plan",
@@ -13955,6 +15268,7 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.77.1.5.7": "ophthalmic-optical-coherence-tomography-en-face-image",
     "1.2.840.10008.5.1.4.1.1.77.1.5.8": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis",
     "1.2.840.10008.5.1.4.1.1.77.1.6": "vl-whole-slide-microscopy-image",
+    "1.2.840.10008.5.1.4.1.1.77.1.7": "dermoscopic-photography-image",
     "1.2.840.10008.5.1.4.1.1.78.1": "lensometry-measurements",
     "1.2.840.10008.5.1.4.1.1.78.2": "autorefraction-measurements",
     "1.2.840.10008.5.1.4.1.1.78.3": "keratometry-measurements",
@@ -13985,6 +15299,7 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.88.73": "patient-radiation-dose-structured-report",
     "1.2.840.10008.5.1.4.1.1.88.74": "planned-imaging-agent-administration-sr",
     "1.2.840.10008.5.1.4.1.1.88.75": "performed-imaging-agent-administration-sr",
+    "1.2.840.10008.5.1.4.1.1.88.76": "patient-radiation-dose-structured-report",
     "1.2.840.10008.5.1.4.1.1.9.1.1": "12-lead-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.2": "general-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.3": "ambulatory-ecg",
@@ -13994,6 +15309,12 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.9.4.2": "general-audio-waveform",
     "1.2.840.10008.5.1.4.1.1.9.5.1": "arterial-pulse-waveform",
     "1.2.840.10008.5.1.4.1.1.9.6.1": "respiratory-waveform",
+    "1.2.840.10008.5.1.4.1.1.9.6.2": "multi-channel-respiratory-waveform",
+    "1.2.840.10008.5.1.4.1.1.9.7.1": "routine-scalp-electroencephalogram",
+    "1.2.840.10008.5.1.4.1.1.9.7.2": "electromyogram",
+    "1.2.840.10008.5.1.4.1.1.9.7.3": "electrooculogram",
+    "1.2.840.10008.5.1.4.1.1.9.7.4": "sleep-electroencephalogram",
+    "1.2.840.10008.5.1.4.1.1.9.8.1": "body-position-waveform",
     "1.2.840.10008.5.1.4.1.1.90.1": "content-assessment-results",
     "1.2.840.10008.5.1.4.34.10": "rt-brachy-application-setup-delivery-instruction",
     "1.2.840.10008.5.1.4.34.7": "rt-beams-delivery-instruction",

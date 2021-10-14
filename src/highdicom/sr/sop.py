@@ -3,11 +3,11 @@ import datetime
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Mapping, List, Optional, Sequence, Tuple, Union
+from typing import Any, cast, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
-from pydicom.valuerep import DT
+from pydicom.valuerep import DT, PersonName
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
     Comprehensive3DSRStorage,
@@ -19,7 +19,8 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
 from highdicom.sr.utils import find_content_items
-from highdicom.sr.value_types import ContentSequence
+from highdicom.sr.value_types import ContentItem, ContentSequence
+from highdicom.valuerep import check_person_name
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class _SR(SOPClass):
         is_verified: bool = False,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
+        verifying_observer_name: Optional[Union[str, PersonName]] = None,
         verifying_organization: Optional[str] = None,
         performed_procedure_codes: Optional[
             Sequence[Union[Code, CodedConcept]]
@@ -86,24 +87,24 @@ class _SR(SOPClass):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+        verifying_organization: Union[str, None], optional
+            Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset], optional
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -168,6 +169,7 @@ class _SR(SOPClass):
                 )
             self.VerificationFlag = 'VERIFIED'
             observer_item = Dataset()
+            check_person_name(verifying_observer_name)
             observer_item.VerifyingObserverName = verifying_observer_name
             observer_item.VerifyingOrganization = verifying_organization
             observer_item.VerificationDateTime = DT(now)
@@ -184,6 +186,9 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
+        content_copy = deepcopy(content)
+        content_item = ContentItem._from_dataset_derived(content_copy)
+        self._content = ContentSequence([content_item], is_root=True)
         for tag, value in content.items():
             self[tag] = value
 
@@ -305,7 +310,7 @@ class _SR(SOPClass):
             When a SOP instance is referenced in `content` but not provided as
             `evidence`
 
-        """  # noqa
+        """  # noqa: E501
         references = find_content_items(
             content,
             value_type=ValueTypeValues.IMAGE,
@@ -349,24 +354,53 @@ class _SR(SOPClass):
         unref_items = self._create_references(unref_group)
         return (ref_items, unref_items)
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> Dataset:
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Comprehensive SR document
+
+        Returns
+        -------
+        highdicom.sr.sop._SR
+            SR document
+
+        """
+        if not hasattr(dataset, 'ContentSequence'):
+            raise ValueError('Dataset is not an SR document.')
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ = cls
+
+        root_item = Dataset()
+        root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
+        root_item.ContentSequence = dataset.ContentSequence
+        root_item.ValueType = dataset.ValueType
+        root_item.ContinuityOfContent = dataset.ContinuityOfContent
+        try:
+            root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
+            tid_item = dataset.ContentTemplateSequence[0]
+            if tid_item.TemplateIdentifier == '1500':
+                sop_instance._content = MeasurementReport.from_sequence(
+                    [root_item]
+                )
+            else:
+                sop_instance._content = ContentSequence.from_sequence(
+                    [root_item], is_root=True
+                )
+        except AttributeError:
+            sop_instance._content = ContentSequence.from_sequence(
+                [root_item], is_root=True
+            )
+
+        return sop_instance
+
     @property
     def content(self) -> ContentSequence:
         """highdicom.sr.value_types.ContentSequence: SR document content"""
-        root_item = Dataset()
-        root_item.ConceptNameCodeSequence = self.ConceptNameCodeSequence
-        root_item.ContentSequence = self.ContentSequence
-        root_item.ValueType = self.ValueType
-        root_item.ContinuityOfContent = self.ContinuityOfContent
-        root_item.RelationshipType = None
-        try:
-            root_item.ContentTemplateSequence = self.ContentTemplateSequence
-            tid_item = self.ContentTemplateSequence[0]
-            if tid_item.TemplateIdentifier == '1500':
-                return MeasurementReport.from_sequence([root_item])
-            else:
-                return ContentSequence.from_sequence([root_item])
-        except AttributeError:
-            return ContentSequence.from_sequence([root_item])
+        return self._content
 
 
 class EnhancedSR(_SR):
@@ -392,7 +426,7 @@ class EnhancedSR(_SR):
         is_verified: bool = False,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
+        verifying_observer_name: Optional[Union[str, PersonName]] = None,
         verifying_organization: Optional[str] = None,
         performed_procedure_codes: Optional[
             Sequence[Union[Code, CodedConcept]]
@@ -432,24 +466,24 @@ class EnhancedSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+        verifying_organization: Union[str, None], optional
+            Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset], optional
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -560,24 +594,24 @@ class ComprehensiveSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+        verifying_organization: Union[str, None], optional
+            Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -627,7 +661,7 @@ class ComprehensiveSR(_SR):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'ComprehensiveSR':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -642,9 +676,9 @@ class ComprehensiveSR(_SR):
         """
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
-        sop_instance = deepcopy(dataset)
-        sop_instance.__class__ = cls
-        return sop_instance
+        sop_instance = super().from_dataset(dataset)
+        sop_instance.__class__ = ComprehensiveSR
+        return cast(ComprehensiveSR, sop_instance)
 
 
 class Comprehensive3DSR(_SR):
@@ -709,24 +743,24 @@ class Comprehensive3DSR(_SR):
         is_verified: bool, optional
             Whether the report has been verified by an observer accountable
             for its content (default: ``False``)
-        institution_name: str, optional
+        institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
             SR document instance
-        institutional_department_name: str, optional
+        institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance
-        verifying_observer_name: Union[str, None], optional
-            Name of the person that verfied the SR document
+        verifying_observer_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the person that verified the SR document
             (required if `is_verified`)
-        verifying_organization: str, optional
-            Name of the organization that verfied the SR document
+        verifying_organization: Union[str, None], optional
+            Name of the organization that verified the SR document
             (required if `is_verified`)
-        performed_procedure_codes: List[highdicom.sr.CodedConcept], optional
+        performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
-        requested_procedures: List[pydicom.dataset.Dataset]
+        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             SR document
-        previous_versions: List[pydicom.dataset.Dataset], optional
+        previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
         record_evidence: bool, optional
             Whether provided `evidence` should be recorded (i.e. included
@@ -766,7 +800,7 @@ class Comprehensive3DSR(_SR):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Comprehensive3DSR':
-        """Construct instance from an existing dataset.
+        """Construct object from an existing dataset.
 
         Parameters
         ----------
@@ -781,6 +815,6 @@ class Comprehensive3DSR(_SR):
         """
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
-        sop_instance = deepcopy(dataset)
-        sop_instance.__class__ = cls
-        return sop_instance
+        sop_instance = super().from_dataset(dataset)
+        sop_instance.__class__ = Comprehensive3DSR
+        return cast(Comprehensive3DSR, sop_instance)

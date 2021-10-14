@@ -52,11 +52,9 @@ class ImageToReferenceTransformer(object):
     >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
     >>>     pixel_spacing=[0.5, 0.5]
     >>> )
-    >>>
     >>> # Use the transformer to convert coordinates
     >>> image_coords = np.array([[0.0, 10.0], [5.0, 5.0]])
     >>> ref_coords = transformer(image_coords)
-    >>>
     >>> print(ref_coords)
     >>> # [[56.  39.2  1. ]
     >>> #  [58.5 36.7  1. ]]
@@ -247,7 +245,7 @@ class ReferenceToImageTransformer(object):
             bottom, increasing Row index) and the rows direction (second value:
             spacing between columns: horizontal, left to right, increasing
             Column index)
-        spacing_between_slices: float
+        spacing_between_slices: float, optional
             Distance (in the coordinate defined by the Frame of Reference)
             between neighboring slices. Default: 1
 

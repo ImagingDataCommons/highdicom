@@ -27,7 +27,7 @@ class CodedConcept(Dataset):
             designator of coding scheme
         meaning: str
             meaning of the code
-        scheme_version: str, optional
+        scheme_version: Union[str, None], optional
             version of coding scheme
 
         """
@@ -47,6 +47,9 @@ class CodedConcept(Dataset):
             self.CodingSchemeVersion = str(scheme_version)
         # TODO: Enhanced Code Sequence Macro Attributes
 
+    def __hash__(self) -> int:
+        return hash(self.scheme_designator + self.value)
+
     def __eq__(self, other: Any) -> bool:
         """Compares `self` and `other` for equality.
 
@@ -61,7 +64,13 @@ class CodedConcept(Dataset):
             whether `self` and `other` are considered equal
 
         """
-        return Code.__eq__(self, other)
+        this = Code(
+            self.value,
+            self.scheme_designator,
+            self.meaning,
+            self.scheme_version
+        )
+        return Code.__eq__(this, other)
 
     def __ne__(self, other: Any) -> bool:
         """Compares `self` and `other` for inequality.
@@ -78,6 +87,46 @@ class CodedConcept(Dataset):
 
         """
         return not (self == other)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'CodedConcept':
+        """Construct a CodedConcept from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a coded concept.
+
+        Returns
+        -------
+        highdicom.sr.coding.CodedConcept:
+            Coded concept representation of the dataset.
+
+        Raises
+        ------
+        TypeError:
+            If the passed dataset is not a pydicom dataset.
+        AttributeError:
+            If the dataset does not contain the required elements for a
+            coded concept.
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be a pydicom.dataset.Dataset.'
+            )
+        for kw in ['CodeValue', 'CodeMeaning', 'CodingSchemeDesignator']:
+            if not hasattr(dataset, kw):
+                raise AttributeError(
+                    'Dataset does not contain the following attribute '
+                    f'required for coded concepts: {kw}.'
+                )
+        return cls(
+            value=dataset.CodeValue,
+            scheme_designator=dataset.CodingSchemeDesignator,
+            meaning=dataset.CodeMeaning,
+            scheme_version=getattr(dataset, 'CodingSchemeVersion', None)
+        )
 
     @property
     def value(self) -> str:
@@ -106,6 +155,6 @@ class CodedConcept(Dataset):
         return self.CodingSchemeDesignator
 
     @property
-    def scheme_version(self) -> str:
+    def scheme_version(self) -> Optional[str]:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)

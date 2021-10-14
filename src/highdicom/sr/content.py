@@ -1,11 +1,17 @@
 """Content items for Structured Report document instances."""
-from typing import Optional, Sequence, Union
+import logging
+from copy import deepcopy
+from typing import cast, List, Optional, Sequence, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom._storage_sopclass_uids import (
+    SegmentationStorage,
+    VLWholeSlideMicroscopyImageStorage
+)
 from pydicom.dataset import Dataset
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
+from highdicom.uid import UID
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -16,6 +22,7 @@ from highdicom.sr.enum import (
 )
 from highdicom.sr.utils import find_content_items
 from highdicom.sr.value_types import (
+    ContentItem,
     CodeContentItem,
     CompositeContentItem,
     ContentSequence,
@@ -25,6 +32,9 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
@@ -49,17 +59,18 @@ def _check_valid_source_image_dataset(dataset: Dataset) -> None:
         measurement, segmentation, or region.
 
     """
-    # Check that there is some form of pixel data present
+    # Check that some of the image pixel description attributes are present
     pixel_data_keywords = [
-        'PixelData',
-        'FloatPixelData',
-        'DoubleFloatPixelData'
+        'Rows',
+        'Columns',
+        'SamplesPerPixel',
+        'PixelRepresentation',
     ]
     if not any(hasattr(dataset, attr) for attr in pixel_data_keywords):
         raise ValueError(
             'Dataset does not represent a valid source image for '
             'a measurement, segmentation, or region because it '
-            'contains no pixel data.'
+            'lacks image pixel description attributes.'
         )
     # Check for obviously invalid modalities
     disallowed_modalities = [
@@ -104,22 +115,22 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
 
     def __init__(
         self,
-        value: Optional[Union[int, float]],
-        unit: Optional[Union[CodedConcept, Code]] = None,
-        event_type: Optional[Union[CodedConcept, Code]] = None
+        value: Union[int, float],
+        unit: Union[CodedConcept, Code],
+        event_type: Union[CodedConcept, Code]
     ) -> None:
         """
         Parameters
         ----------
-        value: Union[int, float], optional
-            offset in time from a particular event of significance
-        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            unit of time, e.g., "Days" or "Seconds"
-        event_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            type of event to which offset is relative,
+        value: Union[int, float]
+            Offset in time from a particular event of significance
+        unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Unit of time, e.g., "Days" or "Seconds"
+        event_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Type of event to which offset is relative,
             e.g., "Baseline" or "Enrollment"
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='128740',
@@ -141,6 +152,35 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         )
         self.ContentSequence = ContentSequence([event_type_item])
 
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset
+    ) -> 'LongitudinalTemporalOffsetFromEvent':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.LongitudinalTemporalOffsetFromEvent
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(
+        cls,
+        dataset: Dataset
+    ) -> 'LongitudinalTemporalOffsetFromEvent':
+        item = super()._from_dataset_base(dataset)
+        return cast(LongitudinalTemporalOffsetFromEvent, item)
+
 
 class SourceImageForMeasurement(ImageContentItem):
 
@@ -149,11 +189,11 @@ class SourceImageForMeasurement(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -161,7 +201,7 @@ class SourceImageForMeasurement(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -201,7 +241,7 @@ class SourceImageForMeasurement(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -223,6 +263,29 @@ class SourceImageForMeasurement(ImageContentItem):
             referenced_frame_numbers=referenced_frame_numbers
         )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurement':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.SourceImageForMeasurement
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurement':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceImageForMeasurement, item)
+
 
 class SourceImageForRegion(ImageContentItem):
 
@@ -231,11 +294,11 @@ class SourceImageForRegion(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ):
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
         """
         Parameters
         ----------
@@ -243,7 +306,7 @@ class SourceImageForRegion(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -283,7 +346,7 @@ class SourceImageForRegion(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -305,6 +368,29 @@ class SourceImageForRegion(ImageContentItem):
             referenced_frame_numbers=referenced_frame_numbers
         )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForRegion':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.SourceImageForRegion
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForRegion':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceImageForRegion, item)
+
 
 class SourceImageForSegmentation(ImageContentItem):
 
@@ -313,11 +399,11 @@ class SourceImageForSegmentation(ImageContentItem):
     """
 
     def __init__(
-            self,
-            referenced_sop_class_uid: str,
-            referenced_sop_instance_uid: str,
-            referenced_frame_numbers: Optional[Sequence[int]] = None
-        ) -> None:
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -325,7 +411,7 @@ class SourceImageForSegmentation(ImageContentItem):
             SOP Class UID of the referenced image object
         referenced_sop_instance_uid: str
             SOP Instance UID of the referenced image object
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -365,7 +451,7 @@ class SourceImageForSegmentation(ImageContentItem):
         ----------
         image: pydicom.dataset.Dataset
             Dataset representing the image to be referenced
-        referenced_frame_numbers: Sequence[int], optional
+        referenced_frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies in case the
             referenced image is a multi-frame image
 
@@ -386,6 +472,29 @@ class SourceImageForSegmentation(ImageContentItem):
             referenced_sop_instance_uid=image.SOPInstanceUID,
             referenced_frame_numbers=referenced_frame_numbers
         )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForSegmentation':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.SourceImageForSegmentation
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForSegmentation':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceImageForSegmentation, item)
 
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
@@ -436,6 +545,29 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
             referenced_series_instance_uid=image.SeriesInstanceUID,
         )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceSeriesForSegmentation':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.SourceSeriesForSegmentation
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'SourceSeriesForSegmentation':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceSeriesForSegmentation, item)
+
 
 class ImageRegion(ScoordContentItem):
 
@@ -460,9 +592,9 @@ class ImageRegion(ScoordContentItem):
         graphic_data: numpy.ndarray
             array of ordered spatial coordinates, where each row of the array
             represents a (column, row) coordinate pair
-        source_image: highdicom.sr.template.SourceImageForRegion
+        source_image: highdicom.sr.SourceImageForRegion
             source image to which `graphic_data` relates
-        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str], optional
+        pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
             whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
@@ -471,7 +603,7 @@ class ImageRegion(ScoordContentItem):
             of the source image
             (default: ``highdicom.sr.PixelOriginInterpretationValues.VOLUME``)
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues(graphic_type)
         if graphic_type == GraphicTypeValues.MULTIPOINT:
             raise ValueError(
@@ -481,15 +613,19 @@ class ImageRegion(ScoordContentItem):
             raise TypeError(
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
-        if pixel_origin_interpretation is None:
-            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
-            if (not hasattr(source_image, 'ReferencedFrameNumber') or
-                    source_image.ReferencedFrameNumber is None):
+            ref_sop_item = source_image.ReferencedSOPSequence[0]
+            if (not hasattr(ref_sop_item, 'ReferencedFrameNumber') or
+                    ref_sop_item.ReferencedFrameNumber is None):
                 raise ValueError(
                     'Frame number of source image must be specified when value '
                     'of argument "pixel_origin_interpretation" is "FRAME".'
                 )
+        ref_sop_instance_item = source_image.ReferencedSOPSequence[0]
+        ref_sop_class_uid = ref_sop_instance_item.ReferencedSOPClassUID
+        if (ref_sop_class_uid == VLWholeSlideMicroscopyImageStorage and
+                pixel_origin_interpretation is None):
+            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
         super().__init__(
             name=CodedConcept(
                 value='111030',
@@ -502,6 +638,29 @@ class ImageRegion(ScoordContentItem):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         self.ContentSequence = [source_image]
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.ImageRegion
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
+        item = super()._from_dataset_base(dataset)
+        return cast(ImageRegion, item)
 
 
 class ImageRegion3D(Scoord3DContentItem):
@@ -527,7 +686,7 @@ class ImageRegion3D(Scoord3DContentItem):
         frame_of_reference_uid: str
             UID of the frame of reference
 
-        """  # noqa
+        """  # noqa: E501
         graphic_type = GraphicTypeValues3D(graphic_type)
         if graphic_type == GraphicTypeValues3D.MULTIPOINT:
             raise ValueError(
@@ -549,17 +708,40 @@ class ImageRegion3D(Scoord3DContentItem):
             relationship_type=RelationshipTypeValues.CONTAINS
         )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
+        """Construct object from an existing dataset.
 
-class VolumeSurface(Scoord3DContentItem):
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
 
-    """Content item representing a volume surface in the the three-dimensional
+        Returns
+        -------
+        highdicom.sr.ImageRegion3D
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
+        item = super()._from_dataset_base(dataset)
+        return cast(ImageRegion3D, item)
+
+
+class VolumeSurface(ContentSequence):
+
+    """Content sequence representing a volume surface in the the three-dimensional
     patient/slide coordinate system in millimeter unit.
     """
 
     def __init__(
         self,
         graphic_type: Union[GraphicTypeValues3D, str],
-        graphic_data: np.ndarray,
+        graphic_data: Union[np.ndarray, Sequence[np.ndarray]],
         frame_of_reference_uid: str,
         source_images: Optional[
             Sequence[SourceImageForSegmentation]
@@ -570,39 +752,87 @@ class VolumeSurface(Scoord3DContentItem):
         Parameters
         ----------
         graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
-            name of the graphic type
-        graphic_data: Sequence[Sequence[int]]
-            ordered set of (row, column, frame) coordinate pairs
+            name of the graphic type. Permissible values are "ELLIPSOID",
+            "POINT", "ELLIPSE" or "POLYGON".
+        graphic_data: Union[np.ndarray, Sequence[np.ndarray]]
+            List of graphic data for elements of the volume surface. Each item
+            of the list should be a 2D numpy array representing the graphic
+            data for a single element of type ``graphic_type``.
+
+            If `graphic_type` is ``"ELLIPSOID"`` or ``"POINT"``, the volume
+            surface will consist of a single element that defines the entire
+            surface. Therefore, a single 2D NumPy array should be passed
+            as a list of length 1 or as a NumPy array directly.
+
+            If `graphic_type` is ``"ELLIPSE"`` or ``"POLYGON"``, the volume
+            surface will consist of two or more planar regions that together
+            define the surface. Therefore a list of two or more 2D NumPy
+            arrays should be passed.
+
+            Each 2D NumPy array should have dimension N x 3 where each row of
+            the array represents a coordinate in the 3D Frame of Reference. The
+            number, N, and meaning of the coordinates depends upon the value of
+            `graphic_type`. See :class:`highdicom.sr.GraphicTypeValues3D` for
+            details.
+
         frame_of_reference_uid: str
             unique identifier of the frame of reference within which the
             coordinates are defined
-        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
+        source_images: Union[Sequence[highdicom.sr.SourceImageForSegmentation], None], optional
             source images for segmentation
-        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
+        source_series: Union[highdicom.sr.SourceSeriesForSegmentation, None], optional
             source series for segmentation
 
         Note
         ----
         Either one or more source images or one source series must be provided.
 
-        """  # noqa
-        graphic_type = GraphicTypeValues3D(graphic_type)
-        if graphic_type != GraphicTypeValues3D.ELLIPSOID:
+        """  # noqa: E501
+        super().__init__()
+        self._graphic_type = GraphicTypeValues3D(graphic_type)
+
+        # Allow single 2D numpy array for backwards compatibility
+        if isinstance(graphic_data, np.ndarray) and graphic_data.ndim == 2:
+            graphic_data = [graphic_data]
+
+        if self._graphic_type in (
+            GraphicTypeValues3D.ELLIPSOID,
+            GraphicTypeValues3D.POINT
+        ):
+            if len(graphic_data) > 1:
+                raise ValueError(
+                    'If graphic type is "ELLIPSOID" or "POINT", graphic data '
+                    'should consist of a single item.'
+                )
+        elif self._graphic_type in (
+            GraphicTypeValues3D.ELLIPSE,
+            GraphicTypeValues3D.POLYGON
+        ):
+            if len(graphic_data) < 2:
+                raise ValueError(
+                    'If graphic type is "ELLIPSE" or "POLYGON", graphic data '
+                    'should consist of two or more items.'
+                )
+        else:
             raise ValueError(
-                'Graphic type for volume surface must be "ELLIPSOID".'
+                f'Graphic type "{self._graphic_type}" is not valid for volume '
+                'surfaces.'
             )
-        super().__init__(
-            name=CodedConcept(
-                value='121231',
-                meaning='Volume Surface',
-                scheme_designator='DCM'
-            ),
-            frame_of_reference_uid=frame_of_reference_uid,
-            graphic_type=graphic_type,
-            graphic_data=graphic_data,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        self.ContentSequence = ContentSequence()
+
+        for graphic_data_item in graphic_data:
+            self.append(
+                Scoord3DContentItem(
+                    name=CodedConcept(
+                        value='121231',
+                        meaning='Volume Surface',
+                        scheme_designator='DCM'
+                    ),
+                    frame_of_reference_uid=frame_of_reference_uid,
+                    graphic_type=self._graphic_type,
+                    graphic_data=graphic_data_item,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+            )
         if source_images is not None:
             for image in source_images:
                 if not isinstance(image, SourceImageForSegmentation):
@@ -610,19 +840,203 @@ class VolumeSurface(Scoord3DContentItem):
                         'Items of argument "source_image" must have type '
                         'SourceImageForSegmentation.'
                     )
-                self.ContentSequence.append(image)
+                self.append(image)
         elif source_series is not None:
             if not isinstance(source_series, SourceSeriesForSegmentation):
                 raise TypeError(
                     'Argument "source_series" must have type '
                     'SourceSeriesForSegmentation.'
                 )
-            self.ContentSequence.append(source_series)
+            self.append(source_series)
         else:
             raise ValueError(
                 'One of the following two arguments must be provided: '
                 '"source_images" or "source_series".'
             )
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'VolumeSurface':
+        """Construct an object from an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            one or more content items with concept name
+            'Volume Surface', and either a single
+            content item with concept name 'Source Series For Segmentation', or
+            1 or more content items with concept name
+            'Source Image For Segmentation'.
+
+        Returns
+        -------
+        highdicom.sr.VolumeSurface
+            Constructed VolumeSurface object, containing copies
+            of the original content items.
+
+        """
+        vol_surface_items: List[ContentItem] = []
+        source_image_items: List[ContentItem] = []
+        source_series_items: List[ContentItem] = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name == codes.DCM.VolumeSurface) and
+                (value_type == ValueTypeValues.SCOORD3D) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                vol_surface_items.append(
+                    Scoord3DContentItem.from_dataset(item)
+                )
+            elif (
+                (name == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+            elif (
+                (name == codes.DCM.SourceSeriesForSegmentation) and
+                (value_type == ValueTypeValues.UIDREF) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_series_items.append(
+                    SourceSeriesForSegmentation.from_dataset(item)
+                )
+
+        if len(vol_surface_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain one or more content items with '
+                'concept name "Volume Surface". Found 0.'
+            )
+
+        for item in vol_surface_items:
+            if item.graphic_type != vol_surface_items[0].graphic_type:
+                raise RuntimeError(
+                    'Expected all VolumeSurface content items to have a common '
+                    'graphic type.'
+                )
+
+        if len(source_image_items) == 0 and len(source_series_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain either at least one content item '
+                'with concept name "Source Image For Segmentation" or one '
+                'content item with concept name "Source Series For '
+                'Segmentation". Found neither.'
+            )
+        if len(source_image_items) > 0 and len(source_series_items) > 0:
+            raise RuntimeError(
+                'Sequence should not contain both content items '
+                'with concept name "Source Image For Segmentation" and a'
+                'content item with concept name "Source Series For '
+                'Segmentation".'
+            )
+
+        if len(source_image_items) > 0:
+            new_seq = ContentSequence(
+                vol_surface_items + source_image_items
+            )
+        else:
+            if len(source_series_items) > 1:
+                raise RuntimeError(
+                    'Sequence should contain at most one content item '
+                    'with concept name "Source Series For Segmentation". Found '
+                    f'{len(source_series_items)}.'
+                )
+            new_seq = ContentSequence(
+                vol_surface_items + source_series_items
+            )
+
+        new_seq.__class__ = cls
+        new_seq = cast(VolumeSurface, new_seq)
+        new_seq._graphic_type = vol_surface_items[0].graphic_type
+        return new_seq
+
+    @property
+    def graphic_type(self) -> GraphicTypeValues3D:
+        """highdicom.sr.GraphicTypeValues3D: Graphic type."""
+        return self._graphic_type
+
+    @property
+    def frame_of_reference_uid(self) -> UID:
+        """highdicom.UID: Frame of reference UID."""
+        return UID(self._graphic_data_items[0].frame_of_reference_uid)
+
+    def has_source_images(self) -> bool:
+        """Returns whether the object contains information about source images.
+
+        ReferencedSegment objects must either contain information about source
+        images or source series (and not both).
+
+        Returns
+        -------
+        bool:
+            True if the object contains information about source images. False
+            if the image contains information about the source series.
+
+        """
+        return len(self._lut[codes.DCM.SourceImageForSegmentation]) > 0
+
+    @property
+    def source_images_for_segmentation(
+        self
+    ) -> List[SourceImageForSegmentation]:
+        """List[highdicom.sr.SourceImageForSegmentation]:
+            Source images for the volume surface.
+        """
+        return self._lut[codes.DCM.SourceImageForSegmentation]
+
+    @property
+    def source_series_for_segmentation(
+        self
+    ) -> Optional[SourceSeriesForSegmentation]:
+        """Optional[highdicom.sr.SourceSeriesForSegmentation]:
+            Source series for the volume surface.
+        """
+        items = self._lut[codes.DCM.SourceSeriesForSegmentation]
+        if len(items) == 0:
+            return None
+        else:
+            return cast(SourceSeriesForSegmentation, items[0])
+
+    @property
+    def _graphic_data_items(self) -> List[Scoord3DContentItem]:
+        """List[highdicom.sr.Scoord3DContentItem]:
+            Graphic data elements that comprise the volume surface.
+        """
+        return cast(
+            List[Scoord3DContentItem],
+            self._lut[codes.DCM.VolumeSurface]
+        )
+
+    @property
+    def graphic_data(self) -> List[np.ndarray]:
+        """Union[np.ndarray, List[np.ndarray]]:
+            Graphic data arrays that comprise the volume surface.
+            For volume surfaces with graphic type ``"ELLIPSOID"``
+            or ``"POINT"``, this will be a single 2D Numpy array representing
+            the graphic data. Otherwise, it will be a list of 2D Numpy arrays
+            representing graphic data for each element of the volume surface.
+        """
+        if self.graphic_type in (
+            GraphicTypeValues3D.ELLIPSOID,
+            GraphicTypeValues3D.POINT
+        ):
+            return self._graphic_data_items[0].value
+        else:
+            return [item.value for item in self._graphic_data_items]
 
 
 class RealWorldValueMap(CompositeContentItem):
@@ -675,6 +1089,29 @@ class RealWorldValueMap(CompositeContentItem):
             referenced_sop_instance_uid=value_map_dataset.SOPInstanceUID,
         )
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'RealWorldValueMap':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.RealWorldValueMap
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'RealWorldValueMap':
+        item = super()._from_dataset_base(dataset)
+        return cast(RealWorldValueMap, item)
+
 
 class FindingSite(CodeContentItem):
 
@@ -691,14 +1128,13 @@ class FindingSite(CodeContentItem):
         ----------
         anatomic_location: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded anatomic location (region or structure)
-        laterality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
-            coded laterality
-            (see `CID 244 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_244.html>`_
+        laterality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            coded laterality (see :dcm:`CID 244 <part16/sect_CID_244.html>`
             "Laterality" for options)
-        topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
+        topographical_modifier: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             coded modifier of anatomic location
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__(
             name=CodedConcept(
                 value='363698007',
@@ -742,6 +1178,11 @@ class FindingSite(CodeContentItem):
         )
         if len(matches) > 0:
             return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Topographical Modifier" content item '
+                'in "Finding Site" content item'
+            )
         return None
 
     @property
@@ -753,7 +1194,35 @@ class FindingSite(CodeContentItem):
         )
         if len(matches) > 0:
             return matches[0].value
+        elif len(matches) > 1:
+            logger.warning(
+                'found more than one "Laterality" content item '
+                'in "Finding Site" content item'
+            )
         return None
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'FindingSite':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+
+        Returns
+        -------
+        highdicom.sr.FindingSite
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'FindingSite':
+        item = super()._from_dataset_base(dataset)
+        return cast(FindingSite, item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -806,6 +1275,74 @@ class ReferencedSegmentationFrame(ContentSequence):
                 'SourceImageForSegmentation.'
             )
         self.append(source_image)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'ReferencedSegmentationFrame':
+        """Construct an object from items within an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            content items with the following names:
+            "Referenced Segmentation Frame", "Source Image For Segmentation".
+            Any other other items will be ignored.
+
+        Returns
+        -------
+        highdicom.sr.ReferencedSegmentationFrame
+            Constructed ReferencedSegmentationFrame object, containing copies
+            of the relevant original content items.
+
+        """
+        seg_frame_items = []
+        source_image_items = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name == codes.DCM.ReferencedSegmentationFrame) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                seg_frame_items.append(
+                    ImageContentItem.from_dataset(item)
+                )
+            elif (
+                (name == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+
+        if len(seg_frame_items) != 1:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Referenced Segmentation Frame". Found '
+                f'{len(seg_frame_items)}.'
+            )
+        if len(source_image_items) != 1:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Source Image For Segmentation". Found '
+                f'{len(source_image_items)}.'
+            )
+
+        new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
+        new_seq.__class__ = cls
+        return new_seq
 
     @classmethod
     def from_segmentation(
@@ -934,6 +1471,41 @@ class ReferencedSegmentationFrame(ContentSequence):
             source_image=source_image
         )
 
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_class_uid
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_instance_uid
+
+    @property
+    def referenced_frame_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced frame numbers
+        """
+        return self[0].referenced_frame_numbers
+
+    @property
+    def referenced_segment_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced segment numbers
+        """
+        return self[0].referenced_segment_numbers
+
+    @property
+    def source_image_for_segmentation(self) -> SourceImageForSegmentation:
+        """highdicom.sr.SourceImageForSegmentation
+            Source image for the referenced segmentation
+        """
+        return self[1]
+
 
 class ReferencedSegment(ContentSequence):
 
@@ -962,19 +1534,19 @@ class ReferencedSegment(ContentSequence):
             SOP Instance UID of the referenced segmentation object
         segment_number: int
             number of the segment to which the reference applies
-        frame_numbers: Sequence[int], optional
+        frame_numbers: Union[Sequence[int], None], optional
             numbers of the frames to which the reference applies
             (in case a segmentation instance is referenced)
-        source_images: Sequence[highdicom.sr.SourceImageForSegmentation], optional
+        source_images: Union[Sequence[highdicom.sr.SourceImageForSegmentation], None], optional
             source images for segmentation
-        source_series: highdicom.sr.SourceSeriesForSegmentation, optional
+        source_series: Union[highdicom.sr.SourceSeriesForSegmentation, None], optional
             source series for segmentation
 
         Note
         ----
         Either `source_images` or `source_series` must be provided.
 
-        """  # noqa
+        """  # noqa: E501
         super().__init__()
         segment_item = ImageContentItem(
             name=CodedConcept(
@@ -1012,6 +1584,106 @@ class ReferencedSegment(ContentSequence):
             )
 
     @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset]
+    ) -> 'ReferencedSegment':
+        """Construct an object from items within an existing content sequence.
+
+        Parameters
+        ----------
+        sequence: Sequence[Dataset]
+            Sequence of datasets to be converted. This is expected to contain
+            a content item with concept name "Referenced Segmentation Frame",
+            and either at least one content item with concept name
+            "Source Image For Segmentation" or a single content item with
+            concept name "Source Series For Segmentation".
+            Any other other items will be ignored.
+
+        Returns
+        -------
+        highdicom.sr.ReferencedSegment
+            Constructed ReferencedSegment object, containing copies
+            of the original content items.
+
+        """
+        seg_frame_items: List[ContentItem] = []
+        source_image_items: List[ContentItem] = []
+        source_series_items: List[ContentItem] = []
+        for item in sequence:
+            name_item = item.ConceptNameCodeSequence[0]
+            name = Code(
+                value=name_item.CodeValue,
+                meaning=name_item.CodeMeaning,
+                scheme_designator=name_item.CodingSchemeDesignator
+            )
+            value_type = ValueTypeValues(item.ValueType)
+            rel_type = RelationshipTypeValues(item.RelationshipType)
+
+            if (
+                (name == codes.DCM.ReferencedSegment) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                seg_frame_items.append(
+                    ImageContentItem.from_dataset(item)
+                )
+            elif (
+                (name == codes.DCM.SourceImageForSegmentation) and
+                (value_type == ValueTypeValues.IMAGE) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_image_items.append(
+                    SourceImageForSegmentation.from_dataset(item)
+                )
+            elif (
+                (name == codes.DCM.SourceSeriesForSegmentation) and
+                (value_type == ValueTypeValues.UIDREF) and
+                (rel_type == RelationshipTypeValues.CONTAINS)
+            ):
+                source_series_items.append(
+                    SourceSeriesForSegmentation.from_dataset(item)
+                )
+
+        if len(seg_frame_items) != 1:
+            raise RuntimeError(
+                'Expected sequence to contain exactly one content item with '
+                'concept name "Referenced Segment". Found 0.'
+            )
+        if len(source_image_items) == 0 and len(source_series_items) == 0:
+            raise RuntimeError(
+                'Expected sequence to contain either at least one content item '
+                'with concept name "Source Image For Segmentation" or one '
+                'content item with concept name "Source Series For '
+                'Segmentation". Found neither.'
+            )
+        if len(source_image_items) > 0 and len(source_series_items) > 0:
+            raise RuntimeError(
+                'Sequence should not contain both content items '
+                'with concept name "Source Image For Segmentation" and a'
+                'content item with concept name "Source Series For '
+                'Segmentation".'
+            )
+
+        if len(source_image_items) > 0:
+            new_seq = ContentSequence(
+                seg_frame_items + source_image_items
+            )
+        else:
+            if len(source_series_items) > 1:
+                raise RuntimeError(
+                    'Sequence should contain at most one content item '
+                    'with concept name "Source Series For Segmentation". Found '
+                    f'{len(source_series_items)}.'
+                )
+            new_seq = ContentSequence(
+                seg_frame_items + source_series_items
+            )
+
+        new_seq.__class__ = cls
+        return cast(ReferencedSegment, new_seq)
+
+    @classmethod
     def from_segmentation(
         cls,
         segmentation: Dataset,
@@ -1027,7 +1699,7 @@ class ReferencedSegment(ContentSequence):
             segment
         segment_number: int
             number of the segment to reference within the provided dataset
-        frame_numbers: Optional[Sequence[int]], optional
+        frame_numbers: Union[Sequence[int], None], optional
             list of frames in the segmentation dataset to reference. If
             not provided, the reference is assumed to apply to all frames
             of the given segment number. Note that frame numbers are
@@ -1183,3 +1855,71 @@ class ReferencedSegment(ContentSequence):
             source_images=source_images if source_images else None,
             source_series=source_series
         )
+
+    def has_source_images(self) -> bool:
+        """Returns whether the object contains information about source images.
+
+        ReferencedSegment objects must either contain information about source
+        images or source series (and not both).
+
+        Returns
+        -------
+        bool:
+            True if the object contains information about source images. False
+            if the image contains information about the source series.
+
+        """
+        return self[1].name == codes.DCM.SourceImageForSegmentation
+
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_class_uid
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID
+            referenced SOP Class UID
+        """
+        return self[0].referenced_sop_instance_uid
+
+    @property
+    def referenced_frame_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced frame numbers
+        """
+        return self[0].referenced_frame_numbers
+
+    @property
+    def referenced_segment_numbers(self) -> Union[List[int], None]:
+        """Union[List[int], None]
+            referenced segment numbers
+        """
+        return self[0].referenced_segment_numbers
+
+    @property
+    def source_images_for_segmentation(
+        self
+    ) -> List[SourceImageForSegmentation]:
+        """List[highdicom.sr.SourceImageForSegmentation]
+            Source images for the referenced segmentation
+        """
+        if self.has_source_images():
+            return list(self[1:])
+        else:
+            return []
+
+    @property
+    def source_series_for_segmentation(self) -> Union[
+        SourceSeriesForSegmentation,
+        None
+    ]:
+        """Union[highdicom.sr.SourceSeriesForSegmentation, None]
+            Source series for the referenced segmentation
+        """
+        if self.has_source_images():
+            return None
+        else:
+            return cast(SourceSeriesForSegmentation, self[1])

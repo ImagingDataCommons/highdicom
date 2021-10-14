@@ -37,7 +37,7 @@ def _convert_legacy_to_enhanced(
     ----------
     sf_datasets: Sequence[pydicom.dataset.Dataset]
         DICOM data sets of single-frame legacy image instances
-    mf_dataset: pydicom.dataset.Dataset, optional
+    mf_dataset: Union[pydicom.dataset.Dataset, None], optional
         DICOM data set of multi-frame enhanced image instance
 
     Returns
@@ -189,12 +189,15 @@ def _convert_legacy_to_enhanced(
         unique_image_types.add(tuple(frame_type))
         frame_type_item = Dataset()
         frame_type_item.FrameType = frame_type
-        frame_type_item.PixelRepresentation = pixel_representation
+        if pixel_representation == 0:
+            frame_type_item.PixelPresentation = 'MONOCHROME'
+        else:
+            frame_type_item.PixelPresentation = 'COLOR'
         frame_type_item.VolumetricProperties = volumetric_properties
         if frame_type[0] == 'ORIGINAL':
-            frame_type_item.FrameVolumeBasedCalculationTechnique = 'NONE'
+            frame_type_item.VolumeBasedCalculationTechnique = 'NONE'
         else:
-            frame_type_item.FrameVolumeBasedCalculationTechnique = 'MIXED'
+            frame_type_item.VolumeBasedCalculationTechnique = 'MIXED'
 
         if sop_class_uid == '1.2.840.10008.5.1.4.1.1.4.4':
             # MR Image Frame Type (M)
@@ -335,7 +338,10 @@ def _convert_legacy_to_enhanced(
     mf_dataset.ImageType = list(list(unique_image_types)[0])
     if len(unique_image_types) > 1:
         mf_dataset.ImageType[2] = 'MIXED'
-    mf_dataset.PixelRepresentation = pixel_representation
+    if pixel_representation == 0:
+        mf_dataset.PixelPresentation = 'MONOCHROME'
+    else:
+        mf_dataset.PixelPresentation = 'COLOR'
     mf_dataset.VolumetricProperties = volumetric_properties
 
     # Shared Functional Groups

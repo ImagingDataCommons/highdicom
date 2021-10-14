@@ -188,6 +188,7 @@ image:
     import numpy as np
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
+    from pydicom.uid import generate_uid
 
     # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -349,6 +350,100 @@ Finding relevant content in the nested SR content tree:
             recursive=True
         )
         print(regions)
+
+
+.. _creating-sc:
+
+Creating Secondary Capture (SC) images
+--------------------------------------
+
+Secondary captures are a way to storing images that were not created directly
+by an imaging modality within a DICOM file. They are often used to store
+screenshots or overlays, and are widely supported by viewers. However other
+methods of displaying image derived information, such as segmentation images
+and structured reports should be preferred if they are supported because they
+can capture more detail about how the derived information was obtained and
+what it represents.
+
+In this example, we use a secondary capture to store an image containing a
+labelled bounding box region drawn over a CT image.
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
+    from PIL import Image, ImageDraw
+
+    # Read in the source CT image
+    image_dataset = dcmread('/path/to/image.dcm')
+
+    # Create an image for display by windowing the original image and drawing a
+    # bounding box over it using Pillow's ImageDraw module
+    slope = getattr(image_dataset, 'RescaleSlope', 1)
+    intercept = getattr(image_dataset, 'RescaleIntercept', 0)
+    original_image = image_dataset.pixel_array * slope + intercept
+
+    # Window the image to a soft tissue window (center 40, width 400)
+    # and rescale to the range 0 to 255
+    lower = -160
+    upper = 240
+    windowed_image = np.clip(original_image, lower, upper)
+    windowed_image = (windowed_image - lower) * 255 / (upper - lower)
+    windowed_image = windowed_image.astype(np.uint8)
+
+    # Create RGB channels
+    windowed_image = np.tile(windowed_image[:, :, np.newaxis], [1, 1, 3])
+
+    # Cast to a PIL image for easy drawing of boxes and text
+    pil_image = Image.fromarray(windowed_image)
+
+    # Draw a red bounding box over part of the image
+    x0 = 10
+    y0 = 10
+    x1 = 60
+    y1 = 60
+    draw_obj = ImageDraw.Draw(pil_image)
+    draw_obj.rectangle(
+        [x0, y0, x1, y1],
+        outline='red',
+        fill=None,
+        width=3
+    )
+
+    # Add some text
+    draw_obj.text(xy=[10, 70], text='Region of Interest', fill='red')
+
+    # Convert to numpy array
+    pixel_array = np.array(pil_image)
+
+    # The patient orientation defines the directions of the rows and columns of the
+    # image, relative to the anatomy of the patient.  In a standard CT axial image,
+    # the rows are oriented leftwards and the columns are oriented posteriorly, so
+    # the patient orientation is ['L', 'P']
+    patient_orientation=['L', 'P']
+
+    # Create the secondary capture image. By using the `from_ref_dataset`
+    # constructor, all the patient and study information willl be copied from the
+    # original image dataset
+    sc_image = hd.sc.SCImage.from_ref_dataset(
+        ref_dataset=image_dataset,
+        pixel_array=pixel_array,
+        photometric_interpretation=hd.PhotometricInterpretationValues.RGB,
+        bits_allocated=8,
+        coordinate_system=hd.CoordinateSystemNames.PATIENT,
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        series_number=100,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        pixel_spacing=image_dataset.PixelSpacing,
+        patient_orientation=patient_orientation
+    )
+
+    # Save the file
+    sc_image.save_as('sc_output.dcm')
+
 
 .. .. _creation-legacy:
 

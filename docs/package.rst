@@ -23,15 +23,6 @@ highdicom.color module
    :undoc-members:
    :show-inheritance:
 
-highdicom.enum module
-+++++++++++++++++++++
-
-.. automodule:: highdicom.enum
-   :members:
-   :special-members: __call__
-   :undoc-members:
-   :show-inheritance:
-
 highdicom.frame module
 ++++++++++++++++++++++
 
@@ -54,6 +45,15 @@ highdicom.spatial module
 ++++++++++++++++++++++++
 
 .. automodule:: highdicom.spatial
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
+highdicom.valuerep module
++++++++++++++++++++++++++
+
+.. automodule:: highdicom.valuerep
    :members:
    :special-members: __call__
    :undoc-members:

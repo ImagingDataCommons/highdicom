@@ -82,3 +82,49 @@ Build documentation in *HTML* format:
     sphinx-build -b html docs/ docs/build/
 
 The built ``index.html`` file will be located in ``docs/build``.
+
+Design principles
+-----------------
+
+**Interoperability with Pydicom** - Highdicom is built on the pydicom library.
+Highdicom types are typically derived from the ``pydicom.dataset.Dataset`` or
+``pydicom.sequence.Sequence`` classes and should remain interoperable with them
+as far as possible such that experienced users can use the lower-level pydicom
+API to inspect or change the object if needed.
+
+**Standard DICOM Terminology** - Where possible, highdicom types, functions,
+parameters, enums, etc map onto concepts within the DICOM standard and should
+follow the same terminology to ensure that the meaning is unambiguous. Where
+the terminology used in the standard may not be easily understood by those
+unfamiliar with it, this should be addressed via documentation rather than
+using alternative terminology.
+
+**Standard Compliance on Encoding** - Highdicom should not allow users to
+create DICOM objects that are not in compliance with the standard. The library
+should validate all parameters passed to it and should raise an exception if
+they would result in the creation of an invalid object, and give a clear
+explanation to the user why the parameters passed are invalid. Furthermore,
+highdicom objects should always exist in a state of standards compliance,
+without any intermediate invalid states. Once a constructor has completed, the
+user should be confident that they have a valid object.
+
+**Standard Compliance on Decoding** - Unfortunately, many DICOM objects found
+in the real world have minor deviations from the standard. When decoding DICOM
+objects, highdicom should tolerate minor deviations as far as they do not
+interfere with its functionality. When highdicom needs to assume that objects
+are standard compliant in order to function, it should check this assumption
+first and raise an exception explaining the issue to the user if it finds an
+error. Unless there are exceptional circumstances, highdicom should not attempt
+to work around issues in non-compliant files produced by other implementations.
+
+**The Decoding API** - Highdicom classes implement functionality for
+conveniently accessing information contained within the relevant dataset. To
+use this functionality with existing pydicom dataset, such as those read in
+from file or received over network, the dataset must first be converted to the
+relevant highdicom type.  This is implemented by the alternative
+``from_dataset()`` or ``from_sequence()`` constructors on highdicom types.
+These methods should perform "eager" type conversion of the dataset and all
+datasets contained within it into the relevant highdicom types, where they
+exist. This way, objects created from scratch by users and those converted from
+pydicom datasets using ``from_dataset()`` or ``from_sequence()`` should appear
+identical to users and developers as far as possible.

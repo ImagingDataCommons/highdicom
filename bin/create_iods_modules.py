@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 
-from pydicom.datadict import dictionary_keyword, repeater_has_tag
+from pydicom.datadict import dictionary_keyword
 from pydicom.tag import Tag
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ def _load_json_from_file(filename):
 def _dump_json(data):
     return json.dumps(data, indent=4, sort_keys=True)
 
+
 def _create_sop_to_iods(directory):
     filename = os.path.join(directory, 'sops.json')
     sops = _load_json_from_file(filename)
@@ -35,13 +36,14 @@ def _create_sop_to_iods(directory):
     filename = os.path.join(directory, 'ciods.json')
     ciods = _load_json_from_file(filename)
 
-    sop_id_to_ciod_name = {sop['id'] :sop['ciod'] for sop in sops}
-    ciod_name_to_ciod_id = {ciod['name'] :ciod['id'] for ciod in ciods}
+    sop_id_to_ciod_name = {sop['id']: sop['ciod'] for sop in sops}
+    ciod_name_to_ciod_id = {ciod['name']: ciod['id'] for ciod in ciods}
     sop_id_to_ciod_id = {
         sop_id: ciod_name_to_ciod_id[sop_id_to_ciod_name[sop_id]]
         for sop_id in sop_id_to_ciod_name
     }
     return sop_id_to_ciod_id
+
 
 def _create_iods(directory):
     filename = os.path.join(directory, 'ciod_to_modules.json')
@@ -110,9 +112,10 @@ if __name__ == '__main__':
 
     iods = _create_iods(directory)
     iods_docstr = '\n'.join([
-        '"""DICOM information object definitions (IODs)',
+        '"""DICOM Information Object Definitions (IODs)',
         f'auto-generated on {current_date} at {current_time}.',
-        '"""'
+        '"""',
+        'from typing import Dict, List'
     ])
     sop_to_iods = _create_sop_to_iods(directory)
     iods_filename = os.path.join(PGK_PATH, '_iods.py')
@@ -120,21 +123,29 @@ if __name__ == '__main__':
         fp.write(iods_docstr)
         fp.write('\n\n')
         iods_formatted = _dump_json(iods).replace('null', 'None')
-        fp.write('IOD_MODULE_MAP = {}'.format(iods_formatted))
+        fp.write(
+            'IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {}'.format(
+                iods_formatted
+            )
+        )
         fp.write('\n\n')
         sop_to_iods_formatted = _dump_json(sop_to_iods).replace('null', 'None')
         fp.write('SOP_CLASS_UID_IOD_KEY_MAP = {}'.format(sop_to_iods_formatted))
 
-
     modules = _create_modules(directory)
-    modules_docstr = (
+    modules_docstr = '\n'.join([
         '"""DICOM modules'
         f'auto-generated on {current_date} at {current_time}.'
-        '"""'
-    )
+        '"""',
+        'from typing import Dict, List, Sequence, Union'
+    ])
     modules_filename = os.path.join(PGK_PATH, '_modules.py')
     with open(modules_filename, 'w') as fp:
         fp.write(modules_docstr)
         fp.write('\n\n')
         modules_formatted = _dump_json(modules).replace('null', 'None')
-        fp.write('MODULE_ATTRIBUTE_MAP = {}'.format(modules_formatted))
+        fp.write(
+            'MODULE_ATTRIBUTE_MAP: Dict[str, List[Dict[str, Union[str, Sequence[str]]]]] = {}'.format(  # noqa: E501
+                modules_formatted
+            )
+        )

@@ -46,20 +46,23 @@ def find_content_items(
     AttributeError
         When data set does not contain Content Sequence attribute.
 
-    """  # noqa
-    def has_name(item: ContentItem, name: Optional[str]) -> bool:
+    """  # noqa: E501
+    def has_name(
+        item: ContentItem,
+        name: Optional[Union[Code, CodedConcept]]
+    ) -> bool:
         if name is None:
             return True
         return item.name == name
 
     def has_value_type(
-            item: ContentItem,
-            value_type: Optional[Union[ValueTypeValues, str]]
+        item: ContentItem,
+        value_type: Optional[Union[ValueTypeValues, str]]
     ) -> bool:
         if value_type is None:
             return True
         value_type = ValueTypeValues(value_type)
-        return item.value_type == value_type.value
+        return item.value_type == value_type
 
     def has_relationship_type(
             item: ContentItem,
@@ -70,7 +73,7 @@ def find_content_items(
         if getattr(item, 'relationship_type', None) is None:
             return False
         relationship_type = RelationshipTypeValues(relationship_type)
-        return item.relationship_type == relationship_type.value
+        return item.relationship_type == relationship_type
 
     if not hasattr(dataset, 'ContentSequence'):
         raise AttributeError(
@@ -140,12 +143,7 @@ def get_coded_name(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptNameCodeSequence" and '
             'thus doesn\'t represent a SR Content Item.'
         )
-    return CodedConcept(
-        value=name.CodeValue,
-        scheme_designator=name.CodingSchemeDesignator,
-        meaning=name.CodeMeaning,
-        scheme_version=name.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(name)
 
 
 def get_coded_value(item: Dataset) -> CodedConcept:
@@ -169,18 +167,12 @@ def get_coded_value(item: Dataset) -> CodedConcept:
             'Dataset does not contain attribute "ConceptCodeSequence" and '
             'thus doesn\'t represent a SR Content Item of Value Type CODE.'
         )
-    return CodedConcept(
-        value=value.CodeValue,
-        scheme_designator=value.CodingSchemeDesignator,
-        meaning=value.CodeMeaning,
-        scheme_version=value.get('CodingSchemeVersion', None)
-    )
+    return CodedConcept.from_dataset(value)
 
 
 HighDicomCodes = {
     "OT": Code(value='1000', scheme_designator="HIGHDICOM", meaning="Modality type OT"),   # noqa: E501
 }
-
 
 def get_coded_modality(sop_class_uid: str) -> Code:
     """
@@ -189,12 +181,10 @@ def get_coded_modality(sop_class_uid: str) -> Code:
     `Standard SOP Classes <http://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html>`
     and the coded values are described here:
     `CID 29 Acquisition Modality <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_29.html>`
-
     Parameters
     ----------
     item: pydicom.dataset.Dataset
         Content Item
-
     Returns
     -------
     pydicom.sr.coding.Code
@@ -276,27 +266,25 @@ def get_coded_modality(sop_class_uid: str) -> Code:
 
 
 def is_dicom_image(dataset: Dataset) -> bool:
-    """
-    Returns true if the dataset appears to be an image, false otherwise.
-    `Table C.7-11c Image Pixel Description Macro Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html#table_C.7-11c>`
-
-     Parameters
-    ----------
-    dataset: pydicom.dataset.Dataset
-        Content Item
-
-    Returns
-        True or False
-    -------
-    """  # noqa: E501
-    if all(key in dataset for key in ('Rows',
-                                      'Columns',
-                                      'SamplesPerPixel',
-                                      'PhotometricInterpretation',
-                                      'BitsAllocated',
-                                      'BitsStored',
-                                      'HighBit',
-                                      'PixelRepresentation')):
-        return True
-    else:
-        return False
+        """
+        Returns true if the dataset appears to be an image, false otherwise.
+        `Table C.7-11c Image Pixel Description Macro Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html#table_C.7-11c>`
+         Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Content Item
+        Returns
+            True or False
+        -------
+        """  # noqa: E501
+        if all(key in dataset for key in ('Rows',
+                                          'Columns',
+                                          'SamplesPerPixel',
+                                          'PhotometricInterpretation',
+                                          'BitsAllocated',
+                                          'BitsStored',
+                                          'HighBit',
+                                          'PixelRepresentation')):
+            return True
+        else:
+            return False
