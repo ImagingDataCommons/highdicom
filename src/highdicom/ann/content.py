@@ -499,10 +499,18 @@ class AnnotationGroup(Dataset):
         """int: Number of annotations in group"""
         return int(self.NumberOfAnnotations)
 
-    def get_measurements(self) -> Tuple[
+    def get_measurements(
+        self,
+        name: Optional[Union[Code, CodedConcept]] = None
+    ) -> Tuple[
         List[CodedConcept], np.ndarray, List[CodedConcept]
     ]:
         """Get measurements.
+
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
+            Name by which measurements should be filtered
 
         Returns
         -------
@@ -517,15 +525,26 @@ class AnnotationGroup(Dataset):
         units: List[highdicom.sr.CodedConcept]
             Units of measurements
 
-        """
+        """  # noqa: E501
         number_of_annotations = self.number_of_annotations
         if hasattr(self, 'MeasurementsSequence'):
-            values = np.vstack([
+            values = [
                 item.get_values(number_of_annotations)
                 for item in self.MeasurementsSequence
-            ]).T
-            names = [item.name for item in self.MeasurementsSequence]
-            units = [item.unit for item in self.MeasurementsSequence]
+                if name is None or item.name == name
+            ]
+            if len(values) > 0:
+                values = np.vstack(values).T
+            else:
+                values = np.empty((number_of_annotations, 0), np.float32)
+            names = [
+                item.name for item in self.MeasurementsSequence
+                if name is None or item.name == name
+            ]
+            units = [
+                item.unit for item in self.MeasurementsSequence
+                if name is None or item.name == name
+            ]
         else:
             values = np.empty((number_of_annotations, 0), np.float32)
             names = []

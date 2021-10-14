@@ -196,6 +196,26 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.shape == (2, 1)
         np.testing.assert_allclose(values, measurement_values)
 
+        names, values, units = group.get_measurements(
+            name=measurement_names[0]
+        )
+        assert len(names) == 1
+        assert names[0] == measurement_names[0]
+        assert len(units) == 1
+        assert units[0] == measurement_units[0]
+        assert values.dtype == np.float32
+        assert values.shape == (2, 1)
+        np.testing.assert_allclose(values, measurement_values)
+
+        names, values, units = group.get_measurements(
+            name=codes.SCT.Volume
+        )
+        assert names == []
+        assert units == []
+        assert values.size == 0
+        assert values.dtype == np.float32
+        assert values.shape == (2, 0)
+
     def test_alternative_construction_from_dataset(self):
         dataset = Dataset()
         dataset.AnnotationGroupNumber = 1
