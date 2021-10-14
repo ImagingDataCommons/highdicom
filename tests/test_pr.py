@@ -49,6 +49,7 @@ class TestGraphicObject(unittest.TestCase):
         assert ann.graphic_type == GraphicTypeValues.CIRCLE
         assert np.array_equal(ann.graphic_data, self._circle)
         assert ann.units == AnnotationUnitsValues.PIXEL
+        assert ann.GraphicFilled == 'N'
 
     def test_circle_wrong_number(self):
         with pytest.raises(ValueError):
@@ -159,4 +160,21 @@ class TestGraphicObject(unittest.TestCase):
                 graphic_type=GraphicTypeValues.CIRCLE,
                 graphic_data=self._circle,
                 units=AnnotationUnitsValues.DISPLAY
+            )
+
+    def test_filled(self):
+        ann = GraphicObject(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+            filled=True
+        )
+        assert ann.GraphicFilled == 'Y'
+
+    def test_filled_invalid(self):
+        # Cannot have a filled polyline
+        with pytest.raises(ValueError):
+            GraphicObject(
+                graphic_type=GraphicTypeValues.POLYLINE,
+                graphic_data=self._polyline,
+                filled=True
             )
