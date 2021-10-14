@@ -1,6 +1,6 @@
 """Data Elements that are specific to the Presentation State IODs."""
 
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 from pydicom.dataset import Dataset
 
@@ -9,6 +9,7 @@ import numpy as np
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
     GraphicTypeValues,
+    TextJustificationValues,
 )
 from highdicom.uid import UID
 
@@ -53,6 +54,8 @@ class GraphicObject(Dataset):
             Shall be unique within the domain in which it is used.
         tracking_uid: str
             Unique identifier for tracking this finding or feature.
+        graphic_group_id: Union[int, None]
+            ID of the graphic group to which this object belongs.
 
         """
         super().__init__()
@@ -161,6 +164,135 @@ class GraphicObject(Dataset):
     def units(self) -> AnnotationUnitsValues:
         """highdicom.pr.AnnotationUnitsValues: annotation units"""
         return AnnotationUnitsValues(self.GraphicAnnotationUnits)
+
+    @property
+    def tracking_id(self) -> Union[str, None]:
+        """Union[str, None]: tracking identifier"""
+        return getattr(self, 'TrackingID', None)
+
+    @property
+    def tracking_uid(self) -> Union[UID, None]:
+        """Union[highdicom.UID, None]: tracking UID"""
+        if hasattr(self, 'TrackingUID'):
+            return UID(self.TrackingUID)
+        return None
+
+
+class TextObject(Dataset):
+
+    """Dataset describing a text annotation object."""
+
+    def __init__(
+        self,
+        text_value: str,
+        bounding_box: Optional[Tuple[float, float, float, float]] = None,
+        anchor_point: Optional[Tuple[float, float]] = None,
+        units: Union[AnnotationUnitsValues, str] = AnnotationUnitsValues.PIXEL,
+        text_justification: Union[
+            TextJustificationValues,
+            str
+        ] = TextJustificationValues.CENTER,
+        anchor_point_visible: bool = True,
+        tracking_id: Optional[str] = None,
+        tracking_uid: Optional[str] = None,
+        graphic_group_id: Optional[int] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        text_value: str
+            The unformatted text value.
+        bounding_box: Optional[Tuple[float, float, float, float]]
+            Coordinates of the bounding box in which the text should be
+            displayed, given in the following order [left, top, right, bottom],
+            where 'left' and 'right' are the horizontal offsets of the left and
+            right sides of the box, respectively, and 'top' and 'bottom' are
+            the vertical offsets of the upper and lower sides of the box.
+        anchor_point: Optional[Tuple[float, float]]
+            Location of a point in the image to which the text value is related,
+            given as a (Column, Row) pair.
+        units: Union[highdicom.pr.AnnotationUnitsValues, str]
+            The units in which the coordinates of the bounding box and/or
+            anchor point are is expressed.
+        anchor_point_visible: bool
+            Whether the relationship between the anchor point and the text
+            should be displayed in the image, for example via a line or arrow.
+        tracking_id: str
+            User defined text identifier for tracking this finding or feature.
+            Shall be unique within the domain in which it is used.
+        tracking_uid: str
+            Unique identifier for tracking this finding or feature.
+        graphic_group_id: Union[int, None]
+            ID of the graphic group to which this object belongs.
+
+        Note
+        ----
+        Either the ``anchor_point`` or the ``bounding_box`` parameter (or both)
+        must be provided to localize the text in the image.
+
+        """
+        super().__init__()
+        if len(text_value) > 1024:
+            raise ValueError(
+                'Text value is too long for the value representation. Maximum '
+                f'allowed is 1024 characters, found {len(text_value)}.'
+            )
+        self.UnformattedTextValue = text_value
+
+        units = AnnotationUnitsValues(units)
+
+        if bounding_box is None and anchor_point is None:
+            raise TypeError(
+                'Either an anchor point or a bounding box (or both) must be '
+                'specified.'
+            )
+
+        if bounding_box is not None:
+            if len(bounding_box) != 4:
+                raise ValueError(
+                    'Bounding box must contain four values.'
+                )
+            # TODO check for invalid values
+            self.BoundingBoxTopLeftHandCorner = bounding_box[:2]
+            self.BoundingBoxBottomRightHandCorner = bounding_box[2:]
+            text_justification = TextJustificationValues(text_justification)
+            self.BoundingBoxTextHorizontalJustification = text_justification
+            self.BoundingBoxAnnotationUnits = units
+
+        if anchor_point is not None:
+            if len(anchor_point) != 2:
+                raise ValueError(
+                    'Anchor point must contain two values.'
+                )
+            # TODO check for invalid values
+            self.AnchorPoint = anchor_point
+            anchor_point_units = AnnotationUnitsValues(anchor_point_units)
+            self.AnchorPointAnnotationUnits = units
+            self.AnchorPointVisibility = 'Y' if anchor_point_visible else 'N'
+
+        if (tracking_id is None) != (tracking_uid is None):
+            raise TypeError(
+                'If either "tracking_id" or "tracking_uid" is provided, the '
+                'other must also be provided.'
+            )
+        if tracking_id is not None:
+            self.TrackingID = tracking_id
+            self.TrackingUID = tracking_uid
+
+        if graphic_group_id is not None:
+            if not isinstance(graphic_group_id, int):
+                raise ValueError('Graphic group ID should be an integer.')
+            if graphic_group_id < 1:
+                raise ValueError(
+                    'Graphic group ID should be a positive integer.'
+                )
+            self.GraphicGroupID = graphic_group_id
+
+    @property
+    def text_value(self) -> Union[str, None]:
+        """str: unformatted text value"""
+        return self.UnformattedTextValue
 
     @property
     def tracking_id(self) -> Union[str, None]:

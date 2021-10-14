@@ -5,6 +5,13 @@ from enum import Enum
 
 class AnnotationUnitsValues(Enum):
 
+    """
+
+    Enumerated values for annotation units, describing how the stored values
+    relate to the image position.
+
+    """
+
     PIXEL = 'PIXEL'
     """Image position in pixel units.
 
@@ -39,6 +46,19 @@ class AnnotationUnitsValues(Enum):
     Image).
 
     """
+
+
+class TextJustificationValues(Enum):
+
+    """
+
+    Enumerated values for the BoundingBoxTextHorizontalJustification attribute.
+
+    """
+
+    LEFT = 'LEFT'
+    CENTER = 'CENTER'
+    RIGHT = 'RIGHT'
 
 
 class GraphicTypeValues(Enum):
