@@ -783,7 +783,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.SoftwareVersions == self._software_versions
         assert instance.DeviceSerialNumber == self._device_serial_number
         assert instance.Modality == 'SEG'
-        assert instance.file_meta.TransferSyntaxUID == '1.2.840.10008.1.2'
+        assert instance.file_meta.TransferSyntaxUID == '1.2.840.10008.1.2.1'
         assert instance.PatientID == self._ct_image.PatientID
         assert instance.AccessionNumber == self._ct_image.AccessionNumber
         assert instance.LossyImageCompression == '00'
