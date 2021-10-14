@@ -2523,10 +2523,10 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 group_item.ContentSequence.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
-                if not isinstance(evaluation, QualitativeEvaluation):
+                if not (isinstance(evaluation, QualitativeEvaluation)):
                     raise TypeError(
                         'Items of argument "qualitative_evaluations" must '
-                        'have type QualitativeEvaluations.'
+                        'have type QualitativeEvaluation'
                     )
                 group_item.ContentSequence.extend(evaluation)
         self.append(group_item)
@@ -3541,14 +3541,8 @@ class ImageLibraryEntryDescriptors(Template):
         """
         Parameters
         ----------
-        modality: Union[highdicom.sr.coding.CodedConcept, pydicom.sr.coding.Code]
+        dataset: Dataset
             Modality
-        frame_of_reference_uid: str
-            Frame of Reference UID
-        pixel_data_rows: int
-            Number of rows in pixel data frames
-        pixel_data_columns: int
-            Number of rows in pixel data frames
         additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
             Additional SR Content Items that should be included
 
@@ -3912,8 +3906,7 @@ class MeasurementReport(Template):
             )
         item = ContainerContentItem(
             name=title,
-            template_id='1500',
-            relationship_type=RelationshipTypeValues.CONTAINS
+            template_id='1500'
         )
         item.ContentSequence = ContentSequence()
         if language_of_content_item_and_descendants is None:
