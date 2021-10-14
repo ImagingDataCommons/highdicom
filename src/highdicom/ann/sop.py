@@ -190,7 +190,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             ref.ReferencedInstanceSequence = referenced_images
             self.ReferencedSeriesSequence.append(ref)
 
-        group_numbers = np.zeros((len(annotation_groups), ), dtype=int)
         self.AnnotationGroupSequence = []
         for i, group in enumerate(annotation_groups):
             if not isinstance(group, AnnotationGroup):
@@ -206,18 +205,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 )
             group_numbers[i] = group.AnnotationGroupNumber
             self.AnnotationGroupSequence.append(group)
-
-        if len(group_numbers) > len(np.unique(group_numbers)):
-            raise ValueError(
-                'Values of attribute Annotation Group Number must be unique '
-                'across annotation groups within the annotation instance.'
-            )
-        if (np.min(group_numbers) != 1 or
-                np.max(group_numbers) != len(group_numbers)):
-            raise ValueError(
-                'Values of attribute Annotation Group Number must be in the '
-                'range [1, n], where n is the number of annotations.'
-            )
 
     def get_annotation_group(
         self,
@@ -364,12 +351,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             if algorithm_identification is not None:
                 if algorithm_name is not None:
                     is_match = algorithm_identification.name == algorithm_name
-                    matches.append(is_match)
-                if algorithm_version is not None:
-                    is_match = eq(
-                        algorithm_identification.version,
-                        algorithm_version
-                    )
                     matches.append(is_match)
                 if algorithm_version is not None:
                     is_match = eq(
