@@ -1679,9 +1679,9 @@ class ScoordContentItem(ContentItem):
             Concept name
         graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
             Name of the graphic type
-        graphic_data: numpy.ndarray[numpy.int]
+        graphic_data: numpy.ndarray
             Array of ordered spatial coordinates, where each row of the array
-            represents a (column, row) coordinate pair
+            represents a (Column,Row) pair
         pixel_origin_interpretation: Union[highdicom.sr.PixelOriginInterpretationValues, str, None], optional
             Whether pixel coordinates specified by `graphic_data` are defined
             relative to the total pixel matrix
@@ -1703,28 +1703,28 @@ class ScoordContentItem(ContentItem):
         if graphic_type == GraphicTypeValues.POINT:
             if graphic_data.shape[0] != 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
-                    'Graphic data of a scoord of graphic type "POINT" '
+                    'Graphic data of a SCOORD of graphic type "POINT" '
                     'must be a single (column, row) pair in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypeValues.CIRCLE:
             if graphic_data.shape[0] != 2 or not graphic_data.shape[1] == 2:
                 raise ValueError(
-                    'Graphic data of a scoord of graphic type "CIRCLE" '
+                    'Graphic data of a SCOORD of graphic type "CIRCLE" '
                     'must be two (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
         elif graphic_type == GraphicTypeValues.ELLIPSE:
             if graphic_data.shape[0] != 4 or not graphic_data.shape[1] == 2:
                 raise ValueError(
-                    'Graphic data of a scoord of graphic type "ELLIPSE" '
+                    'Graphic data of a SCOORD of graphic type "ELLIPSE" '
                     'must be four (column, row) pairs in two-dimensional '
                     'image coordinate space.'
                 )
         else:
             if not graphic_data.shape[0] > 1 or not graphic_data.shape[1] == 2:
                 raise ValueError(
-                    'Graphic data of a scoord must be multiple '
+                    'Graphic data of a SCOORD must be multiple '
                     '(column, row) pairs in two-dimensional image '
                     'coordinate space.'
                 )

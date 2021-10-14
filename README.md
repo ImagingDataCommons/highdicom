@@ -4,8 +4,10 @@
 
 # High DICOM
 
-A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations and image analysis results.
+A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations, and image analysis results.
 It currently provides tools for creating and decoding the following DICOM information object definitions (IODs):
+* Annotations
+* Parametric Maps
 * Segmentation images
 * Structured Reports
 * Secondary Capture images
@@ -31,4 +33,4 @@ The developers gratefully acknowledge their support:
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](http://qiicr.org)
 * [Radiomics](http://radiomics.io)
-* The [NCI Imaging Data Commons](https://imagingdatacommons.github.io/)
+* The [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/)

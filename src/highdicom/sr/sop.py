@@ -7,6 +7,11 @@ from typing import Any, cast, Mapping, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    UID,
+)
 from pydicom.valuerep import DT, PersonName
 from pydicom._storage_sopclass_uids import (
     ComprehensiveSRStorage,
@@ -53,6 +58,7 @@ class _SR(SOPClass):
         requested_procedures: Optional[Sequence[Dataset]] = None,
         previous_versions: Optional[Sequence[Dataset]] = None,
         record_evidence: bool = True,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -110,6 +116,9 @@ class _SR(SOPClass):
             Whether provided `evidence` should be recorded (i.e. included
             in Pertinent Other Evidence Sequence) even if not referenced by
             content items in the document tree (default: ``True``)
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -122,6 +131,16 @@ class _SR(SOPClass):
         """  # noqa: E501
         if len(evidence) == 0:
             raise ValueError('No evidence was provided.')
+
+        supported_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
+            )
+
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -131,7 +150,7 @@ class _SR(SOPClass):
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='SR',
-            transfer_syntax_uid=None,
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=evidence[0].PatientID,
             patient_name=evidence[0].PatientName,
             patient_birth_date=evidence[0].PatientBirthDate,
@@ -434,6 +453,7 @@ class EnhancedSR(_SR):
         requested_procedures: Optional[Sequence[Dataset]] = None,
         previous_versions: Optional[Sequence[Dataset]] = None,
         record_evidence: bool = True,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -518,6 +538,7 @@ class EnhancedSR(_SR):
             requested_procedures=requested_procedures,
             previous_versions=previous_versions,
             record_evidence=record_evidence,
+            transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
         unsopported_content = find_content_items(
@@ -562,6 +583,7 @@ class ComprehensiveSR(_SR):
         requested_procedures: Optional[Sequence[Dataset]] = None,
         previous_versions: Optional[Sequence[Dataset]] = None,
         record_evidence: bool = True,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -617,6 +639,9 @@ class ComprehensiveSR(_SR):
             Whether provided `evidence` should be recorded (i.e. included
             in Pertinent Other Evidence Sequence) even if not referenced by
             content items in the document tree (default: ``True``)
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -646,6 +671,7 @@ class ComprehensiveSR(_SR):
             requested_procedures=requested_procedures,
             previous_versions=previous_versions,
             record_evidence=record_evidence,
+            transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
         unsopported_content = find_content_items(
@@ -766,6 +792,9 @@ class Comprehensive3DSR(_SR):
             Whether provided `evidence` should be recorded (i.e. included
             in Pertinent Other Evidence Sequence) even if not referenced by
             content items in the document tree (default: ``True``)
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`

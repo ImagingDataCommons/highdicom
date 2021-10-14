@@ -1,5 +1,5 @@
 """DICOM Information Object Definitions (IODs)
-auto-generated on 2021-08-12 at 18:23:25.
+auto-generated on 2021-09-26 at 20:07:37.
 """
 from typing import Dict, List
 
@@ -6249,6 +6249,83 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         }
     ],
+    "microscopy-bulk-simple-annotations": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "microscopy-bulk-simple-annotations-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Annotation",
+            "key": "microscopy-bulk-simple-annotations",
+            "usage": "M"
+        },
+        {
+            "ie": "Annotation",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Annotation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Annotation",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "mr-image": [
         {
             "ie": "Patient",
@@ -11067,6 +11144,83 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         }
     ],
+    "rt-radiation-set-delivery-instruction": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "rt-radiation-set-delivery-instruction",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
     "rt-segment-annotation": [
         {
             "ie": "Patient",
@@ -11229,6 +11383,83 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Structure Set",
             "key": "common-instance-reference",
             "usage": "U"
+        }
+    ],
+    "rt-treatment-preparation": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Treatment Preparation",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Treatment Preparation",
+            "key": "rt-treatment-preparation",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Treatment Preparation",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Treatment Preparation",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "RT Treatment Preparation",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
         }
     ],
     "rt-treatment-summary-record": [
@@ -13701,11 +13932,6 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "multi-resolution-navigation",
-            "usage": "C"
-        },
-        {
-            "ie": "Image",
             "key": "slide-label",
             "usage": "C"
         },
@@ -15228,6 +15454,8 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.481.19": "c-arm-photon-electron-radiation-record",
     "1.2.840.10008.5.1.4.1.1.481.2": "rt-dose",
     "1.2.840.10008.5.1.4.1.1.481.20": "robotic-arm-radiation-record",
+    "1.2.840.10008.5.1.4.1.1.481.21": "rt-radiation-set-delivery-instruction",
+    "1.2.840.10008.5.1.4.1.1.481.22": "rt-treatment-preparation",
     "1.2.840.10008.5.1.4.1.1.481.3": "rt-structure-set",
     "1.2.840.10008.5.1.4.1.1.481.4": "rt-beams-treatment-record",
     "1.2.840.10008.5.1.4.1.1.481.5": "rt-plan",
@@ -15299,7 +15527,6 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.88.73": "patient-radiation-dose-structured-report",
     "1.2.840.10008.5.1.4.1.1.88.74": "planned-imaging-agent-administration-sr",
     "1.2.840.10008.5.1.4.1.1.88.75": "performed-imaging-agent-administration-sr",
-    "1.2.840.10008.5.1.4.1.1.88.76": "patient-radiation-dose-structured-report",
     "1.2.840.10008.5.1.4.1.1.9.1.1": "12-lead-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.2": "general-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.3": "ambulatory-ecg",
@@ -15316,6 +15543,7 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.9.7.4": "sleep-electroencephalogram",
     "1.2.840.10008.5.1.4.1.1.9.8.1": "body-position-waveform",
     "1.2.840.10008.5.1.4.1.1.90.1": "content-assessment-results",
+    "1.2.840.10008.5.1.4.1.1.91.1": "microscopy-bulk-simple-annotations",
     "1.2.840.10008.5.1.4.34.10": "rt-brachy-application-setup-delivery-instruction",
     "1.2.840.10008.5.1.4.34.7": "rt-beams-delivery-instruction",
     "1.2.840.10008.5.1.4.38.1": "hanging-protocol",

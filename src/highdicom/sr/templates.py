@@ -2428,7 +2428,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 'Argument "tracking_identifier" must have type '
                 'TrackingIdentifier.'
             )
-        if len(tracking_identifier) != 2:
+        if len(tracking_identifier) == 1:
             raise ValueError(
                 'Argument "tracking_identifier" must include a '
                 'human readable tracking identifier and a tracking unique '

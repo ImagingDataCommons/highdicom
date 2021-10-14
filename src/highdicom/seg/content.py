@@ -1,4 +1,4 @@
-"""Data Elements that are specific to the Segmentation IOD."""
+"""Content that is specific to Segmentation IODs."""
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
 
@@ -25,24 +25,24 @@ class SegmentDescription(Dataset):
     """Dataset describing a segment based on the Segment Description macro."""
 
     def __init__(
-            self,
-            segment_number: int,
-            segment_label: str,
-            segmented_property_category: Union[Code, CodedConcept],
-            segmented_property_type: Union[Code, CodedConcept],
-            algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-            algorithm_identification: Optional[
-                AlgorithmIdentificationSequence
-            ] = None,
-            tracking_uid: Optional[str] = None,
-            tracking_id: Optional[str] = None,
-            anatomic_regions: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None,
-            primary_anatomic_structures: Optional[
-                Sequence[Union[Code, CodedConcept]]
-            ] = None
-        ) -> None:
+        self,
+        segment_number: int,
+        segment_label: str,
+        segmented_property_category: Union[Code, CodedConcept],
+        segmented_property_type: Union[Code, CodedConcept],
+        algorithm_type: Union[SegmentAlgorithmTypeValues, str],
+        algorithm_identification: Optional[
+            AlgorithmIdentificationSequence
+        ] = None,
+        tracking_uid: Optional[str] = None,
+        tracking_id: Optional[str] = None,
+        anatomic_regions: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        primary_anatomic_structures: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None
+    ) -> None:
         """
         Parameters
         ----------
