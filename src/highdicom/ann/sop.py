@@ -416,8 +416,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             raise TypeError(
                 'Dataset must be of type pydicom.dataset.Dataset.'
             )
-        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
-            raise ValueError('Dataset is not a Segmentation.')
+        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.91.1':
+            raise ValueError(
+                'Dataset is not a Microscopy Bulk Simple Annotation.'
+            )
         ann = deepcopy(dataset)
         ann.__class__ = MicroscopyBulkSimpleAnnotations
 

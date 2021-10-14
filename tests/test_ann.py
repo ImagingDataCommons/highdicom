@@ -1,4 +1,5 @@
 import unittest
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -405,6 +406,13 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             software_versions='0.1.0rc',
             device_serial_number='XYZ'
         )
+
+        with BytesIO() as fp:
+            annotations.save_as(fp)
+            fp.seek(0)
+            dataset = dcmread(fp)
+
+        annotations = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
 
         retrieved_groups = annotations.get_annotation_groups()
         assert len(retrieved_groups) == 2
