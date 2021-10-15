@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from pydicom.uid import (
     JPEG2000Lossless,
-    JPEGBaseline,
+    JPEGBaseline8Bit,
 )
 
 from highdicom.frame import decode_frame, encode_frame
@@ -31,7 +31,7 @@ class TestDecodeFrame(TestCase):
         bits_allocated = 8
         frame = decode_frame(
             value=compressed_frame,
-            transfer_syntax_uid=JPEGBaseline,
+            transfer_syntax_uid=JPEGBaseline8Bit,
             rows=rows,
             columns=columns,
             samples_per_pixel=samples_per_pixel,
@@ -50,7 +50,7 @@ class TestDecodeFrame(TestCase):
         with pytest.raises(ValueError):
             decode_frame(
                 value=b'',
-                transfer_syntax_uid=JPEGBaseline,
+                transfer_syntax_uid=JPEGBaseline8Bit,
                 rows=16,
                 columns=32,
                 samples_per_pixel=3,
@@ -65,7 +65,7 @@ class TestDecodeFrame(TestCase):
         with pytest.raises(ValueError):
             decode_frame(
                 value=b'',
-                transfer_syntax_uid=JPEGBaseline,
+                transfer_syntax_uid=JPEGBaseline8Bit,
                 rows=16,
                 columns=32,
                 samples_per_pixel=3,
@@ -87,7 +87,7 @@ class TestEncodeFrame(TestCase):
         frame *= 255
         compressed_frame = encode_frame(
             frame,
-            transfer_syntax_uid=JPEGBaseline,
+            transfer_syntax_uid=JPEGBaseline8Bit,
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
             photometric_interpretation='YBR_FULL_422',
@@ -102,7 +102,7 @@ class TestEncodeFrame(TestCase):
         frame = np.zeros((16, 32), dtype=np.dtype(f'uint{bits_allocated}'))
         compressed_frame = encode_frame(
             frame,
-            transfer_syntax_uid=JPEGBaseline,
+            transfer_syntax_uid=JPEGBaseline8Bit,
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
             photometric_interpretation='MONOCHROME1',
@@ -172,7 +172,7 @@ class TestEncodeFrame(TestCase):
         with pytest.raises(ValueError):
             encode_frame(
                 frame,
-                transfer_syntax_uid=JPEGBaseline,
+                transfer_syntax_uid=JPEGBaseline8Bit,
                 bits_allocated=8,
                 bits_stored=8,
                 photometric_interpretation='RGB',
@@ -185,7 +185,7 @@ class TestEncodeFrame(TestCase):
         with pytest.raises(ValueError):
             encode_frame(
                 frame,
-                transfer_syntax_uid=JPEGBaseline,
+                transfer_syntax_uid=JPEGBaseline8Bit,
                 bits_allocated=8,
                 bits_stored=8,
                 photometric_interpretation='YBR_FULL_422',

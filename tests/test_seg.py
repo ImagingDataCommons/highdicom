@@ -14,6 +14,7 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
+    JPEG2000Lossless
 )
 
 from highdicom import (
@@ -1238,6 +1239,7 @@ class TestSegmentation(unittest.TestCase):
                 ExplicitVRLittleEndian,
                 ImplicitVRLittleEndian,
                 RLELossless,
+                JPEG2000Lossless
             ]
 
             for transfer_syntax_uid in valid_transfer_syntaxes:

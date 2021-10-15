@@ -12,7 +12,7 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
-    JPEGBaseline,
+    JPEGBaseline8Bit,
     UID,
     RLELossless,
 )
@@ -99,7 +99,7 @@ def encode_frame(
         ImplicitVRLittleEndian,
     }
     compressed_transfer_syntaxes = {
-        JPEGBaseline,
+        JPEGBaseline8Bit,
         JPEG2000Lossless,
         RLELossless,
     }
@@ -126,7 +126,7 @@ def encode_frame(
 
     else:
         compression_lut = {
-            JPEGBaseline: (
+            JPEGBaseline8Bit: (
                 'jpeg',
                 {
                     'quality': 95
@@ -142,7 +142,7 @@ def encode_frame(
             ),
         }
 
-        if transfer_syntax_uid == JPEGBaseline:
+        if transfer_syntax_uid == JPEGBaseline8Bit:
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
@@ -225,7 +225,12 @@ def encode_frame(
 
         if transfer_syntax_uid in compression_lut.keys():
             image_format, kwargs = compression_lut[transfer_syntax_uid]
-            image = Image.fromarray(array)
+            if samples_per_pixel == 3:
+                # This appears to be necessary for correct decoding of
+                # JPEGBaseline8Bit images. Needs clarification.
+                image = Image.fromarray(array, mode='YCbCr')
+            else:
+                image = Image.fromarray(array)
             with BytesIO() as buf:
                 image.save(buf, format=image_format, **kwargs)
                 data = buf.getvalue()
