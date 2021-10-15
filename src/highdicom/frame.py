@@ -225,7 +225,12 @@ def encode_frame(
 
         if transfer_syntax_uid in compression_lut.keys():
             image_format, kwargs = compression_lut[transfer_syntax_uid]
-            image = Image.fromarray(array)
+            if samples_per_pixel == 3:
+                # This appears to be necessary for correct decoding of
+                # JPEGBaseline8Bit images. Needs clarification.
+                image = Image.fromarray(array, mode='YCbCr')
+            else:
+                image = Image.fromarray(array)
             with BytesIO() as buf:
                 image.save(buf, format=image_format, **kwargs)
                 data = buf.getvalue()

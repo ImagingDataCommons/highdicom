@@ -347,6 +347,9 @@ class TestSCImage(unittest.TestCase):
 
         assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
+        reread = self.get_array_after_writing(instance)
+        assert np.abs(frame - reread).mean() < 1.0  # tolerance for lossyness
+
     def test_monochrome_jpeg2000(self):
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
