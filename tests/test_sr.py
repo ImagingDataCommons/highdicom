@@ -33,7 +33,7 @@ from highdicom.sr import (
     GraphicTypeValues,
     GraphicTypeValues3D,
     ImageContentItem,
-    ImageLibrary,
+    # ImageLibrary,
     ImageLibraryEntryDescriptors,
     ImageRegion,
     ImageRegion3D,
@@ -3053,7 +3053,8 @@ class TestMeasurementReport(unittest.TestCase):
         ]
         for index, value in content_item_expectations:
             content_item = item.ContentSequence[index]
-            # print(f'index= {index} value= {value} codeValue= {content_item.ConceptNameCodeSequence[0].CodeValue}')
+            print(f'index= {index} value= {value} codeValue=' +
+                  f' {content_item.ConceptNameCodeSequence[0].CodeValue}')
             assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
         matches = measurement_report.get_volumetric_roi_measurement_groups(
@@ -4630,7 +4631,8 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
 #         library_items = ImageLibrary(groups=[descriptor_items])
 #         assert len(library_items) == 1
 #         library_group_item = library_items[0].ContentSequence[0]
-#         assert len(library_group_item.ContentSequence) == len(descriptor_items)
+#         assert len(library_group_item.ContentSequence)
+#           == len(descriptor_items)
 #         assert library_group_item.name == codes.DCM.ImageLibraryGroup
 
 
