@@ -2964,10 +2964,8 @@ class TestMeasurementReport(unittest.TestCase):
             (9, '111700'),
             # Procedure reported
             (10, '121058'),
-            # Image library
-            (11, '111028'),
             # Imaging measurements
-            (12, '126010'),
+            (11, '126010'),
         ]
         for index, value in content_item_expectations:
             content_item = item.ContentSequence[index]
@@ -3030,26 +3028,32 @@ class TestMeasurementReport(unittest.TestCase):
             (0, '121049'),
             # Observer context - Person
             (1, '121005'),
+            # Observer Name - Person
             (2, '121008'),
             # Observer context - Device
             (3, '121005'),
+            # Observer UID - Device
             (4, '121012'),
             # Subject context - Specimen
             (5, '121024'),
+            # UID, Specimen
             (6, '121039'),
+            # Identifier, Specimen
             (7, '121041'),
+            # Type, Specimen
             (8, '371439000'),
+            # Container Identifier, Specimen
             (9, '111700'),
             # Procedure reported
             (10, '121058'),
             # Image library
-            (11, '111028'),
+            # (11, '111028'),
             # Imaging measurements
-            (12, '126010'),
+            (11, '126010'),
         ]
         for index, value in content_item_expectations:
             content_item = item.ContentSequence[index]
-            print(f'index= {index} value= {value} codeValue= {content_item.ConceptNameCodeSequence[0].CodeValue}')
+            # print(f'index= {index} value= {value} codeValue= {content_item.ConceptNameCodeSequence[0].CodeValue}')
             assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
         matches = measurement_report.get_volumetric_roi_measurement_groups(
@@ -4696,22 +4700,22 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert group[3].value == self._ref_sm_dataset.Columns
 
 
-class TestImageLibrary(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-
-    def test_construction(self):
-        # Much work to be done here.
-        file_path = Path(__file__)
-        data_dir = file_path.parent.parent.joinpath('data')
-        self._ref_sm_dataset = dcmread(
-            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
-        )
-
-        library_items = ImageLibrary([self._ref_sm_dataset])
-        assert len(library_items) == 1
-        library_group_item = library_items[0].ContentSequence[0]
-        # TBD: Need to
-        assert len(library_group_item.ContentSequence) == 10
-        assert library_group_item.name == codes.DCM.ImageLibraryGroup
+# class TestImageLibrary(unittest.TestCase):
+#
+#     def setUp(self):
+#         super().setUp()
+#
+#     def test_construction(self):
+#         # Much work to be done here.
+#         file_path = Path(__file__)
+#         data_dir = file_path.parent.parent.joinpath('data')
+#         self._ref_sm_dataset = dcmread(
+#             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+#         )
+#
+#         library_items = ImageLibrary([self._ref_sm_dataset])
+#         assert len(library_items) == 1
+#         library_group_item = library_items[0].ContentSequence[0]
+#         # TBD: Need to
+#         assert len(library_group_item.ContentSequence) == 10
+#         assert library_group_item.name == codes.DCM.ImageLibraryGroup
