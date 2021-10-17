@@ -4721,8 +4721,7 @@ class MeasurementReport(Template):
 
 
 class ImageLibraryEntry(Template):
-
-    """`TID 1601 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1601>`_
+    """:dcm:`TID 1601 <part16/chapter_A.html#sect_TID_1601>`
      Image Library Entry"""  # noqa: E501
 
     def __init__(
@@ -4751,7 +4750,7 @@ class ImageLibraryEntry(Template):
         self.append(group_item)
 
 class ImageLibrary(Template):
-    """`TID 1600 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1600>`_
+    """:dcm:`TID 1600 <part16/chapter_A.html#sect_TID_1600>`
 
      Image Library"""  # noqa: E501
 
@@ -4762,7 +4761,7 @@ class ImageLibrary(Template):
         """
         Parameters
         ----------
-        groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptros]]
+        groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptors]]
             Entry descriptors for each image library group
 
         """  # noqa: E501
