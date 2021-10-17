@@ -33,7 +33,7 @@ from highdicom.sr import (
     GraphicTypeValues,
     GraphicTypeValues3D,
     ImageContentItem,
-    # ImageLibrary,
+    ImageLibrary,
     ImageLibraryEntryDescriptors,
     ImageRegion,
     ImageRegion3D,
@@ -257,7 +257,6 @@ class TestVolumeSurface(unittest.TestCase):
         )
         assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
         graphic_data = surface.graphic_data
-        print(graphic_data)
         assert np.array_equal(graphic_data, self._ellipsoid)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid
@@ -885,6 +884,8 @@ class TestContentItem(unittest.TestCase):
         assert i.name == CodedConcept(*name)
         with pytest.raises(AttributeError):
             assert i.value
+        with pytest.raises(AttributeError):
+            assert i.ContentSequence
 
     def test_composite_item_construction(self):
         name = codes.DCM.RealWorldValueMapUsedForMeasurement
@@ -2053,7 +2054,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         self._src_series_ins_uid = self._seg_dataset.\
             ReferencedSeriesSequence[0].SeriesInstanceUID
         self._ref_segment_number = 35
-        self._ref_frame_number = 38
+        self._ref_frame_numbers = [38, 39]
         self._invalid_ref_frame_number = 0
         self._src_image = SourceImageForSegmentation(
             self._src_sop_class_uid,
@@ -2065,7 +2066,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             sop_class_uid=self._seg_dataset.SOPClassUID,
             sop_instance_uid=self._seg_dataset.SOPInstanceUID,
             segment_number=self._ref_segment_number,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
             source_image=self._src_image
         )
         assert len(ref_seg) == 2
@@ -2083,7 +2084,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            self._ref_frame_number
+            self._ref_frame_numbers
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2094,10 +2095,10 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             self._src_sop_ins_uid
         )
 
-    def test_from_segmentation(self):
+    def test_from_segmentation_with_frame_number(self):
         ref_seg = ReferencedSegmentationFrame.from_segmentation(
             self._seg_dataset,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
         )
         assert len(ref_seg) == 2
         assert (
@@ -2114,7 +2115,38 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            self._ref_frame_number
+            self._ref_frame_numbers
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_sop_class_uid
+        )
+        assert (
+            ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_sop_ins_uid
+        )
+
+    def test_from_segmentation_with_segment_number(self):
+        ref_seg = ReferencedSegmentationFrame.from_segmentation(
+            self._seg_dataset,
+            segment_number=self._ref_segment_number,
+        )
+        assert len(ref_seg) == 2
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._seg_dataset.SOPClassUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._seg_dataset.SOPInstanceUID
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedSegmentNumber ==
+            self._ref_segment_number
+        )
+        assert (
+            ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frame_numbers
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2139,7 +2171,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
             del frame_info.DerivationImageSequence
         ref_seg = ReferencedSegmentationFrame.from_segmentation(
             segmentation=temp_dataset,
-            frame_number=self._ref_frame_number,
+            frame_number=self._ref_frame_numbers,
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2161,7 +2193,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         with pytest.raises(AttributeError):
             ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
-                frame_number=self._ref_frame_number,
+                frame_number=self._ref_frame_numbers,
             )
 
     def test_from_segmentation_no_referenced_series_sequence(self):
@@ -2175,7 +2207,7 @@ class TestReferencedSegmentationFrame(unittest.TestCase):
         with pytest.raises(AttributeError):
             ReferencedSegmentationFrame.from_segmentation(
                 segmentation=temp_dataset,
-                frame_number=self._ref_frame_number,
+                frame_number=self._ref_frame_numbers,
             )
 
 
@@ -2345,6 +2377,8 @@ class TestMeasurement(unittest.TestCase):
         assert unit_item == self._unit
         with pytest.raises(AttributeError):
             item.NumericValueQualifierCodeSequence
+        with pytest.raises(AttributeError):
+            item.ContentSequence
 
         # Direct property access
         assert measurement.name == self._name
@@ -3046,15 +3080,11 @@ class TestMeasurementReport(unittest.TestCase):
             (9, '111700'),
             # Procedure reported
             (10, '121058'),
-            # Image library
-            # (11, '111028'),
             # Imaging measurements
             (11, '126010'),
         ]
         for index, value in content_item_expectations:
             content_item = item.ContentSequence[index]
-            print(f'index= {index} value= {value} codeValue=' +
-                  f' {content_item.ConceptNameCodeSequence[0].CodeValue}')
             assert content_item.ConceptNameCodeSequence[0].CodeValue == value
 
         matches = measurement_report.get_volumetric_roi_measurement_groups(
@@ -4562,80 +4592,6 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
             )
 
 
-# class TestImageLibraryEntryDescriptors(unittest.TestCase):
-#
-#     def setUp(self):
-#         super().setUp()
-#
-#     def test_construction(self):
-#         modality = codes.cid29.SlideMicroscopy
-#         frame_of_reference_uid = '1.2.3'
-#         pixel_data_rows = 10
-#         pixel_data_columns = 20
-#         content_date = datetime.now().date()
-#         content_time = datetime.now().time()
-#         content_date_item = DateContentItem(
-#             name=codes.DCM.ContentDate,
-#             value=content_date,
-#             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-#         )
-#         content_time_item = TimeContentItem(
-#             name=codes.DCM.ContentTime,
-#             value=content_time,
-#             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-#         )
-#         group = ImageLibraryEntryDescriptors(
-#             modality=modality,
-#             frame_of_reference_uid=frame_of_reference_uid,
-#             pixel_data_rows=pixel_data_rows,
-#             pixel_data_columns=pixel_data_columns,
-#             additional_descriptors=[content_date_item, content_time_item]
-#         )
-#         assert len(group) == 6
-#         assert isinstance(group[0], CodeContentItem)
-#         assert group[0].name == codes.DCM.Modality
-#         assert group[0].value == modality
-#         assert isinstance(group[1], UIDRefContentItem)
-#         assert group[1].name == codes.DCM.FrameOfReferenceUID
-#         assert group[1].value == frame_of_reference_uid
-#         assert isinstance(group[2], NumContentItem)
-#         assert group[2].name == codes.DCM.PixelDataRows
-#         assert group[2].value == pixel_data_rows
-#         assert isinstance(group[3], NumContentItem)
-#         assert group[3].name == codes.DCM.PixelDataColumns
-#         assert group[3].value == pixel_data_columns
-#         assert isinstance(group[4], DateContentItem)
-#         assert group[4].name == codes.DCM.ContentDate
-#         assert group[4].value == content_date
-#         assert isinstance(group[5], TimeContentItem)
-#         assert group[5].name == codes.DCM.ContentTime
-#         assert group[5].value == content_time
-
-#
-# class TestImageLibrary(unittest.TestCase):
-#
-#     def setUp(self):
-#         super().setUp()
-#
-#     def test_construction(self):
-#         modality = codes.cid29.SlideMicroscopy
-#         frame_of_reference_uid = '1.2.3'
-#         pixel_data_rows = 10
-#         pixel_data_columns = 20
-#         descriptor_items = ImageLibraryEntryDescriptors(
-#             modality=modality,
-#             frame_of_reference_uid=frame_of_reference_uid,
-#             pixel_data_rows=pixel_data_rows,
-#             pixel_data_columns=pixel_data_columns,
-#         )
-#         library_items = ImageLibrary(groups=[descriptor_items])
-#         assert len(library_items) == 1
-#         library_group_item = library_items[0].ContentSequence[0]
-#         assert len(library_group_item.ContentSequence)
-#           == len(descriptor_items)
-#         assert library_group_item.name == codes.DCM.ImageLibraryGroup
-
-
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
 
     def setUp(self):
@@ -4666,14 +4622,71 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert isinstance(group[3], NumContentItem)
         assert group[3].name == codes.DCM.PixelDataColumns
         assert group[3].value == self._ref_ct_dataset.Columns
-        # Values below removed because they are failing tests - need
-        # to bring them back.
-        # assert isinstance(group[4], DateContentItem)
-        # assert group[4].name == codes.DCM.ContentDate
-        # assert group[4].value == self._ref_dataset.ContentDate
-        # assert isinstance(group[5], TimeContentItem)
-        # assert group[5].name == codes.DCM.ContentTime
-        # assert group[5].value == self._ref_dataset.ContentTime
+        assert isinstance(group[4], NumContentItem)
+        assert group[4].name == codes.DCM.HorizontalPixelSpacing
+        assert group[4].value == self._ref_ct_dataset.PixelSpacing[0]
+        value_item = group[4].MeasuredValueSequence[0]
+        unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_code_item.CodeValue == 'mm'
+        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodingSchemeDesignator == 'UCUM'
+        assert isinstance(group[5], NumContentItem)
+        assert group[5].name == codes.DCM.VerticalPixelSpacing
+        assert group[5].value == self._ref_ct_dataset.PixelSpacing[1]
+        assert isinstance(group[6], NumContentItem)
+        assert group[6].name == codes.DCM.SpacingBetweenSlices
+        assert group[6].value == self._ref_ct_dataset.SpacingBetweenSlices
+        value_item = group[6].MeasuredValueSequence[0]
+        unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_code_item.CodeValue == 'mm'
+        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodingSchemeDesignator == 'UCUM'
+        assert isinstance(group[7], NumContentItem)
+        assert group[7].name == codes.DCM.SliceThickness
+        assert group[7].value == self._ref_ct_dataset.SliceThickness
+        assert isinstance(group[8], NumContentItem)
+        assert group[8].name == codes.DCM.ImagePositionPatientX
+        assert group[8].value == self._ref_ct_dataset.ImagePositionPatient[0]
+        assert isinstance(group[9], NumContentItem)
+        assert group[9].name == codes.DCM.ImagePositionPatientY
+        assert group[9].value == self._ref_ct_dataset.ImagePositionPatient[1]
+        assert isinstance(group[10], NumContentItem)
+        assert group[10].name == codes.DCM.ImagePositionPatientZ
+        assert group[10].value == self._ref_ct_dataset.ImagePositionPatient[2]
+        assert isinstance(group[11], NumContentItem)
+        assert group[11].name == codes.DCM.ImageOrientationPatientRowX
+        assert group[11].value == \
+               self._ref_ct_dataset.ImageOrientationPatient[0]
+        value_item = group[11].MeasuredValueSequence[0]
+        unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_code_item.CodeValue == '{-1:1}'
+        assert unit_code_item.CodeMeaning == '{-1:1}'
+        assert unit_code_item.CodingSchemeDesignator == 'UCUM'
+        assert isinstance(group[12], NumContentItem)
+        assert group[12].name == codes.DCM.ImageOrientationPatientRowY
+        assert group[12].value == \
+            self._ref_ct_dataset.ImageOrientationPatient[1]
+        assert isinstance(group[13], NumContentItem)
+        assert group[13].name == codes.DCM.ImageOrientationPatientRowZ
+        assert group[13].value == \
+               self._ref_ct_dataset.ImageOrientationPatient[2]
+        assert isinstance(group[14], NumContentItem)
+        assert group[14].name == codes.DCM.ImageOrientationPatientColumnX
+        assert group[14].value == \
+               self._ref_ct_dataset.ImageOrientationPatient[3]
+        assert isinstance(group[15], NumContentItem)
+        assert group[15].name == codes.DCM.ImageOrientationPatientColumnY
+        assert group[15].value == \
+               self._ref_ct_dataset.ImageOrientationPatient[4]
+        assert isinstance(group[16], NumContentItem)
+        assert group[16].name == codes.DCM.ImageOrientationPatientColumnZ
+        assert group[16].value == \
+               self._ref_ct_dataset.ImageOrientationPatient[5]
+        value_item = group[16].MeasuredValueSequence[0]
+        unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
+        assert unit_code_item.CodeValue == '{-1:1}'
+        assert unit_code_item.CodeMeaning == '{-1:1}'
+        assert unit_code_item.CodingSchemeDesignator == 'UCUM'
 
     def test_bad_ct_construction(self):
         # Test failure of ImageLibraryDescriptors with 'bad' image.
@@ -4684,10 +4697,23 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
             )
 
     def test_sm_construction(self):
+        content_date = datetime.now().date()
+        content_time = datetime.now().time()
+        content_date_item = DateContentItem(
+            name=codes.DCM.ContentDate,
+            value=content_date,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+        )
+        content_time_item = TimeContentItem(
+            name=codes.DCM.ContentTime,
+            value=content_time,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+        )
         group = ImageLibraryEntryDescriptors(
             dataset=self._ref_sm_dataset,
+            additional_descriptors=[content_date_item, content_time_item]
         )
-        assert len(group) == 4
+        assert len(group) == 6
         assert isinstance(group[0], CodeContentItem)
         assert group[0].name == codes.DCM.Modality
         assert group[0].value == codes.cid29.SlideMicroscopy
@@ -4700,24 +4726,38 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert isinstance(group[3], NumContentItem)
         assert group[3].name == codes.DCM.PixelDataColumns
         assert group[3].value == self._ref_sm_dataset.Columns
+        assert isinstance(group[4], DateContentItem)
+        assert group[4].name == codes.DCM.ContentDate
+        assert group[4].value == content_date
+        assert isinstance(group[5], TimeContentItem)
+        assert group[5].name == codes.DCM.ContentTime
+        assert group[5].value == content_time
 
 
-# class TestImageLibrary(unittest.TestCase):
-#
-#     def setUp(self):
-#         super().setUp()
-#
-#     def test_construction(self):
-#         # Much work to be done here.
-#         file_path = Path(__file__)
-#         data_dir = file_path.parent.parent.joinpath('data')
-#         self._ref_sm_dataset = dcmread(
-#             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
-#         )
-#
-#         library_items = ImageLibrary([self._ref_sm_dataset])
-#         assert len(library_items) == 1
-#         library_group_item = library_items[0].ContentSequence[0]
-#         # TBD: Need to
-#         assert len(library_group_item.ContentSequence) == 10
-#         assert library_group_item.name == codes.DCM.ImageLibraryGroup
+class TestImageLibrary(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+    def test_construction(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ref_sm_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+
+        library_items = ImageLibrary([self._ref_sm_dataset])
+        assert len(library_items) == 1
+        library_group_item = library_items[0].ContentSequence[0]
+        assert len(library_group_item.ContentSequence) == 1
+        assert library_group_item.name == codes.DCM.ImageLibraryGroup
+        content_item = library_group_item.ContentSequence[0]
+        assert isinstance(content_item, ImageContentItem)
+        ref_sop_instance_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
+        ref_sop_class_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPClassUID
+        assert ref_sop_instance_uid == \
+               self._ref_sm_dataset.SOPInstanceUID
+        assert ref_sop_class_uid == \
+               self._ref_sm_dataset.SOPClassUID

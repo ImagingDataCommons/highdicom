@@ -57,7 +57,7 @@ class ParametricMap(SOPClass):
         ],
         window_center: Union[int, float],
         window_width: Union[int, float],
-        transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         content_description: Optional[str] = None,
         content_creator_name: Optional[str] = None,
         pixel_measures: Optional[PixelMeasuresSequence] = None,

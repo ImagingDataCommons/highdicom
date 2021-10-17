@@ -357,7 +357,7 @@ Finding relevant content in the nested SR content tree:
 Creating Secondary Capture (SC) images
 --------------------------------------
 
-Secondary captures are a way to storing images that were not created directly
+Secondary captures are a way to store images that were not created directly
 by an imaging modality within a DICOM file. They are often used to store
 screenshots or overlays, and are widely supported by viewers. However other
 methods of displaying image derived information, such as segmentation images
@@ -373,6 +373,7 @@ labelled bounding box region drawn over a CT image.
     import highdicom as hd
     import numpy as np
     from pydicom import dcmread
+    from pydicom.uid import RLELossless
     from PIL import Image, ImageDraw
 
     # Read in the source CT image
@@ -438,7 +439,8 @@ labelled bounding box region drawn over a CT image.
         instance_number=1,
         manufacturer='Manufacturer',
         pixel_spacing=image_dataset.PixelSpacing,
-        patient_orientation=patient_orientation
+        patient_orientation=patient_orientation,
+        transfer_syntax_uid=RLELossless
     )
 
     # Save the file

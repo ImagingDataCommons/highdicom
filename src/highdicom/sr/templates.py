@@ -2237,14 +2237,14 @@ class Measurement(Template):
             qualifier=qualifier,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
-        value_item.ContentSequence = ContentSequence()
+        content = ContentSequence()
         if tracking_identifier is not None:
             if not isinstance(tracking_identifier, TrackingIdentifier):
                 raise TypeError(
                     'Argument "tracking_identifier" must have type '
                     'TrackingIdentifier.'
                 )
-            value_item.ContentSequence.extend(tracking_identifier)
+            content.extend(tracking_identifier)
         if method is not None:
             method_item = CodeContentItem(
                 name=CodedConcept(
@@ -2255,7 +2255,7 @@ class Measurement(Template):
                 value=method,
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
-            value_item.ContentSequence.append(method_item)
+            content.append(method_item)
         if derivation is not None:
             derivation_item = CodeContentItem(
                 name=CodedConcept(
@@ -2266,7 +2266,7 @@ class Measurement(Template):
                 value=derivation,
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
-            value_item.ContentSequence.append(derivation_item)
+            content.append(derivation_item)
         if finding_sites is not None:
             if not isinstance(finding_sites, (list, tuple, set)):
                 raise TypeError(
@@ -2279,14 +2279,14 @@ class Measurement(Template):
                         'Items of argument "finding_sites" must have '
                         'type FindingSite.'
                     )
-                value_item.ContentSequence.append(site)
+                content.append(site)
         if properties is not None:
             if not isinstance(properties, MeasurementProperties):
                 raise TypeError(
                     'Argument "properties" must have '
                     'type MeasurementProperties.'
                 )
-            value_item.ContentSequence.extend(properties)
+            content.extend(properties)
         if referenced_images is not None:
             for image in referenced_images:
                 if not isinstance(image, SourceImageForMeasurement):
@@ -2294,7 +2294,7 @@ class Measurement(Template):
                         'Arguments "referenced_images" must have type '
                         'SourceImageForMeasurement.'
                     )
-                value_item.ContentSequence.append(image)
+                content.append(image)
         if referenced_real_world_value_map is not None:
             if not isinstance(referenced_real_world_value_map,
                               RealWorldValueMap):
@@ -2302,14 +2302,16 @@ class Measurement(Template):
                     'Argument "referenced_real_world_value_map" must have type '
                     'RealWorldValueMap.'
                 )
-            value_item.ContentSequence.append(referenced_real_world_value_map)
+            content.append(referenced_real_world_value_map)
         if algorithm_id is not None:
             if not isinstance(algorithm_id, AlgorithmIdentification):
                 raise TypeError(
                     'Argument "algorithm_id" must have type '
                     'AlgorithmIdentification.'
                 )
-            value_item.ContentSequence.extend(algorithm_id)
+            content.extend(algorithm_id)
+        if len(content) > 0:
+            value_item.ContentSequence = content
         self.append(value_item)
 
     @classmethod
@@ -2432,19 +2434,19 @@ class MeasurementsAndQualitativeEvaluations(Template):
             relationship_type=RelationshipTypeValues.CONTAINS,
             template_id='1501'
         )
-        group_item.ContentSequence = ContentSequence()
+        content = ContentSequence()
         if not isinstance(tracking_identifier, TrackingIdentifier):
             raise TypeError(
                 'Argument "tracking_identifier" must have type '
                 'TrackingIdentifier.'
             )
-        if len(tracking_identifier) != 2:
+        if len(tracking_identifier) == 1:
             raise ValueError(
                 'Argument "tracking_identifier" must include a '
                 'human readable tracking identifier and a tracking unique '
                 'identifier.'
             )
-        group_item.ContentSequence.extend(tracking_identifier)
+        content.extend(tracking_identifier)
         if session is not None:
             session_item = TextContentItem(
                 name=CodedConcept(
@@ -2455,7 +2457,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 value=session,
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
-            group_item.ContentSequence.append(session_item)
+            content.append(session_item)
         if finding_type is not None:
             finding_type_item = CodeContentItem(
                 name=CodedConcept(
@@ -2466,7 +2468,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 value=finding_type,
                 relationship_type=RelationshipTypeValues.CONTAINS
             )
-            group_item.ContentSequence.append(finding_type_item)
+            content.append(finding_type_item)
         if method is not None:
             method_item = CodeContentItem(
                 name=CodedConcept(
@@ -2477,7 +2479,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 value=method,
                 relationship_type=RelationshipTypeValues.CONTAINS
             )
-            group_item.ContentSequence.append(method_item)
+            content.append(method_item)
         if finding_sites is not None:
             if not isinstance(finding_sites, (list, tuple, set)):
                 raise TypeError(
@@ -2490,21 +2492,21 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'Items of argument "finding_sites" must have '
                         'type FindingSite.'
                     )
-                group_item.ContentSequence.append(site)
+                content.append(site)
         if algorithm_id is not None:
             if not isinstance(algorithm_id, AlgorithmIdentification):
                 raise TypeError(
                     'Argument "algorithm_id" must have type '
                     'AlgorithmIdentification.'
                 )
-            group_item.ContentSequence.extend(algorithm_id)
+            content.extend(algorithm_id)
         if time_point_context is not None:
             if not isinstance(time_point_context, TimePointContext):
                 raise TypeError(
                     'Argument "time_point_context" must have type '
                     'TimePointContext.'
                 )
-            group_item.ContentSequence.extend(time_point_context)
+            content.extend(time_point_context)
         if referenced_real_world_value_map is not None:
             if not isinstance(referenced_real_world_value_map,
                               RealWorldValueMap):
@@ -2512,7 +2514,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                     'Argument "referenced_real_world_value_map" must have type '
                     'RealWorldValueMap.'
                 )
-            group_item.ContentSequence.append(referenced_real_world_value_map)
+            content.append(referenced_real_world_value_map)
         if measurements is not None:
             for measurement in measurements:
                 if not isinstance(measurement, Measurement):
@@ -2520,15 +2522,17 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'Items of argument "measurements" must have '
                         'type Measurement.'
                     )
-                group_item.ContentSequence.extend(measurement)
+                content.extend(measurement)
         if qualitative_evaluations is not None:
             for evaluation in qualitative_evaluations:
-                if not (isinstance(evaluation, QualitativeEvaluation)):
+                if not isinstance(evaluation, QualitativeEvaluation):
                     raise TypeError(
                         'Items of argument "qualitative_evaluations" must '
-                        'have type QualitativeEvaluation'
+                        'have type QualitativeEvaluations.'
                     )
-                group_item.ContentSequence.extend(evaluation)
+                content.extend(evaluation)
+        if len(content) > 0:
+            group_item.ContentSequence = content
         self.append(group_item)
 
     @classmethod
@@ -3527,7 +3531,7 @@ class ImageLibraryEntryDescriptors(Template):
                 item.RelationshipType = relationship_type.value
                 self.append(item)
 
-#  TODO: Should I add in conditionals to test for presence of non-manditory items?
+
 class ImageLibraryEntryDescriptors(Template):
 
     """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
@@ -4760,7 +4764,8 @@ class ImageLibrary(Template):
         ----------
         groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptros]]
             Entry descriptors for each image library group
-        """
+
+        """  # noqa: E501
         super().__init__()
         library_item = ContainerContentItem(
             name=CodedConcept(
@@ -4805,5 +4810,6 @@ class ImageLibrary(Template):
                 group_item.ContentSequence.append(image_item)
 
             # Add the group to the library
-            library_item.ContentSequence.append(group_item)
+            if len(group_item) > 0:
+                library_item.ContentSequence.append(group_item)
         self.append(library_item)

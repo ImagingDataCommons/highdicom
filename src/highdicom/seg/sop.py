@@ -1,14 +1,13 @@
-"""Module for the SOP class of the Segmentation IOD."""
-from copy import deepcopy
-from collections import OrderedDict
+"""Module for SOP classes of the SEG modality."""
 import logging
+from collections import defaultdict, OrderedDict
+from copy import deepcopy
 from os import PathLike
-import numpy as np
-from collections import defaultdict
 from typing import (
     Any, cast, Dict, List, Optional, Sequence, Union, Tuple, BinaryIO
 )
 
+import numpy as np
 from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
@@ -60,11 +59,7 @@ _NO_FRAME_REF_VALUE = -1
 
 class Segmentation(SOPClass):
 
-    """SOP class for a Segmentation, which represents one or more
-    regions of interest (ROIs) as mask images (raster graphics) in
-    two-dimensional image space.
-
-    """
+    """SOP class for the Segmentation IOD."""
 
     def __init__(
         self,
@@ -86,7 +81,7 @@ class Segmentation(SOPClass):
         max_fractional_value: int = 255,
         content_description: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
-        transfer_syntax_uid: Union[str, UID] = ImplicitVRLittleEndian,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         pixel_measures: Optional[PixelMeasuresSequence] = None,
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
@@ -208,7 +203,7 @@ class Segmentation(SOPClass):
         content_description: Union[str, None], optional
             Description of the segmentation
         content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
-            Name of the creator of the segmentation
+            Name of the creator of the segmentation (if created manually)
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements. The following lossless compressed transfer syntaxes
@@ -374,7 +369,7 @@ class Segmentation(SOPClass):
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.PixelRepresentation = 0
-        self.ContentLabel = 'ISO_IR 192'  # UTF-8
+        self.ContentLabel = 'Segmentation'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
@@ -560,7 +555,7 @@ class Segmentation(SOPClass):
                 )
                 x_offset = plane_position_values[frame_index, x_index]
                 y_index = self.DimensionIndexSequence.get_index_position(
-                    'XOffsetInSlideCoordinateSystem'
+                    'YOffsetInSlideCoordinateSystem'
                 )
                 y_offset = plane_position_values[frame_index, y_index]
                 origin_item = Dataset()
@@ -621,13 +616,14 @@ class Segmentation(SOPClass):
                 # dimension will already have been converted to bool, leaving
                 # only "label maps" here, which must be converted to binary
                 # masks.
-                planes = np.zeros(pixel_array.shape, dtype=np.bool_)
-                planes[pixel_array == segment_number] = True
+                planes = np.zeros(pixel_array.shape, dtype=np.uint8)
+                planes[pixel_array == segment_number] = 1
             elif pixel_array.dtype == np.bool_:
                 if pixel_array.ndim == 4:
                     planes = pixel_array[:, :, :, segment_number - 1]
                 else:
                     planes = pixel_array
+                planes = planes.astype(np.uint8)
             else:
                 raise TypeError('Pixel array has an invalid data type.')
 
@@ -1055,12 +1051,12 @@ class Segmentation(SOPClass):
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
-        """Create a Segmentation object from an existing pydicom dataset.
+        """Create instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Pydicom dataset representing a SEG image.
+            Dataset representing a Segmentation image.
 
         Returns
         -------
@@ -1075,9 +1071,7 @@ class Segmentation(SOPClass):
             )
         # Checks on integrity of input dataset
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
-            raise ValueError(
-                'Dataset is not a Segmentation.'
-            )
+            raise ValueError('Dataset is not a Segmentation.')
         seg = deepcopy(dataset)
         seg.__class__ = Segmentation
 
