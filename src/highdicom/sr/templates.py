@@ -21,14 +21,7 @@ from highdicom.sr.content import (
     SourceImageForSegmentation,
     SourceSeriesForSegmentation
 )
-from highdicom.sr.enum import (
-    GraphicTypeValues,
-    GraphicTypeValues3D,
-    RelationshipTypeValues,
-    ValueTypeValues,
-)
-from highdicom.uid import UID
-from highdicom.sr.utils import find_content_items, get_coded_name
+
 from highdicom.sr.enum import (
     GraphicTypeValues,
     GraphicTypeValues3D,
@@ -3443,99 +3436,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
 class ImageLibraryEntryDescriptors(Template):
 
-    """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
-     Image Library Entry Descriptors"""  # noqa: E501
-
-    def __init__(
-        self,
-        modality: Union[Code, CodedConcept],
-        frame_of_reference_uid: str,
-        pixel_data_rows: int,
-        pixel_data_columns: int,
-        additional_descriptors: Optional[Sequence[ContentItem]] = None
-    ) -> None:
-        """
-        Parameters
-        ----------
-        modality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            Modality
-        frame_of_reference_uid: str
-            Frame of Reference UID
-        pixel_data_rows: int
-            Number of rows in pixel data frames
-        pixel_data_columns: int
-            Number of rows in pixel data frames
-        additional_descriptors: Union[Sequence[highdicom.sr.ContentItem], None], optional
-            Additional SR Content Items that should be included
-
-        """  # noqa: E501
-        super().__init__()
-        modality_item = CodeContentItem(
-            name=CodedConcept(
-                value='121139',
-                meaning='Modality',
-                scheme_designator='DCM'
-            ),
-            value=modality,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-        )
-        self.append(modality_item)
-        frame_of_reference_uid_item = UIDRefContentItem(
-            name=CodedConcept(
-                value='112227',
-                meaning='Frame of Reference UID',
-                scheme_designator='DCM'
-            ),
-            value=frame_of_reference_uid,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-        )
-        self.append(frame_of_reference_uid_item)
-        pixel_data_rows_item = NumContentItem(
-            name=CodedConcept(
-                value='110910',
-                meaning='Pixel Data Rows',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_rows,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
-        )
-        self.append(pixel_data_rows_item)
-        pixel_data_cols_item = NumContentItem(
-            name=CodedConcept(
-                value='110911',
-                meaning='Pixel Data Columns',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_columns,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
-        )
-        self.append(pixel_data_cols_item)
-        if additional_descriptors is not None:
-            for item in additional_descriptors:
-                if not isinstance(item, ContentItem):
-                    raise TypeError(
-                        'Image Library Entry Descriptor must have type '
-                        'ContentItem.'
-                    )
-                relationship_type = RelationshipTypeValues.HAS_ACQ_CONTEXT
-                item.RelationshipType = relationship_type.value
-                self.append(item)
-
-
-class ImageLibraryEntryDescriptors(Template):
-
-    """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
-     Image Library Entry Descriptors"""  # noqa: E501
+    """:dcm:"`TID 1602 <part16/chapter_A.html#sect_TID_1602>`_
+     Image Library Entry Descriptors"""
 
     def __init__(
         self,
@@ -3547,10 +3449,10 @@ class ImageLibraryEntryDescriptors(Template):
         ----------
         dataset: Dataset
             Modality
-        additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem], optional
-            Additional SR Content Items that should be included
+        additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem],
+            optional additional SR Content Items that should be included
 
-        """  # noqa: E501
+        """
         super().__init__()
         modality = get_coded_modality(dataset.SOPClassUID)
         if not modality:
@@ -3627,30 +3529,54 @@ class ImageLibraryEntryDescriptors(Template):
 
     def _generate_projection_radiography_descriptors(self, dataset: Dataset) \
             -> Sequence[ContentItem]:
+
         """
-        Generates TID 1603 Image Library Descriptors for projection
-        radiography modalities.
-        :param dataset: A pydicom Dataset of a projection radiology image.
-        :return: List of content item elements for cross-sectional descriptors.
+        :dcm:`TID 1603 <part16/chapter_A.html#sect_TID_1603>`
+        Image Library Entry Descriptors for Projection Radiography
+
+        Parameters
+        ----------
+        dataset: A pydicom Dataset of a projection radiology image.
+
+        Returns
+        -------
+        Sequence[ContentItem]
+            List of content item elements containing cross-sectional
+            descriptors.
         """
+
         descriptors = []
-        """
-        Not yet implemented. It appears that different modalities have
-        different attributes in ImageView and subsequent elements.
-        Although the coded values are relatively clear in some cases
-        (see CID 4010) it isn't clear where in the input dataset this
-        value can be obtained.
-        """
+
+        # Not yet implemented. It appears that different modalities have
+        # different attributes in ImageView and subsequent elements.
+        # Although the coded values are relatively clear in some cases
+        # (see CID 4010) it isn't clear where in the input dataset this
+        # value can be obtained.
+
         return descriptors
 
     def _generate_cross_sectional_descriptors(self, dataset: Dataset) \
             -> Sequence[ContentItem]:
+
         """
-        Generates TID 1604 Image Library Descriptors for cross-sectional
+        :dcm:`TID 1604 <part16/chapter_A.html#sect_TID_1604>`
+        Image Library Entry Descriptors for Cross-Sectional Modalities
+
+        Generates Image Library Descriptors for cross-sectional
         modalities.
-        :param dataset: A pydicom Dataset of a cross-sectional image.
-        :return: List of content item elements for cross-sectional descriptors.
+
+        Parameters
+        ----------
+
+        dataset: A pydicom Dataset of a cross-sectional image.
+
+        Returns
+        -------
+        Sequence[ContentItem]
+            List of content item elements containing cross-sectional
+            descriptors.
         """
+
         descriptors = []
         pixel_spacing = dataset.PixelSpacing
         descriptors.append(NumContentItem(
@@ -4721,6 +4647,7 @@ class MeasurementReport(Template):
 
 
 class ImageLibraryEntry(Template):
+
     """:dcm:`TID 1601 <part16/chapter_A.html#sect_TID_1601>`
      Image Library Entry"""  # noqa: E501
 
@@ -4749,10 +4676,12 @@ class ImageLibraryEntry(Template):
         group_item.ContentSequence = library_item_entry
         self.append(group_item)
 
-class ImageLibrary(Template):
-    """:dcm:`TID 1600 <part16/chapter_A.html#sect_TID_1600>`
 
-     Image Library"""  # noqa: E501
+class ImageLibrary(Template):
+
+    """:dcm:`TID 1600 <part16/chapter_A.html#sect_TID_1600>`
+     Image Library
+    """
 
     def __init__(
         self,
@@ -4761,10 +4690,9 @@ class ImageLibrary(Template):
         """
         Parameters
         ----------
-        groups: Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptors]]
-            Entry descriptors for each image library group
-
-        """  # noqa: E501
+        datasets: Sequence[pydicom.dataset.Dataset]
+            Datasets to include in ImageLibrary
+        """
         super().__init__()
         library_item = ContainerContentItem(
             name=CodedConcept(
@@ -4788,7 +4716,7 @@ class ImageLibrary(Template):
             group_item.ContentSequence = ContentSequence()
             for dataset in datasets:
                 # Create TID 1601 Image Library Entry
-                # represents a single image
+                # for each image
                 image_item = ImageContentItem(
                     name=CodedConcept(
                         value='260753009',

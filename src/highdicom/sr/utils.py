@@ -174,13 +174,15 @@ HighDicomCodes = {
     "OT": Code(value='1000', scheme_designator="HIGHDICOM", meaning="Modality type OT"),   # noqa: E501
 }
 
+
 def get_coded_modality(sop_class_uid: str) -> Code:
     """
     Gets the coded value of the modality from the dataset's SOPClassUID. The
     SOPClassUIDs are defined here:
     `Standard SOP Classes <http://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html>`
     and the coded values are described here:
-    `CID 29 Acquisition Modality <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_29.html>`
+    :dcm:`CID 29 Acquisition Modality <part16/sect_CID_29.html>`
+
     Parameters
     ----------
     item: pydicom.dataset.Dataset
@@ -266,25 +268,26 @@ def get_coded_modality(sop_class_uid: str) -> Code:
 
 
 def is_dicom_image(dataset: Dataset) -> bool:
-        """
-        Returns true if the dataset appears to be an image, false otherwise.
-        `Table C.7-11c Image Pixel Description Macro Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html#table_C.7-11c>`
-         Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Content Item
-        Returns
-            True or False
-        -------
-        """  # noqa: E501
-        if all(key in dataset for key in ('Rows',
-                                          'Columns',
-                                          'SamplesPerPixel',
-                                          'PhotometricInterpretation',
-                                          'BitsAllocated',
-                                          'BitsStored',
-                                          'HighBit',
-                                          'PixelRepresentation')):
-            return True
-        else:
-            return False
+    """
+    Returns true if the dataset appears to be an image, false otherwise.
+
+    :dcm:`Table C.7-11c Image Pixel Description Macro Attributes <part03/sect_C.7.6.3.html#table_C.7-11c>`
+     Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        Content Item
+    Returns
+        True or False
+    -------
+    """  # noqa: E501
+    if all(key in dataset for key in ('Rows',
+                                      'Columns',
+                                      'SamplesPerPixel',
+                                      'PhotometricInterpretation',
+                                      'BitsAllocated',
+                                      'BitsStored',
+                                      'HighBit',
+                                      'PixelRepresentation')):
+        return True
+    else:
+        return False
