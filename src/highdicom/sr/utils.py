@@ -1,9 +1,8 @@
 """Utilities for working with SR document instances."""
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
-from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues, RelationshipTypeValues
@@ -170,104 +169,7 @@ def get_coded_value(item: Dataset) -> CodedConcept:
     return CodedConcept.from_dataset(value)
 
 
-HighDicomCodes = {
-    "OT": Code(value='1000', scheme_designator="HIGHDICOM", meaning="Modality type OT"),   # noqa: E501
-}
-
-
-def get_coded_modality(sop_class_uid: str) -> Code:
-    """
-    Gets the coded value of the modality from the dataset's SOPClassUID. The
-    SOPClassUIDs are defined here:
-    `Standard SOP Classes <http://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html>`
-    and the coded values are described here:
-    :dcm:`CID 29 Acquisition Modality <part16/sect_CID_29.html>`
-
-    Parameters
-    ----------
-    item: pydicom.dataset.Dataset
-        Content Item
-    Returns
-    -------
-    pydicom.sr.coding.Code
-        Coded Acquisition Modality
-    """  # noqa: E501
-    sopclass_to_modalty_map: Dict[str, Code] = {
-        '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
-        '1.2.840.10008.5.1.4.1.1.1.1': codes.cid29.DigitalRadiography,
-        '1.2.840.10008.5.1.4.1.1.1.1.1': codes.cid29.DigitalRadiography,
-        '1.2.840.10008.5.1.4.1.1.1.2': codes.cid29.Mammography,
-        '1.2.840.10008.5.1.4.1.1.1.2.1': codes.cid29.Mammography,
-        '1.2.840.10008.5.1.4.1.1.1.3': codes.cid29.IntraOralRadiography,
-        '1.2.840.10008.5.1.4.1.1.1.3.1': codes.cid29.IntraOralRadiography,
-        '1.2.840.10008.5.1.4.1.1.2': codes.cid29.ComputedTomography,
-        '1.2.840.10008.5.1.4.1.1.2.1': codes.cid29.ComputedTomography,
-        '1.2.840.10008.5.1.4.1.1.2.2': codes.cid29.ComputedTomography,
-        '1.2.840.10008.5.1.4.1.1.3.1': codes.cid29.Ultrasound,
-        '1.2.840.10008.5.1.4.1.1.4': codes.cid29.MagneticResonance,
-        '1.2.840.10008.5.1.4.1.1.4.1': codes.cid29.MagneticResonance,
-        '1.2.840.10008.5.1.4.1.1.4.2': codes.cid29.MagneticResonance,
-        '1.2.840.10008.5.1.4.1.1.4.3': codes.cid29.MagneticResonance,
-        '1.2.840.10008.5.1.4.1.1.4.4': codes.cid29.MagneticResonance,
-        '1.2.840.10008.5.1.4.1.1.6.1': codes.cid29.Ultrasound,
-        '1.2.840.10008.5.1.4.1.1.6.2': codes.cid29.Ultrasound,
-        '1.2.840.10008.5.1.4.1.1.7': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.1': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.2': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.3': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.4': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.9.1.1': codes.cid29.Electrocardiography,
-        '1.2.840.10008.5.1.4.1.1.9.1.2': codes.cid29.Electrocardiography,
-        '1.2.840.10008.5.1.4.1.1.9.1.3': codes.cid29.Electrocardiography,
-        '1.2.840.10008.5.1.4.1.1.9.2.1': codes.cid29.HemodynamicWaveform,
-        '1.2.840.10008.5.1.4.1.1.9.3.1': codes.cid29.Electrocardiography,
-        '1.2.840.10008.5.1.4.1.1.9.5.1': codes.cid29.HemodynamicWaveform,
-        '1.2.840.10008.5.1.4.1.1.9.6.1': codes.cid29.RespiratoryWaveform,
-        '1.2.840.10008.5.1.4.1.1.12.1': codes.cid29.XRayAngiography,
-        '1.2.840.10008.5.1.4.1.1.12.1.1': codes.cid29.XRayAngiography,
-        '1.2.840.10008.5.1.4.1.1.12.2': codes.cid29.Radiofluoroscopy,
-        '1.2.840.10008.5.1.4.1.1.12.2.1': codes.cid29.Radiofluoroscopy,
-        '1.2.840.10008.5.1.4.1.1.13.1.1': codes.cid29.XRayAngiography,
-        '1.2.840.10008.5.1.4.1.1.13.1.2': codes.cid29.DigitalRadiography,
-        '1.2.840.10008.5.1.4.1.1.13.1.3': codes.cid29.Mammography,
-        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
-        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
-        '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
-        '1.2.840.10008.5.1.4.1.1.68.1': codes.cid29.OpticalSurfaceScanner,
-        '1.2.840.10008.5.1.4.1.1.68.2': codes.cid29.OpticalSurfaceScanner,
-        '1.2.840.10008.5.1.4.1.1.77.1.1': codes.cid29.Endoscopy,
-        '1.2.840.10008.5.1.4.1.1.77.1.1.1': codes.cid29.Endoscopy,
-        '1.2.840.10008.5.1.4.1.1.77.1.2': codes.cid29.GeneralMicroscopy,
-        '1.2.840.10008.5.1.4.1.1.77.1.2.1': codes.cid29.GeneralMicroscopy,
-        '1.2.840.10008.5.1.4.1.1.77.1.3': codes.cid29.SlideMicroscopy,
-        '1.2.840.10008.5.1.4.1.1.77.1.4': codes.cid29.ExternalCameraPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa E501
-        '1.2.840.10008.5.1.4.1.1.77.1.5.1': codes.cid29.OphthalmicPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.5.2': codes.cid29.OphthalmicPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.5.4': codes.cid29.OphthalmicTomography,
-        '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy,
-        '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
-        '1.2.840.10008.5.1.4.1.1.78.2': codes.cid29.Autorefraction,
-        '1.2.840.10008.5.1.4.1.1.78.3': codes.cid29.Keratometry,
-        '1.2.840.10008.5.1.4.1.1.78.4': codes.cid29.SubjectiveRefraction,
-        '1.2.840.10008.5.1.4.1.1.78.5': codes.cid29.VisualAcuity,
-        '1.2.840.10008.5.1.4.1.1.78.7': codes.cid29.OphthalmicAxialMeasurements,
-        '1.2.840.10008.5.1.4.1.1.78.8': codes.cid29.Lensometry,
-        '1.2.840.10008.5.1.4.1.1.80.1': codes.cid29.OphthalmicVisualField,
-        '1.2.840.10008.5.1.4.1.1.81.1': codes.cid29.OphthalmicMapping,
-        '1.2.840.10008.5.1.4.1.1.82.1': codes.cid29.OphthalmicMapping,
-        '1.2.840.10008.5.1.4.1.1.128': codes.cid29.PositronEmissionTomography,
-        '1.2.840.10008.5.1.4.1.1.130': codes.cid29.PositronEmissionTomography,
-        '1.2.840.10008.5.1.4.1.1.128.1': codes.cid29.PositronEmissionTomography,
-        '1.2.840.10008.5.1.4.1.1.481.1': codes.cid29.RTImage
-    }
-    if sop_class_uid in sopclass_to_modalty_map.keys():
-        return sopclass_to_modalty_map[sop_class_uid]
-    else:
-        return None
-
-
-def is_dicom_image(dataset: Dataset) -> bool:
+def is_image(dataset: Dataset) -> bool:
     """
     Returns true if the dataset appears to be an image, false otherwise.
 
