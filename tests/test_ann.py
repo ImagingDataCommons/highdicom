@@ -127,6 +127,8 @@ class TestAnnotationGroup(unittest.TestCase):
             family=codes.DCM.ArtificialIntelligence,
             version='1.0'
         )
+        self._anatomic_region = codes.SCT.Thorax
+        self._anatomic_structure = codes.SCT.Lung
 
     def test_construction(self):
         number = 1
@@ -169,7 +171,9 @@ class TestAnnotationGroup(unittest.TestCase):
             algorithm_type=self._algorithm_type,
             algorithm_identification=self._algorithm_identification,
             measurements=measurements,
-            description='annotation'
+            description='annotation',
+            anatomic_regions=[self._anatomic_region],
+            primary_anatomic_structures=[self._anatomic_structure]
         )
 
         assert group.graphic_type == graphic_type
@@ -177,6 +181,9 @@ class TestAnnotationGroup(unittest.TestCase):
         assert group.annotated_property_type == self._property_type
         assert group.algorithm_type == self._algorithm_type
         assert group.algorithm_identification == self._algorithm_identification
+        assert group.anatomic_regions[0] == self._anatomic_region
+        assert len(group.PrimaryAnatomicStructureSequence) == 1
+        assert group.primary_anatomic_structures[0] == self._anatomic_structure
 
         np.testing.assert_allclose(
             group.get_coordinates(annotation_number=1, coordinate_type='3D'),
