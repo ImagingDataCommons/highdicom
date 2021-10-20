@@ -189,6 +189,8 @@ image:
     from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.uid import generate_uid
+    from highdicom.sr.content import FindingSite
+    from highdicom.sr.templates import Measurement, TrackingIdentifier
 
     # Path to single-frame CT image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
@@ -366,7 +368,7 @@ can capture more detail about how the derived information was obtained and
 what it represents.
 
 In this example, we use a secondary capture to store an image containing a
-labelled bounding box region drawn over a CT image.
+labeled bounding box region drawn over a CT image.
 
 .. code-block:: python
 
@@ -425,7 +427,7 @@ labelled bounding box region drawn over a CT image.
     patient_orientation=['L', 'P']
 
     # Create the secondary capture image. By using the `from_ref_dataset`
-    # constructor, all the patient and study information willl be copied from the
+    # constructor, all the patient and study information will be copied from the
     # original image dataset
     sc_image = hd.sc.SCImage.from_ref_dataset(
         ref_dataset=image_dataset,
@@ -446,6 +448,58 @@ labelled bounding box region drawn over a CT image.
     # Save the file
     sc_image.save_as('sc_output.dcm')
 
+To save a 3D image, simply loop over the 2D slices. Here is an example for a CT
+scan that is in a NumPy array called "ct_to_save" where we do not have the original
+DICOM files on hand. We want to overlay a segmentation that is stored in a NumPy array
+called "seg_out".
+
+.. code-block:: python
+    import highdicom as hd
+    import numpy as np
+    import os
+
+    sz = ct_to_save.shape[2]
+    SID = hd.UID()
+    SIUID = hd.UID()
+
+    for iz in range(sz):
+        this_slice = ct_to_save[:,:,iz]
+
+        # Window the image to a soft tissue window (center 40, width 400)
+        # and rescale to the range 0 to 255
+        lower = -160
+        upper = 240
+        windowed_image = np.clip(this_slice, lower, upper)
+        windowed_image = (windowed_image - lower) * 255 / (upper - lower)
+
+        # Create RGB channels
+        pixel_array = np.tile(windowed_image[:, :, np.newaxis], [1, 1, 3])
+
+        alpha = 0.1 #transparency level
+
+        pixel_array[:,:,0] = 255*(1-alpha)*seg_out[:,:,iz] + alpha*pixel_array[:,:,0]
+        pixel_array[:,:,1] = alpha*pixel_array[:,:,1]
+        pixel_array[:,:,2] = alpha*pixel_array[:,:,2]
+
+        patient_orientation=['L','P']
+
+        # Create the secondary capture image.
+        sc_image = hd.sc.SCImage(
+            pixel_array=pixel_array.astype(np.uint8),
+            photometric_interpretation=hd.PhotometricInterpretationValues.RGB,
+            bits_allocated=8,
+            coordinate_system=hd.CoordinateSystemNames.PATIENT,
+            study_instance_uid=SIUID,
+            series_instance_uid=SID,
+            sop_instance_uid=hd.UID(),
+            series_number=100,
+            instance_number=iz,
+            manufacturer='Manufacturer',
+            pixel_spacing=px,
+            patient_orientation=patient_orientation,
+            )
+
+        sc_image.save_as(os.path.join("output", 'sc_output_'+str(iz)+'.dcm'))
 
 .. .. _creation-legacy:
 
