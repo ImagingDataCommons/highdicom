@@ -454,6 +454,7 @@ DICOM files on hand. We want to overlay a segmentation that is stored in a NumPy
 called "seg_out".
 
 .. code-block:: python
+
     import highdicom as hd
     import numpy as np
     import os
