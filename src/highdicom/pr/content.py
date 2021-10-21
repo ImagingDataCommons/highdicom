@@ -218,6 +218,7 @@ class TextObject(Dataset):
         anchor_point_visible: bool
             Whether the relationship between the anchor point and the text
             should be displayed in the image, for example via a line or arrow.
+            This parameter is ignored if the anchor_point is not provided.
         tracking_id: str
             User defined text identifier for tracking this finding or feature.
             Shall be unique within the domain in which it is used.
@@ -253,23 +254,40 @@ class TextObject(Dataset):
                 raise ValueError(
                     'Bounding box must contain four values.'
                 )
-            # TODO check for invalid values
+            if min(bounding_box) < 0.0:
+                raise ValueError(
+                    'All coordinates in the bounding box must be non-negative.'
+                )
             self.BoundingBoxTopLeftHandCorner = bounding_box[:2]
             self.BoundingBoxBottomRightHandCorner = bounding_box[2:]
             text_justification = TextJustificationValues(text_justification)
             self.BoundingBoxTextHorizontalJustification = text_justification
             self.BoundingBoxAnnotationUnits = units
+            if units == AnnotationUnitsValues.DISPLAY:
+                if max(bounding_box) > 1.0:
+                    raise ValueError(
+                        'All coordinates in the bounding box must be less '
+                        'than or equal to 1 when using DISPLAY units.'
+                    )
 
         if anchor_point is not None:
             if len(anchor_point) != 2:
                 raise ValueError(
                     'Anchor point must contain two values.'
                 )
-            # TODO check for invalid values
+            if min(anchor_point) < 0.0:
+                raise ValueError(
+                    'All coordinates in the bounding box must be non-negative.'
+                )
             self.AnchorPoint = anchor_point
-            anchor_point_units = AnnotationUnitsValues(anchor_point_units)
             self.AnchorPointAnnotationUnits = units
             self.AnchorPointVisibility = 'Y' if anchor_point_visible else 'N'
+            if units == AnnotationUnitsValues.DISPLAY:
+                if max(anchor_point) > 1.0:
+                    raise ValueError(
+                        'All coordinates in the anchor point must be less '
+                        'than or equal to 1 when using DISPLAY units.'
+                    )
 
         if (tracking_id is None) != (tracking_uid is None):
             raise TypeError(
@@ -293,6 +311,28 @@ class TextObject(Dataset):
     def text_value(self) -> Union[str, None]:
         """str: unformatted text value"""
         return self.UnformattedTextValue
+
+    @property
+    def bounding_box(self) -> Union[Tuple[float, float, float, float], None]:
+        if not hasattr(self, 'BoundingBoxTopLeftHandCorner'):
+            return None
+        return (
+            tuple(self.BoundingBoxTopLeftHandCorner) +
+            tuple(self.BoundingBoxBottomRightHandCorner)
+        )
+
+    @property
+    def anchor_point(self) -> Union[Tuple[float, float], None]:
+        if not hasattr(self, 'AnchorPoint'):
+            return None
+        return tuple(self.AnchorPoint)
+
+    @property
+    def units(self) -> AnnotationUnitsValues:
+        """highdicom.pr.AnnotationUnitsValues: annotation units"""
+        if hasattr(self, 'BoundingBoxAnnotationUnits'):
+            return AnnotationUnitsValues(self.BoundingBoxAnnotationUnits)
+        return AnnotationUnitsValues(self.AnchorPointAnnotationUnits)
 
     @property
     def tracking_id(self) -> Union[str, None]:

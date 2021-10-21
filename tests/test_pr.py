@@ -7,10 +7,9 @@ import pytest
 from highdicom import UID
 from highdicom.pr import (
     GraphicObject,
-    GrayscaleSoftcopyPresentationState,
     GraphicTypeValues,
     AnnotationUnitsValues,
-    GraphicObject,
+    TextObject
 )
 
 
@@ -177,4 +176,103 @@ class TestGraphicObject(unittest.TestCase):
                 graphic_type=GraphicTypeValues.POLYLINE,
                 graphic_data=self._polyline,
                 filled=True
+            )
+
+
+class TestTextObject(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._text = 'Look Here!'
+        self._bounding_box = (10, 30, 40, 60)
+        self._anchor_point = (100, 110)
+        self._tracking_id = 'tracking_id_1'
+        self._tracking_uid = UID()
+
+    def test_bounding_box(self):
+        text_obj = TextObject(
+            text_value=self._text,
+            bounding_box=self._bounding_box
+        )
+        assert text_obj.text_value == self._text
+        assert text_obj.anchor_point is None
+        assert text_obj.units == AnnotationUnitsValues.PIXEL
+        assert text_obj.tracking_id is None
+        assert text_obj.tracking_uid is None
+
+    def test_anchor_point(self):
+        text_obj = TextObject(
+            text_value=self._text,
+            anchor_point=self._anchor_point
+        )
+        assert text_obj.text_value == self._text
+        assert text_obj.bounding_box is None
+        assert text_obj.anchor_point == self._anchor_point
+        assert text_obj.units == AnnotationUnitsValues.PIXEL
+        assert text_obj.tracking_id is None
+        assert text_obj.tracking_uid is None
+
+    def test_bounding_box_wrong_number(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                bounding_box=self._anchor_point  # wrong number of elements
+            )
+
+    def test_anchor_point_wrong_number(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                anchor_point=self._bounding_box  # wrong number of elements
+            )
+
+    def test_tracking_uids(self):
+        text_obj = TextObject(
+            text_value=self._text,
+            bounding_box=self._bounding_box,
+            tracking_id=self._tracking_id,
+            tracking_uid=self._tracking_uid,
+        )
+        assert text_obj.text_value == self._text
+        assert text_obj.anchor_point is None
+        assert text_obj.units == AnnotationUnitsValues.PIXEL
+        assert text_obj.tracking_id == self._tracking_id
+        assert text_obj.tracking_uid == self._tracking_uid
+
+    def test_tracking_uids_only_one(self):
+        with pytest.raises(TypeError):
+            TextObject(
+                text_value=self._text,
+                bounding_box=self._bounding_box,
+                tracking_id=self._tracking_id,
+            )
+
+    def test_bounding_box_invalid_values(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                bounding_box=(-1.0, 3.0, 7.8, 9.0),
+            )
+
+    def test_bounding_box_invalid_values_display(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                bounding_box=(1.0, 3.0, 7.8, 9.0),
+                units=AnnotationUnitsValues.DISPLAY
+            )
+
+    def test_anchor_point_invalid_values(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                anchor_point=(-1.0, 3.0),
+            )
+
+    def test_anchor_point_invalid_values_display(self):
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                anchor_point=(1.0, 3.0),
+                units=AnnotationUnitsValues.DISPLAY
             )
