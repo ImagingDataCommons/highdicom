@@ -1,6 +1,6 @@
 """Data Elements that are specific to the Presentation State IODs."""
 
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
 
@@ -12,6 +12,7 @@ from highdicom.pr.enum import (
     TextJustificationValues,
 )
 from highdicom.uid import UID
+from highdicom.valuerep import _check_code_string
 
 
 class GraphicObject(Dataset):
@@ -345,3 +346,52 @@ class TextObject(Dataset):
         if hasattr(self, 'TrackingUID'):
             return UID(self.TrackingUID)
         return None
+
+
+class GraphicAnnotation(Dataset):
+
+    """Dataset describing related graphic and text objects."""
+
+    def __init__(
+        self,
+        referenced_images: Sequence[Dataset],
+        graphic_layer: str,
+        referenced_frame_number: Union[int, Sequence[int], None],
+        referenced_segment_number: Union[int, Sequence[int], None],
+        graphic_objects: Optional[Sequence[GraphicObject]] = None,
+        text_objects: Optional[Sequence[TextObject]] = None,
+    ):
+        """
+        """
+        # TODO
+        # Implement the Referenced Image Sequence
+        # Check image is multiframe if frame numbers are passed
+        # Check image is segmentation if segment numbers are passed
+        # Write docstring
+        if not _check_code_string(graphic_layer):
+            raise ValueError(
+                f'Python string "{graphic_layer}" is not valid as a DICOM Code '
+                'String for the graphic_layer parameter.'
+            )
+        self.GraphicLayer = graphic_layer
+        have_graphics = graphic_objects is not None and len(graphic_objects) > 0
+        have_text = text_objects is not None and len(text_objects) > 0
+        if not have_graphics and not have_text:
+            raise TypeError(
+                'Either graphic_objects or text_objects must contain at least '
+                'one item.'
+            )
+        if have_graphics:
+            if not all(isinstance(g, GraphicObject) for g in graphic_objects):
+                raise TypeError(
+                    'All items in graphic_objects must be of type '
+                    'highdicom.pr.GraphicObject'
+                )
+            self.GraphicObjectSequence = graphic_objects
+        if have_text:
+            if not all(isinstance(t, TextObject) for t in text_objects):
+                raise TypeError(
+                    'All items in text_objects must be of type '
+                    'highdicom.pr.TextObject'
+                )
+            self.TextObjectSequence = text_objects
