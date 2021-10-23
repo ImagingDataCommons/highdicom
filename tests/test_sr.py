@@ -4607,7 +4607,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
 
     def test_ct_construction(self):
         group = ImageLibraryEntryDescriptors(
-            dataset=self._ref_ct_dataset,
+            image=self._ref_ct_dataset,
         )
         assert len(group) == 17
         assert isinstance(group[0], CodeContentItem)
@@ -4693,7 +4693,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         del self._ref_ct_dataset.Rows
         with pytest.raises(ValueError):
             ImageLibraryEntryDescriptors(
-                dataset=self._ref_ct_dataset,
+                image=self._ref_ct_dataset,
             )
 
     def test_sm_construction(self):
@@ -4710,7 +4710,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         group = ImageLibraryEntryDescriptors(
-            dataset=self._ref_sm_dataset,
+            image=self._ref_sm_dataset,
             additional_descriptors=[content_date_item, content_time_item]
         )
         assert len(group) == 6

@@ -32,7 +32,8 @@ from highdicom.uid import UID
 from highdicom.sr.utils import (
     find_content_items,
     get_coded_name,
-    is_image)
+    is_image
+)
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
@@ -44,7 +45,6 @@ from highdicom.sr.value_types import (
     TextContentItem,
     UIDRefContentItem,
 )
-
 
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',
@@ -492,21 +492,23 @@ HighDicomCodes = {
 
 
 def _get_coded_modality(sop_class_uid: str) -> Code:
-    """
-    Gets the coded value of the modality from the image dataset's SOPClassUID.
-    The SOPClassUIDs are defined here:
-    `Standard SOP Classes <http://dicom.nema.org/dicom/2013/output/chtml/part04/sect_B.5.html>`
-    and the coded values are described here:
-    :dcm:`CID 29 Acquisition Modality <part16/sect_CID_29.html>`
-
+    """Get the coded modality for a SOP Class UID of an Image.
     Parameters
     ----------
     sop_class_uid: str
-        SOPClassUID of image dataset
+        SOP Class UID
     Returns
     -------
     pydicom.sr.coding.Code
         Coded Acquisition Modality
+        (see :dcm:`CID 29 Acquisition Modality <part16/sect_CID_29.html>`)
+
+     Raises
+     ------
+     ValueError
+         if the SOP Class UID does not identify a SOP Class
+         for storage of an Image information entity
+
     """  # noqa: E501
     sopclass_to_modalty_map: Dict[str, Code] = {
         '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
@@ -577,10 +579,13 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.128.1': codes.cid29.PositronEmissionTomography,
         '1.2.840.10008.5.1.4.1.1.481.1': codes.cid29.RTImage
     }
-    if sop_class_uid in sopclass_to_modalty_map.keys():
+    try:
         return sopclass_to_modalty_map[sop_class_uid]
-    else:
-        return None
+    except KeyError:
+        raise ValueError(
+            'SOP Class UID does not identify a SOP Class '
+            'for storage of an image information entity.'
+        )
 
 
 class Template(ContentSequence):
@@ -3537,24 +3542,25 @@ class ImageLibraryEntryDescriptors(Template):
 
     def __init__(
         self,
-            dataset: Dataset,
-            additional_descriptors: Optional[Sequence[ContentItem]] = None
+        image: Dataset,
+        additional_descriptors: Optional[Sequence[ContentItem]] = None
     ) -> None:
         """
         Parameters
         ----------
-        dataset: Dataset
-            Modality
-        additional_descriptors: Sequence[highdicom.sr.value_types.ContentItem],
-            optional additional SR Content Items that should be included
+        image: pydicom.Dataset
+            Metadata of a referenced image instance
+        additional_descriptors: Sequence[highdicom.sr.ContentItem],
+            Optional additional SR Content Items that should be included
+            for description of the referenced image
 
         """
         super().__init__()
-        modality = _get_coded_modality(dataset.SOPClassUID)
-        if not modality:
-            raise ValueError(f'Dataset has an unsupported SOPClassUID {dataset.SOPClassUID}')  # noqa: E501
-        if not is_image(dataset):
-            raise ValueError(f'Dataset with SOPInstanceUID {dataset.SOPInstanceUID} is not a DICOM image')  # noqa: E501
+        modality = _get_coded_modality(image.SOPClassUID)
+        if not is_image(image):
+            raise ValueError(
+                f'Dataset with SOPInstanceUID {image.SOPInstanceUID}'
+                'is not a DICOM image')
 
         modality_item = CodeContentItem(
             name=CodedConcept(
@@ -3572,7 +3578,7 @@ class ImageLibraryEntryDescriptors(Template):
                 meaning='Frame of Reference UID',
                 scheme_designator='DCM'
             ),
-            value=dataset.FrameOfReferenceUID,
+            value=image.FrameOfReferenceUID,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(frame_of_reference_uid_item)
@@ -3582,7 +3588,7 @@ class ImageLibraryEntryDescriptors(Template):
                 meaning='Pixel Data Rows',
                 scheme_designator='DCM'
             ),
-            value=dataset.Rows,
+            value=image.Rows,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
@@ -3597,7 +3603,7 @@ class ImageLibraryEntryDescriptors(Template):
                 meaning='Pixel Data Columns',
                 scheme_designator='DCM'
             ),
-            value=dataset.Columns,
+            value=image.Columns,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
@@ -3607,9 +3613,9 @@ class ImageLibraryEntryDescriptors(Template):
         )
         self.append(pixel_data_cols_item)
 
-        if self._is_cross_sectional(dataset):
+        if self._is_cross_sectional(image):
             modality_descriptors = \
-                self._generate_cross_sectional_descriptors(dataset)
+                self._generate_cross_sectional_descriptors(image)
             self.extend(modality_descriptors)
 
         if additional_descriptors is not None:
@@ -3623,8 +3629,10 @@ class ImageLibraryEntryDescriptors(Template):
                 item.RelationshipType = relationship_type.value
                 self.append(item)
 
-    def _generate_projection_radiography_descriptors(self, dataset: Dataset) \
-            -> Sequence[ContentItem]:
+    def _generate_projection_radiography_descriptors(
+            self,
+            image: Dataset
+    ) -> Sequence[ContentItem]:
 
         """
         :dcm:`TID 1603 <part16/chapter_A.html#sect_TID_1603>`
@@ -3632,13 +3640,14 @@ class ImageLibraryEntryDescriptors(Template):
 
         Parameters
         ----------
-        dataset: A pydicom Dataset of a projection radiology image.
+        image: [pydicom.Dataset]
+            Metadata of a projection radiology image
 
         Returns
         -------
-        Sequence[ContentItem]
-            List of content item elements containing cross-sectional
-            descriptors.
+        Sequence[highdicom.sr.ContentItem]
+            SR Content Items describing the image
+
         """
 
         descriptors = []
@@ -3651,8 +3660,10 @@ class ImageLibraryEntryDescriptors(Template):
 
         return descriptors
 
-    def _generate_cross_sectional_descriptors(self, dataset: Dataset) \
-            -> Sequence[ContentItem]:
+    def _generate_cross_sectional_descriptors(
+            self,
+            image: Dataset
+    ) -> Sequence[ContentItem]:
 
         """
         :dcm:`TID 1604 <part16/chapter_A.html#sect_TID_1604>`
@@ -3663,8 +3674,8 @@ class ImageLibraryEntryDescriptors(Template):
 
         Parameters
         ----------
-
-        dataset: A pydicom Dataset of a cross-sectional image.
+        image: [pydicom.Dataset]
+            A pydicom Dataset of a cross-sectional image.
 
         Returns
         -------
@@ -3673,96 +3684,96 @@ class ImageLibraryEntryDescriptors(Template):
             descriptors.
         """
 
-        descriptors = []
-        pixel_spacing = dataset.PixelSpacing
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='111026',
-                meaning='Horizontal Pixel Spacing',
-                scheme_designator='DCM'
-            ),
-            value=pixel_spacing[0],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='111066',
-                meaning='Vertical Pixel Spacing',
-                scheme_designator='DCM'
-            ),
-            value=pixel_spacing[1],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='112226',
-                meaning='Spacing between slices',
-                scheme_designator='DCM'
-            ),
-            value=dataset.SpacingBetweenSlices,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='112225',
-                meaning='Slice Thickness',
-                scheme_designator='DCM'
-            ),
-            value=dataset.SliceThickness,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
+        pixel_spacing = image.PixelSpacing
+        image_orientation = image.ImageOrientationPatient
+        image_position = image.ImagePositionPatient
 
-        image_position = dataset.ImagePositionPatient
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110901',
-                meaning='Image Position (Patient) X',
-                scheme_designator='DCM'
+        descriptors = [
+            NumContentItem(
+                name=CodedConcept(
+                    value='111026',
+                    meaning='Horizontal Pixel Spacing',
+                    scheme_designator='DCM'
+                ),
+                value=pixel_spacing[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_position[0],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110902',
-                meaning='Image Position (Patient) Y',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='111066',
+                    meaning='Vertical Pixel Spacing',
+                    scheme_designator='DCM'
+                ),
+                value=pixel_spacing[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_position[1],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='mm',
-                meaning='millimeter',
-                scheme_designator='UCUM'
-            )
-        ))
-        if len(image_position) > 2:
-            descriptors.append(NumContentItem(
+            NumContentItem(
+                name=CodedConcept(
+                    value='112226',
+                    meaning='Spacing between slices',
+                    scheme_designator='DCM'
+                ),
+                value=image.SpacingBetweenSlices,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=CodedConcept(
+                    value='112225',
+                    meaning='Slice Thickness',
+                    scheme_designator='DCM'
+                ),
+                value=image.SliceThickness,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=CodedConcept(
+                    value='110901',
+                    meaning='Image Position (Patient) X',
+                    scheme_designator='DCM'
+                ),
+                value=image_position[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=CodedConcept(
+                    value='110902',
+                    meaning='Image Position (Patient) Y',
+                    scheme_designator='DCM'
+                ),
+                value=image_position[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
                 name=CodedConcept(
                     value='110903',
                     meaning='Image Position (Patient) Z',
@@ -3775,93 +3786,92 @@ class ImageLibraryEntryDescriptors(Template):
                     meaning='millimeter',
                     scheme_designator='UCUM'
                 )
-            ))
-
-        image_orientation = dataset.ImageOrientationPatient
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110904',
-                meaning='Image Orientation (Patient) Row X',
-                scheme_designator='DCM'
             ),
-            value=image_orientation[0],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110905',
-                meaning='Image Orientation (Patient) Row Y',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110904',
+                    meaning='Image Orientation (Patient) Row X',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_orientation[1],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110906',
-                meaning='Image Orientation (Patient) Row Z',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110905',
+                    meaning='Image Orientation (Patient) Row Y',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_orientation[2],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110907',
-                meaning='Image Orientation (Patient) Column X',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110906',
+                    meaning='Image Orientation (Patient) Row Z',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[2],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_orientation[3],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110908',
-                meaning='Image Orientation (Patient) Column Y',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110907',
+                    meaning='Image Orientation (Patient) Column X',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[3],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_orientation[4],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
-            )
-        ))
-        descriptors.append(NumContentItem(
-            name=CodedConcept(
-                value='110909',
-                meaning='Image Orientation (Patient) Column Z',
-                scheme_designator='DCM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110908',
+                    meaning='Image Orientation (Patient) Column Y',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[4],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             ),
-            value=image_orientation[5],
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{-1:1}',
-                meaning='{-1:1}',
-                scheme_designator='UCUM'
+            NumContentItem(
+                name=CodedConcept(
+                    value='110909',
+                    meaning='Image Orientation (Patient) Column Z',
+                    scheme_designator='DCM'
+                ),
+                value=image_orientation[5],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
             )
-        ))
+        ]
         return descriptors
 
     def _is_cross_sectional(self, ds: Dataset):
@@ -3897,9 +3907,10 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Optional[
             LanguageOfContentItemAndDescendants
         ] = None,
-        image_library_datasets: Optional[
-            Sequence[Dataset]
+        referenced_images: Optional[
+            Union[Sequence[Dataset]]
         ] = None
+
     ):
         """
 
@@ -3920,8 +3931,8 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Union[highdicom.sr.LanguageOfContentItemAndDescendants, None], optional
             specification of the language of report content items
             (defaults to English)
-        image_library_datasets: Optional[Sequence[Dataset]]
-            Datasets used to create ImageLibrary entries
+        referenced_images: Union[Sequence[pydicom.Dataset], None], optional
+            Images that should be included in the library
 
         """  # noqa: E501
         if title is None:
@@ -3955,9 +3966,9 @@ class MeasurementReport(Template):
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             item.ContentSequence.append(procedure_item)
-        if image_library_datasets:
-            image_library_item = ImageLibrary(image_library_datasets)
-            item.ContentSequence.extend(image_library_item)
+        if referenced_images:
+            image_library = ImageLibrary(referenced_images)
+            item.ContentSequence.extend(image_library)
 
         measurements: Union[
             MeasurementsAndQualitativeEvaluations,

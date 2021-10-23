@@ -186,10 +186,7 @@ def is_image(dataset: Dataset) -> bool:
                                       'Columns',
                                       'SamplesPerPixel',
                                       'PhotometricInterpretation',
-                                      'BitsAllocated',
-                                      'BitsStored',
-                                      'HighBit',
-                                      'PixelRepresentation')):
+                                      'BitsAllocated')):
         return True
     else:
         return False
