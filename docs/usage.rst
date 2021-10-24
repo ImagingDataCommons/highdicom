@@ -461,7 +461,7 @@ overlay a segmentation that is stored in a NumPy array called "seg_out".
     import numpy as np
     import os
 
-    pixel_spacing = 1
+    pixel_spacing = [1.0, 1.0]
     sz = ct_to_save.shape[2]
     series_instance_uid = hd.UID()
     study_instance_uid = hd.UID()

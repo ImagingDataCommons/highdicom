@@ -10,7 +10,7 @@ from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
-from pydicom.valuerep import DA, PersonName, TM
+from pydicom.valuerep import DA, DS, PersonName, TM
 from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
@@ -72,7 +72,7 @@ class SCImage(SOPClass):
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[Union[str, PersonName]] = None,
-            pixel_spacing: Optional[Tuple[int, int]] = None,
+            pixel_spacing: Optional[Tuple[float, float]] = None,
             laterality: Optional[Union[str, LateralityValues]] = None,
             patient_orientation: Optional[
                 Union[
@@ -147,7 +147,7 @@ class SCImage(SOPClass):
            Time of study creation
         referring_physician_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the referring physician
-        pixel_spacing: Union[Tuple[int, int], None], optional
+        pixel_spacing: Union[Tuple[float, float], None], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
         laterality: Union[str, highdicom.LateralityValues, None], optional
@@ -363,7 +363,13 @@ class SCImage(SOPClass):
                 'Pixel array has an unexpected number of dimensions.'
             )
         if pixel_spacing is not None:
-            self.PixelSpacing = pixel_spacing
+            if len(pixel_spacing) != 2:
+                raise ValueError(
+                    '"pixel_spacing" should have length 2.'
+                )
+            self.PixelSpacing = [
+                DS(ps, auto_format=True) for ps in pixel_spacing
+            ]
 
         encoded_frame = encode_frame(
             pixel_array,

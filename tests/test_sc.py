@@ -30,6 +30,7 @@ class TestSCImage(unittest.TestCase):
         self._instance_number = int(np.random.choice(100))
         self._manufacturer = 'ABC'
         self._laterality = 'L'
+        self._pixel_spacing = [0.5, 0.5]
         self._patient_orientation = ['A', 'R']
         self._container_identifier = str(np.random.choice(100))
         self._specimen_identifier = str(np.random.choice(100))
@@ -66,7 +67,8 @@ class TestSCImage(unittest.TestCase):
             instance_number=self._instance_number,
             manufacturer=self._manufacturer,
             patient_orientation=self._patient_orientation,
-            laterality=self._laterality
+            laterality=self._laterality,
+            pixel_spacing=self._pixel_spacing,
         )
         assert instance.BitsAllocated == bits_allocated
         assert instance.SamplesPerPixel == 3
@@ -85,6 +87,7 @@ class TestSCImage(unittest.TestCase):
         assert instance.PatientSex is None
         assert instance.StudyTime is None
         assert instance.StudyTime is None
+        assert instance.PixelSpacing == [0.5, 0.5]
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
         with pytest.raises(AttributeError):
             instance.ContainerIdentifier
