@@ -26,8 +26,8 @@ class TestSCImage(unittest.TestCase):
         self._study_instance_uid = UID()
         self._series_instance_uid = UID()
         self._sop_instance_uid = UID()
-        self._series_number = int(np.random.choice(100))
-        self._instance_number = int(np.random.choice(100))
+        self._series_number = int(np.random.choice(100)) + 1
+        self._instance_number = int(np.random.choice(100)) + 1
         self._manufacturer = 'ABC'
         self._laterality = 'L'
         self._patient_orientation = ['A', 'R']

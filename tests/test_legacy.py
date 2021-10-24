@@ -30,8 +30,8 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             self.generate_common_dicom_dataset_series(3, Modality.PT)
         self._output_series_instance_uid = generate_uid()
         self._output_sop_instance_uid = generate_uid()
-        self._output_series_number = '1'
-        self._output_instance_number = '1'
+        self._output_series_number = 1
+        self._output_instance_number = 1
 
     def test_output_attributes(self):
         for m in self._modalities:

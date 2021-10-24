@@ -172,6 +172,10 @@ class SOPClass(Dataset):
 
         # Series
         self.SeriesInstanceUID = str(series_instance_uid)
+        if series_number < 1:
+            raise ValueError(
+                '"series_number" should be a positive integer.'
+            )
         self.SeriesNumber = series_number
         self.Modality = modality
         if series_description is not None:
@@ -183,6 +187,10 @@ class SOPClass(Dataset):
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
+        if instance_number < 1:
+            raise ValueError(
+                '"instance_number" should be a positive integer.'
+            )
         self.InstanceNumber = instance_number
         self.ContentDate = DA(datetime.datetime.now().date())
         self.ContentTime = TM(datetime.datetime.now().time())
