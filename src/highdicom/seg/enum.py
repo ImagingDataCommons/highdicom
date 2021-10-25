@@ -45,3 +45,11 @@ class SegmentsOverlapValues(Enum):
     YES = 'YES'
     UNDEFINED = 'UNDEFINED'
     NO = 'NO'
+
+
+class ContentLabelValues(Enum):
+
+    """Enumerated values for attribute Content Label."""
+
+    INSTANCE_SEG = 'INSTANCE_SEG'
+    SEMANTIC_SEG = 'SEMANTIC_SEG'

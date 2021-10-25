@@ -17,13 +17,14 @@ from pydicom.valuerep import PersonName
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
+    ContentLabelValues,
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
 from highdicom.ann.content import AnnotationGroup
 from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, check_code_string
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -50,6 +51,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             str,
             PixelOriginInterpretationValues
         ] = PixelOriginInterpretationValues.VOLUME,
+        content_label: Optional[Union[str, ContentLabelValues]] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -90,6 +92,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
+        content_label: Union[str, highdicom.ann.ContentLabelValues, None], optional
+            Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -139,7 +143,15 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         self.copy_patient_and_study_information(src_img)
 
         # Microscopy Bulk Simple Annotations
-        self.ContentLabel = 'Annotation'
+        if content_label is not None:
+            try:
+                content_label = ContentLabelValues(content_label)
+                self.ContentLabel = content_label.value
+            except ValueError:
+                check_code_string(content_label)
+                self.ContentLabel = content_label
+        else:
+            self.ContentLabel = 'ANN'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

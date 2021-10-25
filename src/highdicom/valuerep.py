@@ -1,11 +1,12 @@
 """Functions for working with DICOM value representations."""
+import re
 from typing import Union
 
 from pydicom.valuerep import PersonName
 
 
 def check_person_name(person_name: Union[str, PersonName]) -> None:
-    """Check for problems with person name strings.
+    """Check the value representation person name strings.
 
     The DICOM Person Name (PN) value representation has a specific format with
     multiple components (family name, given name, middle name, prefix, suffix)
@@ -58,4 +59,45 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
             'to construct the person name correctly. If a single-component '
             'name is really intended, add a trailing caret character to '
             'disambiguate the name.'
+        )
+
+
+def check_code_string(value: str) -> None:
+    """Check the value representation person name strings.
+
+    Parameters
+    ----------
+    value: str
+        Code string
+
+    Raises
+    ------
+    TypeError
+        When `value` is not a string
+    ValueError
+        When `value` has zero or more than 16 characters or when `value`
+        contains characters that are invalid for the value representation
+
+    """
+    if not isinstance(value, str):
+        raise TypeError('Invalid type for a code string.')
+
+    if len(value) == 0:
+        raise ValueError('Code string must not be empty.')
+
+    if len(value) > 16:
+        raise ValueError('Code string must have maximally 16 characters.')
+
+    if not value.isupper():
+        raise ValueError('Code string must be all upper case.')
+
+    if re.match(r'[0-9_]', value) is not None:
+        raise ValueError(
+            'Code string must not start with a number of an underscore.'
+        )
+
+    if re.match(r'[A-Z0-9_]+[^-]$', value) is None:
+        raise ValueError(
+            'Code string must contain only capital letters, numbers, or '
+            'underscores.'
         )

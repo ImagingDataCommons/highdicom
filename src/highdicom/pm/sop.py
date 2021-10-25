@@ -12,9 +12,10 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
+from highdicom.pm.enum import ContentLabelValues
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.content import DimensionIndexSequence
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, check_code_string
 from pydicom import Dataset
 from pydicom.uid import (
     UID,
@@ -63,6 +64,7 @@ class ParametricMap(SOPClass):
         pixel_measures: Optional[PixelMeasuresSequence] = None,
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+        content_label: Optional[Union[str, ContentLabelValues]] = None,
         **kwargs,
     ):
         """
@@ -181,6 +183,8 @@ class ParametricMap(SOPClass):
             number of frames in `source_images` (in case of multi-frame source
             images) or the number of `source_images` (in case of single-frame
             source images).
+        content_label: Union[str, highdicom.pm.ContentLabelValues, None], optional
+            Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -356,7 +360,16 @@ class ParametricMap(SOPClass):
             self.RecognizableVisualFeatures = 'YES'
         else:
             self.RecognizableVisualFeatures = 'NO'
-        self.ContentLabel = 'ISO_IR 192'  # UTF-8
+
+        if content_label is not None:
+            try:
+                content_label = ContentLabelValues(content_label)
+                self.ContentLabel = content_label.value
+            except ValueError:
+                check_code_string(content_label)
+                self.ContentLabel = content_label
+        else:
+            self.ContentLabel = 'MAP'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

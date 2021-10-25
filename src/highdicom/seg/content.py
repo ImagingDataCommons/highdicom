@@ -73,8 +73,9 @@ class SegmentDescription(Dataset):
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
             (see :dcm:`CID 4 <part16/sect_CID_4.html>`
-            "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>` "Common Anatomic Regions", as
-            as well as other CIDs for domain-specific anatomic regions)
+            "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>`
+            "Common Anatomic Regions", as as well as other CIDs for
+            domain-specific anatomic regions)
         primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)

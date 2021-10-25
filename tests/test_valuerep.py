@@ -1,7 +1,7 @@
 import pytest
 
 from pydicom.valuerep import PersonName
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, check_code_string
 
 
 test_names = [
@@ -12,7 +12,6 @@ test_names = [
     '洪^吉洞'
 ]
 
-
 invalid_test_names = [
     'John Doe',
     'Mr John Doe',
@@ -21,24 +20,51 @@ invalid_test_names = [
     '洪吉洞'
 ]
 
+test_code_strings = [
+    'FOO_BAR',
+    'FOOBAR',
+    'FOO01',
+    'FOO_BAR_33',
+]
+
+invalid_code_strings = [
+    'foo_bar',
+    'FooBar',
+    'FOO-01',
+    '_FOO',
+    '-FOO',
+    '1FOO',
+]
+
 
 @pytest.mark.parametrize('name', test_names)
-def test_valid_strings(name):
+def test_valid_person_name_strings(name):
     check_person_name(name)
 
 
 @pytest.mark.parametrize('name', test_names)
-def test_valid_person_names(name):
+def test_valid_person_name_objects(name):
     check_person_name(PersonName(name))
 
 
 @pytest.mark.parametrize('name', invalid_test_names)
-def test_invalid_strings(name):
+def test_invalid_person_name_strings(name):
     with pytest.raises(ValueError):
         check_person_name(name)
 
 
 @pytest.mark.parametrize('name', invalid_test_names)
-def test_invalid_person_names(name):
+def test_invalid_person_name_objects(name):
     with pytest.raises(ValueError):
         check_person_name(PersonName(name))
+
+
+@pytest.mark.parametrize('code_string', test_code_strings)
+def test_valid_code_strings(code_string):
+    check_code_string(code_string)
+
+
+@pytest.mark.parametrize('code_string', invalid_code_strings)
+def test_invalid_code_strings(code_string):
+    with pytest.raises(ValueError):
+        check_code_string(code_string)

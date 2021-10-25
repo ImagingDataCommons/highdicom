@@ -3,6 +3,7 @@ from highdicom.ann.content import Measurements, AnnotationGroup
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
+    ContentLabelValues,
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
@@ -16,6 +17,7 @@ __all__ = [
     'AnnotationCoordinateTypeValues',
     'AnnotationGroup',
     'AnnotationGroupGenerationTypeValues',
+    'ContentLabelValues',
     'GraphicTypeValues',
     'Measurements',
     'MicroscopyBulkSimpleAnnotations',
