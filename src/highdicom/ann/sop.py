@@ -157,16 +157,16 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
 
-        annotation_coordinate_type = AnnotationCoordinateTypeValues(
+        coordinate_type = AnnotationCoordinateTypeValues(
             annotation_coordinate_type
         )
         self.AnnotationCoordinateType = annotation_coordinate_type.value
-        if annotation_coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+        if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
             pixel_origin_interpretation = PixelOriginInterpretationValues(
                 pixel_origin_interpretation
             )
             self.PixelOriginInterpretation = pixel_origin_interpretation.value
-        elif annotation_coordinate_type == AnnotationCoordinateTypeValues.SCOORD3D:
+        elif coordinate_type == AnnotationCoordinateTypeValues.SCOORD3D:
             # Frame of Reference
             self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
             self.PositionReferenceIndicator = getattr(
