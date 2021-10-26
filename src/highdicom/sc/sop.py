@@ -365,7 +365,7 @@ class SCImage(SOPClass):
         if pixel_spacing is not None:
             if len(pixel_spacing) != 2:
                 raise ValueError(
-                    '"pixel_spacing" should have length 2.'
+                    'Argument "pixel_spacing" should have length 2.'
                 )
             self.PixelSpacing = [
                 DS(ps, auto_format=True) for ps in pixel_spacing
