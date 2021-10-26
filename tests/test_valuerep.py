@@ -1,7 +1,7 @@
 import pytest
 
 from pydicom.valuerep import PersonName
-from highdicom.valuerep import check_person_name, check_code_string
+from highdicom.valuerep import check_person_name, _check_code_string
 
 
 test_names = [
@@ -25,15 +25,20 @@ test_code_strings = [
     'FOOBAR',
     'FOO01',
     'FOO_BAR_33',
+    'ABCDEFGHIJKLMNOP',
 ]
 
 invalid_code_strings = [
     'foo_bar',
     'FooBar',
     'FOO-01',
+    ' FOO',
     '_FOO',
+    'BAR_',
+    'BAR ',
     '-FOO',
     '1FOO',
+    'ABCDEFGHIJKLMNOPQ',
 ]
 
 
@@ -61,10 +66,10 @@ def test_invalid_person_name_objects(name):
 
 @pytest.mark.parametrize('code_string', test_code_strings)
 def test_valid_code_strings(code_string):
-    check_code_string(code_string)
+    _check_code_string(code_string)
 
 
 @pytest.mark.parametrize('code_string', invalid_code_strings)
 def test_invalid_code_strings(code_string):
     with pytest.raises(ValueError):
-        check_code_string(code_string)
+        _check_code_string(code_string)

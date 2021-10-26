@@ -48,7 +48,7 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, check_code_string
+from highdicom.valuerep import check_person_name, _check_code_string
 from highdicom.uid import UID as hd_UID
 
 
@@ -379,7 +379,7 @@ class Segmentation(SOPClass):
                 content_label = ContentLabelValues(content_label)
                 self.ContentLabel = content_label.value
             except ValueError:
-                check_code_string(content_label)
+                _check_code_string(content_label)
                 self.ContentLabel = content_label
         else:
             self.ContentLabel = 'SEG'

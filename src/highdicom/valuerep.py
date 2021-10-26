@@ -62,7 +62,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
         )
 
 
-def check_code_string(value: str) -> None:
+def _check_code_string(value: str) -> None:
     """Check the value representation person name strings.
 
     Parameters
@@ -82,22 +82,19 @@ def check_code_string(value: str) -> None:
     if not isinstance(value, str):
         raise TypeError('Invalid type for a code string.')
 
-    if len(value) == 0:
-        raise ValueError('Code string must not be empty.')
-
-    if len(value) > 16:
-        raise ValueError('Code string must have maximally 16 characters.')
-
-    if not value.isupper():
-        raise ValueError('Code string must be all upper case.')
-
-    if re.match(r'[0-9_]', value) is not None:
+    if re.match(r'[A-Z0-9_]{1,16}$', value) is None:
         raise ValueError(
-            'Code string must not start with a number of an underscore.'
+            'Code string must contain between 1 and 16 characters that are '
+            'either capital letters, numbers, or underscores.'
         )
 
-    if re.match(r'[A-Z0-9_]+[^-]$', value) is None:
+    if re.match(r'[0-9 _]{1}.*', value) is not None:
         raise ValueError(
-            'Code string must contain only capital letters, numbers, or '
-            'underscores.'
+            'Code string must not start with a number, whitespace, '
+            'or underscore.'
+        )
+
+    if re.match(r'.*[_ ]$', value) is not None:
+        raise ValueError(
+            'Code string must not end with a whitespace or underscore.'
         )

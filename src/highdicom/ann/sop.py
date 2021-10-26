@@ -24,7 +24,7 @@ from highdicom.ann.enum import (
 from highdicom.ann.content import AnnotationGroup
 from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, check_code_string
+from highdicom.valuerep import check_person_name, _check_code_string
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -148,7 +148,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 content_label = ContentLabelValues(content_label)
                 self.ContentLabel = content_label.value
             except ValueError:
-                check_code_string(content_label)
+                _check_code_string(content_label)
                 self.ContentLabel = content_label
         else:
             self.ContentLabel = 'ANN'

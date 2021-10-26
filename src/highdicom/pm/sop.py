@@ -15,7 +15,7 @@ from highdicom.frame import encode_frame
 from highdicom.pm.enum import ContentLabelValues
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.content import DimensionIndexSequence
-from highdicom.valuerep import check_person_name, check_code_string
+from highdicom.valuerep import check_person_name, _check_code_string
 from pydicom import Dataset
 from pydicom.uid import (
     UID,
@@ -366,7 +366,7 @@ class ParametricMap(SOPClass):
                 content_label = ContentLabelValues(content_label)
                 self.ContentLabel = content_label.value
             except ValueError:
-                check_code_string(content_label)
+                _check_code_string(content_label)
                 self.ContentLabel = content_label
         else:
             self.ContentLabel = 'MAP'
