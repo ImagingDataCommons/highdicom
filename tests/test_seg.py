@@ -638,7 +638,6 @@ class TestSegmentation(unittest.TestCase):
             dtype=bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
-        # self._sm_pixel_array[6:9, 2:8, 1:4] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -808,6 +807,10 @@ class TestSegmentation(unittest.TestCase):
             instance.ImageOrientationSlide
         with pytest.raises(AttributeError):
             instance.TotalPixelMatrixOriginSequence
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixRows
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixColumns
         assert len(instance.SegmentSequence) == 1
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
@@ -882,6 +885,10 @@ class TestSegmentation(unittest.TestCase):
             self._sm_image.SOPInstanceUID
         assert instance.Rows == self._sm_image.pixel_array.shape[1]
         assert instance.Columns == self._sm_image.pixel_array.shape[2]
+        assert instance.TotalPixelMatrixRows == \
+            self._sm_image.TotalPixelMatrixRows
+        assert instance.TotalPixelMatrixColumns == \
+            self._sm_image.TotalPixelMatrixColumns
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
