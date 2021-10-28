@@ -78,23 +78,30 @@ def _check_code_string(value: str) -> None:
         When `value` has zero or more than 16 characters or when `value`
         contains characters that are invalid for the value representation
 
+    Note
+    ----
+    The checks performed by this function are stricter than requirements
+    imposed by the standard. For example, it does not allow leading or trailing
+    spaces or underscores.
+    Therefore, it should only be used to check values for creation of objects
+    but not for parsing of existing objects.
+
     """
     if not isinstance(value, str):
         raise TypeError('Invalid type for a code string.')
 
-    if re.match(r'[A-Z0-9_]{1,16}$', value) is None:
+    if re.match(r'[A-Z0-9_ ]{1,16}$', value) is None:
         raise ValueError(
             'Code string must contain between 1 and 16 characters that are '
-            'either capital letters, numbers, or underscores.'
+            'either uppercase letters, numbers, spaces, or underscores.'
         )
 
     if re.match(r'[0-9 _]{1}.*', value) is not None:
         raise ValueError(
-            'Code string must not start with a number, whitespace, '
-            'or underscore.'
+            'Code string must not start with a number, space, or underscore.'
         )
 
     if re.match(r'.*[_ ]$', value) is not None:
         raise ValueError(
-            'Code string must not end with a whitespace or underscore.'
+            'Code string must not end with a space or underscore.'
         )
