@@ -49,7 +49,14 @@ class SegmentsOverlapValues(Enum):
 
 class ContentLabelValues(Enum):
 
-    """Enumerated values for attribute Content Label."""
+    """Enumerated values for attribute Content Label.
+
+    Note
+    ----
+    These values are not defined by the standard and other user-defined values
+    may be used instead.
+
+    """
 
     INSTANCE_SEG = 'INSTANCE_SEG'
     SEMANTIC_SEG = 'SEMANTIC_SEG'
