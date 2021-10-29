@@ -119,17 +119,3 @@ class PixelOriginInterpretationValues(Enum):
     (1,1) pixel of the Total Pixel Matrix of the entire image.
 
     """
-
-
-class ContentLabelValues(Enum):
-
-    """Enumerated values for attribute Content Label.
-
-    Note
-    ----
-    These values are not defined by the standard and other user-defined values
-    may be used instead.
-
-    """
-
-    DETECTED_OBJECTS = 'DETECTED_OBJECTS'

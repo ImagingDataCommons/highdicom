@@ -39,7 +39,6 @@ from highdicom.seg.content import (
     SegmentDescription,
 )
 from highdicom.seg.enum import (
-    ContentLabelValues,
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
     SegmentsOverlapValues,
@@ -87,7 +86,7 @@ class Segmentation(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         omit_empty_frames: bool = True,
-        content_label: Optional[Union[str, ContentLabelValues]] = None,
+        content_label: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -234,7 +233,7 @@ class Segmentation(SOPClass):
         omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
-        content_label: Union[str, highdicom.seg.ContentLabelValues, None], optional
+        content_label: Union[str, None], optional
             Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
@@ -375,14 +374,10 @@ class Segmentation(SOPClass):
         self.PixelRepresentation = 0
 
         if content_label is not None:
-            try:
-                content_label = ContentLabelValues(content_label)
-                self.ContentLabel = content_label.value
-            except ValueError:
-                _check_code_string(content_label)
-                self.ContentLabel = content_label
+            _check_code_string(content_label)
+            self.ContentLabel = content_label
         else:
-            self.ContentLabel = 'SEG'
+            self.ContentLabel = f'{src_img.Modality}_SEG'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

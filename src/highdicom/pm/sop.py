@@ -12,7 +12,6 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
-from highdicom.pm.enum import ContentLabelValues
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.content import DimensionIndexSequence
 from highdicom.valuerep import check_person_name, _check_code_string
@@ -64,7 +63,7 @@ class ParametricMap(SOPClass):
         pixel_measures: Optional[PixelMeasuresSequence] = None,
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-        content_label: Optional[Union[str, ContentLabelValues]] = None,
+        content_label: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -183,7 +182,7 @@ class ParametricMap(SOPClass):
             number of frames in `source_images` (in case of multi-frame source
             images) or the number of `source_images` (in case of single-frame
             source images).
-        content_label: Union[str, highdicom.pm.ContentLabelValues, None], optional
+        content_label: Union[str, None], optional
             Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
@@ -362,12 +361,8 @@ class ParametricMap(SOPClass):
             self.RecognizableVisualFeatures = 'NO'
 
         if content_label is not None:
-            try:
-                content_label = ContentLabelValues(content_label)
-                self.ContentLabel = content_label.value
-            except ValueError:
-                _check_code_string(content_label)
-                self.ContentLabel = content_label
+            _check_code_string(content_label)
+            self.ContentLabel = content_label
         else:
             self.ContentLabel = 'MAP'
         self.ContentDescription = content_description

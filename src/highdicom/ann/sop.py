@@ -17,7 +17,6 @@ from pydicom.valuerep import PersonName
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
-    ContentLabelValues,
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
@@ -51,7 +50,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             str,
             PixelOriginInterpretationValues
         ] = PixelOriginInterpretationValues.VOLUME,
-        content_label: Optional[Union[str, ContentLabelValues]] = None,
+        content_label: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -92,7 +91,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
-        content_label: Union[str, highdicom.ann.ContentLabelValues, None], optional
+        content_label: Union[str, None], optional
             Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
@@ -144,14 +143,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
         # Microscopy Bulk Simple Annotations
         if content_label is not None:
-            try:
-                content_label = ContentLabelValues(content_label)
-                self.ContentLabel = content_label.value
-            except ValueError:
-                _check_code_string(content_label)
-                self.ContentLabel = content_label
+            _check_code_string(content_label)
+            self.ContentLabel = content_label
         else:
-            self.ContentLabel = 'ANN'
+            self.ContentLabel = f'{src_img.Modality}_ANN'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
@@ -160,7 +155,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         coordinate_type = AnnotationCoordinateTypeValues(
             annotation_coordinate_type
         )
-        self.AnnotationCoordinateType = annotation_coordinate_type.value
+        self.AnnotationCoordinateType = coordinate_type.value
         if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
             pixel_origin_interpretation = PixelOriginInterpretationValues(
                 pixel_origin_interpretation

@@ -1,6 +1,5 @@
 """Package for creation of Parametric Map instances."""
 
-from highdicom.pm.enum import ContentLabelValues
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.sop import ParametricMap
 
@@ -9,7 +8,6 @@ SOP_CLASS_UIDS = {
 }
 
 __all__ = [
-    'ContentLabelValues',
     'DimensionIndexSequence',
     'ParametricMap',
     'RealWorldValueMapping',
