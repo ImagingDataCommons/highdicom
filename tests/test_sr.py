@@ -2976,7 +2976,7 @@ class TestMeasurementReport(unittest.TestCase):
             imaging_measurements=[self._roi_group]
         )
         item = measurement_report[0]
-        assert len(item.ContentSequence) == 12  # Need to check
+        assert len(item.ContentSequence) == 12
 
         template_item = item.ContentTemplateSequence[0]
         assert template_item.TemplateIdentifier == '1500'
@@ -4604,6 +4604,9 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         self._ref_sm_dataset = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
+        self._ref_dx_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'dx_image.dcm'))
+        )
 
     def test_ct_construction(self):
         group = ImageLibraryEntryDescriptors(
@@ -4732,6 +4735,55 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert isinstance(group[5], TimeContentItem)
         assert group[5].name == codes.DCM.ContentTime
         assert group[5].value == content_time
+
+    def test_dx_construction(self):
+        content_date = datetime.now().date()
+        content_time = datetime.now().time()
+        imager_pixel_spacing = self._ref_dx_dataset.ImagerPixelSpacing
+        patient_orientation = self._ref_dx_dataset.PatientOrientation
+
+        content_date_item = DateContentItem(
+            name=codes.DCM.ContentDate,
+            value=content_date,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+        )
+        content_time_item = TimeContentItem(
+            name=codes.DCM.ContentTime,
+            value=content_time,
+            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+        )
+        group = ImageLibraryEntryDescriptors(
+            image=self._ref_dx_dataset,
+            additional_descriptors=[content_date_item, content_time_item]
+        )
+        assert len(group) == 9
+        assert isinstance(group[0], CodeContentItem)
+        assert group[0].name == codes.DCM.Modality
+        assert group[0].value == codes.cid29.DigitalRadiography
+        assert isinstance(group[1], NumContentItem)
+        assert group[1].name == codes.DCM.PixelDataRows
+        assert group[1].value == self._ref_dx_dataset.Rows
+        assert isinstance(group[2], NumContentItem)
+        assert group[2].name == codes.DCM.PixelDataColumns
+        assert group[2].value == self._ref_dx_dataset.Columns
+        assert isinstance(group[3], TextContentItem)
+        assert group[3].name == codes.DCM.PatientOrientationRow
+        assert group[3].value == patient_orientation[0]
+        assert isinstance(group[4], TextContentItem)
+        assert group[4].name == codes.DCM.PatientOrientationColumn
+        assert group[4].value == patient_orientation[1]
+        assert isinstance(group[5], NumContentItem)
+        assert group[5].name == codes.DCM.HorizontalPixelSpacing
+        assert group[5].value == imager_pixel_spacing[1]
+        assert isinstance(group[6], NumContentItem)
+        assert group[6].name == codes.DCM.VerticalPixelSpacing
+        assert group[6].value == imager_pixel_spacing[0]
+        assert isinstance(group[7], DateContentItem)
+        assert group[7].name == codes.DCM.ContentDate
+        assert group[7].value == content_date
+        assert isinstance(group[8], TimeContentItem)
+        assert group[8].name == codes.DCM.ContentTime
+        assert group[8].value == content_time
 
 
 class TestImageLibrary(unittest.TestCase):

@@ -486,17 +486,14 @@ def _contains_image_items(
     return False
 
 
-HighDicomCodes = {
-    "OT": Code(value='1000', scheme_designator="HIGHDICOM", meaning="Modality type OT"),   # noqa: E501
-}
-
-
 def _get_coded_modality(sop_class_uid: str) -> Code:
     """Get the coded modality for a SOP Class UID of an Image.
+
     Parameters
     ----------
     sop_class_uid: str
         SOP Class UID
+
     Returns
     -------
     pydicom.sr.coding.Code
@@ -510,7 +507,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
          for storage of an Image information entity
 
     """  # noqa: E501
-    sopclass_to_modalty_map: Dict[str, Code] = {
+    sopclass_to_modality_map: Dict[str, Code] = {
         '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
         '1.2.840.10008.5.1.4.1.1.1.1': codes.cid29.DigitalRadiography,
         '1.2.840.10008.5.1.4.1.1.1.1.1': codes.cid29.DigitalRadiography,
@@ -529,11 +526,11 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.4.4': codes.cid29.MagneticResonance,
         '1.2.840.10008.5.1.4.1.1.6.1': codes.cid29.Ultrasound,
         '1.2.840.10008.5.1.4.1.1.6.2': codes.cid29.Ultrasound,
-        '1.2.840.10008.5.1.4.1.1.7': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.1': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.2': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.3': HighDicomCodes['OT'],
-        '1.2.840.10008.5.1.4.1.1.7.4': HighDicomCodes['OT'],
+        '1.2.840.10008.5.1.4.1.1.7': codes.DCM.OtherModality,
+        '1.2.840.10008.5.1.4.1.1.7.1': codes.DCM.OtherModality,
+        '1.2.840.10008.5.1.4.1.1.7.2': codes.DCM.OtherModality,
+        '1.2.840.10008.5.1.4.1.1.7.3': codes.DCM.OtherModality,
+        '1.2.840.10008.5.1.4.1.1.7.4': codes.DCM.OtherModality,
         '1.2.840.10008.5.1.4.1.1.9.1.1': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.2': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.3': codes.cid29.Electrocardiography,
@@ -580,7 +577,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.481.1': codes.cid29.RTImage
     }
     try:
-        return sopclass_to_modalty_map[sop_class_uid]
+        return sopclass_to_modality_map[sop_class_uid]
     except KeyError:
         raise ValueError(
             'SOP Class UID does not identify a SOP Class '
@@ -3546,6 +3543,7 @@ class ImageLibraryEntryDescriptors(Template):
         additional_descriptors: Optional[Sequence[ContentItem]] = None
     ) -> None:
         """
+
         Parameters
         ----------
         image: pydicom.Dataset
@@ -3554,7 +3552,7 @@ class ImageLibraryEntryDescriptors(Template):
             Optional additional SR Content Items that should be included
             for description of the referenced image
 
-        """
+        """  # noqa: E501
         super().__init__()
         modality = _get_coded_modality(image.SOPClassUID)
         if not is_image(image):
@@ -3572,16 +3570,17 @@ class ImageLibraryEntryDescriptors(Template):
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(modality_item)
-        frame_of_reference_uid_item = UIDRefContentItem(
-            name=CodedConcept(
-                value='112227',
-                meaning='Frame of Reference UID',
-                scheme_designator='DCM'
-            ),
-            value=image.FrameOfReferenceUID,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-        )
-        self.append(frame_of_reference_uid_item)
+        if 'FrameOfReferenceUID' in image:
+            frame_of_reference_uid_item = UIDRefContentItem(
+                name=CodedConcept(
+                    value='112227',
+                    meaning='Frame of Reference UID',
+                    scheme_designator='DCM'
+                ),
+                value=image.FrameOfReferenceUID,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+            )
+            self.append(frame_of_reference_uid_item)
         pixel_data_rows_item = NumContentItem(
             name=CodedConcept(
                 value='110910',
@@ -3617,6 +3616,10 @@ class ImageLibraryEntryDescriptors(Template):
             modality_descriptors = \
                 self._generate_cross_sectional_descriptors(image)
             self.extend(modality_descriptors)
+        elif self._is_projection_radiography(image):
+            modality_descriptors = \
+                self._generate_projection_radiography_descriptors(image)
+            self.extend(modality_descriptors)
 
         if additional_descriptors is not None:
             for item in additional_descriptors:
@@ -3630,8 +3633,8 @@ class ImageLibraryEntryDescriptors(Template):
                 self.append(item)
 
     def _generate_projection_radiography_descriptors(
-            self,
-            image: Dataset
+        self,
+        dataset: Dataset
     ) -> Sequence[ContentItem]:
 
         """
@@ -3640,7 +3643,7 @@ class ImageLibraryEntryDescriptors(Template):
 
         Parameters
         ----------
-        image: [pydicom.Dataset]
+        pydicom.Dataset
             Metadata of a projection radiology image
 
         Returns
@@ -3648,54 +3651,35 @@ class ImageLibraryEntryDescriptors(Template):
         Sequence[highdicom.sr.ContentItem]
             SR Content Items describing the image
 
-        """
-
-        descriptors = []
-
-        # Not yet implemented. It appears that different modalities have
-        # different attributes in ImageView and subsequent elements.
-        # Although the coded values are relatively clear in some cases
-        # (see CID 4010) it isn't clear where in the input dataset this
-        # value can be obtained.
-
-        return descriptors
-
-    def _generate_cross_sectional_descriptors(
-            self,
-            image: Dataset
-    ) -> Sequence[ContentItem]:
-
-        """
-        :dcm:`TID 1604 <part16/chapter_A.html#sect_TID_1604>`
-        Image Library Entry Descriptors for Cross-Sectional Modalities
-
-        Generates Image Library Descriptors for cross-sectional
-        modalities.
-
-        Parameters
-        ----------
-        image: [pydicom.Dataset]
-            A pydicom Dataset of a cross-sectional image.
-
-        Returns
-        -------
-        Sequence[ContentItem]
-            List of content item elements containing cross-sectional
-            descriptors.
-        """
-
-        pixel_spacing = image.PixelSpacing
-        image_orientation = image.ImageOrientationPatient
-        image_position = image.ImagePositionPatient
-
+        """  # noqa: E501
+        patient_orientation = dataset.PatientOrientation
+        pixel_spacing = dataset.ImagerPixelSpacing
         descriptors = [
+            TextContentItem(
+                name=CodedConcept(
+                    value='111044',
+                    meaning='Patient Orientation Row',
+                    scheme_designator='DCM'
+                ),
+                value=patient_orientation[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+            ),
+            TextContentItem(
+                name=CodedConcept(
+                    value='111043',
+                    meaning='Patient Orientation Column',
+                    scheme_designator='DCM'
+                ),
+                value=patient_orientation[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+            ),
             NumContentItem(
                 name=CodedConcept(
                     value='111026',
                     meaning='Horizontal Pixel Spacing',
                     scheme_designator='DCM'
                 ),
-                value=pixel_spacing[0],
+                value=pixel_spacing[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
                     value='mm',
@@ -3709,7 +3693,66 @@ class ImageLibraryEntryDescriptors(Template):
                     meaning='Vertical Pixel Spacing',
                     scheme_designator='DCM'
                 ),
+                value=pixel_spacing[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            )]
+
+        # Not yet implemented from TID 1603 - unclear how to derive data:
+        # - ImageView, ImageViewModifiers
+        # - PositionerPrimaryAngle, PositionerSecondaryAngle
+
+        return descriptors
+
+    def _generate_cross_sectional_descriptors(
+        self,
+        dataset: Dataset
+    ) -> Sequence[ContentItem]:
+
+        """Generate descriptors for cross-sectional modalities.
+
+        :dcm:`TID 1604 Image Library Entry Descriptors for Cross-Sectional Modalities <part16/chapter_A.html#sect_TID_1604>`
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            A pydicom Dataset of a cross-sectional image.
+
+        Returns
+        -------
+        Sequence[highdicom.sr.ContentItem]
+            SR Content Items describing the image.
+        """  # noqa: E501
+        pixel_spacing = dataset.PixelSpacing
+        image_orientation = dataset.ImageOrientationPatient
+        image_position = dataset.ImagePositionPatient
+
+        descriptors = [
+            NumContentItem(
+                name=CodedConcept(
+                    value='111026',
+                    meaning='Horizontal Pixel Spacing',
+                    scheme_designator='DCM'
+                ),
                 value=pixel_spacing[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='mm',
+                    meaning='millimeter',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=CodedConcept(
+                    value='111066',
+                    meaning='Vertical Pixel Spacing',
+                    scheme_designator='DCM'
+                ),
+                value=pixel_spacing[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
                     value='mm',
@@ -3723,7 +3766,7 @@ class ImageLibraryEntryDescriptors(Template):
                     meaning='Spacing between slices',
                     scheme_designator='DCM'
                 ),
-                value=image.SpacingBetweenSlices,
+                value=dataset.SpacingBetweenSlices,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
                     value='mm',
@@ -3737,7 +3780,7 @@ class ImageLibraryEntryDescriptors(Template):
                     meaning='Slice Thickness',
                     scheme_designator='DCM'
                 ),
-                value=image.SliceThickness,
+                value=dataset.SliceThickness,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
                     value='mm',
@@ -3874,10 +3917,10 @@ class ImageLibraryEntryDescriptors(Template):
         ]
         return descriptors
 
-    def _is_cross_sectional(self, ds: Dataset):
+    def _is_cross_sectional(self, ds: Dataset) -> bool:
         return ds.Modality in ['CT', 'MR', 'PT']
 
-    def _is_projection_radiography(self, ds: Dataset):
+    def _is_projection_radiography(self, ds: Dataset) -> bool:
         return ds.Modality in ['CR', 'DX', 'IO', 'MG', 'PX', 'RF', 'RG', 'XA']
 
 
@@ -3908,9 +3951,8 @@ class MeasurementReport(Template):
             LanguageOfContentItemAndDescendants
         ] = None,
         referenced_images: Optional[
-            Union[Sequence[Dataset]]
+            Sequence[Dataset]
         ] = None
-
     ):
         """
 
@@ -4755,8 +4797,8 @@ class MeasurementReport(Template):
 
 class ImageLibraryEntry(Template):
 
-    """:dcm:`TID 1601 <part16/chapter_A.html#sect_TID_1601>`
-     Image Library Entry"""  # noqa: E501
+    """:dcm:`TID 1601 Image Library Entry <part16/chapter_A.html#sect_TID_1601>`
+    """  # noqa: E501
 
     def __init__(
         self,
@@ -4767,7 +4809,9 @@ class ImageLibraryEntry(Template):
         ----------
         dataset: Dataset
             Image to include in ImageLibrary
+
         """  # noqa
+
         super().__init__()
 
         library_item_entry = ImageLibraryEntryDescriptors(dataset)
@@ -4786,9 +4830,8 @@ class ImageLibraryEntry(Template):
 
 class ImageLibrary(Template):
 
-    """:dcm:`TID 1600 <part16/chapter_A.html#sect_TID_1600>`
-     Image Library
-    """
+    """:dcm:`TID 1600 Image Library <part16/chapter_A.html#sect_TID_1600>`
+    """  # noqa: E501
 
     def __init__(
         self,
@@ -4799,6 +4842,7 @@ class ImageLibrary(Template):
         ----------
         datasets: Sequence[pydicom.dataset.Dataset]
             Datasets to include in ImageLibrary
+
         """
         super().__init__()
         library_item = ContainerContentItem(

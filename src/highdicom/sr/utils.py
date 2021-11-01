@@ -170,18 +170,19 @@ def get_coded_value(item: Dataset) -> CodedConcept:
 
 
 def is_image(dataset: Dataset) -> bool:
-    """
-    Returns true if the dataset appears to be an image, false otherwise.
+    """Check whether data set represents an image.
 
-    :dcm:`Table C.7-11c Image Pixel Description Macro Attributes <part03/sect_C.7.6.3.html#table_C.7-11c>`
-     Parameters
+    Parameters
     ----------
     dataset: pydicom.dataset.Dataset
-        Content Item
+        Dataset
+
     Returns
-        True or False
     -------
-    """  # noqa: E501
+    bool
+        ``True`` if `dataset` is an image, ``False`` otherwise
+
+    """
     if all(key in dataset for key in ('Rows',
                                       'Columns',
                                       'SamplesPerPixel',
