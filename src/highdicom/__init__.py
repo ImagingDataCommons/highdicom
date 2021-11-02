@@ -1,10 +1,11 @@
+from highdicom import ann
+from highdicom import color
+from highdicom import ko
 from highdicom import legacy
 from highdicom import pm
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
-from highdicom import ann
-from highdicom import color
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     IssuerOfIdentifier,
@@ -65,6 +66,7 @@ __all__ = [
     'color',
     'frame',
     'io',
+    'ko',
     'legacy',
     'pm',
     'sc',

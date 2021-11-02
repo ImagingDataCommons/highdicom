@@ -582,8 +582,7 @@ class SpecimenSampling(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
     sampling procedure according to structured reporting template
-    :dcm:`TID 8002 <part16/chapter_C.html#sect_TID_8002>`
-    Specimen Sampling.
+    :dcm:`TID 8002 Specimen Sampling <part16/chapter_C.html#sect_TID_8002>`.
     """
 
     def __init__(
@@ -640,8 +639,7 @@ class SpecimenStaining(ContentSequence):
 
     """Sequence of structured reporting content item describing a specimen
     staining procedure according to structured reporting template
-    :dcm:`TID 8003 <part16/chapter_C.html#sect_TID_8003>`
-    Specimen Staining.
+    :dcm:`TID 8003 Specimen Staining <part16/chapter_C.html#sect_TID_8003>`.
     """
 
     def __init__(
@@ -667,10 +665,10 @@ class SpecimenStaining(ContentSequence):
 
 class SpecimenPreparationStep(ContentSequence):
 
-    """Dataset describing a specimen preparation step according to
+    """Dataset describing a specimen preparation step according to.
     structured reporting template
-    :dcm:`TID 8001 <part16/chapter_C.html#sect_TID_8001>`
-    Specimen Preparation.
+    :dcm:`TID 8001 Specimen Preparation <part16/chapter_C.html#sect_TID_8001>`.
+
     """
 
     def __init__(

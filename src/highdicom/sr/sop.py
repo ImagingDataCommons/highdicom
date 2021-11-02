@@ -23,7 +23,11 @@ from highdicom.base import SOPClass
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
-from highdicom.sr.utils import find_content_items
+from highdicom.sr.utils import (
+    find_content_items,
+    collect_evidence,
+    _create_references
+)
 from highdicom.sr.value_types import ContentItem, ContentSequence
 from highdicom.valuerep import check_person_name
 
@@ -211,7 +215,7 @@ class _SR(SOPClass):
         for tag, value in content.items():
             self[tag] = value
 
-        ref_items, unref_items = self._collect_evidence(evidence, content)
+        ref_items, unref_items = collect_evidence(evidence, content)
         if len(ref_items) > 0:
             self.CurrentRequestedProcedureEvidenceSequence = ref_items
         if len(unref_items) > 0 and record_evidence:
@@ -233,41 +237,6 @@ class _SR(SOPClass):
         self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
 
         self.copy_patient_and_study_information(evidence[0])
-
-    @staticmethod
-    def _create_references(
-        collection: Mapping[Tuple[str, str], Sequence[Dataset]]
-    ) -> List[Dataset]:
-        """Create references.
-
-        Parameters
-        ----------
-        collection: Mapping[Tuple[str, str], Sequence[pydicom.dataset.Dataset]]
-            Items of the Referenced SOP Sequence grouped by Study and Series
-            Instance UID
-
-        Returns
-        -------
-        List[pydicom.dataset.Dataset]
-            Items containing the Study Instance UID and the
-            Referenced Series Sequence attributes
-
-        """
-        study_collection: Mapping[str, List[Dataset]] = defaultdict(list)
-        for (study_uid, series_uid), instance_items in collection.items():
-            series_item = Dataset()
-            series_item.SeriesInstanceUID = series_uid
-            series_item.ReferencedSOPSequence = instance_items
-            study_collection[study_uid].append(series_item)
-
-        ref_items = []
-        for study_uid, series_items in study_collection.items():
-            study_item = Dataset()
-            study_item.StudyInstanceUID = study_uid
-            study_item.ReferencedSeriesSequence = series_items
-            ref_items.append(study_item)
-
-        return ref_items
 
     def _collect_predecessors(
         self,
@@ -294,84 +263,7 @@ class _SR(SOPClass):
             pre_instance_item.ReferencedSOPInstanceUID = pre.SOPInstanceUID
             key = (pre.StudyInstanceUID, pre.SeriesInstanceUID)
             group[key].append(pre_instance_item)
-        return self._create_references(group)
-
-    def _collect_evidence(
-        self,
-        evidence: Sequence[Dataset],
-        content: Dataset
-    ) -> Tuple[List[Dataset], List[Dataset]]:
-        """Collect evidence for the SR document.
-
-        Any `evidence` that is referenced in `content` via IMAGE or
-        COMPOSITE content items will be grouped together for inclusion in the
-        Current Requested Procedure Evidence Sequence and all remaining
-        evidence will be grouped for potential inclusion in the Pertinent Other
-        Evidence Sequence.
-
-        Parameters
-        ----------
-        evidence: List[pydicom.dataset.Dataset]
-            Metadata of instances that serve as evidence for the SR document
-            content
-        content: pydicom.dataset.Dataset
-            SR document content
-
-        Returns
-        -------
-        Tuple[List[pydicom.dataset.Dataset], List[pydicom.dataset.Dataset]]
-            Items of the Current Requested Procedure Evidence Sequence and the
-            Pertinent Other Evidence Sequence
-
-        Raises
-        ------
-        ValueError
-            When a SOP instance is referenced in `content` but not provided as
-            `evidence`
-
-        """  # noqa: E501
-        references = find_content_items(
-            content,
-            value_type=ValueTypeValues.IMAGE,
-            recursive=True
-        )
-        references += find_content_items(
-            content,
-            value_type=ValueTypeValues.COMPOSITE,
-            recursive=True
-        )
-        ref_uids = set([
-            ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
-            for ref in references
-        ])
-        evd_uids = set()
-        ref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
-        unref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
-        for evd in evidence:
-            if evd.SOPInstanceUID in evd_uids:
-                # Skip potential duplicates
-                continue
-            evd_item = Dataset()
-            evd_item.ReferencedSOPClassUID = evd.SOPClassUID
-            evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
-            key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
-            if evd.SOPInstanceUID in ref_uids:
-                ref_group[key].append(evd_item)
-            else:
-                unref_group[key].append(evd_item)
-            evd_uids.add(evd.SOPInstanceUID)
-        if not(ref_uids.issubset(evd_uids)):
-            missing_uids = ref_uids.difference(evd_uids)
-            raise ValueError(
-                'No evidence was provided for the following SOP instances, '
-                'which are referenced in the document content: "{}"'.format(
-                    '", "'.join(missing_uids)
-                )
-            )
-
-        ref_items = self._create_references(ref_group)
-        unref_items = self._create_references(unref_group)
-        return (ref_items, unref_items)
+        return _create_references(group)
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> Dataset:
