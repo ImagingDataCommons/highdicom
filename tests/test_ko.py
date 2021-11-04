@@ -1,6 +1,8 @@
 import unittest
+from pathlib import Path
 
 from pydicom.dataset import Dataset
+from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 import pytest
 
@@ -150,3 +152,47 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        self._seg_image = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_control.dcm'))
+        )
+
+        self._evidence = [
+            self._sm_image,
+            self._seg_image,
+        ]
+
+        self._content = KeyObjectSelection(
+            document_title=codes.DCM.Manifest,
+            referenced_objects=[
+                self._sm_image,
+                self._seg_image,
+            ]
+        )
+
+    def test_construction(self):
+        document = KeyObjectSelectionDocument(
+            evidence=self._evidence,
+            content=self._content,
+            series_instance_uid=UID(),
+            series_number=10,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='MGH Computational Pathology',
+            institution_name='Massachusetts General Hospital',
+            institutional_department_name='Pathology'
+        )
+        assert isinstance(document, KeyObjectSelectionDocument)
+        assert isinstance(document.content, KeyObjectSelection)
+
+        study_uid, series_uid, instance_uid = document.resolve_reference(
+            self._sm_image.SOPInstanceUID
+        )
+        assert study_uid == self._sm_image.StudyInstanceUID
+        assert series_uid == self._sm_image.SeriesInstanceUID
+        assert instance_uid == self._sm_image.SOPInstanceUID

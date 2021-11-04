@@ -588,7 +588,7 @@ class ComprehensiveSR(_SR):
 
         Returns
         -------
-        highdicom.sr.sop.ComprehensiveSR
+        highdicom.sr.ComprehensiveSR
             Comprehensive SR document
 
         """
@@ -730,7 +730,7 @@ class Comprehensive3DSR(_SR):
 
         Returns
         -------
-        highdicom.sr.sop.Comprehensive3DSR
+        highdicom.sr.Comprehensive3DSR
             Comprehensive 3D SR document
 
         """

@@ -1,7 +1,6 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
-from copy import deepcopy
-from typing import Any, Optional, Sequence, Union
+from typing import Any, cast, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.uid import (
@@ -9,10 +8,14 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
+from pydicom._storage_sopclass_uids import (
+    KeyObjectSelectionDocumentStorage,
+)
 
 from highdicom.base import SOPClass
 from highdicom.sr.utils import collect_evidence
-from highdicom.sr.value_types import ContentItem, ContentSequence
+from highdicom.sr.value_types import ContainerContentItem
+from highdicom.ko.content import KeyObjectSelection
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +27,10 @@ class KeyObjectSelectionDocument(SOPClass):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: KeyObjectSelection,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
-        sop_class_uid: str,
         instance_number: int,
         manufacturer: Optional[str] = None,
         institution_name: Optional[str] = None,
@@ -44,32 +46,29 @@ class KeyObjectSelectionDocument(SOPClass):
             Instances that are referenced in the content tree and from which
             the created KO document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
-            Root container content items that should be included in the
-            SR document
+        content: highdicom.ko.KeyObjectSelection
+            Content items that should be included in the document
         series_instance_uid: str
-            Series Instance UID of the SR document series
+            Series Instance UID of the document series
         series_number: Union[int, None]
-            Series Number of the SR document series
+            Series Number of the document series
         sop_instance_uid: str
-            SOP Instance UID that should be assigned to the SR document instance
-        sop_class_uid: str
-            SOP Class UID for the SR document type
+            SOP Instance UID that should be assigned to the document instance
         instance_number: int
-            Number that should be assigned to this SR document instance
+            Number that should be assigned to this document instance
         manufacturer: str, optional
-            Name of the manufacturer of the device that creates the SR document
+            Name of the manufacturer of the device that creates the document
             instance (in a research setting this is typically the same
             as `institution_name`)
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
-            SR document instance
+            document instance
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
-            SR document instance
+            document instance
         requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
-            SR document
+            document
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
@@ -100,7 +99,7 @@ class KeyObjectSelectionDocument(SOPClass):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
-            sop_class_uid=sop_class_uid,
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.59',
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='KOS',
@@ -125,13 +124,10 @@ class KeyObjectSelectionDocument(SOPClass):
                 self.InstitutionalDepartmentName = institutional_department_name
 
         # Add content to dataset
-        content_copy = deepcopy(content)
-        content_item = ContentItem._from_dataset_derived(content_copy)
-        self._content = ContentSequence([content_item], is_root=True)
-        for tag, value in content.items():
+        for tag, value in content[0].items():
             self[tag] = value
 
-        ref_items, unref_items = collect_evidence(evidence, content)
+        ref_items, unref_items = collect_evidence(evidence, content[0])
         if len(ref_items) > 0:
             self.CurrentRequestedProcedureEvidenceSequence = ref_items
             if len(ref_items) > 1:
@@ -142,3 +138,88 @@ class KeyObjectSelectionDocument(SOPClass):
 
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
+
+        # Cache copy of the content to facilitate subsequent access
+        self._content = KeyObjectSelection.from_sequence(content, is_root=True)
+
+        self._reference_lut = {}
+        for study_item in self.CurrentRequestedProcedureEvidenceSequence:
+            for series_item in study_item.ReferencedSeriesSequence:
+                for instance_item in series_item.ReferencedSOPSequence:
+                    sop_instance_uid = instance_item.ReferencedSOPInstanceUID
+                    self._reference_lut[sop_instance_uid] = (
+                        study_item.StudyInstanceUID,
+                        series_item.SeriesInstanceUID,
+                        sop_instance_uid
+                    )
+
+    @property
+    def content(self) -> KeyObjectSelection:
+        """highdicom.ko.KeyObjectSelection: document content"""
+        return self._content
+
+    def resolve_reference(self, sop_instance_uid: str) -> Tuple[str, str, str]:
+        """Resolve reference for an object included in the document content.
+
+        Parameter
+        ---------
+        sop_instance_uid: str
+            SOP Instance UID of a referenced object
+
+        Returns
+        -------
+        Tuple[str, str, str]
+            Study, Series, and SOP Instance UID
+
+        """
+        try:
+            return self._reference_lut[sop_instance_uid]
+        except KeyError:
+            raise ValueError(
+                'Could not find any evidence for SOP Instance UID '
+                f'"{sop_instance_uid}" in KOS document.'
+            )
+
+    def from_dataset(self, dataset: Dataset) -> 'KeyObjectSelectionDocument':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Key Object Selection Document
+
+        Returns
+        -------
+        highdicom.ko.KeyObjectSelectionDocument
+            Key Object Selection Document
+
+        """
+        if dataset.SOPClassUID != KeyObjectSelectionDocumentStorage:
+            raise ValueError('Dataset is not a Key Object Selection Document.')
+        sop_instance = super().from_dataset(dataset)
+        sop_instance.__class__ = KeyObjectSelectionDocument
+
+        # Cache copy of the content to facilitate subsequent access
+        root_item = Dataset()
+        root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
+        root_item.ContentSequence = dataset.ContentSequence
+        root_item.ValueType = dataset.ValueType
+        root_item.ContinuityOfContent = dataset.ContinuityOfContent
+        content_item = ContainerContentItem.from_dataset(root_item)
+        sop_instance._content = KeyObjectSelection.from_sequence(
+            [content_item],
+            is_root=True
+        )
+
+        sop_instance._reference_lut = {}
+        for study_item in self.CurrentRequestedProcedureEvidenceSequence:
+            for series_item in study_item.ReferencedSeriesSequence:
+                for instance_item in series_item.ReferencedSOPSequence:
+                    sop_instance_uid = instance_item.ReferencedSOPInstanceUID
+                    sop_instance._reference_lut[sop_instance_uid] = (
+                        study_item.StudyInstanceUID,
+                        series_item.SeriesInstanceUID,
+                        sop_instance_uid
+                    )
+
+        return cast(KeyObjectSelectionDocument, sop_instance)
