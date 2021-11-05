@@ -47,7 +47,7 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, _check_code_string
 from highdicom.uid import UID as hd_UID
 
 
@@ -86,6 +86,7 @@ class Segmentation(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         omit_empty_frames: bool = True,
+        content_label: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -232,6 +233,8 @@ class Segmentation(SOPClass):
         omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
+        content_label: Union[str, None], optional
+            Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -369,7 +372,12 @@ class Segmentation(SOPClass):
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.PixelRepresentation = 0
-        self.ContentLabel = 'Segmentation'
+
+        if content_label is not None:
+            _check_code_string(content_label)
+            self.ContentLabel = content_label
+        else:
+            self.ContentLabel = f'{src_img.Modality}_SEG'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

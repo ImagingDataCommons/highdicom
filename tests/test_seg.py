@@ -616,6 +616,7 @@ class TestSegmentation(unittest.TestCase):
         self._device_serial_number = '1-2-3'
         self._content_description = 'Test Segmentation'
         self._content_creator_name = 'Robo^Doc'
+        self._content_label = 'MY_SEG'
 
         # A single CT image
         self._ct_image = dcmread(
@@ -772,7 +773,8 @@ class TestSegmentation(unittest.TestCase):
             self._manufacturer,
             self._manufacturer_model_name,
             self._software_versions,
-            self._device_serial_number
+            self._device_serial_number,
+            content_label=self._content_label
         )
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
@@ -797,6 +799,7 @@ class TestSegmentation(unittest.TestCase):
         assert instance.SegmentationType == 'FRACTIONAL'
         assert instance.SegmentationFractionalType == 'PROBABILITY'
         assert instance.MaximumFractionalValue == 255
+        assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
         assert instance.ContentCreatorName is None
         with pytest.raises(AttributeError):
@@ -1641,6 +1644,26 @@ class TestSegmentation(unittest.TestCase):
                 manufacturer_model_name=self._manufacturer_model_name,
                 software_versions=self._software_versions,
                 device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_invalid_content_label(self):
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=self._ct_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._segment_descriptions
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                content_label='invalid-content-label'
             )
 
     def test_construction_mixed_source_series(self):
