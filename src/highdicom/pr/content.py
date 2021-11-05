@@ -3,6 +3,7 @@
 from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
+from pydicom._storage_sopclass_uids import SegmentationStorage
 
 import numpy as np
 
@@ -68,17 +69,11 @@ class GraphicObject(Dataset):
         self.GraphicAnnotationUnits = units.value
 
         if not isinstance(graphic_data, np.ndarray):
-            raise TypeError(
-                'graphic_data must be a numpy array.'
-            )
+            raise TypeError('graphic_data must be a numpy array.')
         if graphic_data.ndim != 2:
-            raise ValueError(
-                'graphic_data must be a 2D array.'
-            )
+            raise ValueError('graphic_data must be a 2D array.')
         if graphic_data.shape[1] != 2:
-            raise ValueError(
-                'graphic_data must be an array of shape (N, 2).'
-            )
+            raise ValueError('graphic_data must be an array of shape (N, 2).')
         num_points = graphic_data.shape[0]
         self.NumberOfGraphicPoints = num_points
 
@@ -107,7 +102,7 @@ class GraphicObject(Dataset):
                 )
         elif graphic_type in (
             GraphicTypeValues.POLYLINE,
-            GraphicTypeValues.INTERPOLATED
+            GraphicTypeValues.INTERPOLATED,
         ):
             if num_points < 2:
                 raise ValueError(
@@ -190,8 +185,7 @@ class TextObject(Dataset):
         anchor_point: Optional[Tuple[float, float]] = None,
         units: Union[AnnotationUnitsValues, str] = AnnotationUnitsValues.PIXEL,
         text_justification: Union[
-            TextJustificationValues,
-            str
+            TextJustificationValues, str
         ] = TextJustificationValues.CENTER,
         anchor_point_visible: bool = True,
         tracking_id: Optional[str] = None,
@@ -252,9 +246,7 @@ class TextObject(Dataset):
 
         if bounding_box is not None:
             if len(bounding_box) != 4:
-                raise ValueError(
-                    'Bounding box must contain four values.'
-                )
+                raise ValueError('Bounding box must contain four values.')
             if min(bounding_box) < 0.0:
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
@@ -273,9 +265,7 @@ class TextObject(Dataset):
 
         if anchor_point is not None:
             if len(anchor_point) != 2:
-                raise ValueError(
-                    'Anchor point must contain two values.'
-                )
+                raise ValueError('Anchor point must contain two values.')
             if min(anchor_point) < 0.0:
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
@@ -317,9 +307,8 @@ class TextObject(Dataset):
     def bounding_box(self) -> Union[Tuple[float, float, float, float], None]:
         if not hasattr(self, 'BoundingBoxTopLeftHandCorner'):
             return None
-        return (
-            tuple(self.BoundingBoxTopLeftHandCorner) +
-            tuple(self.BoundingBoxBottomRightHandCorner)
+        return tuple(self.BoundingBoxTopLeftHandCorner) + tuple(
+            self.BoundingBoxBottomRightHandCorner
         )
 
     @property
@@ -354,20 +343,92 @@ class GraphicAnnotation(Dataset):
 
     def __init__(
         self,
-        referenced_images: Sequence[Dataset],
         graphic_layer: str,
-        referenced_frame_number: Union[int, Sequence[int], None],
-        referenced_segment_number: Union[int, Sequence[int], None],
+        referenced_images: Sequence[Dataset],
+        referenced_frame_number: Union[int, Sequence[int], None] = None,
+        referenced_segment_number: Union[int, Sequence[int], None] = None,
         graphic_objects: Optional[Sequence[GraphicObject]] = None,
         text_objects: Optional[Sequence[TextObject]] = None,
     ):
         """
+        Parameters
+        ----------
+        graphic_layer: str
+            Name for the layer in which the annotations are to be rendered.
+            Should be a valid DICOM Code String (CS), i.e. 16 characters or
+            fewer containing only uppercase letters, spaces and underscores.
+        referenced_images: Sequence[Dataset]
+            Sequenced of referenced datasets. Graphic and text objects shall be
+            rendered on all images in this list.
+        referenced_frame_number: Union[int, Sequence[int], None]
+            Frame number(s) in a multiframe image upon which annotations shall
+            be rendered.
+        referenced_segment_number: Union[int, Sequence[int], None]
+            Frame number(s) in a multi-frame image upon which annotations shall
+            be rendered.
+        graphic_objects: Union[Sequence[highdicom.pr.GraphicObject], None]
+            Graphic objects to render over the referenced images.
+        text_objects: Union[Sequence[highdicom.pr.TextObject], None]
+            Text objects to render over the referenced images.
+
         """
         # TODO
         # Implement the Referenced Image Sequence
         # Check image is multiframe if frame numbers are passed
         # Check image is segmentation if segment numbers are passed
         # Write docstring
+        if len(referenced_images) == 0:
+            raise ValueError('List of referenced images must not be empty.')
+        referenced_series_uid = referenced_images[0].SeriesInstanceUID
+
+        is_multiframe = hasattr(referenced_images[0], 'NumberOfFrames')
+        if is_multiframe and len(referenced_images) > 1:
+            raise ValueError(
+                'If datasets are multi-frame, only a single dataset should'
+                'be passed.'
+            )
+        if is_multiframe:
+            if (
+                referenced_frame_number is not None
+                and referenced_segment_number is not None
+            ):
+                raise TypeError(
+                    'At most one of "referenced_frame_number" or '
+                    '"referenced_segment_number" should be provided.'
+                )
+        else:
+            if referenced_frame_number is not None:
+                raise TypeError(
+                    'Passing a "referenced_frame_number" is not valid with '
+                    'single-frame referenced images.'
+                )
+        if referenced_segment_number is not None:
+            if referenced_images[0].SOPClassUID != SegmentationStorage:
+                raise TypeError(
+                    '"referenced_segment_number" is only valid when the '
+                    'referenced image is a segmentation.'
+                )
+        ref_im_seq = []
+        for ref_im in referenced_images:
+            if not isinstance(ref_im, Dataset):
+                raise TypeError(
+                    'Argument "referenced_images" must be a sequence of '
+                    'pydicom.Datasets.'
+                )
+            if ref_im.SeriesInstanceUID != referenced_series_uid:
+                raise ValueError(
+                    'All referenced images must belong to the same series.'
+                )
+            ref_im_item = Dataset()
+            ref_im_item.ReferencedSOPClassUID = ref_im.SOPClassUID
+            ref_im_item.ReferencedSOPInstanceUID = ref_im.SOPInstanceUID
+            if referenced_frame_number is not None:
+                ref_im_item.ReferencedFrameNumber = referenced_frame_number
+            if referenced_segment_number is not None:
+                ref_im_item.ReferencedSegmentNumber = referenced_segment_number
+            ref_im_seq.append(ref_im_item)
+        self.ReferencedImageSequence = ref_im_seq
+
         if not _check_code_string(graphic_layer):
             raise ValueError(
                 f'Python string "{graphic_layer}" is not valid as a DICOM Code '

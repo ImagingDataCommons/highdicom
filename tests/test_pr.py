@@ -4,8 +4,12 @@ import numpy as np
 
 import pytest
 
+from pydicom import dcmread
+from pydicom.data import get_testdata_files
+
 from highdicom import UID
 from highdicom.pr import (
+    GraphicAnnotation,
     GraphicObject,
     GraphicTypeValues,
     AnnotationUnitsValues,
@@ -276,3 +280,41 @@ class TestTextObject(unittest.TestCase):
                 anchor_point=(1.0, 3.0),
                 units=AnnotationUnitsValues.DISPLAY
             )
+
+
+class TestGraphicAnnotation(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._text_value = 'Look Here!'
+        self._bounding_box = (10, 30, 40, 60)
+        self._text_object = TextObject(
+            text_value=self._text_value,
+            bounding_box=self._bounding_box
+        )
+        self._circle = np.array([
+            [10.0, 10.0],
+            [11.0, 10.0]
+        ])
+        self._graphic_object = GraphicObject(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+        )
+
+    def test_construction_text(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=self._ct_series,
+            text_objects=[self._text_object]
+        )
+
+    def test_construction_graphic(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=self._ct_series,
+            graphic_objects=[self._graphic_object]
+        )
