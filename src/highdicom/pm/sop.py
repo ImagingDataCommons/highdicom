@@ -371,9 +371,6 @@ class ParametricMap(SOPClass):
         self.ContentCreatorName = content_creator_name
         self.PresentationLUTShape = 'IDENTITY'
 
-        # TODO: check that physical dimensions of the image match those of the
-        # source image
-
         self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
         dimension_organization = Dataset()
         dimension_organization.DimensionOrganizationUID = (
@@ -437,6 +434,8 @@ class ParametricMap(SOPClass):
         self.Rows = pixel_array.shape[1]
         self.Columns = pixel_array.shape[2]
 
+        # TODO: tiled image with Total Pixel Matrix Rows/Columns
+
         if len(real_world_value_mappings) != pixel_array.shape[3]:
             raise ValueError(
                 'Number of RealWorldValueMapping items provided via '
@@ -444,28 +443,103 @@ class ParametricMap(SOPClass):
                 'last dimension of "pixel_array" argument.'
             )
 
-        if plane_positions is None:
-            if is_multiframe:
-                plane_positions = \
-                    self.DimensionIndexSequence.get_plane_positions_of_image(
-                        self._source_images[0]
-                    )
+        if is_multiframe:
+            source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_image(
+                    self._source_images[0]
+                )
+            if coordinate_system == CoordinateSystemNames.SLIDE:
+                source_plane_orientation = PlaneOrientationSequence(
+                    coordinate_system=coordinate_system,
+                    image_orientation=[
+                        float(v) for v in src_img.ImageOrientationSlide
+                    ],
+                )
             else:
-                plane_positions = \
-                    self.DimensionIndexSequence.get_plane_positions_of_series(
-                        self._source_images
-                    )
-            if len(plane_positions) != pixel_array.shape[0]:
+                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+                source_plane_orientation = src_sfg.PlaneOrientationSequence
+        else:
+            source_plane_positions = \
+                self.DimensionIndexSequence.get_plane_positions_of_series(
+                    self._source_images
+                )
+            source_plane_orientation = PlaneOrientationSequence(
+                coordinate_system=coordinate_system,
+                image_orientation=[
+                    float(v) for v in src_img.ImageOrientationPatient
+                ],
+            )
+
+        if plane_positions is None:
+            if pixel_array.shape[0] != len(source_plane_positions):
                 raise ValueError(
                     'Number of plane positions in source image(s) does not '
                     'match size of first dimension of "pixel_array" argument.'
                 )
+            plane_positions = source_plane_positions
         else:
             if len(plane_positions) != pixel_array.shape[0]:
                 raise ValueError(
                     'Number of PlanePositionSequence items provided via '
                     '"plane_positions" argument does not match size of '
                     'first dimension of "pixel_array" argument.'
+                )
+
+        if plane_orientation is None:
+            plane_orientation = source_plane_orientation
+
+        are_spatial_locations_preserved = (
+            all(
+                plane_positions[i] == source_plane_positions[i]
+                for i in range(len(plane_positions))
+            ) and
+            plane_orientation == source_plane_orientation
+        )
+
+        plane_position_values, plane_sort_index = \
+            self.DimensionIndexSequence.get_index_values(plane_positions)
+
+        if coordinate_system == CoordinateSystemNames.SLIDE:
+            self.ImageOrientationSlide = \
+                plane_orientation[0].ImageOrientationSlide
+            if are_spatial_locations_preserved:
+                self.TotalPixelMatrixOriginSequence = \
+                    source_images[0].TotalPixelMatrixOriginSequence
+                self.TotalPixelMatrixRows = \
+                    source_images[0].TotalPixelMatrixRows
+                self.TotalPixelMatrixColumns = \
+                    source_images[0].TotalPixelMatrixColumns
+            else:
+                row_index = self.DimensionIndexSequence.get_index_position(
+                    'RowPositionInTotalImagePixelMatrix'
+                )
+                row_offsets = plane_position_values[:, row_index]
+                col_index = self.DimensionIndexSequence.get_index_position(
+                    'ColumnPositionInTotalImagePixelMatrix'
+                )
+                col_offsets = plane_position_values[:, col_index]
+                frame_indices = np.lexsort([row_offsets, col_offsets])
+                first_frame_index = frame_indices[0]
+                last_frame_index = frame_indices[-1]
+                x_index = self.DimensionIndexSequence.get_index_position(
+                    'XOffsetInSlideCoordinateSystem'
+                )
+                x_offset = plane_position_values[first_frame_index, x_index]
+                y_index = self.DimensionIndexSequence.get_index_position(
+                    'YOffsetInSlideCoordinateSystem'
+                )
+                y_offset = plane_position_values[first_frame_index, y_index]
+                origin_item = Dataset()
+                origin_item.XOffsetInSlideCoordinateSystem = x_offset
+                origin_item.YOffsetInSlideCoordinateSystem = y_offset
+                self.TotalPixelMatrixOriginSequence = [origin_item]
+                self.TotalPixelMatrixRows = (
+                    plane_position_values[last_frame_index, row_index] +
+                    self.Rows
+                )
+                self.TotalPixelMatrixColumns = (
+                    plane_position_values[last_frame_index, col_index] +
+                    self.Columns
                 )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
@@ -481,27 +555,6 @@ class ParametricMap(SOPClass):
                         'SpacingBetweenSlices', None
                     ),
                 )
-
-        if is_multiframe:
-            if coordinate_system == CoordinateSystemNames.SLIDE:
-                source_plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=coordinate_system,
-                    image_orientation=[
-                        float(v) for v in src_img.ImageOrientationSlide
-                    ],
-                )
-            else:
-                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = src_sfg.PlaneOrientationSequence
-        else:
-            source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=coordinate_system,
-                image_orientation=[
-                    float(v) for v in src_img.ImageOrientationPatient
-                ],
-            )
-        if plane_orientation is None:
-            plane_orientation = source_plane_orientation
 
         sffg_item.PixelMeasuresSequence = pixel_measures
         sffg_item.PlaneOrientationSequence = plane_orientation
@@ -536,7 +589,7 @@ class ParametricMap(SOPClass):
         # TODO: put Real World Value Mapping Sequence into shared
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
-        # Get the correct attribute for this Instance's pixel data
+        # Get the correct pixel data attribute
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
             pixel_array
         )

@@ -1455,6 +1455,16 @@ class CompositeContentItem(ContentItem):
             UID(item.ReferencedSOPInstanceUID),
         )
 
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID: referenced SOP Class UID"""
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPClassUID)
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID: referenced SOP Instance UID"""
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
         """Construct object from an existing dataset.
@@ -1558,23 +1568,17 @@ class ImageContentItem(ContentItem):
 
     @property
     def referenced_sop_class_uid(self) -> UID:
-        """highdicom.UID
-            referenced SOP Class UID
-        """
+        """highdicom.UID: referenced SOP Class UID"""
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPClassUID)
 
     @property
     def referenced_sop_instance_uid(self) -> UID:
-        """highdicom.UID
-            referenced SOP Instance UID
-        """
+        """highdicom.UID: referenced SOP Instance UID"""
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @property
     def referenced_frame_numbers(self) -> Union[List[int], None]:
-        """Union[List[int], None]
-            referenced frame numbers
-        """
+        """Union[List[int], None]: referenced frame numbers"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
             'ReferencedFrameNumber',
@@ -2042,3 +2046,135 @@ class TcoordContentItem(ContentItem):
         _assert_value_type(dataset, ValueTypeValues.TCOORD)
         item = super(TcoordContentItem, cls)._from_dataset_base(dataset)
         return cast(TcoordContentItem, item)
+
+
+class WaveformContentItem(ContentItem):
+
+    """DICOM SR document content item for value type WAVEFORM."""
+
+    def __init__(
+        self,
+        name: Union[Code, CodedConcept],
+        referenced_sop_class_uid: Union[str, UID],
+        referenced_sop_instance_uid: Union[str, UID],
+        referenced_waveform_channels: Optional[
+            Union[int, Sequence[int]]
+        ] = None,
+        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name
+        referenced_sop_class_uid: Union[highdicom.UID, str]
+            SOP Class UID of the referenced image object
+        referenced_sop_instance_uid: Union[highdicom.UID, str]
+            SOP Instance UID of the referenced image object
+        referenced_waveform_channels: Union[Sequence[Tuple[int, int]], None], optional
+            Pairs of waveform number (number of item in the Waveform Sequence)
+            and channel definition number (number of item in the Channel
+            Defition Sequence) to which the reference applies in case of a
+            multi-channel waveform
+        relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
+            Type of relationship with parent content item
+
+        """  # noqa: E501
+        super(WaveformContentItem, self).__init__(
+            ValueTypeValues.WAVEFORM, name, relationship_type
+        )
+        item = Dataset()
+        item.ReferencedSOPClassUID = str(referenced_sop_class_uid)
+        item.ReferencedSOPInstanceUID = str(referenced_sop_instance_uid)
+        if referenced_waveform_channels is not None:
+            item.ReferencedWaveformChannels = [
+                i
+                for item in referenced_waveform_channels
+                for i in item
+            ]
+        self.ReferencedSOPSequence = [item]
+
+    @property
+    def value(self) -> Tuple[UID, UID]:
+        """Tuple[highdicom.UID, highdicom.UID]:
+            referenced SOP Class UID and SOP Instance UID
+        """
+        item = self.ReferencedSOPSequence[0]
+        return (
+            UID(item.ReferencedSOPClassUID),
+            UID(item.ReferencedSOPInstanceUID),
+        )
+
+    @property
+    def referenced_sop_class_uid(self) -> UID:
+        """highdicom.UID: referenced SOP Class UID"""
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPClassUID)
+
+    @property
+    def referenced_sop_instance_uid(self) -> UID:
+        """highdicom.UID: referenced SOP Instance UID"""
+        return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
+
+    @property
+    def referenced_waveform_channels(self) -> Union[
+        List[Tuple[int, int]],
+        None
+    ]:
+        """Union[List[Tuple[int, int]], None]: referenced waveform channels"""
+        if not hasattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedFrameNumber',
+        ):
+            return None
+        val = getattr(
+            self.ReferencedSOPSequence[0],
+            'ReferencedFrameNumber',
+        )
+        return [
+            (
+                int(val[i]),
+                int(val[i + 1]),
+            )
+            for i in range(0, len(val) - 1, 2)
+        ]
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'WaveformContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type WAVEFORM
+
+        Returns
+        -------
+        highdicom.sr.WaveformContentItem
+            Content Item
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'WaveformContentItem':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type WAVEFORM
+
+        Returns
+        -------
+        highdicom.sr.WaveformContentItem
+            Content Item
+
+        Note
+        ----
+        Does not create a copy, but modifies `dataset`.
+
+        """
+        _assert_value_type(dataset, ValueTypeValues.IMAGE)
+        item = super(WaveformContentItem, cls)._from_dataset_base(dataset)
+        return cast(WaveformContentItem, item)

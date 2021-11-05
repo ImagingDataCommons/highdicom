@@ -260,6 +260,12 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.StudyInstanceUID == self._sm_image.StudyInstanceUID
         assert pmap.PatientID == self._sm_image.PatientID
         assert pmap.ContentLabel == content_label
+        assert pmap.TotalPixelMatrixRows == \
+            self._sm_image.TotalPixelMatrixRows
+        assert pmap.TotalPixelMatrixColumns == \
+            self._sm_image.TotalPixelMatrixColumns
+        assert pmap.TotalPixelMatrixOriginSequence == \
+            self._sm_image.TotalPixelMatrixOriginSequence
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_multi_frame_sm_image_ushort_native(self):
