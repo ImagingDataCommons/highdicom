@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/mghcomputationalpathology/highdicom.svg?branch=master)](https://travis-ci.com/mghcomputationalpathology/highdicom)
+[![Build Status](https://travis-ci.org/mghcomputationalpathology/highdicom.svg?branch=master)](https://travis-ci.org/mghcomputationalpathology/highdicom)
 [![PyPi Distribution](https://img.shields.io/pypi/v/highdicom.svg)](https://pypi.python.org/pypi/highdicom/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/highdicom.svg)](https://pypi.org/project/highdicom/)
 
