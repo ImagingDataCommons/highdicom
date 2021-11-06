@@ -183,9 +183,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             ref_im_columns,
             ref_im_rows
         ]
+        display_area_item.PresentationSizeMode = 'SCALE TO FIT'
+        display_area_item.PresentationPixelAspectRatio = [1, 1]
         self.DisplayedAreaSelectionSequence = [display_area_item]
-        self.PresentationSizeMode = 'SCALE TO FIT'
-        self.PresentationPixelAspectRatio = [1, 1]
 
         # TODO Graphic Layer
 
