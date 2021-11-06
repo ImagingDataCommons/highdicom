@@ -5,7 +5,12 @@ from highdicom.pr.enum import (
     AnnotationUnitsValues,
     GraphicTypeValues
 )
-from highdicom.pr.content import GraphicAnnotation, GraphicObject, TextObject
+from highdicom.pr.content import (
+    GraphicAnnotation,
+    GraphicLayer,
+    GraphicObject,
+    TextObject
+)
 
 
 SOP_CLASS_UIDS = {
@@ -19,5 +24,6 @@ __all__ = [
     'AnnotationUnitsValues',
     'GraphicAnnotation',
     'GraphicObject',
+    'GraphicLayer',
     'TextObject',
 ]

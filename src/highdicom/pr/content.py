@@ -10,6 +10,7 @@ from pydicom._storage_sopclass_uids import (
 
 import numpy as np
 
+from highdicom.color import CIELabColor
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
     GraphicTypeValues,
@@ -347,7 +348,6 @@ class GraphicAnnotation(Dataset):
 
     def __init__(
         self,
-        graphic_layer: str,
         referenced_images: Sequence[Dataset],
         referenced_frame_number: Union[int, Sequence[int], None] = None,
         referenced_segment_number: Union[int, Sequence[int], None] = None,
@@ -357,10 +357,6 @@ class GraphicAnnotation(Dataset):
         """
         Parameters
         ----------
-        graphic_layer: str
-            Name for the layer in which the annotations are to be rendered.
-            Should be a valid DICOM Code String (CS), i.e. 16 characters or
-            fewer containing only uppercase letters, spaces and underscores.
         referenced_images: Sequence[Dataset]
             Sequenced of referenced datasets. Graphic and text objects shall be
             rendered on all images in this list.
@@ -376,11 +372,6 @@ class GraphicAnnotation(Dataset):
             Text objects to render over the referenced images.
 
         """
-        # TODO
-        # Implement the Referenced Image Sequence
-        # Check image is multiframe if frame numbers are passed
-        # Check image is segmentation if segment numbers are passed
-        # Write docstring
         super().__init__()
         if len(referenced_images) == 0:
             raise ValueError('List of referenced images must not be empty.')
@@ -474,8 +465,6 @@ class GraphicAnnotation(Dataset):
             ref_im_seq.append(ref_im_item)
         self.ReferencedImageSequence = ref_im_seq
 
-        _check_code_string(graphic_layer)
-        self.GraphicLayer = graphic_layer
         have_graphics = graphic_objects is not None and len(graphic_objects) > 0
         have_text = text_objects is not None and len(text_objects) > 0
         if not have_graphics and not have_text:
@@ -515,3 +504,61 @@ class GraphicAnnotation(Dataset):
                             'images.'
                         )
             self.TextObjectSequence = text_objects
+
+
+class GraphicLayer(object):
+
+    """A layer of graphic annotations that should be rendered together."""
+
+    def __init__(
+        self,
+        layer_name: str,
+        order: int,
+        graphic_annotations: Sequence[GraphicAnnotation],
+        description: Optional[str] = None,
+        recommended_display_color: Optional[CIELabColor] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        layer_name: str
+            Name for the layer.  Should be a valid DICOM Code String (CS), i.e.
+            16 characters or fewer containing only uppercase letters, spaces
+            and underscores.
+        order: int
+            Integer indicating the order in which this layer should be rendered.
+            Lower values are rendered first.
+        graphic_annotations: Sequence[highdicom.pr.GraphicAnnotation]
+            Graphic annotations to place into this layer.
+        description: Union[str, None]
+            A description of the contents of this graphic layer.
+        recommended_display_color: Union[CIELabColor, None]
+            A default color value for rendering this layer.
+
+        """
+        _check_code_string(layer_name)
+        self._layer_name = layer_name
+        if not isinstance(order, int):
+            raise TypeError('"order" must be an integer.')
+        self._order = order
+        for ann in graphic_annotations:
+            if not isinstance(ann, GraphicAnnotation):
+                raise ValueError(
+                    'Items in "graphic_annotations" must have type '
+                    'highdicom.pr.GraphicAnnotation.'
+                )
+            ann.GraphicLayer = layer_name
+        self._graphic_annotations = graphic_annotations
+        if description is not None and len(description) > 64:
+            raise ValueError(
+                'Value of "description" must not exceed 64 characters.'
+            )
+        self._description = description
+        if recommended_display_color is not None:
+            if not isinstance(recommended_display_color, CIELabColor):
+                raise TypeError(
+                    '"recommended_display_color" must be of type '
+                    'highdicom.color.CIELabColor.'
+                )
+        self._display_cielab = recommended_display_color

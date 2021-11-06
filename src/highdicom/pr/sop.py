@@ -11,7 +11,7 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.base import SOPClass
-from highdicom.pr.content import GraphicAnnotation
+from highdicom.pr.content import GraphicLayer
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -38,7 +38,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         device_serial_number: str,
         content_label: str,
         content_description: Optional[str] = None,
-        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
+        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         concept_name_code: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
@@ -146,31 +146,45 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         ref_series_item.ReferencedImageSequence = ref_im_seq
         self.ReferencedSeriesSequence = [ref_series_item]
 
-        # Graphic Annotation
+        # Graphic Annotation and Graphic Layer
         ref_uids = {
             (ds.ReferencedSOPClassUID, ds.ReferencedSOPInstanceUID)
             for ds in ref_im_seq
         }
-        if len(graphic_annotations) > 0:
-            for ann in graphic_annotations:
-                if not isinstance(ann, GraphicAnnotation):
+        graphic_annotations = []
+        graphic_layer_sequence = []
+        if len(graphic_layers) > 0:
+            for layer in graphic_layers:
+                if not isinstance(layer, GraphicLayer):
                     raise TypeError(
-                        'Items of "graphic_annotations" should be of type '
-                        'highdicom.pr.GraphicAnnotation.'
+                        'Items of "graphic_layers" should be of type '
+                        'highdicom.pr.GraphicLayer.'
                     )
-                for item in ann.ReferencedImageSequence:
-                    uids = (
-                        item.ReferencedSOPClassUID,
-                        item.ReferencedSOPInstanceUID
-                    )
-                    if uids not in ref_uids:
-                        raise ValueError(
-                            'Instance with SOP Instance UID {uids[1]} and SOP '
-                            'Class UID {uids[0]} is referenced in items of '
-                            '"graphic_annotations", but included in '
-                            '"referenced_images".'
+                layer_item = Dataset()
+                layer_item.GraphicLayer = layer._layer_name
+                layer_item.GraphicLayerOrder = layer._order
+                if layer._description is not None:
+                    layer_item.GraphicLayerDescription = layer._description
+                if layer._display_cielab is not None:
+                    layer_item.GraphicLayerRecommendedDisplayCIELabValue = \
+                        layer._display_cielab.value
+                graphic_layer_sequence.append(layer_item)
+                for ann in layer._graphic_annotations:
+                    for item in ann.ReferencedImageSequence:
+                        uids = (
+                            item.ReferencedSOPClassUID,
+                            item.ReferencedSOPInstanceUID
                         )
-            self.GraphicAnnotationSequence = graphic_annotations
+                        if uids not in ref_uids:
+                            raise ValueError(
+                                'Instance with SOP Instance UID {uids[1]} and '
+                                'SOP Class UID {uids[0]} is referenced in '
+                                'items of "graphic_layers", but included in '
+                                '"referenced_images".'
+                            )
+                    graphic_annotations.append(ann)
+        self.GraphicAnnotationSequence = graphic_annotations
+        self.GraphicLayerSequence = graphic_layer_sequence
 
         # Displayed Area Selection Sequence
         # This implements the simplest case - all images are unchanged
@@ -186,8 +200,6 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         display_area_item.PresentationSizeMode = 'SCALE TO FIT'
         display_area_item.PresentationPixelAspectRatio = [1, 1]
         self.DisplayedAreaSelectionSequence = [display_area_item]
-
-        # TODO Graphic Layer
 
         # TODO Graphic Group
 

@@ -11,6 +11,7 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from highdicom import UID
 from highdicom.pr import (
     GraphicAnnotation,
+    GraphicLayer,
     GraphicObject,
     GraphicTypeValues,
     GrayscaleSoftcopyPresentationState,
@@ -318,11 +319,9 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_text(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=self._ct_series,
             text_objects=[self._text_object]
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == len(self._ct_series)
         for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
             assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
@@ -332,11 +331,9 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_graphic(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=self._ct_series,
             graphic_objects=[self._graphic_object]
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == len(self._ct_series)
         for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
             assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
@@ -346,12 +343,10 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_both(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=self._ct_series,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == len(self._ct_series)
         for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
             assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
@@ -361,12 +356,10 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_multiframe(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=[self._ct_multiframe],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == 1
         ref_im = ann.ReferencedImageSequence[0]
         assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
@@ -378,7 +371,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_multiple_multiframe(self):
         with pytest.raises(ValueError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=[self._ct_multiframe, self._ct_multiframe],
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object]
@@ -386,13 +378,11 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_frame_number(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=[self._ct_multiframe],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_frame_number=self._frame_number
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == 1
         ref_im = ann.ReferencedImageSequence[0]
         assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
@@ -404,13 +394,11 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_frame_numbers(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=[self._ct_multiframe],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_frame_number=self._frame_numbers
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == 1
         ref_im = ann.ReferencedImageSequence[0]
         assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
@@ -423,7 +411,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_frame_number_single_frame(self):
         with pytest.raises(TypeError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=self._ct_series,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -433,7 +420,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_frame_number_invalid(self):
         with pytest.raises(ValueError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=[self._ct_multiframe],
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -443,7 +429,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_frame_numbers_invalid(self):
         with pytest.raises(ValueError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=[self._ct_multiframe],
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -455,13 +440,11 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_segment_number(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=[self._segmentation],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_segment_number=self._segment_number
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == 1
         ref_im = ann.ReferencedImageSequence[0]
         assert ref_im.ReferencedSOPClassUID == self._segmentation.SOPClassUID
@@ -473,13 +456,11 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def test_construction_segment_numbers(self):
         ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=[self._segmentation],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_segment_number=self._segment_numbers
         )
-        assert ann.GraphicLayer == 'LAYER1'
         assert len(ann.ReferencedImageSequence) == 1
         ref_im = ann.ReferencedImageSequence[0]
         assert ref_im.ReferencedSOPClassUID == self._segmentation.SOPClassUID
@@ -492,7 +473,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_segment_number_single_segment(self):
         with pytest.raises(TypeError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=self._ct_series,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -503,7 +483,6 @@ class TestGraphicAnnotation(unittest.TestCase):
         seg_num = len(self._segmentation.SegmentSequence) + 1
         with pytest.raises(ValueError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=[self._segmentation],
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -513,7 +492,6 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_segment_numbers_invalid(self):
         with pytest.raises(ValueError):
             GraphicAnnotation(
-                graphic_layer='LAYER1',
                 referenced_images=[self._segmentation],
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
@@ -547,14 +525,19 @@ class TestGSPS(unittest.TestCase):
             graphic_data=self._circle,
         )
         self._ann = GraphicAnnotation(
-            graphic_layer='LAYER1',
             referenced_images=self._ct_series,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
         )
+        self._layer = GraphicLayer(
+            layer_name='LAYER1',
+            order=1,
+            graphic_annotations=[self._ann],
+            description='Basic layer',
+        )
 
     def test_construction(self):
-        sop = GrayscaleSoftcopyPresentationState(
+        GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
             series_instance_uid=UID(),
             series_number=1,
@@ -565,7 +548,5 @@ class TestGSPS(unittest.TestCase):
             software_versions='0.0.1',
             device_serial_number='12345',
             content_label='DOODLE',
-            graphic_annotations=[self._ann]
+            graphic_layers=[self._layer]
         )
-        print(sop)
-        sop.save_as('output_gsps.dcm')
