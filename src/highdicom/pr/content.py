@@ -499,9 +499,18 @@ class GraphicAnnotation(Dataset):
                         )
             self.GraphicObjectSequence = graphic_objects
         if have_text:
-            if not all(isinstance(t, TextObject) for t in text_objects):
-                raise TypeError(
-                    'All items in text_objects must be of type '
-                    'highdicom.pr.TextObject'
-                )
+            for to in text_objects:
+                if not isinstance(to, TextObject):
+                    raise TypeError(
+                        'All items in text_objects must be of type '
+                        'highdicom.pr.TextObject'
+                    )
+                if to.units == AnnotationUnitsValues.MATRIX:
+                    sm_uid = VLWholeSlideMicroscopyImageStorage
+                    if referenced_images[0].SOPClassUID != sm_uid:
+                        raise ValueError(
+                            'Text Objects may only use MATRIX units if the '
+                            'referenced images are VL Whole Slide Microscopy '
+                            'images.'
+                        )
             self.TextObjectSequence = text_objects
