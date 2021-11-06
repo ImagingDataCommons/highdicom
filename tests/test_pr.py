@@ -13,6 +13,7 @@ from highdicom.pr import (
     GraphicAnnotation,
     GraphicObject,
     GraphicTypeValues,
+    GrayscaleSoftcopyPresentationState,
     AnnotationUnitsValues,
     TextObject
 )
@@ -521,3 +522,50 @@ class TestGraphicAnnotation(unittest.TestCase):
                     len(self._segmentation.SegmentSequence) + 1
                 ]
             )
+
+
+class TestGSPS(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._text_value = 'Look Here!'
+        self._bounding_box = (10, 30, 40, 60)
+        self._text_object = TextObject(
+            text_value=self._text_value,
+            bounding_box=self._bounding_box
+        )
+        self._circle = np.array([
+            [10.0, 10.0],
+            [11.0, 10.0]
+        ])
+        self._graphic_object = GraphicObject(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+        )
+        self._ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=self._ct_series,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
+        )
+
+    def test_construction(self):
+        sop = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_annotations=[self._ann]
+        )
+        print(sop)
+        sop.save_as('output_gsps.dcm')

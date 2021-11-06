@@ -381,7 +381,7 @@ class Segmentation(SOPClass):
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
-            self.ContentCreatorName = content_creator_name
+        self.ContentCreatorName = content_creator_name
 
         segmentation_type = SegmentationTypeValues(segmentation_type)
         self.SegmentationType = segmentation_type.value

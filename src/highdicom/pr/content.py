@@ -254,11 +254,12 @@ class TextObject(Dataset):
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
                 )
-            self.BoundingBoxTopLeftHandCorner = bounding_box[:2]
-            self.BoundingBoxBottomRightHandCorner = bounding_box[2:]
+            self.BoundingBoxTopLeftHandCorner = list(bounding_box[:2])
+            self.BoundingBoxBottomRightHandCorner = list(bounding_box[2:])
             text_justification = TextJustificationValues(text_justification)
-            self.BoundingBoxTextHorizontalJustification = text_justification
-            self.BoundingBoxAnnotationUnits = units
+            self.BoundingBoxTextHorizontalJustification = \
+                text_justification.value
+            self.BoundingBoxAnnotationUnits = units.value
             if units == AnnotationUnitsValues.DISPLAY:
                 if max(bounding_box) > 1.0:
                     raise ValueError(
@@ -274,7 +275,7 @@ class TextObject(Dataset):
                     'All coordinates in the bounding box must be non-negative.'
                 )
             self.AnchorPoint = anchor_point
-            self.AnchorPointAnnotationUnits = units
+            self.AnchorPointAnnotationUnits = units.value
             self.AnchorPointVisibility = 'Y' if anchor_point_visible else 'N'
             if units == AnnotationUnitsValues.DISPLAY:
                 if max(anchor_point) > 1.0:
@@ -473,11 +474,7 @@ class GraphicAnnotation(Dataset):
             ref_im_seq.append(ref_im_item)
         self.ReferencedImageSequence = ref_im_seq
 
-        if not _check_code_string(graphic_layer):
-            raise ValueError(
-                f'Python string "{graphic_layer}" is not valid as a DICOM Code '
-                'String for the graphic_layer parameter.'
-            )
+        _check_code_string(graphic_layer)
         self.GraphicLayer = graphic_layer
         have_graphics = graphic_objects is not None and len(graphic_objects) > 0
         have_text = text_objects is not None and len(text_objects) > 0
