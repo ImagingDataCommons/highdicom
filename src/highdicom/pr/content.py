@@ -3,7 +3,10 @@
 from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom._storage_sopclass_uids import (
+    SegmentationStorage,
+    VLWholeSlideMicroscopyImageStorage
+)
 
 import numpy as np
 
@@ -480,11 +483,20 @@ class GraphicAnnotation(Dataset):
                 'one item.'
             )
         if have_graphics:
-            if not all(isinstance(g, GraphicObject) for g in graphic_objects):
-                raise TypeError(
-                    'All items in graphic_objects must be of type '
-                    'highdicom.pr.GraphicObject'
-                )
+            for go in graphic_objects:
+                if not isinstance(go, GraphicObject):
+                    raise TypeError(
+                        'All items in graphic_objects must be of type '
+                        'highdicom.pr.GraphicObject'
+                    )
+                if go.units == AnnotationUnitsValues.MATRIX:
+                    sm_uid = VLWholeSlideMicroscopyImageStorage
+                    if referenced_images[0].SOPClassUID != sm_uid:
+                        raise ValueError(
+                            'Graphic Objects may only use MATRIX units if the '
+                            'referenced images are VL Whole Slide Microscopy '
+                            'images.'
+                        )
             self.GraphicObjectSequence = graphic_objects
         if have_text:
             if not all(isinstance(t, TextObject) for t in text_objects):
