@@ -393,8 +393,8 @@ class GraphicAnnotation(Dataset):
             )
         if is_multiframe:
             if (
-                referenced_frame_number is not None
-                and referenced_segment_number is not None
+                referenced_frame_number is not None and
+                referenced_segment_number is not None
             ):
                 raise TypeError(
                     'At most one of "referenced_frame_number" or '
@@ -428,6 +428,7 @@ class GraphicAnnotation(Dataset):
             ref_im_item.ReferencedSOPInstanceUID = ref_im.SOPInstanceUID
 
             if referenced_frame_number is not None:
+
                 def check_frame_number(f: int) -> None:
                     if f < 1:
                         raise ValueError(
@@ -438,6 +439,7 @@ class GraphicAnnotation(Dataset):
                             f'Frame number {f} is invalid for image with '
                             f'{ref_im.NumberOfFrames} frames.'
                         )
+
                 if isinstance(referenced_frame_number, Sequence):
                     for f in referenced_frame_number:
                         check_frame_number(f)
@@ -448,6 +450,7 @@ class GraphicAnnotation(Dataset):
 
             if referenced_segment_number is not None:
                 n_segments = len(ref_im.SegmentSequence)
+
                 def check_segment_number(f: int) -> None:
                     if f < 1:
                         raise ValueError(
@@ -458,6 +461,7 @@ class GraphicAnnotation(Dataset):
                             f'Segment number {f} is invalid for image with '
                             f'{n_segments} segments.'
                         )
+
                 if isinstance(referenced_segment_number, Sequence):
                     for f in referenced_segment_number:
                         check_segment_number(f)
