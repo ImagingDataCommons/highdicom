@@ -377,6 +377,7 @@ class GraphicAnnotation(Dataset):
         # Check image is multiframe if frame numbers are passed
         # Check image is segmentation if segment numbers are passed
         # Write docstring
+        super().__init__()
         if len(referenced_images) == 0:
             raise ValueError('List of referenced images must not be empty.')
         referenced_series_uid = referenced_images[0].SeriesInstanceUID
@@ -422,10 +423,46 @@ class GraphicAnnotation(Dataset):
             ref_im_item = Dataset()
             ref_im_item.ReferencedSOPClassUID = ref_im.SOPClassUID
             ref_im_item.ReferencedSOPInstanceUID = ref_im.SOPInstanceUID
+
             if referenced_frame_number is not None:
+                def check_frame_number(f: int) -> None:
+                    if f < 1:
+                        raise ValueError(
+                            'Frame numbers must be positive integers'
+                        )
+                    elif f > ref_im.NumberOfFrames:
+                        raise ValueError(
+                            f'Frame number {f} is invalid for image with '
+                            f'{ref_im.NumberOfFrames} frames.'
+                        )
+                if isinstance(referenced_frame_number, Sequence):
+                    for f in referenced_frame_number:
+                        check_frame_number(f)
+                else:
+                    check_frame_number(referenced_frame_number)
+
                 ref_im_item.ReferencedFrameNumber = referenced_frame_number
+
             if referenced_segment_number is not None:
+                n_segments = len(ref_im.SegmentSequence)
+                def check_segment_number(f: int) -> None:
+                    if f < 1:
+                        raise ValueError(
+                            'Segment numbers must be positive integers'
+                        )
+                    elif f > n_segments:
+                        raise ValueError(
+                            f'Segment number {f} is invalid for image with '
+                            f'{n_segments} segments.'
+                        )
+                if isinstance(referenced_segment_number, Sequence):
+                    for f in referenced_segment_number:
+                        check_segment_number(f)
+                else:
+                    check_segment_number(referenced_segment_number)
+
                 ref_im_item.ReferencedSegmentNumber = referenced_segment_number
+
             ref_im_seq.append(ref_im_item)
         self.ReferencedImageSequence = ref_im_seq
 

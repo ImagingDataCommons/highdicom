@@ -1,3 +1,4 @@
+from pathlib import Path
 import unittest
 
 import numpy as np
@@ -5,7 +6,7 @@ import numpy as np
 import pytest
 
 from pydicom import dcmread
-from pydicom.data import get_testdata_files
+from pydicom.data import get_testdata_file, get_testdata_files
 
 from highdicom import UID
 from highdicom.pr import (
@@ -286,10 +287,19 @@ class TestGraphicAnnotation(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
         self._ct_series = [
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        seg_path = data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
+        self._segmentation = dcmread(seg_path)
+        self._frame_number = 2
+        self._frame_numbers = [1, 2]
+        self._segment_number = 5
+        self._segment_numbers = [7, 12]
         self._text_value = 'Look Here!'
         self._bounding_box = (10, 30, 40, 60)
         self._text_object = TextObject(
@@ -311,6 +321,13 @@ class TestGraphicAnnotation(unittest.TestCase):
             referenced_images=self._ct_series,
             text_objects=[self._text_object]
         )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == len(self._ct_series)
+        for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
+            assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
+            assert ref_im.ReferencedSOPInstanceUID == ds.SOPInstanceUID
+        assert len(ann.TextObjectSequence) == 1
+        assert not hasattr(ann, 'GraphicObjectSequence')
 
     def test_construction_graphic(self):
         ann = GraphicAnnotation(
@@ -318,3 +335,189 @@ class TestGraphicAnnotation(unittest.TestCase):
             referenced_images=self._ct_series,
             graphic_objects=[self._graphic_object]
         )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == len(self._ct_series)
+        for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
+            assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
+            assert ref_im.ReferencedSOPInstanceUID == ds.SOPInstanceUID
+        assert len(ann.GraphicObjectSequence) == 1
+        assert not hasattr(ann, 'TextObjectSequence')
+
+    def test_construction_both(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=self._ct_series,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == len(self._ct_series)
+        for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
+            assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
+            assert ref_im.ReferencedSOPInstanceUID == ds.SOPInstanceUID
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_multiframe(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=[self._ct_multiframe],
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == 1
+        ref_im = ann.ReferencedImageSequence[0]
+        assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
+        sop_ins_uid = self._ct_multiframe.SOPInstanceUID
+        assert ref_im.ReferencedSOPInstanceUID == sop_ins_uid
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_multiple_multiframe(self):
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=[self._ct_multiframe, self._ct_multiframe],
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object]
+            )
+
+    def test_construction_frame_number(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=[self._ct_multiframe],
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object],
+            referenced_frame_number=self._frame_number
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == 1
+        ref_im = ann.ReferencedImageSequence[0]
+        assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
+        sop_ins_uid = self._ct_multiframe.SOPInstanceUID
+        assert ref_im.ReferencedSOPInstanceUID == sop_ins_uid
+        assert ref_im.ReferencedFrameNumber == self._frame_number
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_frame_numbers(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=[self._ct_multiframe],
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object],
+            referenced_frame_number=self._frame_numbers
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == 1
+        ref_im = ann.ReferencedImageSequence[0]
+        assert ref_im.ReferencedSOPClassUID == self._ct_multiframe.SOPClassUID
+        sop_ins_uid = self._ct_multiframe.SOPInstanceUID
+        assert ref_im.ReferencedSOPInstanceUID == sop_ins_uid
+        assert ref_im.ReferencedFrameNumber == self._frame_numbers
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_frame_number_single_frame(self):
+        with pytest.raises(TypeError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=self._ct_series,
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_frame_number=self._frame_number
+            )
+
+    def test_construction_frame_number_invalid(self):
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=[self._ct_multiframe],
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_frame_number=self._ct_multiframe.NumberOfFrames + 1
+            )
+
+    def test_construction_frame_numbers_invalid(self):
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=[self._ct_multiframe],
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_frame_number=[
+                    1,
+                    self._ct_multiframe.NumberOfFrames + 1
+                ]
+            )
+
+    def test_construction_segment_number(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=[self._segmentation],
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object],
+            referenced_segment_number=self._segment_number
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == 1
+        ref_im = ann.ReferencedImageSequence[0]
+        assert ref_im.ReferencedSOPClassUID == self._segmentation.SOPClassUID
+        sop_ins_uid = self._segmentation.SOPInstanceUID
+        assert ref_im.ReferencedSOPInstanceUID == sop_ins_uid
+        assert ref_im.ReferencedSegmentNumber == self._segment_number
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_segment_numbers(self):
+        ann = GraphicAnnotation(
+            graphic_layer='LAYER1',
+            referenced_images=[self._segmentation],
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object],
+            referenced_segment_number=self._segment_numbers
+        )
+        assert ann.GraphicLayer == 'LAYER1'
+        assert len(ann.ReferencedImageSequence) == 1
+        ref_im = ann.ReferencedImageSequence[0]
+        assert ref_im.ReferencedSOPClassUID == self._segmentation.SOPClassUID
+        sop_ins_uid = self._segmentation.SOPInstanceUID
+        assert ref_im.ReferencedSOPInstanceUID == sop_ins_uid
+        assert ref_im.ReferencedSegmentNumber == self._segment_numbers
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_segment_number_single_segment(self):
+        with pytest.raises(TypeError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=self._ct_series,
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_segment_number=self._segment_number
+            )
+
+    def test_construction_segment_number_invalid(self):
+        seg_num = len(self._segmentation.SegmentSequence) + 1
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=[self._segmentation],
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_segment_number=seg_num
+            )
+
+    def test_construction_segment_numbers_invalid(self):
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                graphic_layer='LAYER1',
+                referenced_images=[self._segmentation],
+                graphic_objects=[self._graphic_object],
+                text_objects=[self._text_object],
+                referenced_segment_number=[
+                    1,
+                    len(self._segmentation.SegmentSequence) + 1
+                ]
+            )
