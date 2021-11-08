@@ -1,6 +1,6 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
-from typing import Any, cast, Optional, Sequence, Tuple, Union
+from typing import Any, cast, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.uid import (
@@ -66,7 +66,7 @@ class KeyObjectSelectionDocument(SOPClass):
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             document instance
-        requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
+        requested_procedures: Union[Sequence[pydicom.dataset.Dataset], None], optional
             Requested procedures that are being fullfilled by creation of the
             document
         transfer_syntax_uid: str, optional
@@ -102,7 +102,7 @@ class KeyObjectSelectionDocument(SOPClass):
             sop_class_uid='1.2.840.10008.5.1.4.1.1.88.59',
             instance_number=instance_number,
             manufacturer=manufacturer,
-            modality='KOS',
+            modality='KO',
             transfer_syntax_uid=transfer_syntax_uid,
             patient_id=evidence[0].PatientID,
             patient_name=evidence[0].PatientName,
@@ -138,6 +138,8 @@ class KeyObjectSelectionDocument(SOPClass):
 
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
+
+        self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
 
         # Cache copy of the content to facilitate subsequent access
         self._content = KeyObjectSelection.from_sequence(content, is_root=True)
