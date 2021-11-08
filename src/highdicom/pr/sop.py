@@ -179,8 +179,8 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                             raise ValueError(
                                 'Instance with SOP Instance UID {uids[1]} and '
                                 'SOP Class UID {uids[0]} is referenced in '
-                                'items of "graphic_layers", but included in '
-                                '"referenced_images".'
+                                'items of "graphic_layers", but not included '
+                                'in "referenced_images".'
                             )
                     graphic_annotations.append(ann)
         self.GraphicAnnotationSequence = graphic_annotations
