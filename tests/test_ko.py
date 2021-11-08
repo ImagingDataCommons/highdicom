@@ -190,6 +190,11 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert isinstance(document, KeyObjectSelectionDocument)
         assert isinstance(document.content, KeyObjectSelection)
 
+        assert document.Modality == 'KO'
+        assert hasattr(document, 'CurrentRequestedProcedureEvidenceSequence')
+        assert len(document.CurrentRequestedProcedureEvidenceSequence) > 0
+        assert hasattr(document, 'ReferencedPerformedProcedureStepSequence')
+
         study_uid, series_uid, instance_uid = document.resolve_reference(
             self._sm_image.SOPInstanceUID
         )
