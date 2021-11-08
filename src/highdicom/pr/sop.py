@@ -47,16 +47,50 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         **kwargs
     ):
         """
-        institution_name: Union[str, None], optional
-            Name of the institution of the person or device that creates the
-            SR document instance
-        institutional_department_name: Union[str, None], optional
-            Name of the department of the person or device that creates the
-            SR document instance
-        device_serial_number: Union[str, None]
-            Manufacturer's serial number of the device
+        Parameters
+        ----------
+        referenced_images: Sequence[Dataset]
+            List of images referenced in the GSPS.
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: str
+            Name of the manufacturer of the device (developer of the software)
+            that creates the instance
+        manufacturer_model_name: str
+            Name of the device model (name of the software library or
+            application) that creates the instance
         software_versions: Union[str, Tuple[str]]
             Version(s) of the software that creates the instance
+        device_serial_number: Union[str, None]
+            Manufacturer's serial number of the device
+        content_label: str
+            A label used to describe the content of this presentation state.
+            Must be a valid DICOM code string consisting only of capital
+            letters, underscores and spaces.
+        content_description: Union[str, None]
+            Description of the content of this presentation state.
+        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
+            Graphic layers to include in this presentation state.
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+            A coded description of the content of this presentation state.
+        institution_name: Union[str, None], optional
+            Name of the institution of the person or device that creates the
+            SR document instance.
+        institutional_department_name: Union[str, None], optional
+            Name of the department of the person or device that creates the
+            SR document instance.
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
+            Name of the person who created the content of this presentation
+            state.
+        transfer_syntax_uid: Union[str, highdicom.UID]
+            Transfer syntax UID of the presentation state.
+
         """
         # Check referenced images are from the same series and have the same
         # size
