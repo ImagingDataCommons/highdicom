@@ -201,3 +201,37 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert study_uid == self._sm_image.StudyInstanceUID
         assert series_uid == self._sm_image.SeriesInstanceUID
         assert instance_uid == self._sm_image.SOPInstanceUID
+
+    def test_construction_from_dataset(self):
+        document = KeyObjectSelectionDocument(
+            evidence=self._evidence,
+            content=self._content,
+            series_instance_uid=UID(),
+            series_number=10,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='MGH Computational Pathology',
+            institution_name='Massachusetts General Hospital',
+            institutional_department_name='Pathology'
+        )
+        assert isinstance(document, KeyObjectSelectionDocument)
+        assert isinstance(document.content, KeyObjectSelection)
+
+        test_document = KeyObjectSelectionDocument.from_dataset(document)
+        assert isinstance(test_document, KeyObjectSelectionDocument)
+        assert isinstance(test_document.content, KeyObjectSelection)
+        assert test_document.Modality == 'KO'
+        assert hasattr(
+            test_document, 'CurrentRequestedProcedureEvidenceSequence'
+        )
+        assert len(test_document.CurrentRequestedProcedureEvidenceSequence) > 0
+        assert hasattr(
+            test_document, 'ReferencedPerformedProcedureStepSequence'
+        )
+
+        study_uid, series_uid, instance_uid = test_document.resolve_reference(
+            self._sm_image.SOPInstanceUID
+        )
+        assert study_uid == self._sm_image.StudyInstanceUID
+        assert series_uid == self._sm_image.SeriesInstanceUID
+        assert instance_uid == self._sm_image.SOPInstanceUID
