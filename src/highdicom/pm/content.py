@@ -367,3 +367,35 @@ class DimensionIndexSequence(DataElementSequence):
         )
 
         return (plane_position_values, plane_sort_indices)
+
+    def get_index_position(self, pointer: str) -> int:
+        """Get relative position of a given dimension in the dimension index.
+
+        Parameters
+        ----------
+        pointer: str
+            Name of the dimension (keyword of the attribute),
+            e.g., ``"ReferencedSegmentNumber"``
+
+        Returns
+        -------
+        int
+            Zero-based relative position
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence("SLIDE")
+        >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
+        >>> segment_numbers = dimension_index[i]
+
+        """
+        indices = [
+            i
+            for i, indexer in enumerate(self)
+            if indexer.DimensionIndexPointer == tag_for_keyword(pointer)
+        ]
+        if len(indices) == 0:
+            raise ValueError(
+                f'Dimension index does not contain a dimension "{pointer}".'
+            )
+        return indices[0]        
