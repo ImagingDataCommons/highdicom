@@ -207,6 +207,7 @@ class KeyObjectSelectionDocument(SOPClass):
         root_item = Dataset()
         root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
         root_item.ContentSequence = dataset.ContentSequence
+        root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
         root_item.ValueType = dataset.ValueType
         root_item.ContinuityOfContent = dataset.ContinuityOfContent
         content_item = ContainerContentItem.from_dataset(root_item)

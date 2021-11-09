@@ -172,7 +172,7 @@ class KeyObjectSelection(ContentSequence):
                 'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have Template Identifier "2010".'
             )
-        instance = ContentSequence.from_sequence(sequence, is_root=True)
+        instance = ContentSequence.from_sequence(sequence, is_root=is_root)
         instance.__class__ = KeyObjectSelection
         return cast(KeyObjectSelection, instance)
 
