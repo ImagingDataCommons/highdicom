@@ -24,9 +24,11 @@ class GraphicGroup(Dataset):
 
     """Dataset describing a grouping of annotations.
 
-    Graphic Groups are an independent concept from
-    :class:`highdicom.pr.GraphicLayer`s.  Where a Graphic Layer specifies which
-    annotations are rendered first, a GraphicGroup specifies which annotations
+    Note
+    ----
+    Graphic Groups are an independent concept from Graphic Layers. Where a
+    Graphic Layer (:class:`highdicom.pr.GraphicLayer`) specifies which
+    annotations are rendered first, a Graphic Group specifies which annotations
     belong together and shall be handled together (e.g., rotate, move)
     independent of the Graphic Layer to which they are assigned.
 
@@ -42,6 +44,18 @@ class GraphicGroup(Dataset):
         label: str,
         description: Optional[str] = None
     ):
+        """
+
+        Parameters
+        ----------
+        graphic_group_id: int
+            A positive integer that uniquely identifies this graphic group.
+        label: str
+            Name used to identify the Graphic Group (maximum 64 characters).
+        description: str
+            Description of the group (maxiumum 10240 characters).
+
+        """
         super().__init__()
         if not isinstance(graphic_group_id, int):
             raise TypeError(
