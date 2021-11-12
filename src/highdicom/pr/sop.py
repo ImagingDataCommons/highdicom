@@ -163,7 +163,14 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.coding.CodedConcept.'
                 )
-            self.ConceptNameCodeSequence = [concept_name_code]
+            self.ConceptNameCodeSequence = [
+                CodedConcept(
+                    concept_name_code.value,
+                    concept_name_code.scheme_designator,
+                    concept_name_code.meaning,
+                    concept_name_code.scheme_version
+                )
+            ]
 
         # TODO Content Creator Identification Code Sequence
         # TODO Alternative Content Description Sequence???
@@ -193,7 +200,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                         'Items of "graphic_groups" must be of type '
                         'highdicom.pr.GraphicGroup.'
                     )
-                group_ids.append(grp.group_id)
+                group_ids.append(grp.graphic_group_id)
             described_groups_ids = set(group_ids)
             if len(described_groups_ids) != len(group_ids):
                 raise ValueError(
@@ -212,6 +219,11 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         graphic_annotations = []
         graphic_layer_sequence = []
         if len(graphic_layers) > 0:
+            labels = [layer._layer_name for layer in graphic_layers]
+            if len(labels) != len(set(labels)):
+                raise ValueError(
+                    'Labels of graphic layers must be unique.'
+                )
             for layer in graphic_layers:
                 if not isinstance(layer, GraphicLayer):
                     raise TypeError(
@@ -240,7 +252,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                                 'items of "graphic_layers", but not included '
                                 'in "referenced_images".'
                             )
-                    for obj in getattr(item, 'GraphicObjectSequence', []):
+                    for obj in getattr(ann, 'GraphicObjectSequence', []):
                         grp_id = obj.graphic_group_id
                         if grp_id is not None:
                             if grp_id not in described_groups_ids:
@@ -250,7 +262,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                                     'described in the "graphic_groups" '
                                     'argument.'
                                 )
-                    for obj in getattr(item, 'TextObjectSequence', []):
+                    for obj in getattr(ann, 'TextObjectSequence', []):
                         grp_id = obj.graphic_group_id
                         if grp_id is not None:
                             if grp_id not in described_groups_ids:

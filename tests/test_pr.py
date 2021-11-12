@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from pydicom import dcmread
+from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
 
 from highdicom import UID
@@ -511,12 +512,24 @@ class TestGSPS(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self._series_uid = UID()
+        self._sop_uid = UID()
         self._ct_series = [
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._text_value = 'Look Here!'
         self._bounding_box = (10.0, 30.0, 40.0, 60.0)
+        self._group = GraphicGroup(
+            1,
+            'Group1',
+            'Description of Group 1'
+        )
+        self._other_group = GraphicGroup(
+            43,
+            'Group43',
+            'Description of Group 43'
+        )
         self._text_object = TextObject(
             text_value=self._text_value,
             bounding_box=self._bounding_box
@@ -541,17 +554,152 @@ class TestGSPS(unittest.TestCase):
             description='Basic layer',
         )
 
-    def test_construction(self):
-        GrayscaleSoftcopyPresentationState(
+        # Same thing, but with object belonging to groups
+        self._text_object_grp = TextObject(
+            text_value=self._text_value,
+            bounding_box=self._bounding_box,
+            graphic_group=self._group,
+        )
+        self._graphic_object_grp = GraphicObject(
+            graphic_type=GraphicTypeValues.CIRCLE,
+            graphic_data=self._circle,
+            graphic_group=self._group,
+        )
+        self._ann_grp = GraphicAnnotation(
             referenced_images=self._ct_series,
-            series_instance_uid=UID(),
-            series_number=1,
-            sop_instance_uid=UID(),
-            instance_number=1,
+            graphic_objects=[self._graphic_object_grp],
+            text_objects=[self._text_object_grp]
+        )
+        self._layer_grp = GraphicLayer(
+            layer_name='LAYER1',
+            order=1,
+            graphic_annotations=[self._ann_grp],
+            description='Basic layer',
+        )
+
+    def test_construction(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
             manufacturer='Foo Corp.',
             manufacturer_model_name='Bar, Mark 2',
             software_versions='0.0.1',
             device_serial_number='12345',
             content_label='DOODLE',
-            graphic_layers=[self._layer]
+            graphic_layers=[self._layer],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
         )
+        assert gsps.SeriesInstanceUID == self._series_uid
+        assert gsps.SOPInstanceUID == self._sop_uid
+        assert gsps.SeriesNumber == 123
+        assert gsps.InstanceNumber == 456
+        assert gsps.Manufacturer == 'Foo Corp.'
+        assert gsps.ManufacturerModelName == 'Bar, Mark 2'
+        assert gsps.SoftwareVersions == '0.0.1'
+        assert gsps.DeviceSerialNumber == '12345'
+        assert gsps.ContentLabel == 'DOODLE'
+        assert len(gsps.ReferencedSeriesSequence) == 1
+        assert len(gsps.GraphicLayerSequence) == 1
+        assert gsps.InstitutionName == 'MGH'
+        assert gsps.InstitutionalDepartmentName == 'Radiology'
+        assert gsps.ContentCreatorName == 'Doe^John'
+        assert gsps.ConceptNameCodeSequence[0].CodeValue == 'PR'
+
+    def test_construction_with_group(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer_grp],
+            graphic_groups=[self._group]
+        )
+        assert gsps.SeriesInstanceUID == self._series_uid
+        assert gsps.SOPInstanceUID == self._sop_uid
+        assert gsps.SeriesNumber == 123
+        assert gsps.InstanceNumber == 456
+        assert gsps.Manufacturer == 'Foo Corp.'
+        assert gsps.ManufacturerModelName == 'Bar, Mark 2'
+        assert gsps.SoftwareVersions == '0.0.1'
+        assert gsps.DeviceSerialNumber == '12345'
+        assert gsps.ContentLabel == 'DOODLE'
+        assert len(gsps.ReferencedSeriesSequence) == 1
+        assert len(gsps.GraphicLayerSequence) == 1
+
+    def test_construction_with_images_missing(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series[1:],  # missing image!
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer],
+            )
+
+    def test_construction_with_duplciate_layers(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer, self._layer],  # duplicate
+            )
+
+    def test_construction_with_group_missing(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer_grp],
+                graphic_groups=[self._other_group]  # wrong group for objects!
+            )
+
+    def test_construction_with_duplciate_group(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer_grp],
+                graphic_groups=[self._group, self._group]  # duplicates
+            )
