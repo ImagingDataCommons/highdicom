@@ -20,6 +20,54 @@ from highdicom.uid import UID
 from highdicom.valuerep import _check_code_string
 
 
+class GraphicGroup(Dataset):
+
+    """Dataset describing a grouping of annotations.
+
+    Graphic Groups are an independent concept from
+    :class:`highdicom.pr.GraphicLayer`s.  Where a Graphic Layer specifies which
+    annotations are rendered first, a GraphicGroup specifies which annotations
+    belong together and shall be handled together (e.g., rotate, move)
+    independent of the Graphic Layer to which they are assigned.
+
+    Each annotation (:class:`highdicom.pr.GraphicObject` or
+    :class:`highdicom.pr.TextObject`) may optionally be assigned to a
+    GraphicGroup upon construction (whereas assignment to a
+    :class:`highdicom.pr.GraphicLayer` is required.)
+
+    """
+    def __init__(
+        self,
+        graphic_group_id: int,
+        label: str,
+        description: Optional[str] = None
+    ):
+        super().__init__()
+        if not isinstance(graphic_group_id, int):
+            raise TypeError(
+                'Argument "graphic_group_id" must be an integer.'
+            )
+        if graphic_group_id < 1:
+            raise ValueError(
+                'Argument "graphic_group_id" must be a positive integer.'
+            )
+        self.GraphicGroupID = graphic_group_id
+        if len(label) > 64:
+            raise ValueError('Argument "label" must not exceed 64 characters.')
+        self.GraphicGroupLabel = label
+        if description is not None:
+            if len(description) > 10240:
+                raise ValueError(
+                    'Argument "description" must not exceed 10240 characters.'
+                )
+            self.GraphicGroupDescription = description
+
+    @property
+    def graphic_group_id(self) -> int:
+        """int: The ID of the graphic group."""
+        return self.GraphicGroupID
+
+
 class GraphicObject(Dataset):
 
     """Dataset describing a graphic annotation object."""
@@ -32,7 +80,7 @@ class GraphicObject(Dataset):
         filled: bool = False,
         tracking_id: Optional[str] = None,
         tracking_uid: Optional[str] = None,
-        graphic_group_id: Optional[int] = None,
+        graphic_group: Optional[GraphicGroup] = None,
     ):
         """
 
@@ -60,8 +108,8 @@ class GraphicObject(Dataset):
             Shall be unique within the domain in which it is used.
         tracking_uid: str
             Unique identifier for tracking this finding or feature.
-        graphic_group_id: Union[int, None]
-            ID of the graphic group to which this object belongs.
+        graphic_group: Union[highdicom.pr.GraphicGroup, None]
+            Graphic group to which this annotation belongs.
 
         """
         super().__init__()
@@ -141,14 +189,13 @@ class GraphicObject(Dataset):
             self.TrackingID = tracking_id
             self.TrackingUID = tracking_uid
 
-        if graphic_group_id is not None:
-            if not isinstance(graphic_group_id, int):
-                raise ValueError('Graphic group ID should be an integer.')
-            if graphic_group_id < 1:
-                raise ValueError(
-                    'Graphic group ID should be a positive integer.'
+        if graphic_group is not None:
+            if not isinstance(graphic_group, GraphicGroup):
+                raise TypeError(
+                    'Argument "graphic_group" ID should be of type '
+                    'highdicom.pr.GraphicGroup.'
                 )
-            self.GraphicGroupID = graphic_group_id
+            self.GraphicGroupID = graphic_group.graphic_group_id
 
     @property
     def graphic_data(self) -> np.ndarray:
@@ -177,6 +224,11 @@ class GraphicObject(Dataset):
             return UID(self.TrackingUID)
         return None
 
+    @property
+    def graphic_group_id(self) -> Union[int, None]:
+        """Union[int, None]: The ID of the graphic group, if any."""
+        return getattr(self, 'GraphicGroupID', None)
+
 
 class TextObject(Dataset):
 
@@ -194,7 +246,7 @@ class TextObject(Dataset):
         anchor_point_visible: bool = True,
         tracking_id: Optional[str] = None,
         tracking_uid: Optional[str] = None,
-        graphic_group_id: Optional[int] = None,
+        graphic_group: Optional[GraphicGroup] = None,
     ):
         """
 
@@ -223,8 +275,8 @@ class TextObject(Dataset):
             Shall be unique within the domain in which it is used.
         tracking_uid: str
             Unique identifier for tracking this finding or feature.
-        graphic_group_id: Union[int, None]
-            ID of the graphic group to which this object belongs.
+        graphic_group: Union[highdicom.pr.GraphicGroup, None]
+            Graphic group to which this annotation belongs.
 
         Note
         ----
@@ -294,14 +346,13 @@ class TextObject(Dataset):
             self.TrackingID = tracking_id
             self.TrackingUID = tracking_uid
 
-        if graphic_group_id is not None:
-            if not isinstance(graphic_group_id, int):
-                raise ValueError('Graphic group ID should be an integer.')
-            if graphic_group_id < 1:
-                raise ValueError(
-                    'Graphic group ID should be a positive integer.'
+        if graphic_group is not None:
+            if not isinstance(graphic_group, GraphicGroup):
+                raise TypeError(
+                    'Argument "graphic_group" ID should be of type '
+                    'highdicom.pr.GraphicGroup.'
                 )
-            self.GraphicGroupID = graphic_group_id
+            self.GraphicGroupID = graphic_group.graphic_group_id
 
     @property
     def text_value(self) -> Union[str, None]:
@@ -340,6 +391,11 @@ class TextObject(Dataset):
         if hasattr(self, 'TrackingUID'):
             return UID(self.TrackingUID)
         return None
+
+    @property
+    def graphic_group_id(self) -> Union[int, None]:
+        """Union[int, None]: The ID of the graphic group, if any."""
+        return getattr(self, 'GraphicGroupID', None)
 
 
 class GraphicAnnotation(Dataset):

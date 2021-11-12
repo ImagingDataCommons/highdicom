@@ -7,6 +7,7 @@ from highdicom.pr.enum import (
 )
 from highdicom.pr.content import (
     GraphicAnnotation,
+    GraphicGroup,
     GraphicLayer,
     GraphicObject,
     TextObject
@@ -19,11 +20,12 @@ SOP_CLASS_UIDS = {
 
 
 __all__ = [
-    'GrayscaleSoftcopyPresentationState',
-    'GraphicTypeValues',
     'AnnotationUnitsValues',
     'GraphicAnnotation',
-    'GraphicObject',
+    'GraphicGroup',
     'GraphicLayer',
+    'GraphicObject',
+    'GraphicTypeValues',
+    'GrayscaleSoftcopyPresentationState',
     'TextObject',
 ]

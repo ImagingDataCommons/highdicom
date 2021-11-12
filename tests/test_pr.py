@@ -11,6 +11,7 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from highdicom import UID
 from highdicom.pr import (
     GraphicAnnotation,
+    GraphicGroup,
     GraphicLayer,
     GraphicObject,
     GraphicTypeValues,
@@ -143,11 +144,15 @@ class TestGraphicObject(unittest.TestCase):
             )
 
     def test_group_id(self):
-        group_id = 7
+        group = GraphicGroup(
+            7,
+            label='Group1',
+            description='the first group'
+        )
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
-            graphic_group_id=group_id
+            graphic_group=group
         )
         assert int(ann.GraphicGroupID) == 7
 
@@ -511,7 +516,7 @@ class TestGSPS(unittest.TestCase):
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._text_value = 'Look Here!'
-        self._bounding_box = (10, 30, 40, 60)
+        self._bounding_box = (10.0, 30.0, 40.0, 60.0)
         self._text_object = TextObject(
             text_value=self._text_value,
             bounding_box=self._bounding_box

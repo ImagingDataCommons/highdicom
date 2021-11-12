@@ -11,7 +11,7 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.base import SOPClass
-from highdicom.pr.content import GraphicLayer
+from highdicom.pr.content import GraphicLayer, GraphicGroup
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -39,6 +39,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         content_label: str,
         content_description: Optional[str] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
+        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
         concept_name_code: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
@@ -77,6 +78,8 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             Description of the content of this presentation state.
         graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
             Graphic layers to include in this presentation state.
+        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
+            Description of graphic groups used in this presentation state.
         concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
@@ -91,7 +94,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         transfer_syntax_uid: Union[str, highdicom.UID]
             Transfer syntax UID of the presentation state.
 
-        """
+        """  # noqa: E501
         # Check referenced images are from the same series and have the same
         # size
         ref_series_uid = referenced_images[0].SeriesInstanceUID
@@ -161,6 +164,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                     'highdicom.sr.coding.CodedConcept.'
                 )
             self.ConceptNameCodeSequence = [concept_name_code]
+
         # TODO Content Creator Identification Code Sequence
         # TODO Alternative Content Description Sequence???
 
@@ -179,6 +183,26 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         ref_series_item.SeriesInstanceUID = ref_series_uid
         ref_series_item.ReferencedImageSequence = ref_im_seq
         self.ReferencedSeriesSequence = [ref_series_item]
+
+        # Graphic Groups
+        group_ids = []
+        if graphic_groups is not None:
+            for grp in graphic_groups:
+                if not isinstance(grp, GraphicGroup):
+                    raise TypeError(
+                        'Items of "graphic_groups" must be of type '
+                        'highdicom.pr.GraphicGroup.'
+                    )
+                group_ids.append(grp.group_id)
+            described_groups_ids = set(group_ids)
+            if len(described_groups_ids) != len(group_ids):
+                raise ValueError(
+                    'Each item in "graphic_groups" must have a unique graphic '
+                    'group ID.'
+                )
+            self.GraphicGroupSequence = graphic_groups
+        else:
+            described_groups_ids = set()
 
         # Graphic Annotation and Graphic Layer
         ref_uids = {
@@ -216,6 +240,26 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                                 'items of "graphic_layers", but not included '
                                 'in "referenced_images".'
                             )
+                    for obj in getattr(item, 'GraphicObjectSequence', []):
+                        grp_id = obj.graphic_group_id
+                        if grp_id is not None:
+                            if grp_id not in described_groups_ids:
+                                raise ValueError(
+                                    'Found graphic object with graphic group '
+                                    f'ID "{grp_id}", but no such group is '
+                                    'described in the "graphic_groups" '
+                                    'argument.'
+                                )
+                    for obj in getattr(item, 'TextObjectSequence', []):
+                        grp_id = obj.graphic_group_id
+                        if grp_id is not None:
+                            if grp_id not in described_groups_ids:
+                                raise ValueError(
+                                    'Found text object with graphic group ID '
+                                    f'"{grp_id}", but no such group is '
+                                    'described in the "graphic_groups" '
+                                    'argument.'
+                                )
                     graphic_annotations.append(ann)
         self.GraphicAnnotationSequence = graphic_annotations
         self.GraphicLayerSequence = graphic_layer_sequence
@@ -234,8 +278,6 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         display_area_item.PresentationSizeMode = 'SCALE TO FIT'
         display_area_item.PresentationPixelAspectRatio = [1, 1]
         self.DisplayedAreaSelectionSequence = [display_area_item]
-
-        # TODO Graphic Group
 
         # Presentation State LUT
         self.PresentationLUTShape = 'IDENTITY'
