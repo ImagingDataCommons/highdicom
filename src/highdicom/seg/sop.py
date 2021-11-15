@@ -550,11 +550,11 @@ class Segmentation(SOPClass):
             else:
                 row_index = self.DimensionIndexSequence.get_index_position(
                     'RowPositionInTotalImagePixelMatrix'
-                )
+                ) - 1
                 row_offsets = plane_position_values[:, row_index]
                 col_index = self.DimensionIndexSequence.get_index_position(
                     'ColumnPositionInTotalImagePixelMatrix'
-                )
+                ) - 1
                 col_offsets = plane_position_values[:, col_index]
                 frame_indices = np.lexsort([row_offsets, col_offsets])
                 first_frame_index = frame_indices[0]
