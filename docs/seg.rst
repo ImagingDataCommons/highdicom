@@ -36,12 +36,12 @@ Elsewhere the same concept is known by other names such as *class* or *label*.
 A single DICOM Seg image can represent one or more segments contained within
 the same file.
 
-In many applications, it is assumed that segments are *mutually exclusive*,
-i.e. a given pixel can belong to at most one segment. However DICOM Seg images
-do not have this limitation: a single pixel can belong to any number of
-different segments. In other words, the segments may *overlap*. There is an
-optional attribute called "Segments Overlap" (0062, 0013) that, if present,
-will indicate whether the segments overlap in a given Seg image.
+Each segment in a DICOM Seg image is represented by a separate 2D *frame* (or
+set of *frames*) within the Segmentation image. One important ramification of
+this is that segments need not be *mutually exclusive*, i.e. a given pixel can
+belong to at most one segment. In other words, the segments may *overlap*.
+There is an optional attribute called "Segments Overlap" (0062, 0013) that, if
+present, will indicate whether the segments overlap in a given Seg image.
 
 Segment Descriptions
 --------------------
@@ -158,21 +158,150 @@ segments whose descriptions meet certain criteria. For example:
 Binary and Fractional Segs
 --------------------------
 
-- Multiple image regions (known as *segments*) that may be mutually exclusive
-  or overlapping (non mutually exclusive).
-- Binary segmentations (in which
-  each pixel unambiguously either belongs to a region or does not belong to a
-  region) or *fractional* segmentations, in which the membership of pixel to a
-  region is expressed as a number between 0 and 1.
+One particularly important characteristic of segmentation images is its
+"Segmentation Type" (0062,0001), which may take the value of either ``"BINARY"``
+or ``"FRACTIONAL"`` and describes the values that a given segment may take.
+Segments in a ``"BINARY"`` segmentation image may only take values 0 or 1, i.e.
+each pixel either belongs to the segment or does not.
+
+By contrast, pixels in a ``"FRACTIONAL"`` segmentation image lie in the range 0
+to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
+whether these values should be interpreted as ``"PROBABILITY"`` (i.e. the
+probability that a pixel belongs to the segmentation) or ``"OCCUPANCY"`` i.e.
+the fraction of the volume of the pixel's (or voxel's) area (or volume) that
+belongs to the segment.
+
+A potential source of confusion is that having a Segmentations Type of
+``"BINARY"`` only limits the range of values *within a given segment*. It is
+perfectly valid for a ``"BINARY"`` segmentation to have multiple segments. It
+is therefore not the same as the sense of *binary* that distinguishes *binary*
+from *multiclass* segmentations.
+
+*Highdicom* provides the Python enumerations
+:class:`highdicom.seg.SegmentationTypeValues` and
+:class:`highdicom.seg.SegmentationFractionalTypeValues` for the valid values of
+the "Segmentation Type" and "Segmentation Fractional Type" attributes,
+respectively.
+
+Constructing Basic Binary Seg Images
+------------------------------------
+
+We have now covered enough to construct a basic binary segmentation image. We
+use the :class:`highdicom.seg.Segmentation` and provide a description of each
+segment, a pixel array as a numpy array with an unsigned integer data type, and
+some other basic information.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom.sr.codedict import codes
+
+    import highdicom as hd
+
+
+    # Description of liver segment produced by a manual algorithm
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Pixel array is an unsigned integer array with 0 and 1 values
+    mask = np.zeros((128, 128), dtype=np.uint8)
+    mask[10:20, 10:20] = 1
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=[],  # Todo
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions: Sequence[SegmentDescription],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+
+Constructing Binary Seg Images with Multiple Frames
+---------------------------------------------------
+
+Constructing Binary Seg Images with Multiple Segments
+-----------------------------------------------------
 
 
 
-Segmentation Frames and Source Frames
--------------------------------------
+Representation of Fractional Segs
+---------------------------------
 
-Viewing DICOM Seg Images
-------------------------
+Although the pixel values of ``"FRACTIONAL"`` segmentation images can be
+considered to lie within a continuous range between 0 and 1, they are in fact
+not stored this way. Instead they are quantized and scaled so that they may be
+stored as unsigned 8-bit integers between 0 and the value of the "Maximum
+Fractional Value" (0062,000E) attribute. Thus, assuming a "Maximum Fractional
+Value" of 255, a pixel value of *x* should be interpreted as a probability or
+occupancy value of *x*/255.
+
+When constructing ``"FRACTIONAL"`` segmentation images, you pass a
+floating-point valued pixel array and *highdicom* handles this
+quantization for you. If you wish, you may change the "Maximum Fractional Value"
+from the default of 255 (which gives the maximum possible level of precision).
+
+Similarly, *highdicom* will rescale stored values back down to the range 0-1 by
+default in its methods for retrieving pixel arrays (more on this below).
+
+Compression
+-----------
+
+The type of compression available in segmentation images depends on the
+segmentation type. Pixels in a ``"BINARY"`` segmentation image are "bit-packed"
+such that 8 pixels are grouped into 1 byte in the stored array. If a given frame
+contains a number of pixels that is not divisible by 8 exactly, a single byte 
+will straddle a frame boundary into the next frame if there is one, or the byte
+will be padded with zeroes of there are no further frames. This means that
+retrieving individual frames from segmentation images in which each frame
+size is not divisible by 8 becomes problematic. No further compression may be
+applied to frames of ``"BINARY"`` segmentation images.
+
+Pixels in ``"FRACTIONAL"`` segmentation images may be compressed in the same
+manner as other DICOM images. However, since lossy compression methods such as
+standard JPEG are not designed to work with these sorts of images, we strongly
+advise using only lossless compression methods with Segmentation images.
+Currently *highdicom* supports the following compressed transfer syntaxes when
+creating segmentation images: ``"RLELossless"`` (lossless),
+``"JPEG2000Lossless"`` (lossless), ``"JPEGBaseline8Bit"`` (lossy, not
+recommended).
+
+Note that there may be advantages to using ``"FRACTIONAL"`` segmentations to
+store segmentation images that are binary in nature (i.e. only taking values 0
+and 1):
+
+- If the segmentation is very simple or sparse, the lossless compression methods
+  available in ``"FRACTIONAL"`` images may be more efficient than the
+  "bit-packing" method required by ``"BINARY"`` segmentations.
+- The clear frame boundaries make retrieving individual frames from
+  ``"FRACTIONAL"`` image files possible.
+
+Geometry of Seg Images
+----------------------
+
+Organization of Frames in Segs
+------------------------------
+
+Constructing DICOM Seg Images
+-----------------------------
 
 Reconstructing Segmentation Masks From DICOM Segs
 -------------------------------------------------
+
+fractional scaling
+
+Viewing DICOM Seg Images
+------------------------
 
