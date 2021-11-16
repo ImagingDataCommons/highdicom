@@ -237,7 +237,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                     layer_item.GraphicLayerDescription = layer._description
                 if layer._display_cielab is not None:
                     layer_item.GraphicLayerRecommendedDisplayCIELabValue = \
-                        layer._display_cielab.value
+                        list(layer._display_cielab.value)
                 graphic_layer_sequence.append(layer_item)
                 for ann in layer._graphic_annotations:
                     for item in ann.ReferencedImageSequence:
