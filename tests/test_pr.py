@@ -744,3 +744,6 @@ class TestGSPS(unittest.TestCase):
                 graphic_layers=[self._layer_grp],
                 graphic_groups=[self._group, self._group]  # duplicates
             )
+
+    def test_construction_with_missing_layer(self):
+        raise NotImplementedError('TODO')
