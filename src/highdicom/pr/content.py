@@ -20,6 +20,54 @@ from highdicom.uid import UID
 from highdicom.valuerep import _check_code_string
 
 
+class GraphicLayer(Dataset):
+
+    """A layer of graphic annotations that should be rendered together."""
+
+    def __init__(
+        self,
+        layer_name: str,
+        order: int,
+        description: Optional[str] = None,
+        display_color: Optional[CIELabColor] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        layer_name: str
+            Name for the layer.  Should be a valid DICOM Code String (CS), i.e.
+            16 characters or fewer containing only uppercase letters, spaces
+            and underscores.
+        order: int
+            Integer indicating the order in which this layer should be rendered.
+            Lower values are rendered first.
+        description: Union[str, None]
+            A description of the contents of this graphic layer.
+        display_color: Union[CIELabColor, None]
+            A default color value for rendering this layer.
+
+        """
+        super().__init__()
+        _check_code_string(layer_name)
+        self.GraphicLayer = layer_name
+        if not isinstance(order, int):
+            raise TypeError('"order" must be an integer.')
+        self.GraphicLayerOrder = order
+        if description is not None and len(description) > 64:
+            raise ValueError(
+                'Value of "description" must not exceed 64 characters.'
+            )
+        self.GraphicLayerDescription = description
+        if display_color is not None:
+            if not isinstance(display_color, CIELabColor):
+                raise TypeError(
+                    '"recommended_display_color" must be of type '
+                    'highdicom.color.CIELabColor.'
+                )
+        self.GraphicLayerRecommendedDisplayCIELabValue = display_color
+
+
 class GraphicGroup(Dataset):
 
     """Dataset describing a grouping of annotations.
@@ -419,6 +467,7 @@ class GraphicAnnotation(Dataset):
     def __init__(
         self,
         referenced_images: Sequence[Dataset],
+        graphic_layer: GraphicLayer,
         referenced_frame_number: Union[int, Sequence[int], None] = None,
         referenced_segment_number: Union[int, Sequence[int], None] = None,
         graphic_objects: Optional[Sequence[GraphicObject]] = None,
@@ -430,6 +479,8 @@ class GraphicAnnotation(Dataset):
         referenced_images: Sequence[Dataset]
             Sequenced of referenced datasets. Graphic and text objects shall be
             rendered on all images in this list.
+        graphic_layer: highdicom.pr.GraphicLayer
+            Graphic layer to which this annotation should belong.
         referenced_frame_number: Union[int, Sequence[int], None]
             Frame number(s) in a multiframe image upon which annotations shall
             be rendered.
@@ -446,6 +497,12 @@ class GraphicAnnotation(Dataset):
         if len(referenced_images) == 0:
             raise ValueError('List of referenced images must not be empty.')
         referenced_series_uid = referenced_images[0].SeriesInstanceUID
+        if not isinstance(graphic_layer, GraphicLayer):
+            raise TypeError(
+                'Argument "graphic_layer" should be of type '
+                'highdicom.pr.GraphicLayer.'
+            )
+        self.GraphicLayer = graphic_layer.GraphicLayer
 
         is_multiframe = hasattr(referenced_images[0], 'NumberOfFrames')
         if is_multiframe and len(referenced_images) > 1:
@@ -574,61 +631,3 @@ class GraphicAnnotation(Dataset):
                             'images.'
                         )
             self.TextObjectSequence = text_objects
-
-
-class GraphicLayer(object):
-
-    """A layer of graphic annotations that should be rendered together."""
-
-    def __init__(
-        self,
-        layer_name: str,
-        order: int,
-        graphic_annotations: Sequence[GraphicAnnotation],
-        description: Optional[str] = None,
-        recommended_display_color: Optional[CIELabColor] = None
-    ):
-        """
-
-        Parameters
-        ----------
-        layer_name: str
-            Name for the layer.  Should be a valid DICOM Code String (CS), i.e.
-            16 characters or fewer containing only uppercase letters, spaces
-            and underscores.
-        order: int
-            Integer indicating the order in which this layer should be rendered.
-            Lower values are rendered first.
-        graphic_annotations: Sequence[highdicom.pr.GraphicAnnotation]
-            Graphic annotations to place into this layer.
-        description: Union[str, None]
-            A description of the contents of this graphic layer.
-        recommended_display_color: Union[CIELabColor, None]
-            A default color value for rendering this layer.
-
-        """
-        _check_code_string(layer_name)
-        self._layer_name = layer_name
-        if not isinstance(order, int):
-            raise TypeError('"order" must be an integer.')
-        self._order = order
-        for ann in graphic_annotations:
-            if not isinstance(ann, GraphicAnnotation):
-                raise ValueError(
-                    'Items in "graphic_annotations" must have type '
-                    'highdicom.pr.GraphicAnnotation.'
-                )
-            ann.GraphicLayer = layer_name
-        self._graphic_annotations = graphic_annotations
-        if description is not None and len(description) > 64:
-            raise ValueError(
-                'Value of "description" must not exceed 64 characters.'
-            )
-        self._description = description
-        if recommended_display_color is not None:
-            if not isinstance(recommended_display_color, CIELabColor):
-                raise TypeError(
-                    '"recommended_display_color" must be of type '
-                    'highdicom.color.CIELabColor.'
-                )
-        self._display_cielab = recommended_display_color

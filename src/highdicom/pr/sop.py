@@ -11,7 +11,7 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.base import SOPClass
-from highdicom.pr.content import GraphicLayer, GraphicGroup
+from highdicom.pr.content import GraphicLayer, GraphicGroup, GraphicAnnotation
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -38,6 +38,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         device_serial_number: str,
         content_label: str,
         content_description: Optional[str] = None,
+        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         graphic_groups: Optional[Sequence[GraphicGroup]] = None,
         concept_name_code: Union[Code, CodedConcept, None] = None,
@@ -76,8 +77,11 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             letters, underscores and spaces.
         content_description: Union[str, None]
             Description of the content of this presentation state.
+        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None]
+            Graphic annotations to include in this presentation state.
         graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
-            Graphic layers to include in this presentation state.
+            Graphic layers to include in this presentation state. All graphic
+            layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
             Description of graphic groups used in this presentation state.
         concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
@@ -217,64 +221,59 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             for ds in ref_im_seq
         }
         graphic_annotations = []
-        graphic_layer_sequence = []
         if len(graphic_layers) > 0:
-            labels = [layer._layer_name for layer in graphic_layers]
+            labels = [layer.GraphicLayer for layer in graphic_layers]
             if len(labels) != len(set(labels)):
                 raise ValueError(
                     'Labels of graphic layers must be unique.'
                 )
-            for layer in graphic_layers:
-                if not isinstance(layer, GraphicLayer):
+            for ann in graphic_annotations:
+                if not isinstance(ann, GraphicAnnotation):
                     raise TypeError(
-                        'Items of "graphic_layers" should be of type '
-                        'highdicom.pr.GraphicLayer.'
+                        'Items of "graphic_annotations" must be of type '
+                        'highdicom.pr.GraphicAnnotation.'
                     )
-                layer_item = Dataset()
-                layer_item.GraphicLayer = layer._layer_name
-                layer_item.GraphicLayerOrder = layer._order
-                if layer._description is not None:
-                    layer_item.GraphicLayerDescription = layer._description
-                if layer._display_cielab is not None:
-                    layer_item.GraphicLayerRecommendedDisplayCIELabValue = \
-                        list(layer._display_cielab.value)
-                graphic_layer_sequence.append(layer_item)
-                for ann in layer._graphic_annotations:
-                    for item in ann.ReferencedImageSequence:
-                        uids = (
-                            item.ReferencedSOPClassUID,
-                            item.ReferencedSOPInstanceUID
+                if ann.GraphicLayer not in labels:
+                    raise ValueError(
+                        'Graphic layer with name "{ann.GraphicLayer}" is '
+                        'referenced in "graphic_annotations" but not '
+                        'included "graphic_layers".'
+                    )
+                for item in ann.ReferencedImageSequence:
+                    uids = (
+                        item.ReferencedSOPClassUID,
+                        item.ReferencedSOPInstanceUID
+                    )
+                    if uids not in ref_uids:
+                        raise ValueError(
+                            'Instance with SOP Instance UID {uids[1]} and '
+                            'SOP Class UID {uids[0]} is referenced in '
+                            'items of "graphic_layers", but not included '
+                            'in "referenced_images".'
                         )
-                        if uids not in ref_uids:
+                for obj in getattr(ann, 'GraphicObjectSequence', []):
+                    grp_id = obj.graphic_group_id
+                    if grp_id is not None:
+                        if grp_id not in described_groups_ids:
                             raise ValueError(
-                                'Instance with SOP Instance UID {uids[1]} and '
-                                'SOP Class UID {uids[0]} is referenced in '
-                                'items of "graphic_layers", but not included '
-                                'in "referenced_images".'
+                                'Found graphic object with graphic group '
+                                f'ID "{grp_id}", but no such group is '
+                                'described in the "graphic_groups" '
+                                'argument.'
                             )
-                    for obj in getattr(ann, 'GraphicObjectSequence', []):
-                        grp_id = obj.graphic_group_id
-                        if grp_id is not None:
-                            if grp_id not in described_groups_ids:
-                                raise ValueError(
-                                    'Found graphic object with graphic group '
-                                    f'ID "{grp_id}", but no such group is '
-                                    'described in the "graphic_groups" '
-                                    'argument.'
-                                )
-                    for obj in getattr(ann, 'TextObjectSequence', []):
-                        grp_id = obj.graphic_group_id
-                        if grp_id is not None:
-                            if grp_id not in described_groups_ids:
-                                raise ValueError(
-                                    'Found text object with graphic group ID '
-                                    f'"{grp_id}", but no such group is '
-                                    'described in the "graphic_groups" '
-                                    'argument.'
-                                )
-                    graphic_annotations.append(ann)
+                for obj in getattr(ann, 'TextObjectSequence', []):
+                    grp_id = obj.graphic_group_id
+                    if grp_id is not None:
+                        if grp_id not in described_groups_ids:
+                            raise ValueError(
+                                'Found text object with graphic group ID '
+                                f'"{grp_id}", but no such group is '
+                                'described in the "graphic_groups" '
+                                'argument.'
+                            )
+                graphic_annotations.append(ann)
         self.GraphicAnnotationSequence = graphic_annotations
-        self.GraphicLayerSequence = graphic_layer_sequence
+        self.GraphicLayerSequence = graphic_layers
 
         # Displayed Area Selection Sequence
         # This implements the simplest case - all images are unchanged

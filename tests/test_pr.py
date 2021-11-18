@@ -10,6 +10,7 @@ from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
 
 from highdicom import UID
+from highdicom.color import CIELabColor
 from highdicom.pr import (
     GraphicAnnotation,
     GraphicGroup,
@@ -318,6 +319,16 @@ class TestGraphicAnnotation(unittest.TestCase):
             [10.0, 10.0],
             [11.0, 10.0]
         ])
+        self._graphic_layer = GraphicLayer(
+            layer_name='LAYER1',
+            order=1,
+        )
+        self._graphic_layer_full = GraphicLayer(
+            layer_name='LAYER1',
+            order=1,
+            description='The first layer',
+            display_color=CIELabColor(0.0, 127.0, 127.0)
+        )
         self._graphic_object = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
@@ -326,9 +337,11 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_text(self):
         ann = GraphicAnnotation(
             referenced_images=self._ct_series,
+            graphic_layer=self._graphic_layer,
             text_objects=[self._text_object]
         )
         assert len(ann.ReferencedImageSequence) == len(self._ct_series)
+        assert ann.GraphicLayer == self._graphic_layer.GraphicLayer
         for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
             assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
             assert ref_im.ReferencedSOPInstanceUID == ds.SOPInstanceUID
@@ -338,6 +351,7 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_graphic(self):
         ann = GraphicAnnotation(
             referenced_images=self._ct_series,
+            graphic_layer=self._graphic_layer,
             graphic_objects=[self._graphic_object]
         )
         assert len(ann.ReferencedImageSequence) == len(self._ct_series)
@@ -350,6 +364,21 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_both(self):
         ann = GraphicAnnotation(
             referenced_images=self._ct_series,
+            graphic_layer=self._graphic_layer,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
+        )
+        assert len(ann.ReferencedImageSequence) == len(self._ct_series)
+        for ref_im, ds in zip(ann.ReferencedImageSequence, self._ct_series):
+            assert ref_im.ReferencedSOPClassUID == ds.SOPClassUID
+            assert ref_im.ReferencedSOPInstanceUID == ds.SOPInstanceUID
+        assert len(ann.TextObjectSequence) == 1
+        assert len(ann.GraphicObjectSequence) == 1
+
+    def test_construction_full_graphic_layer(self):
+        ann = GraphicAnnotation(
+            referenced_images=self._ct_series,
+            graphic_layer=self._graphic_layer_full,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
         )
@@ -363,6 +392,7 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_multiframe(self):
         ann = GraphicAnnotation(
             referenced_images=[self._ct_multiframe],
+            graphic_layer=self._graphic_layer,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
         )
@@ -379,6 +409,7 @@ class TestGraphicAnnotation(unittest.TestCase):
             GraphicAnnotation(
                 referenced_images=[self._ct_multiframe, self._ct_multiframe],
                 graphic_objects=[self._graphic_object],
+                graphic_layer=self._graphic_layer,
                 text_objects=[self._text_object]
             )
 
@@ -387,6 +418,7 @@ class TestGraphicAnnotation(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
+            graphic_layer=self._graphic_layer,
             referenced_frame_number=self._frame_number
         )
         assert len(ann.ReferencedImageSequence) == 1
@@ -401,6 +433,7 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_frame_numbers(self):
         ann = GraphicAnnotation(
             referenced_images=[self._ct_multiframe],
+            graphic_layer=self._graphic_layer,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_frame_number=self._frame_numbers
@@ -418,6 +451,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(TypeError):
             GraphicAnnotation(
                 referenced_images=self._ct_series,
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_frame_number=self._frame_number
@@ -427,6 +461,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=[self._ct_multiframe],
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_frame_number=self._ct_multiframe.NumberOfFrames + 1
@@ -436,6 +471,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=[self._ct_multiframe],
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_frame_number=[
@@ -447,6 +483,7 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_segment_number(self):
         ann = GraphicAnnotation(
             referenced_images=[self._segmentation],
+            graphic_layer=self._graphic_layer,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_segment_number=self._segment_number
@@ -463,6 +500,7 @@ class TestGraphicAnnotation(unittest.TestCase):
     def test_construction_segment_numbers(self):
         ann = GraphicAnnotation(
             referenced_images=[self._segmentation],
+            graphic_layer=self._graphic_layer,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object],
             referenced_segment_number=self._segment_numbers
@@ -480,6 +518,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(TypeError):
             GraphicAnnotation(
                 referenced_images=self._ct_series,
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_segment_number=self._segment_number
@@ -490,6 +529,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=[self._segmentation],
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_segment_number=seg_num
@@ -499,6 +539,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=[self._segmentation],
+                graphic_layer=self._graphic_layer,
                 graphic_objects=[self._graphic_object],
                 text_objects=[self._text_object],
                 referenced_segment_number=[
@@ -542,16 +583,16 @@ class TestGSPS(unittest.TestCase):
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
         )
-        self._ann = GraphicAnnotation(
-            referenced_images=self._ct_series,
-            graphic_objects=[self._graphic_object],
-            text_objects=[self._text_object]
-        )
         self._layer = GraphicLayer(
             layer_name='LAYER1',
             order=1,
-            graphic_annotations=[self._ann],
             description='Basic layer',
+        )
+        self._ann = GraphicAnnotation(
+            referenced_images=self._ct_series,
+            graphic_layer=self._layer,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
         )
 
         # Same thing, but with object belonging to groups
@@ -565,16 +606,16 @@ class TestGSPS(unittest.TestCase):
             graphic_data=self._circle,
             graphic_group=self._group,
         )
-        self._ann_grp = GraphicAnnotation(
-            referenced_images=self._ct_series,
-            graphic_objects=[self._graphic_object_grp],
-            text_objects=[self._text_object_grp]
-        )
         self._layer_grp = GraphicLayer(
             layer_name='LAYER1',
             order=1,
-            graphic_annotations=[self._ann_grp],
             description='Basic layer',
+        )
+        self._ann_grp = GraphicAnnotation(
+            referenced_images=self._ct_series,
+            graphic_layer=self._layer_grp,
+            graphic_objects=[self._graphic_object_grp],
+            text_objects=[self._text_object_grp]
         )
 
     def test_construction(self):
