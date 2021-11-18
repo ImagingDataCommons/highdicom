@@ -220,20 +220,23 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             (ds.ReferencedSOPClassUID, ds.ReferencedSOPInstanceUID)
             for ds in ref_im_seq
         }
-        graphic_annotations = []
-        if len(graphic_layers) > 0:
+        if graphic_layers is not None:
             labels = [layer.GraphicLayer for layer in graphic_layers]
             if len(labels) != len(set(labels)):
                 raise ValueError(
                     'Labels of graphic layers must be unique.'
                 )
+            labels_unique = set(labels)
+            self.GraphicLayerSequence = graphic_layers
+
+        if graphic_annotations is not None:
             for ann in graphic_annotations:
                 if not isinstance(ann, GraphicAnnotation):
                     raise TypeError(
                         'Items of "graphic_annotations" must be of type '
                         'highdicom.pr.GraphicAnnotation.'
                     )
-                if ann.GraphicLayer not in labels:
+                if ann.GraphicLayer not in labels_unique:
                     raise ValueError(
                         'Graphic layer with name "{ann.GraphicLayer}" is '
                         'referenced in "graphic_annotations" but not '
@@ -271,9 +274,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                                 'described in the "graphic_groups" '
                                 'argument.'
                             )
-                graphic_annotations.append(ann)
-        self.GraphicAnnotationSequence = graphic_annotations
-        self.GraphicLayerSequence = graphic_layers
+            self.GraphicAnnotationSequence = graphic_annotations
 
         # Displayed Area Selection Sequence
         # This implements the simplest case - all images are unchanged

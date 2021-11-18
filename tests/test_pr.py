@@ -588,6 +588,11 @@ class TestGSPS(unittest.TestCase):
             order=1,
             description='Basic layer',
         )
+        self._other_layer = GraphicLayer(
+            layer_name='LAYER2',
+            order=3,
+            description='Another Basic layer',
+        )
         self._ann = GraphicAnnotation(
             referenced_images=self._ct_series,
             graphic_layer=self._layer,
@@ -631,10 +636,11 @@ class TestGSPS(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John'
+            content_creator_name='Doe^John',
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -665,7 +671,8 @@ class TestGSPS(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer_grp],
-            graphic_groups=[self._group]
+            graphic_groups=[self._group],
+            graphic_annotations=[self._ann_grp],
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -693,9 +700,10 @@ class TestGSPS(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._layer],
+                graphic_annotations=[self._ann],
             )
 
-    def test_construction_with_duplciate_layers(self):
+    def test_construction_with_duplicate_layers(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(
                 referenced_images=self._ct_series,
@@ -709,6 +717,7 @@ class TestGSPS(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._layer, self._layer],  # duplicate
+                graphic_annotations=[self._ann],
             )
 
     def test_construction_with_group_missing(self):
@@ -724,11 +733,12 @@ class TestGSPS(unittest.TestCase):
                 software_versions='0.0.1',
                 device_serial_number='12345',
                 content_label='DOODLE',
+                graphic_annotations=[self._ann_grp],
                 graphic_layers=[self._layer_grp],
                 graphic_groups=[self._other_group]  # wrong group for objects!
             )
 
-    def test_construction_with_duplciate_group(self):
+    def test_construction_with_duplicate_group(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(
                 referenced_images=self._ct_series,
@@ -741,9 +751,28 @@ class TestGSPS(unittest.TestCase):
                 software_versions='0.0.1',
                 device_serial_number='12345',
                 content_label='DOODLE',
+                graphic_annotations=[self._ann_grp],
                 graphic_layers=[self._layer_grp],
                 graphic_groups=[self._group, self._group]  # duplicates
             )
 
     def test_construction_with_missing_layer(self):
-        raise NotImplementedError('TODO')
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._other_layer],  # wrong layer!
+                graphic_annotations=[self._ann],
+                concept_name_code=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+            )
