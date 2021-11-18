@@ -2381,7 +2381,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
         measurements: Sequence[Measurement] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
-        ] = None
+        ] = None,
+        finding_category: Optional[Union[CodedConcept, Code]] = None
     ):
         """
 
@@ -2394,22 +2395,25 @@ class MeasurementsAndQualitativeEvaluations(Template):
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
             Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            Type of object that was measured, e.g., organ or tumor
+            Type of observed finding
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            coded measurement method (see
+            Coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Sequence[highdicom.sr.FindingSite, None], optional
-            Coded description of one or more anatomic locations corresonding
-            to the image region from which measurement was taken
+            Coded description of one or more anatomic locations at which
+            finding was observed
         session: Union[str, None], optional
             Description of the session
         measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
             Numeric measurements
         qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
             Coded name-value pairs that describe qualitative evaluations
+        finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Category of observed finding, e.g., anatomic structure or
+            morphologically abnormal structure
 
         """  # noqa: E501
         super().__init__()
@@ -2446,6 +2450,17 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
             )
             content.append(session_item)
+        if finding_category is not None:
+            finding_category_item = CodeContentItem(
+                name=CodedConcept(
+                    value='276214006',
+                    meaning='Finding category',
+                    scheme_designator='SCT'
+                ),
+                value=finding_category,
+                relationship_type=RelationshipTypeValues.CONTAINS
+            )
+            content.append(finding_category_item)
         if finding_type is not None:
             finding_type_item = CodeContentItem(
                 name=CodedConcept(
@@ -2621,8 +2636,26 @@ class MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
+    def finding_category(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.CodedConcept, None]: finding category"""
+        root_item = self[0]
+        matches = find_content_items(
+            root_item,
+            name=Code('276214006', 'SCT', 'Finding category'),
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 1:
+            logger.warning(
+                'found more than one "Finding category" content item '
+                'in "Measurements and Qualitative Evaluations" template'
+            )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
     def finding_type(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.CodedConcept, None]: finding"""
+        """Union[highdicom.sr.CodedConcept, None]: finding type"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2753,45 +2786,49 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             Sequence[QualitativeEvaluation]
         ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+        finding_category: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
 
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
-            regions of interest in source image(s)
+            Regions of interest in source image(s)
         referenced_segment: Union[highdicom.sr.ReferencedSegment, highdicom.sr.ReferencedSegmentationFrame, None], optional
-            segmentation for region of interest in source image
+            Segmentation for region of interest in source image
         referenced_volume_surface: Union[hidicom.sr.content.VolumeSurface, None], optional
-            surface segmentation for region of interest in source image
+            Surface segmentation for region of interest in source image
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of observed finding
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            coded measurement method (see
-            :dcm:`CID 6147 <part16/sect_CID_6147.html>`
-            "Response Criteria" for options)
+            Coded measurement method (see
+            :dcm:`CID 6147 "Response Criteria" <part16/sect_CID_6147.html>`
+            for options)
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
-            Coded description of one or more anatomic locations corresonding
-            to the image region from which measurement was taken
+            Coded description of one or more anatomic locations at which
+            finding was observed
         session: Union[str, None], optional
-            description of the session
+            Description of the session
         measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
-            numeric measurements
+            Numeric measurements
         qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
-            coded name-value (question-answer) pairs that describe
+            Coded name-value (question-answer) pairs that describe
             qualitative evaluations
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            geometric interpretation of region of interest (see
+            Geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
+        finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Category of observed finding, e.g., anatomic structure or
+            morphologically abnormal structure
 
         Note
         ----
@@ -2810,7 +2847,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             finding_sites=finding_sites,
             session=session,
             measurements=measurements,
-            qualitative_evaluations=qualitative_evaluations
+            qualitative_evaluations=qualitative_evaluations,
+            finding_category=finding_category
         )
         group_item = self[0]
         were_references_provided = [
@@ -2904,43 +2942,47 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Sequence[QualitativeEvaluation]
         ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+        finding_category: Optional[Union[CodedConcept, Code]] = None
     ):
         """
 
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None], optional
-            region of interest in source image
+            Region of interest in source image
         referenced_segment: Union[highdicom.sr.ReferencedSegmentationFrame, None], optional
-            segmentation for region of interest in source image
+            Segmentation for region of interest in source image
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of object that was measured, e.g., organ or tumor
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            coded measurement method (see
+            Coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
             Coded description of one or more anatomic locations corresonding
             to the image region from which measurement was taken
         session: Union[str, None], optional
-            description of the session
+            Description of the session
         measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
-            measurements for a region of interest
+            Measurements for a region of interest
         qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
-            coded name-value (question-answer) pairs that describe
+            Coded name-value (question-answer) pairs that describe
             qualitative evaluations of a region of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            geometric interpretation of region of interest (see
+            Geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
+        finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Category of observed finding, e.g., anatomic structure or
+            morphologically abnormal structure
 
         Note
         ----
@@ -2996,7 +3038,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             session=session,
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations,
-            geometric_purpose=geometric_purpose
+            geometric_purpose=geometric_purpose,
+            finding_category=finding_category
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1410'
 
@@ -3186,45 +3229,49 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             Sequence[QualitativeEvaluation]
         ] = None,
         geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
+        finding_category: Optional[Union[CodedConcept, Code]] = None,
     ):
         """
 
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            identifier for tracking measurements
+            Identifier for tracking measurements
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], None], optional
-            regions of interest in source image(s)
+            Regions of interest in source image(s)
         referenced_volume_surface: Union[highdicom.sr.VolumeSurface, None], optional
-            volume of interest in source image(s)
+            Volume of interest in source image(s)
         referenced_segment: Union[highdicom.sr.ReferencedSegment, None], optional
-            segmentation for region of interest in source image
+            Segmentation for region of interest in source image
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
-            referenced real world value map for region of interest
+            Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
-            description of the time point context
+            Description of the time point context
         finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            type of object that was measured, e.g., organ or tumor
+            Type of observed finding
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            coded measurement method (see
+            Coded measurement method (see
             :dcm:`CID 6147 <part16/sect_CID_6147.html>`
             "Response Criteria" for options)
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
-            identification of algorithm used for making measurements
+            Identification of algorithm used for making measurements
         finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
-            Coded description of one or more anatomic locations corresonding
-            to the image region from which measurement was taken
+            Coded description of one or more anatomic locations at which the
+            finding was observed
         session: Union[str, None], optional
-            description of the session
+            Description of the session
         measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
-            measurements for a volume of interest
+            Measurements for a volume of interest
         qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
-            coded name-value (question-answer) pairs that describe
+            Coded name-value (question-answer) pairs that describe
             qualitative evaluations of a volume of interest
         geometric_purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
-            geometric interpretation of region of interest (see
+            Geometric interpretation of region of interest (see
             :dcm:`CID 219 <part16/sect_CID_219.html>`
             "Geometry Graphical Representation" for options)
+        finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Category of observed finding, e.g., anatomic structure or
+            morphologically abnormal structure
 
         Note
         ----
@@ -3262,7 +3309,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             finding_sites=finding_sites,
             session=session,
             qualitative_evaluations=qualitative_evaluations,
-            geometric_purpose=geometric_purpose
+            geometric_purpose=geometric_purpose,
+            finding_category=finding_category
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1411'
 
