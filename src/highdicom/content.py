@@ -120,7 +120,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
     @property
     def family(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: Kind of the algorithm family."""
+        """highdicom.sr.CodedConcept: Kind of the algorithm family."""
         return CodedConcept.from_dataset(
             self[0].AlgorithmFamilyCodeSequence[0]
         )

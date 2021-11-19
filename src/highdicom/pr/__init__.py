@@ -6,6 +6,7 @@ from highdicom.pr.enum import (
     GraphicTypeValues
 )
 from highdicom.pr.content import (
+    ContentCreatorIdentificationCodeSequence,
     GraphicAnnotation,
     GraphicGroup,
     GraphicLayer,
@@ -21,6 +22,7 @@ SOP_CLASS_UIDS = {
 
 __all__ = [
     'AnnotationUnitsValues',
+    'ContentCreatorIdentificationCodeSequence',
     'GraphicAnnotation',
     'GraphicGroup',
     'GraphicLayer',

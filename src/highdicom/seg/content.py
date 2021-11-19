@@ -93,20 +93,10 @@ class SegmentDescription(Dataset):
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
-            CodedConcept(
-                segmented_property_category.value,
-                segmented_property_category.scheme_designator,
-                segmented_property_category.meaning,
-                segmented_property_category.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_category)
         ]
         self.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept(
-                segmented_property_type.value,
-                segmented_property_type.scheme_designator,
-                segmented_property_type.meaning,
-                segmented_property_type.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_type)
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
@@ -137,22 +127,12 @@ class SegmentDescription(Dataset):
             )
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 

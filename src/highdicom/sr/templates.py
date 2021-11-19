@@ -2354,12 +2354,12 @@ class Measurement(Template):
 
     @property
     def unit(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: unit"""
+        """highdicom.sr.CodedConcept: unit"""
         return self[0].unit
 
     @property
     def qualifier(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         return self[0].qualifier
 
 

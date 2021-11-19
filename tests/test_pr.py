@@ -12,6 +12,7 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from highdicom import UID
 from highdicom.color import CIELabColor
 from highdicom.pr import (
+    ContentCreatorIdentificationCodeSequence,
     GraphicAnnotation,
     GraphicGroup,
     GraphicLayer,
@@ -21,6 +22,84 @@ from highdicom.pr import (
     AnnotationUnitsValues,
     TextObject
 )
+from highdicom.sr import CodedConcept
+
+
+class TestContentCreatorIdentification(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._person_codes = [codes.DCM.Person, codes.DCM.Technologist]
+        self._institution_name = 'MGH'
+        self._person_address = '1000 Main St.'
+        self._person_telephone_numbers = ['123456789']
+        self._email = 'example@example.com'
+        self._institution_address = '123 Broadway'
+        self._institution_code = CodedConcept(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        self._department_name = 'Radiology'
+        self._department_code = codes.SCT.RadiologyDepartment
+
+    def test_construction_minimal(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        print(creator_id)
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+
+    def test_construction_full(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            person_address=self._person_address,
+            person_telephone_numbers=self._person_telephone_numbers,
+            person_telecom_information=self._email,
+            institution_code=self._institution_code,
+            institution_address=self._institution_address,
+            institutional_department_name=self._department_name,
+            institutional_department_type_code=self._department_code,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        print(creator_id)
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+        assert creator_id_item.PersonAddress == self._person_address
+        assert (
+            creator_id_item.PersonTelephoneNumbers ==
+            self._person_telephone_numbers
+        )
+        assert (
+            creator_id_item.PersonTelecomInformation ==
+            self._email
+        )
+        assert (
+            creator_id_item.InstitutionCodeSequence[0].CodeValue ==
+            self._institution_code.value
+        )
+        assert creator_id_item.InstitutionAddress == self._institution_address
+        assert (
+            creator_id_item.InstitutionalDepartmentName ==
+            self._department_name
+        )
+        department_code = \
+            creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
+        assert ( department_code.CodeValue == self._department_code.value)
 
 
 class TestGraphicObject(unittest.TestCase):
@@ -623,6 +702,11 @@ class TestGSPS(unittest.TestCase):
             text_objects=[self._text_object_grp]
         )
 
+        self._creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=[codes.DCM.Person],
+            institution_name='MGH'
+        )
+
     def test_construction(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
@@ -657,6 +741,28 @@ class TestGSPS(unittest.TestCase):
         assert gsps.InstitutionalDepartmentName == 'Radiology'
         assert gsps.ContentCreatorName == 'Doe^John'
         assert gsps.ConceptNameCodeSequence[0].CodeValue == 'PR'
+
+    def test_construction_creator_id(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            content_creator_identification=self._creator_id
+        )
+        assert len(gsps.ContentCreatorIdentificationCodeSequence) == 1
 
     def test_construction_with_group(self):
         gsps = GrayscaleSoftcopyPresentationState(

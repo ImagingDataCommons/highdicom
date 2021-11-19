@@ -722,12 +722,7 @@ class Segmentation(SOPClass):
                     derivation_image_item = Dataset()
                     derivation_code = codes.cid7203.Segmentation
                     derivation_image_item.DerivationCodeSequence = [
-                        CodedConcept(
-                            derivation_code.value,
-                            derivation_code.scheme_designator,
-                            derivation_code.meaning,
-                            derivation_code.scheme_version
-                        ),
+                        CodedConcept.from_code(derivation_code)
                     ]
 
                     derivation_src_img_item = Dataset()
@@ -750,12 +745,7 @@ class Segmentation(SOPClass):
                     purpose_code = \
                         codes.cid7202.SourceImageForImageProcessingOperation
                     derivation_src_img_item.PurposeOfReferenceCodeSequence = [
-                        CodedConcept(
-                            purpose_code.value,
-                            purpose_code.scheme_designator,
-                            purpose_code.meaning,
-                            purpose_code.scheme_version
-                        ),
+                        CodedConcept.from_code(purpose_code)
                     ]
                     derivation_src_img_item.SpatialLocationsPreserved = 'YES'
                     derivation_image_item.SourceImageSequence = [

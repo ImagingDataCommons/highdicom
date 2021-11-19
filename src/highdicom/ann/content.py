@@ -45,11 +45,11 @@ class Measurements(Dataset):
         super().__init__()
 
         if isinstance(name, Code):
-            name = CodedConcept(*name)
+            name = CodedConcept.from_code(name)
         self.ConceptNameCodeSequence = [name]
 
         if isinstance(unit, Code):
-            unit = CodedConcept(*unit)
+            unit = CodedConcept.from_code(unit)
         self.MeasurementUnitsCodeSequence = [unit]
 
         is_nan = np.isnan(values)
@@ -68,7 +68,7 @@ class Measurements(Dataset):
 
     @property
     def unit(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: coded unit"""
+        """highdicom.sr.CodedConcept: coded unit"""
         return self.MeasurementUnitsCodeSequence[0]
 
     def get_values(self, number_of_annotations: int) -> np.ndarray:
@@ -257,7 +257,7 @@ class AnnotationGroup(Dataset):
 
         if isinstance(annotated_property_category, Code):
             self.AnnotationPropertyCategoryCodeSequence = [
-                CodedConcept(*annotated_property_category)
+                CodedConcept.from_code(annotated_property_category)
             ]
         else:
             self.AnnotationPropertyCategoryCodeSequence = [
@@ -265,7 +265,7 @@ class AnnotationGroup(Dataset):
             ]
         if isinstance(annotated_property_type, Code):
             self.AnnotationPropertyTypeCodeSequence = [
-                CodedConcept(*annotated_property_type),
+                CodedConcept.from_code(annotated_property_type),
             ]
         else:
             self.AnnotationPropertyTypeCodeSequence = [
@@ -406,22 +406,12 @@ class AnnotationGroup(Dataset):
 
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 

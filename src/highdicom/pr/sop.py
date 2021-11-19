@@ -11,7 +11,12 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.base import SOPClass
-from highdicom.pr.content import GraphicLayer, GraphicGroup, GraphicAnnotation
+from highdicom.pr.content import (
+    GraphicLayer,
+    GraphicGroup,
+    GraphicAnnotation,
+    ContentCreatorIdentificationCodeSequence
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -45,6 +50,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -84,7 +92,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.coding.CodedConcept]
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -95,6 +103,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
             Name of the person who created the content of this presentation
             state.
+        content_creator_identification: Union[highdicom.pr.ContentCreatorIdentificationCodeSequence, None]
+            Identifying information for the person who created the content of
+            this presentation state.
         transfer_syntax_uid: Union[str, highdicom.UID]
             Transfer syntax UID of the presentation state.
 
@@ -165,7 +176,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 raise TypeError(
                     'Argument "concept_name_code" should be of type '
                     'pydicom.sr.coding.Code or '
-                    'highdicom.sr.coding.CodedConcept.'
+                    'highdicom.sr.CodedConcept.'
                 )
             self.ConceptNameCodeSequence = [
                 CodedConcept(
@@ -176,12 +187,13 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 )
             ]
 
-        # TODO Content Creator Identification Code Sequence
-        # TODO Alternative Content Description Sequence???
-
         if content_creator_name is not None:
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
+
+        if content_creator_identification is not None:
+            self.ContentCreatorIdentificationCodeSequence = \
+                content_creator_identification
 
         # Presentation State Relationship
         ref_im_seq = []

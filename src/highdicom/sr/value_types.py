@@ -140,7 +140,7 @@ class ContentItem(Dataset):
                 'Argument "name" must have type CodedConcept or Code.'
             )
         if isinstance(name, Code):
-            name = CodedConcept(*name)
+            name = CodedConcept.from_code(name)
         self.ConceptNameCodeSequence = [name]
         if relationship_type is not None:
             relationship_type = RelationshipTypeValues(relationship_type)
@@ -657,7 +657,7 @@ class CodeContentItem(ContentItem):
                 'Argument "value" must have type CodedConcept or Code.'
             )
         if isinstance(value, Code):
-            value = CodedConcept(*value)
+            value = CodedConcept.from_code(value)
         self.ConceptCodeSequence = [value]
 
     @property
@@ -1232,7 +1232,7 @@ class NumContentItem(ContentItem):
                 'Argument "unit" must have type CodedConcept or Code.'
             )
         if isinstance(unit, Code):
-            unit = CodedConcept(*unit)
+            unit = CodedConcept.from_code(unit)
         measured_value_sequence_item.MeasurementUnitsCodeSequence = [unit]
         self.MeasuredValueSequence.append(measured_value_sequence_item)
         if qualifier is not None:
@@ -1242,7 +1242,7 @@ class NumContentItem(ContentItem):
                     '"Code".'
                 )
             if isinstance(qualifier, Code):
-                qualifier = CodedConcept(*qualifier)
+                qualifier = CodedConcept.from_code(qualifier)
             self.NumericValueQualifierCodeSequence = [qualifier]
 
     @property
@@ -1256,13 +1256,13 @@ class NumContentItem(ContentItem):
 
     @property
     def unit(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: unit"""
+        """highdicom.sr.CodedConcept: unit"""
         item = self.MeasuredValueSequence[0]
         return item.MeasurementUnitsCodeSequence[0]
 
     @property
     def qualifier(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         try:
             return self.NumericValueQualifierCodeSequence[0]
         except AttributeError:
