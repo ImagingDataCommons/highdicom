@@ -9,6 +9,6 @@ install:
   - "pip install -r requirements_test.txt"
   - "pip install ."
 script:
-  - "pytest --cov=highdicom --cov-fail-under=74 tests"
+  - "pytest --cov=highdicom --cov-fail-under=80 tests"
   - "flake8 --exclude='bin,build,.eggs,src/highdicom/_*'"
   - "mypy src/highdicom tests"
