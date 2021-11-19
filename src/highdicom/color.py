@@ -1,6 +1,6 @@
 import logging
 from io import BytesIO
-from typing import Sequence
+from typing import List
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -60,8 +60,8 @@ class CIELabColor(object):
         self._value = (l_val, a_val, b_val)
 
     @property
-    def value(self) -> Sequence[int]:
-        """Sequence[int]:
+    def value(self) -> List[int]:
+        """List[int]:
             Value formatted as a triplet of 16 bit unsigned integers.
         """
         return list(self._value)
