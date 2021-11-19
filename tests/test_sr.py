@@ -2499,6 +2499,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._real_world_value_map = RealWorldValueMap(
             referenced_sop_instance_uid=generate_uid()
         )
+        self._finding_category = codes.SCT.MorphologicallyAbnormalStructure
         self._finding_type = codes.SCT.Nodule
         self._method = codes.DCM.RECIST1Point1
         self._algo_id = AlgorithmIdentification(
@@ -2604,7 +2605,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        PlanarROIMeasurementsAndQualitativeEvaluations(
+        group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
             referenced_real_world_value_map=self._real_world_value_map,
@@ -2615,8 +2616,12 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             session=self._session,
             measurements=self._measurements,
             qualitative_evaluations=self._qualitative_evaluations,
-            geometric_purpose=self._geometric_purpose
+            geometric_purpose=self._geometric_purpose,
+            finding_category=self._finding_category
         )
+        assert group.finding_type == self._finding_type
+        assert group.finding_category == self._finding_category
+        assert group.finding_sites == self._finding_sites
 
     def test_constructed_without_human_readable_tracking_identifier(self):
         tracking_identifier = TrackingIdentifier(
