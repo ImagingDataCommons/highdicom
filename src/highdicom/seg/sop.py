@@ -641,6 +641,12 @@ class Segmentation(SOPClass):
                 else:
                     planes = pixel_array
                 planes = planes.astype(np.uint8)
+                # It may happen that a boolean array is passed that should be
+                # interpreted as fractional segmentation type. In this case, we
+                # also need to stretch pixel valeus to 8-bit unsigned integer
+                # range by multiplying with the maximum fractional value.
+                if segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    planes *= int(self.MaximumFractionalValue)
             else:
                 raise TypeError('Pixel array has an invalid data type.')
 

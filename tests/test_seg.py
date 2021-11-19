@@ -1252,6 +1252,7 @@ class TestSegmentation(unittest.TestCase):
                 JPEG2000Lossless
             ]
 
+            max_fractional_value = 255
             for transfer_syntax_uid in valid_transfer_syntaxes:
                 for pix_type in [np.bool_, np.uint8, np.uint16, np.float_]:
                     instance = Segmentation(
@@ -1267,15 +1268,21 @@ class TestSegmentation(unittest.TestCase):
                         self._manufacturer_model_name,
                         self._software_versions,
                         self._device_serial_number,
-                        max_fractional_value=1,
+                        max_fractional_value=max_fractional_value,
                         transfer_syntax_uid=transfer_syntax_uid
                     )
 
                     # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(
-                        self.get_array_after_writing(instance),
-                        expected_encoding
-                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    if pix_type in (np.bool_, np.float_):
+                        assert np.array_equal(
+                            self.get_array_after_writing(instance),
+                            expected_encoding * max_fractional_value
+                        ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    else:
+                        assert np.array_equal(
+                            self.get_array_after_writing(instance),
+                            expected_encoding
+                        ), f'{sources[0].Modality} {transfer_syntax_uid}'
                     self.check_dimension_index_vals(instance)
 
                     # Multi-segment (exclusive)
