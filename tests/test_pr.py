@@ -99,7 +99,7 @@ class TestContentCreatorIdentification(unittest.TestCase):
         )
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
-        assert ( department_code.CodeValue == self._department_code.value)
+        assert (department_code.CodeValue == self._department_code.value)
 
 
 class TestGraphicObject(unittest.TestCase):
@@ -662,15 +662,18 @@ class TestGSPS(unittest.TestCase):
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
         )
+        self._display_color = CIELabColor(0.0, 127.0, 127.0)
         self._layer = GraphicLayer(
             layer_name='LAYER1',
             order=1,
             description='Basic layer',
+            display_color=self._display_color
         )
         self._other_layer = GraphicLayer(
             layer_name='LAYER2',
             order=3,
             description='Another Basic layer',
+            display_color=self._display_color
         )
         self._ann = GraphicAnnotation(
             referenced_images=self._ct_series,
@@ -694,6 +697,7 @@ class TestGSPS(unittest.TestCase):
             layer_name='LAYER1',
             order=1,
             description='Basic layer',
+            display_color=self._display_color
         )
         self._ann_grp = GraphicAnnotation(
             referenced_images=self._ct_series,

@@ -193,7 +193,7 @@ class GraphicLayer(Dataset):
                     '"recommended_display_color" must be of type '
                     'highdicom.color.CIELabColor.'
                 )
-            self.GraphicLayerRecommendedDisplayCIELabValue = display_color
+            self.GraphicLayerRecommendedDisplayCIELabValue = display_color.value
 
 
 class GraphicGroup(Dataset):

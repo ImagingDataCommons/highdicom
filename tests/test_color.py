@@ -10,12 +10,12 @@ from highdicom.color import ColorManager, CIELabColor
 @pytest.mark.parametrize(
     'l_in,a_in,b_in,out',
     [
-        [0.0, -128.0, -128.0, (0x0000, 0x0000, 0x0000)],
-        [100.0, -128.0, -128.0, (0xFFFF, 0x0000, 0x0000)],
-        [100.0, 0.0, 0.0, (0xFFFF, 0x8080, 0x8080)],
-        [100.0, 0.0, 0.0, (0xFFFF, 0x8080, 0x8080)],
-        [100.0, 127.0, 127.0, (0xFFFF, 0xFFFF, 0xFFFF)],
-        [100.0, -128.0, 127.0, (0xFFFF, 0x0000, 0xFFFF)],
+        [0.0, -128.0, -128.0, [0x0000, 0x0000, 0x0000]],
+        [100.0, -128.0, -128.0, [0xFFFF, 0x0000, 0x0000]],
+        [100.0, 0.0, 0.0, [0xFFFF, 0x8080, 0x8080]],
+        [100.0, 0.0, 0.0, [0xFFFF, 0x8080, 0x8080]],
+        [100.0, 127.0, 127.0, [0xFFFF, 0xFFFF, 0xFFFF]],
+        [100.0, -128.0, 127.0, [0xFFFF, 0x0000, 0xFFFF]],
     ]
 )
 def test_cielab(l_in, a_in, b_in, out):
