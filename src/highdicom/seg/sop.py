@@ -641,7 +641,7 @@ class Segmentation(SOPClass):
                 else:
                     planes = pixel_array
                 planes = planes.astype(np.uint8)
-                # It may happen that an boolean array is passed that should be
+                # It may happen that a boolean array is passed that should be
                 # interpreted as fractional segmentation type. In this case, we
                 # also need to stretch pixel valeus to 8-bit unsigned integer
                 # range by multiplying with the maximum fractional value.
