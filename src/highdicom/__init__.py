@@ -9,6 +9,7 @@ from highdicom import seg
 from highdicom import sr
 from highdicom.content import (
     AlgorithmIdentificationSequence,
+    ContentCreatorIdentificationCodeSequence,
     IssuerOfIdentifier,
     PixelMeasuresSequence,
     PlanePositionSequence,
@@ -42,6 +43,7 @@ from highdicom import utils
 __all__ = [
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
+    'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
     'CoordinateSystemNames',
     'DimensionOrganizationTypeValues',

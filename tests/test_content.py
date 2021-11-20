@@ -3,7 +3,9 @@ from unittest import TestCase
 import pytest
 from pydicom.sr.codedict import codes
 
+from highdicom.sr import CodedConcept
 from highdicom import (
+    ContentCreatorIdentificationCodeSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -12,6 +14,83 @@ from highdicom import (
     SpecimenSampling,
     SpecimenStaining,
 )
+
+
+class TestContentCreatorIdentification(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._person_codes = [codes.DCM.Person, codes.DCM.Technologist]
+        self._institution_name = 'MGH'
+        self._person_address = '1000 Main St.'
+        self._person_telephone_numbers = ['123456789']
+        self._email = 'example@example.com'
+        self._institution_address = '123 Broadway'
+        self._institution_code = CodedConcept(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        self._department_name = 'Radiology'
+        self._department_code = codes.SCT.RadiologyDepartment
+
+    def test_construction_minimal(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        print(creator_id)
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+
+    def test_construction_full(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            person_address=self._person_address,
+            person_telephone_numbers=self._person_telephone_numbers,
+            person_telecom_information=self._email,
+            institution_code=self._institution_code,
+            institution_address=self._institution_address,
+            institutional_department_name=self._department_name,
+            institutional_department_type_code=self._department_code,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        print(creator_id)
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+        assert creator_id_item.PersonAddress == self._person_address
+        assert (
+            creator_id_item.PersonTelephoneNumbers ==
+            self._person_telephone_numbers
+        )
+        assert (
+            creator_id_item.PersonTelecomInformation ==
+            self._email
+        )
+        assert (
+            creator_id_item.InstitutionCodeSequence[0].CodeValue ==
+            self._institution_code.value
+        )
+        assert creator_id_item.InstitutionAddress == self._institution_address
+        assert (
+            creator_id_item.InstitutionalDepartmentName ==
+            self._department_name
+        )
+        department_code = \
+            creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
+        assert (department_code.CodeValue == self._department_code.value)
 
 
 class TestPlanePositionSequence(TestCase):

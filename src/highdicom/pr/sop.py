@@ -11,11 +11,11 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.base import SOPClass
+from highdicom.content import ContentCreatorIdentificationCodeSequence
 from highdicom.pr.content import (
     GraphicLayer,
     GraphicGroup,
     GraphicAnnotation,
-    ContentCreatorIdentificationCodeSequence
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
@@ -103,7 +103,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
             Name of the person who created the content of this presentation
             state.
-        content_creator_identification: Union[highdicom.pr.ContentCreatorIdentificationCodeSequence, None]
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None]
             Identifying information for the person who created the content of
             this presentation state.
         transfer_syntax_uid: Union[str, highdicom.UID]

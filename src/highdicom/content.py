@@ -22,6 +22,11 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom.valuerep import (
+    _check_long_string,
+    _check_long_text,
+    _check_short_text
+)
 from highdicom._module_utils import check_required_attributes
 
 
@@ -155,6 +160,128 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 raise ValueError('Malformed parameter string')
             parameters[split[0]] = split[1]
         return parameters
+
+
+class ContentCreatorIdentificationCodeSequence(DataElementSequence):
+
+    """
+
+    Sequence identifying the person who created the content.
+
+    """
+    def __init__(
+        self,
+        person_identification_codes: Sequence[Union[Code, CodedConcept]],
+        institution_name: str,
+        person_address: Optional[str] = None,
+        person_telephone_numbers: Optional[Sequence[str]] = None,
+        person_telecom_information: Optional[str] = None,
+        institution_code: Union[Code, CodedConcept, None] = None,
+        institution_address: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        institutional_department_type_code: Union[
+            Code,
+            CodedConcept,
+            None
+        ] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        person_identification_codes: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]]
+            Coded description(s) identifying the person.
+        institution_name: str
+            Name of the to which the identified individual is responsible or
+            accountable.
+        person_address: Union[str, None]
+            Mailing address of the person.
+        person_telephone_numbers: Union[Sequence[str], None]
+            Person's telephone number(s).
+        person_telecom_information: Union[str, None]
+            The person's telecommunication contact information, including
+            email or other addresses.
+        institution_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]
+            Coded concept identifying the institution.
+        institution_address: Union[str, None]
+            Mailing address of the institution.
+        institutional_department_name: Union[str, None]
+            Name of the department, unit or service within the healthcare
+            facility.
+        institutional_department_type_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]
+            A coded description of the type of Department or Service.
+
+        """  # noqa: E501
+        super().__init__()
+        item = Dataset()
+
+        if len(person_identification_codes) < 1:
+            raise ValueError(
+                'Sequence "person_identification_codes" must not be empty.'
+            )
+        for name_code in person_identification_codes:
+            if not isinstance(name_code, (Code, CodedConcept)):
+                raise TypeError(
+                    'Items of "person_identification_codes" must be of type '
+                    'pydicom.sr.coding.Code or '
+                    'highdicom.sr.CodedConcept.'
+                )
+        item.PersonIdentificationCodeSequence = [
+            CodedConcept.from_code(c) for c in person_identification_codes
+        ]
+
+        _check_long_string(institution_name)
+        item.InstitutionName = institution_name
+
+        if institution_code is not None:
+            if not isinstance(institution_code, (Code, CodedConcept)):
+                raise TypeError(
+                    'Argument "institution_code" must be of type '
+                    'pydicom.sr.coding.Code or '
+                    'highdicom.sr.CodedConcept.'
+                )
+            item.InstitutionCodeSequence = [institution_code]
+
+        if person_address is not None:
+            _check_short_text(person_address)
+            item.PersonAddress = person_address
+
+        if person_telephone_numbers is not None:
+            if len(person_telephone_numbers) < 1:
+                raise ValueError(
+                    'Sequence "person_telephone_numbers" must not be empty.'
+                )
+            for phone_number in person_telephone_numbers:
+                _check_long_string(phone_number)
+            item.PersonTelephoneNumbers = person_telephone_numbers
+
+        if person_telecom_information is not None:
+            _check_long_text(person_telecom_information)
+            item.PersonTelecomInformation = person_telecom_information
+
+        if institution_address is not None:
+            _check_short_text(institution_address)
+            item.InstitutionAddress = institution_address
+
+        if institutional_department_name is not None:
+            _check_long_string(institutional_department_name)
+            item.InstitutionalDepartmentName = institutional_department_name
+
+        if institutional_department_type_code is not None:
+            if not isinstance(
+                institutional_department_type_code,
+                (Code, CodedConcept)
+            ):
+                raise TypeError(
+                    'Argument "institutional_department_type_code" must be of '
+                    'type pydicom.sr.coding.Code or '
+                    'highdicom.sr.CodedConcept.'
+                )
+            item.InstitutionalDepartmentTypeCodeSequence = [
+                CodedConcept.from_code(institutional_department_type_code)
+            ]
+
+        self.append(item)
 
 
 class PixelMeasuresSequence(DataElementSequence):
