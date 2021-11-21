@@ -1,4 +1,5 @@
 """DICOM structured reporting templates."""
+import collections
 import logging
 from copy import deepcopy
 from typing import cast, Dict, Iterable, List, Optional, Sequence, Tuple, Union
@@ -3702,17 +3703,12 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             )]
 
-        # Not yet implemented from TID 1603 - unclear how to derive data:
-        # - ImageView, ImageViewModifiers
-        # - PositionerPrimaryAngle, PositionerSecondaryAngle
-
         return descriptors
 
     def _generate_cross_sectional_descriptors(
         self,
         dataset: Dataset
     ) -> Sequence[ContentItem]:
-
         """Generate descriptors for cross-sectional modalities.
 
         :dcm:`TID 1604 Image Library Entry Descriptors for Cross-Sectional Modalities <part16/chapter_A.html#sect_TID_1604>`
@@ -3726,6 +3722,7 @@ class ImageLibraryEntryDescriptors(Template):
         -------
         Sequence[highdicom.sr.ContentItem]
             SR Content Items describing the image.
+
         """  # noqa: E501
         pixel_spacing = dataset.PixelSpacing
         image_orientation = dataset.ImageOrientationPatient
@@ -4855,39 +4852,72 @@ class ImageLibrary(Template):
         )
         library_item.ContentSequence = ContentSequence()
         if datasets is not None:
-            # We will use just one group
-            group_item = ContainerContentItem(
-                name=CodedConcept(
-                    value='126200',
-                    meaning='Image Library Group',
-                    scheme_designator='DCM'
-                ),
-                relationship_type=RelationshipTypeValues.CONTAINS
-            )
-            group_item.ContentSequence = ContentSequence()
-            for dataset in datasets:
-                # Create TID 1601 Image Library Entry
-                # for each image
+            groups = collections.defaultdict(list)
+            for ds in datasets:
+                modality = _get_coded_modality(ds.SOPClassUID)
                 image_item = ImageContentItem(
                     name=CodedConcept(
                         value='260753009',
                         meaning='Source',
                         scheme_designator='SCT'
                     ),
-                    referenced_sop_instance_uid=dataset.SOPInstanceUID,
-                    referenced_sop_class_uid=dataset.SOPClassUID,
+                    referenced_sop_instance_uid=ds.SOPInstanceUID,
+                    referenced_sop_class_uid=ds.SOPClassUID,
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
+                descriptors = ImageLibraryEntryDescriptors(ds)
 
-                # Add descriptors nested under the entry
-                descriptors = ImageLibraryEntryDescriptors(dataset)
                 image_item.ContentSequence = ContentSequence()
                 image_item.ContentSequence.extend(descriptors)
+                if 'FrameOfReferenceUID' in ds:
+                    # Only type 1 attributes
+                    shared_descriptors = (
+                        modality,
+                        ds.FrameOfReferenceUID,
+                    )
+                else:
+                    shared_descriptors = (
+                        modality,
+                    )
+                groups[shared_descriptors].append(image_item)
 
-                # Add the entry to the group
-                group_item.ContentSequence.append(image_item)
+            for shared_descriptors, image_items in groups.items():
+                image = image_items[0]
+                group_item = ContainerContentItem(
+                    name=CodedConcept(
+                        value='126200',
+                        meaning='Image Library Group',
+                        scheme_designator='DCM'
+                    ),
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+                group_item.ContentSequence = ContentSequence()
+                group_item.ContentSequence.append(
+                    CodeContentItem(
+                        name=CodedConcept(
+                            value='121139',
+                            scheme_designator='DCM',
+                            meaning='Modality'
+                        ),
+                        value=shared_descriptors[0],
+                        relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+                    )
+                )
 
-            # Add the group to the library
+                if 'FrameOfReferenceUID' in image:
+                    group_item.ContentSequence.append(
+                        UIDRefContentItem(
+                            name=CodedConcept(
+                                value='112227',
+                                scheme_designator='DCM',
+                                meaning='Frame of Reference UID'
+                            ),
+                            value=shared_descriptors[1],
+                            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT  # noqa: E501
+                        )
+                    )
+                group_item.ContentSequence.extend(image_items)
             if len(group_item) > 0:
                 library_item.ContentSequence.append(group_item)
+
         self.append(library_item)

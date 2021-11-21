@@ -4801,9 +4801,9 @@ class TestImageLibrary(unittest.TestCase):
         library_items = ImageLibrary([self._ref_sm_dataset])
         assert len(library_items) == 1
         library_group_item = library_items[0].ContentSequence[0]
-        assert len(library_group_item.ContentSequence) == 1
+        assert len(library_group_item.ContentSequence) == 2
         assert library_group_item.name == codes.DCM.ImageLibraryGroup
-        content_item = library_group_item.ContentSequence[0]
+        content_item = library_group_item.ContentSequence[1]
         assert isinstance(content_item, ImageContentItem)
         ref_sop_instance_uid = \
             content_item.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
