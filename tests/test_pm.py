@@ -231,6 +231,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
+        content_label = 'MY_MAP'
         pmap = hd.pm.ParametricMap(
             [self._sm_image],
             pixel_array,
@@ -245,7 +246,8 @@ class TestParametricMap(unittest.TestCase):
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
             window_center=window_center,
-            window_width=window_width
+            window_width=window_width,
+            content_label=content_label
         )
         assert pmap.SOPClassUID == '1.2.840.10008.5.1.4.1.1.30'
         assert pmap.SOPInstanceUID == self._sop_instance_uid
@@ -257,6 +259,13 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.DeviceSerialNumber == self._device_serial_number
         assert pmap.StudyInstanceUID == self._sm_image.StudyInstanceUID
         assert pmap.PatientID == self._sm_image.PatientID
+        assert pmap.ContentLabel == content_label
+        assert pmap.TotalPixelMatrixRows == \
+            self._sm_image.TotalPixelMatrixRows
+        assert pmap.TotalPixelMatrixColumns == \
+            self._sm_image.TotalPixelMatrixColumns
+        assert pmap.TotalPixelMatrixOriginSequence == \
+            self._sm_image.TotalPixelMatrixOriginSequence
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_multi_frame_sm_image_ushort_native(self):

@@ -91,6 +91,28 @@ highdicom.ann package
    :undoc-members:
    :show-inheritance:
 
+.. _highdicom-ko-subpackage:
+
+highdicom.ko package
+---------------------
+
+.. automodule:: highdicom.ko
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
+.. _highdicom-pm-subpackage:
+
+highdicom.pm package
+---------------------
+
+.. automodule:: highdicom.pm
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
 .. _highdicom-seg-subpackage:
 
 highdicom.seg package

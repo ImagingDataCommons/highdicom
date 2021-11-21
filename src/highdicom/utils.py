@@ -148,8 +148,8 @@ def compute_plane_position_tiled_full(
 
 
 def compute_plane_position_slide_per_frame(
-        dataset: Dataset
-    ) -> List[PlanePositionSequence]:
+    dataset: Dataset
+) -> List[PlanePositionSequence]:
     """Computes the plane position for each frame in given dataset with
     respect to the slide coordinate system.
 

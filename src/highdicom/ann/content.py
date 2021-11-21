@@ -173,7 +173,13 @@ class AnnotationGroup(Dataset):
             AlgorithmIdentificationSequence
         ] = None,
         measurements: Optional[Sequence[Measurements]] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        anatomic_regions: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None,
+        primary_anatomic_structures: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None
     ):
         """
         Parameters
@@ -212,6 +218,11 @@ class AnnotationGroup(Dataset):
             interest
         description: Union[str, None], optional
             Description of the annotation group
+        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
+            Anatomic region(s) into which annotations fall
+        primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
+            Anatomic structure(s) the annotations represent
+            (see CIDs for domain-specific primary anatomic structures)
 
         """  # noqa: E501
         super().__init__()
@@ -393,6 +404,27 @@ class AnnotationGroup(Dataset):
                     raise ValueError(error_message)
                 self.MeasurementsSequence.append(item)
 
+        if anatomic_regions is not None:
+            self.AnatomicRegionSequence = [
+                CodedConcept(
+                    region.value,
+                    region.scheme_designator,
+                    region.meaning,
+                    region.scheme_version
+                )
+                for region in anatomic_regions
+            ]
+        if primary_anatomic_structures is not None:
+            self.PrimaryAnatomicStructureSequence = [
+                CodedConcept(
+                    structure.value,
+                    structure.scheme_designator,
+                    structure.meaning,
+                    structure.scheme_version
+                )
+                for structure in primary_anatomic_structures
+            ]
+
     @property
     def label(self) -> str:
         """str: label"""
@@ -441,6 +473,28 @@ class AnnotationGroup(Dataset):
         if hasattr(self, 'AnnotationGroupAlgorithmIdentificationSequence'):
             return self.AnnotationGroupAlgorithmIdentificationSequence
         return None
+
+    @property
+    def anatomic_regions(self) -> List[CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
+            List of anatomic regions into which the annotations fall.
+            May be empty.
+
+        """
+        if not hasattr(self, 'AnatomicRegionSequence'):
+            return []
+        return list(self.AnatomicRegionSequence)
+
+    @property
+    def primary_anatomic_structures(self) -> List[CodedConcept]:
+        """List[highdicom.sr.CodedConcept]:
+            List of anatomic anatomic structures the annotations represent.
+            May be empty.
+
+        """
+        if not hasattr(self, 'PrimaryAnatomicStructureSequence'):
+            return []
+        return list(self.PrimaryAnatomicStructureSequence)
 
     def get_coordinates(
         self,
@@ -660,6 +714,16 @@ class AnnotationGroup(Dataset):
             group.MeasurementsSequence = [
                 Measurements.from_dataset(ds)
                 for ds in group.MeasurementsSequence
+            ]
+        if hasattr(group, 'AnatomicRegionSequence'):
+            group.AnatomicRegionSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in group.AnatomicRegionSequence
+            ]
+        if hasattr(group, 'PrimaryAnatomicStructureSequence'):
+            group.PrimaryAnatomicStructureSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in group.PrimaryAnatomicStructureSequence
             ]
 
         return group

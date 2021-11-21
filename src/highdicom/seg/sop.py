@@ -47,7 +47,7 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, _check_code_string
 from highdicom.uid import UID as hd_UID
 
 
@@ -86,6 +86,7 @@ class Segmentation(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         omit_empty_frames: bool = True,
+        content_label: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -232,6 +233,8 @@ class Segmentation(SOPClass):
         omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
+        content_label: Union[str, None], optional
+            Content label
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -369,7 +372,12 @@ class Segmentation(SOPClass):
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.PixelRepresentation = 0
-        self.ContentLabel = 'Segmentation'
+
+        if content_label is not None:
+            _check_code_string(content_label)
+            self.ContentLabel = content_label
+        else:
+            self.ContentLabel = f'{src_img.Modality}_SEG'
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
@@ -418,7 +426,7 @@ class Segmentation(SOPClass):
         self.SegmentSequence: List[SegmentDescription] = []
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        shared_func_groups = Dataset()
+        sffg_item = Dataset()
         if pixel_measures is None:
             if is_multiframe:
                 src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
@@ -432,11 +440,6 @@ class Segmentation(SOPClass):
                         None
                     )
                 )
-            # TODO: ensure derived segmentation image and original image have
-            # same physical dimensions
-            # seg_row_dim = self.Rows * pixel_measures[0].PixelSpacing[0]
-            # seg_col_dim = self.Columns * pixel_measures[0].PixelSpacing[1]
-            # src_row_dim = src_img.Rows
 
         if is_multiframe:
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -466,7 +469,7 @@ class Segmentation(SOPClass):
         if is_multiframe:
             source_plane_positions = \
                 self.DimensionIndexSequence.get_plane_positions_of_image(
-                    source_images[0]
+                    src_img
                 )
         else:
             source_plane_positions = \
@@ -474,11 +477,11 @@ class Segmentation(SOPClass):
                     source_images
                 )
 
-        shared_func_groups.PixelMeasuresSequence = pixel_measures
-        shared_func_groups.PlaneOrientationSequence = plane_orientation
-        self.SharedFunctionalGroupsSequence = [shared_func_groups]
+        sffg_item.PixelMeasuresSequence = pixel_measures
+        sffg_item.PlaneOrientationSequence = plane_orientation
+        self.SharedFunctionalGroupsSequence = [sffg_item]
 
-        # NOTE: Information about individual frames will be updated below
+        # Information about individual frames will be updated below
         self.NumberOfFrames = 0
         self.PerFrameFunctionalGroupsSequence: List[Dataset] = []
 
@@ -511,15 +514,16 @@ class Segmentation(SOPClass):
         if plane_positions is None:
             if pixel_array.shape[0] != len(source_plane_positions):
                 raise ValueError(
-                    'Number of pixel array planes does not match number '
-                    'of planes (frames) in referenced source image.'
+                    'Number of plane positions in source image(s) does not '
+                    'match size of first dimension of "pixel_array" argument.'
                 )
             plane_positions = source_plane_positions
         else:
             if pixel_array.shape[0] != len(plane_positions):
                 raise ValueError(
-                    'Number of pixel array planes does not match number of '
-                    'provided plane positions.'
+                    'Number of PlanePositionSequence items provided via '
+                    '"plane_positions" argument does not match size of '
+                    'first dimension of "pixel_array" argument.'
                 )
 
         are_spatial_locations_preserved = (
@@ -539,6 +543,10 @@ class Segmentation(SOPClass):
             if are_spatial_locations_preserved:
                 self.TotalPixelMatrixOriginSequence = \
                     source_images[0].TotalPixelMatrixOriginSequence
+                self.TotalPixelMatrixRows = \
+                    source_images[0].TotalPixelMatrixRows
+                self.TotalPixelMatrixColumns = \
+                    source_images[0].TotalPixelMatrixColumns
             else:
                 row_index = self.DimensionIndexSequence.get_index_position(
                     'RowPositionInTotalImagePixelMatrix'
@@ -549,19 +557,28 @@ class Segmentation(SOPClass):
                 )
                 col_offsets = plane_position_values[:, col_index]
                 frame_indices = np.lexsort([row_offsets, col_offsets])
-                frame_index = frame_indices[0]
+                first_frame_index = frame_indices[0]
+                last_frame_index = frame_indices[-1]
                 x_index = self.DimensionIndexSequence.get_index_position(
                     'XOffsetInSlideCoordinateSystem'
                 )
-                x_offset = plane_position_values[frame_index, x_index]
+                x_offset = plane_position_values[first_frame_index, x_index]
                 y_index = self.DimensionIndexSequence.get_index_position(
                     'YOffsetInSlideCoordinateSystem'
                 )
-                y_offset = plane_position_values[frame_index, y_index]
+                y_offset = plane_position_values[first_frame_index, y_index]
                 origin_item = Dataset()
                 origin_item.XOffsetInSlideCoordinateSystem = x_offset
                 origin_item.YOffsetInSlideCoordinateSystem = y_offset
                 self.TotalPixelMatrixOriginSequence = [origin_item]
+                self.TotalPixelMatrixRows = (
+                    plane_position_values[last_frame_index, row_index] +
+                    self.Rows
+                )
+                self.TotalPixelMatrixColumns = (
+                    plane_position_values[last_frame_index, col_index] +
+                    self.Columns
+                )
 
         # Remove empty slices
         if omit_empty_frames:
@@ -624,6 +641,12 @@ class Segmentation(SOPClass):
                 else:
                     planes = pixel_array
                 planes = planes.astype(np.uint8)
+                # It may happen that a boolean array is passed that should be
+                # interpreted as fractional segmentation type. In this case, we
+                # also need to stretch pixel valeus to 8-bit unsigned integer
+                # range by multiplying with the maximum fractional value.
+                if segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    planes *= int(self.MaximumFractionalValue)
             else:
                 raise TypeError('Pixel array has an invalid data type.')
 
