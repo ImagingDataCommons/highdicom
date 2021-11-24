@@ -170,30 +170,6 @@ def get_coded_value(item: Dataset) -> CodedConcept:
     return CodedConcept.from_dataset(value)
 
 
-def is_image(dataset: Dataset) -> bool:
-    """Check whether data set represents an image.
-
-    Parameters
-    ----------
-    dataset: pydicom.dataset.Dataset
-        Dataset
-
-    Returns
-    -------
-    bool
-        ``True`` if `dataset` is an image, ``False`` otherwise
-
-    """
-    if all(key in dataset for key in ('Rows',
-                                      'Columns',
-                                      'SamplesPerPixel',
-                                      'PhotometricInterpretation',
-                                      'BitsAllocated')):
-        return True
-    else:
-        return False
-
-
 class _ReferencedSOPInstance(Dataset):
 
     """Class representing an item of Referenced SOP Sequence."""

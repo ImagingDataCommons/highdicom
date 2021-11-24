@@ -32,8 +32,7 @@ from highdicom.sr.enum import (
 from highdicom.uid import UID
 from highdicom.sr.utils import (
     find_content_items,
-    get_coded_name,
-    is_image
+    get_coded_name
 )
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -527,11 +526,11 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.4.4': codes.cid29.MagneticResonance,
         '1.2.840.10008.5.1.4.1.1.6.1': codes.cid29.Ultrasound,
         '1.2.840.10008.5.1.4.1.1.6.2': codes.cid29.Ultrasound,
-        '1.2.840.10008.5.1.4.1.1.7': codes.DCM.OtherModality,
-        '1.2.840.10008.5.1.4.1.1.7.1': codes.DCM.OtherModality,
-        '1.2.840.10008.5.1.4.1.1.7.2': codes.DCM.OtherModality,
-        '1.2.840.10008.5.1.4.1.1.7.3': codes.DCM.OtherModality,
-        '1.2.840.10008.5.1.4.1.1.7.4': codes.DCM.OtherModality,
+        '1.2.840.10008.5.1.4.1.1.7': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.1': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.2': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.3': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.4': codes.cid32.Other,
         '1.2.840.10008.5.1.4.1.1.9.1.1': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.2': codes.cid29.Electrocardiography,
         '1.2.840.10008.5.1.4.1.1.9.1.3': codes.cid29.Electrocardiography,
@@ -549,6 +548,8 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
         '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
         '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
+        '1.2.840.10008.5.1.4.1.1.66.4': codes.cid32.Segmentation,
+        '1.2.840.10008.5.1.4.1.1.67': codes.cid32.RealWorldValueMap,
         '1.2.840.10008.5.1.4.1.1.68.1': codes.cid29.OpticalSurfaceScanner,
         '1.2.840.10008.5.1.4.1.1.68.2': codes.cid29.OpticalSurfaceScanner,
         '1.2.840.10008.5.1.4.1.1.77.1.1': codes.cid29.Endoscopy,
@@ -584,6 +585,30 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
             'SOP Class UID does not identify a SOP Class '
             'for storage of an image information entity.'
         )
+
+
+def _is_image(dataset: Dataset) -> bool:
+    """Check whether data set represents an image.
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        Dataset
+
+    Returns
+    -------
+    bool
+        ``True`` if `dataset` is an image, ``False`` otherwise
+
+    """
+    if all(key in dataset for key in ('Rows',
+                                      'Columns',
+                                      'SamplesPerPixel',
+                                      'PhotometricInterpretation',
+                                      'BitsAllocated')):
+        return True
+    else:
+        return False
 
 
 class Template(ContentSequence):
@@ -3604,7 +3629,7 @@ class ImageLibraryEntryDescriptors(Template):
         """  # noqa: E501
         super().__init__()
         modality = _get_coded_modality(image.SOPClassUID)
-        if not is_image(image):
+        if not _is_image(image):
             raise ValueError(
                 f'Dataset with SOPInstanceUID {image.SOPInstanceUID}'
                 'is not a DICOM image')
