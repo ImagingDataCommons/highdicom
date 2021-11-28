@@ -12,8 +12,8 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.frame import encode_frame
-from highdicom.pm.content import RealWorldValueMapping
-from highdicom.pm.content import DimensionIndexSequence
+from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
+from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
 from highdicom.valuerep import check_person_name, _check_code_string
 from pydicom import Dataset
 from pydicom.uid import (
@@ -71,6 +71,11 @@ class ParametricMap(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         content_label: Optional[str] = None,
+        image_flavor: Union[str, ImageFlavorValues] = ImageFlavorValues.VOLUME,
+        derived_pixel_contrast: Union[
+            str,
+            DerivedPixelContrastValues
+        ] = DerivedPixelContrastValues.QUANTITY,
         **kwargs,
     ):
         """
@@ -191,6 +196,11 @@ class ParametricMap(SOPClass):
             source images).
         content_label: Union[str, None], optional
             Content label
+        image_flavor: Union[str, highdicom.pm.ImageFlavorValues], optional
+            Overall representation of the image type
+        derived_pixel_contrast: Union[str, highdicom.pm.DerivedPixelContrast], optional
+            Contrast created by combining or processing source images with the
+            same geometry
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -212,7 +222,9 @@ class ParametricMap(SOPClass):
         Note
         ----
         The assumption is made that planes in `pixel_array` are defined in
-        the same frame of reference as `source_images`.
+        the same frame of reference as `source_images`. It is further assumed
+        that all image frame have the same type (i.e., the same `image_flavor`
+        and `derived_pixel_contrast`).
 
         """  # noqa
         if len(source_images) == 0:
@@ -347,7 +359,16 @@ class ParametricMap(SOPClass):
             self.ReferencedSeriesSequence.append(ref)
 
         # Parametric Map Image
-        self.ImageType = ["DERIVED", "PRIMARY"]
+        image_flavor = ImageFlavorValues(image_flavor)
+        derived_pixel_contrast = DerivedPixelContrastValues(
+            derived_pixel_contrast
+        )
+        self.ImageType = [
+            "DERIVED",
+            "PRIMARY",
+            image_flavor.value,
+            derived_pixel_contrast.value,
+        ]
         self.LossyImageCompression = getattr(
             src_img, 'LossyImageCompression', '00'
         )

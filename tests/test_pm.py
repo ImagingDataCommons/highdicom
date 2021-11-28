@@ -267,6 +267,10 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert pmap.ImageType[0] == 'DERIVED'
+        assert pmap.ImageType[1] == 'PRIMARY'
+        assert pmap.ImageType[2] == 'VOLUME'
+        assert pmap.ImageType[3] == 'QUANTITY'
 
     def test_multi_frame_sm_image_ushort_native(self):
         pixel_array = np.random.randint(
@@ -299,9 +303,15 @@ class TestParametricMap(unittest.TestCase):
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
             window_center=window_center,
-            window_width=window_width
+            window_width=window_width,
+            image_flavor=hd.pm.ImageFlavorValues.WHOLE_BODY,
+            derived_pixel_contrast=hd.pm.DerivedPixelContrastValues.NONE
         )
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert pmap.ImageType[0] == 'DERIVED'
+        assert pmap.ImageType[1] == 'PRIMARY'
+        assert pmap.ImageType[2] == 'WHOLE_BODY'
+        assert pmap.ImageType[3] == 'NONE'
 
     def test_multi_frame_sm_image_ushort_encapsulated(self):
         pixel_array = np.random.randint(
