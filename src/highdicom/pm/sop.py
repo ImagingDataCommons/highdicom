@@ -26,17 +26,24 @@ from pydicom.uid import (
 
 
 class _PixelDataType(Enum):
-    """Helper enum for tracking the type of the pixel data"""
+    """Helper class for tracking the type of the pixel data."""
 
-    SHORT = 1
-    USHORT = 2
-    SINGLE = 3
-    DOUBLE = 4
+    USHORT = 1
+    SINGLE = 2
+    DOUBLE = 3
 
 
 class ParametricMap(SOPClass):
 
-    """SOP class for a Parametric Map."""
+    """SOP class for a Parametric Map.
+
+    Note
+    ----
+    This class only supports creation of Parametric Map instances with a
+    value of interest (VOI) lookup table that describes a linear transformation
+    that equally applies to all frames in the image.
+
+    """
 
     def __init__(
         self,
@@ -74,10 +81,10 @@ class ParametricMap(SOPClass):
             One or more single- or multi-frame images (or metadata of images)
             from which the parametric map was derived
         pixel_array: numpy.ndarray
-            2D, 3D, or 4D array of signed integer, unsigned integer, or
-            floating-point data type representing one or more channels
-            (images derived from source images via an image transformation)
-            for one or more spatial image positions:
+            2D, 3D, or 4D array of unsigned integer or floating-point data type
+            representing one or more channels (images derived from source
+            images via an image transformation) for one or more spatial image
+            positions:
 
             * In case of a 2D array, the values represent a single channel
               for a single 2D frame and the array shall have shape ``(r, c)``,
@@ -126,7 +133,7 @@ class ParametricMap(SOPClass):
             used for different representations such as log versus linear scales
             or for different representations in different units.
             If `pixel_array` is a 2D or 3D array and only one channel exists
-            at each spatial image position), then one or more real-world value
+            at each spatial image position, then one or more real-world value
             mappings shall be provided in a flat sequence.
             If `pixel_array` is a 4D array and multiple channels exist at each
             spatial image position, then one or more mappings shall be provided
@@ -135,22 +142,22 @@ class ParametricMap(SOPClass):
 
             In some situations the mapping may be difficult to describe (e.g., in
             case of a transformation performed by a deep convolutional neural
-            network). The real-world value mapping may simply describe an
+            network). The real-world value mapping may then simply describe an
             identity function that maps stored values to unit-less real-world
             values.
         window_center: Union[int, float, None], optional
-            Window center for rescaling stored values for display purposes by
-            applying a linear transformation function. For example, in case of
-            floating-point values in the range ``[0.0, 1.0]``, the window
-            center may be ``0.5``, in case of floating-point values in the
-            range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
+            Window center (intensity) for rescaling stored values for display
+            purposes by applying a linear transformation function. For example,
+            in case of floating-point values in the range ``[0.0, 1.0]``, the
+            window center may be ``0.5``, in case of floating-point values in
+            the range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
             of unsigned integer values in the range ``[0, 255]`` the window
             center may be ``128``.
         window_width: Union[int, float, None], optional
-            Window width for rescaling stored values for display purposes by
-            applying a linear transformation function. For example, in case of
-            floating-point values in the range ``[0.0, 1.0]``, the window
-            width may be ``1.0``, in case of floating-point values in the
+            Window width (contrast) for rescaling stored values for display
+            purposes by applying a linear transformation function. For example,
+            in case of floating-point values in the range ``[0.0, 1.0]``, the
+            window width may be ``1.0``, in case of floating-point values in the
             range ``[-1.0, 1.0]`` the window width may be ``2.0``, and in
             case of unsigned integer values in the range ``[0, 255]`` the
             window width may be ``256``. In case of unbounded floating-point
@@ -244,7 +251,7 @@ class ParametricMap(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
         }
-        if pixel_array.dtype.kind in ('u', 'i'):
+        if pixel_array.dtype.kind == 'u':
             # If pixel data has unsigned or signed integer data type, then it
             # can be lossless compressed. The standard does not specify any
             # compression codecs for floating-point data types.
@@ -271,7 +278,6 @@ class ParametricMap(SOPClass):
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
         self._pixel_data_type_map = {
-            _PixelDataType.SHORT: 'PixelData',
             _PixelDataType.USHORT: 'PixelData',
             _PixelDataType.SINGLE: 'FloatPixelData',
             _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
@@ -560,25 +566,17 @@ class ParametricMap(SOPClass):
         sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
-        if pixel_array.dtype.kind == 'i':
-            # In case of signed integer type we rescale values to unsigned
-            # 16-bit integer range.
-            transformation_item = Dataset()
-            transformation_item.RescaleIntercept = 2 ** 16 / 2
-            transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = 'US'
-        else:
-            transformation_item = Dataset()
-            transformation_item.RescaleIntercept = 0
-            transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = 'US'
+        transformation_item = Dataset()
+        transformation_item.RescaleIntercept = 0
+        transformation_item.RescaleSlope = 1
+        transformation_item.RescaleType = 'US'
         sffg_item.PixelValueTransformationSequence = [transformation_item]
 
         # Frame VOI LUT With LUT
         voi_lut_item = Dataset()
         voi_lut_item.WindowCenter = window_center
         voi_lut_item.WindowWidth = window_width
-        voi_lut_item.VOILUTFunction = "LINEAR_EXACT"
+        voi_lut_item.VOILUTFunction = 'LINEAR'
         sffg_item.FrameVOILUTSequence = [voi_lut_item]
 
         # Parametric Map Frame Type
@@ -593,8 +591,7 @@ class ParametricMap(SOPClass):
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
             pixel_array
         )
-        if (pixel_data_type == _PixelDataType.SHORT or
-                pixel_data_type == _PixelDataType.USHORT):
+        if pixel_data_type == _PixelDataType.USHORT:
             self.BitsAllocated = 16
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
@@ -603,6 +600,8 @@ class ParametricMap(SOPClass):
             self.BitsAllocated = 32
         elif pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
+        else:
+            raise ValueError('Encountered unexpected pixel data type.')
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
@@ -724,7 +723,6 @@ class ParametricMap(SOPClass):
 
         """
         if pixel_array.dtype.kind == 'f':
-            # Further check for float32 vs float64
             if pixel_array.dtype.name == 'float32':
                 return (
                     _PixelDataType.SINGLE,
@@ -751,20 +749,10 @@ class ParametricMap(SOPClass):
                 _PixelDataType.USHORT,
                 self._pixel_data_type_map[_PixelDataType.USHORT],
             )
-        elif pixel_array.dtype.kind == "i":
-            if pixel_array.dtype not in (np.int8, np.int16):
-                raise ValueError(
-                    'Unsupported signed integer type for pixel data: '
-                    '8-bit or 16-bit signed integer types are supported.'
-                )
-            return (
-                _PixelDataType.SHORT,
-                self._pixel_data_type_map[_PixelDataType.SHORT],
-            )
         raise ValueError(
             'Unsupported data type for pixel data.'
-            'Supported are 8-bit or 16-bit signed and unsigned integer types '
-            'as well as 32-bit (single-precision) or 64-bit (double-precision) '
+            'Supported are 8-bit or 16-bit unsigned integer types as well as '
+            '32-bit (single-precision) or 64-bit (double-precision) '
             'floating-point types.'
         )
 

@@ -405,22 +405,22 @@ class TestParametricMap(unittest.TestCase):
         )
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
-    def test_single_frame_ct_image_short(self):
+    def test_single_frame_ct_image_ushort(self):
         pixel_array = np.random.randint(
-            low=-3200,
+            low=120,
             high=24000,
             size=self._ct_image.pixel_array.shape,
-            dtype=np.int16
+            dtype=np.uint16
         )
-        window_center = 0
+        window_center = 2**16 / 2
         window_width = 2**16
         real_world_value_mapping = hd.pm.RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-32768, 32767],
-            intercept=0,
-            slope=1
+            value_range=[0, 2**16],
+            intercept=-1,
+            slope=2. / (2**16 - 1)
         )
         pmap = hd.pm.ParametricMap(
             [self._ct_image],
