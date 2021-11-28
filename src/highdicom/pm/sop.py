@@ -23,6 +23,7 @@ from pydicom.uid import (
     JPEG2000Lossless,
     RLELossless,
 )
+from pydicom.valuerep import format_number_as_ds
 
 
 class _PixelDataType(Enum):
@@ -595,8 +596,8 @@ class ParametricMap(SOPClass):
 
         # Frame VOI LUT With LUT
         voi_lut_item = Dataset()
-        voi_lut_item.WindowCenter = window_center
-        voi_lut_item.WindowWidth = window_width
+        voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
+        voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
         voi_lut_item.VOILUTFunction = 'LINEAR'
         sffg_item.FrameVOILUTSequence = [voi_lut_item]
 

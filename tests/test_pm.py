@@ -271,6 +271,10 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.ImageType[1] == 'PRIMARY'
         assert pmap.ImageType[2] == 'VOLUME'
         assert pmap.ImageType[3] == 'QUANTITY'
+        sffg_item = pmap.SharedFunctionalGroupsSequence[0]
+        voi_lut_item = sffg_item.FrameVOILUTSequence[0]
+        assert voi_lut_item.WindowCenter == str(window_center)
+        assert voi_lut_item.WindowWidth == str(window_width)
 
     def test_multi_frame_sm_image_ushort_native(self):
         pixel_array = np.random.randint(
