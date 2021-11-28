@@ -469,11 +469,12 @@ class ParametricMap(SOPClass):
         else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
+        # Acquisition Context
+        self.AcquisitionContextSequence = []
+
         # Image Pixel
         self.Rows = pixel_array.shape[1]
         self.Columns = pixel_array.shape[2]
-
-        # TODO: tiled image with Total Pixel Matrix Rows/Columns
 
         if len(real_world_value_mappings) != pixel_array.shape[3]:
             raise ValueError(

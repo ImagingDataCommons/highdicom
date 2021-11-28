@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 import pytest
@@ -267,6 +268,7 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert isinstance(pmap.AcquisitionContextSequence, Sequence)
         assert pmap.ContentQualification == 'RESEARCH'
         assert pmap.ImageType[0] == 'DERIVED'
         assert pmap.ImageType[1] == 'PRIMARY'
