@@ -10,7 +10,7 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
@@ -72,6 +72,10 @@ class ParametricMap(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         content_label: Optional[str] = None,
+        content_qualification: Union[
+            str,
+            ContentQualificationValues
+        ] = ContentQualificationValues.RESEARCH,
         image_flavor: Union[str, ImageFlavorValues] = ImageFlavorValues.VOLUME,
         derived_pixel_contrast: Union[
             str,
@@ -197,6 +201,9 @@ class ParametricMap(SOPClass):
             source images).
         content_label: Union[str, None], optional
             Content label
+        content_qualification: Union[str, highdicom.ContentQualificationValues], optional
+            Indicator of whether content was produced with approved hardware
+            and software
         image_flavor: Union[str, highdicom.pm.ImageFlavorValues], optional
             Overall representation of the image type
         derived_pixel_contrast: Union[str, highdicom.pm.DerivedPixelContrast], optional
@@ -370,6 +377,10 @@ class ParametricMap(SOPClass):
             image_flavor.value,
             derived_pixel_contrast.value,
         ]
+        content_qualification = ContentQualificationValues(
+            content_qualification
+        )
+        self.ContentQualification = content_qualification.value
         self.LossyImageCompression = getattr(
             src_img, 'LossyImageCompression', '00'
         )

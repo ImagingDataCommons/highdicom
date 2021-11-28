@@ -267,6 +267,7 @@ class TestParametricMap(unittest.TestCase):
         assert pmap.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert pmap.ContentQualification == 'RESEARCH'
         assert pmap.ImageType[0] == 'DERIVED'
         assert pmap.ImageType[1] == 'PRIMARY'
         assert pmap.ImageType[2] == 'VOLUME'
@@ -308,10 +309,12 @@ class TestParametricMap(unittest.TestCase):
             real_world_value_mappings=[real_world_value_mapping],
             window_center=window_center,
             window_width=window_width,
+            content_qualification=hd.ContentQualificationValues.SERVICE,
             image_flavor=hd.pm.ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=hd.pm.DerivedPixelContrastValues.NONE
         )
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert pmap.ContentQualification == 'SERVICE'
         assert pmap.ImageType[0] == 'DERIVED'
         assert pmap.ImageType[1] == 'PRIMARY'
         assert pmap.ImageType[2] == 'WHOLE_BODY'
