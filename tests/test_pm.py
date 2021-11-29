@@ -7,6 +7,7 @@ import pytest
 from pydicom import dcmread
 from pydicom.data import get_testdata_files
 from pydicom.sr.codedict import codes
+from pydicom.sr.coding import Code
 
 import highdicom as hd
 
@@ -75,13 +76,15 @@ class TestRealWorldValueMapping(unittest.TestCase):
         value_range = [0, 255]
         intercept = 0
         slope = 1
+        quantity_definition = Code('130402', 'DCM', 'Class activation')
         m = hd.pm.RealWorldValueMapping(
             lut_label=lut_label,
             lut_explanation=lut_explanation,
             unit=unit,
             value_range=value_range,
             intercept=intercept,
-            slope=slope
+            slope=slope,
+            quantity_definition=quantity_definition
         )
         assert m.LUTLabel == lut_label
         assert m.LUTExplanation == lut_explanation
@@ -100,6 +103,10 @@ class TestRealWorldValueMapping(unittest.TestCase):
             m.DoubleFloatRealWorldValueLastValueMapped
         with pytest.raises(AttributeError):
             m.RealWorldValueLUTData
+        assert len(m.QuantityDefinitionSequence) == 1
+        quantity_item = m.QuantityDefinitionSequence[0]
+        assert quantity_item.name == codes.SCT.Quantity
+        assert quantity_item.value == quantity_definition
 
     def test_construction_integer_nonlinear_relationship(self):
         lut_label = '1'
