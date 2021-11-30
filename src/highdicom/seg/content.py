@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from pydicom.datadict import tag_for_keyword
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
@@ -546,7 +546,7 @@ class DimensionIndexSequence(DataElementSequence):
         self,
         plane_positions: Sequence[PlanePositionSequence]
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Get the values of indexed attributes.
+        """Get values of indexed attributes that specify position of planes.
 
         Parameters
         ----------
@@ -561,6 +561,13 @@ class DimensionIndexSequence(DataElementSequence):
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index
+
+        Note
+        ----
+        Includes only values of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes values of the Referenced Segment Number
+        attribute.
 
         """
         # For each dimension other than the Referenced Segment Number,
@@ -590,3 +597,32 @@ class DimensionIndexSequence(DataElementSequence):
         )
 
         return (plane_position_values, plane_sort_indices)
+
+    def get_index_keywords(self) -> List[str]:
+        """Get keywords of attributes that specify the position of planes.
+
+        Returns
+        -------
+        List[str]
+            Keywords of indexed attributes
+
+        Note
+        ----
+        Includes only keywords of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes the keyword of the Referenced Segment Number
+        attribute.
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence("SLIDE")
+        >>> values = dimension_index.get_index_values(...)
+        >>> names = dimension_index.get_index_keywords()
+        >>> index = names.index("XOffsetInSlideCoordinateSystem")
+        >>> print(values[:, index])
+
+        """
+        return [
+            keyword_for_tag(indexer.DimensionIndexPointer)
+            for indexer in self[1:]
+        ]

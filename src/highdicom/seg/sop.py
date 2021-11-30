@@ -534,6 +534,7 @@ class Segmentation(SOPClass):
             plane_orientation == source_plane_orientation
         )
 
+        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
         plane_position_values, plane_sort_index = \
             self.DimensionIndexSequence.get_index_values(plane_positions)
 
@@ -548,22 +549,22 @@ class Segmentation(SOPClass):
                 self.TotalPixelMatrixColumns = \
                     source_images[0].TotalPixelMatrixColumns
             else:
-                row_index = self.DimensionIndexSequence.get_index_position(
-                    'RowPositionInTotalImagePixelMatrix'
+                row_index = plane_position_names.index(
+                    'RowPositionInTotalPixelMatrix'
                 )
                 row_offsets = plane_position_values[:, row_index]
-                col_index = self.DimensionIndexSequence.get_index_position(
-                    'ColumnPositionInTotalImagePixelMatrix'
+                col_index = plane_position_names.index(
+                    'ColumnPositionInTotalPixelMatrix'
                 )
                 col_offsets = plane_position_values[:, col_index]
                 frame_indices = np.lexsort([row_offsets, col_offsets])
                 first_frame_index = frame_indices[0]
                 last_frame_index = frame_indices[-1]
-                x_index = self.DimensionIndexSequence.get_index_position(
+                x_index = plane_position_names.index(
                     'XOffsetInSlideCoordinateSystem'
                 )
                 x_offset = plane_position_values[first_frame_index, x_index]
-                y_index = self.DimensionIndexSequence.get_index_position(
+                y_index = plane_position_names.index(
                     'YOffsetInSlideCoordinateSystem'
                 )
                 y_offset = plane_position_values[first_frame_index, y_index]
@@ -571,11 +572,11 @@ class Segmentation(SOPClass):
                 origin_item.XOffsetInSlideCoordinateSystem = x_offset
                 origin_item.YOffsetInSlideCoordinateSystem = y_offset
                 self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = (
+                self.TotalPixelMatrixRows = int(
                     plane_position_values[last_frame_index, row_index] +
                     self.Rows
                 )
-                self.TotalPixelMatrixColumns = (
+                self.TotalPixelMatrixColumns = int(
                     plane_position_values[last_frame_index, col_index] +
                     self.Columns
                 )

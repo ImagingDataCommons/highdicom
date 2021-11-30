@@ -536,6 +536,7 @@ class ParametricMap(SOPClass):
             plane_orientation == source_plane_orientation
         )
 
+        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
         plane_position_values, plane_sort_index = \
             self.DimensionIndexSequence.get_index_values(plane_positions)
 
@@ -550,22 +551,22 @@ class ParametricMap(SOPClass):
                 self.TotalPixelMatrixColumns = \
                     source_images[0].TotalPixelMatrixColumns
             else:
-                row_index = self.DimensionIndexSequence.get_index_position(
+                row_index = plane_position_names.index(
                     'RowPositionInTotalImagePixelMatrix'
                 )
                 row_offsets = plane_position_values[:, row_index]
-                col_index = self.DimensionIndexSequence.get_index_position(
+                col_index = plane_position_names.index(
                     'ColumnPositionInTotalImagePixelMatrix'
                 )
                 col_offsets = plane_position_values[:, col_index]
                 frame_indices = np.lexsort([row_offsets, col_offsets])
                 first_frame_index = frame_indices[0]
                 last_frame_index = frame_indices[-1]
-                x_index = self.DimensionIndexSequence.get_index_position(
+                x_index = plane_position_names.index(
                     'XOffsetInSlideCoordinateSystem'
                 )
                 x_offset = plane_position_values[first_frame_index, x_index]
-                y_index = self.DimensionIndexSequence.get_index_position(
+                y_index = plane_position_names.index(
                     'YOffsetInSlideCoordinateSystem'
                 )
                 y_offset = plane_position_values[first_frame_index, y_index]
@@ -573,11 +574,11 @@ class ParametricMap(SOPClass):
                 origin_item.XOffsetInSlideCoordinateSystem = x_offset
                 origin_item.YOffsetInSlideCoordinateSystem = y_offset
                 self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = (
+                self.TotalPixelMatrixRows = int(
                     plane_position_values[last_frame_index, row_index] +
                     self.Rows
                 )
-                self.TotalPixelMatrixColumns = (
+                self.TotalPixelMatrixColumns = int(
                     plane_position_values[last_frame_index, col_index] +
                     self.Columns
                 )
@@ -640,61 +641,13 @@ class ParametricMap(SOPClass):
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
 
-        frames, per_frame_func_groups = self._create_frame_items(
-            pixel_array,
-            pixel_data_type=pixel_data_type,
-            real_world_value_mappings=real_world_value_mappings,
-            coordinate_system=coordinate_system,
-            plane_positions=plane_positions
-        )
-        self.NumberOfFrames = len(frames)
-        self.PerFrameFunctionalGroupsSequence = per_frame_func_groups
+        dimension_position_values = [
+            np.unique(plane_position_values[:, index], axis=0)
+            for index in range(plane_position_values.shape[1])
+        ]
 
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            pixel_data = encapsulate(frames)
-        else:
-            pixel_data = b''.join(frames)
-        setattr(self, pixel_data_attr, pixel_data)
-
-    def _create_frame_items(
-        self,
-        pixel_array: np.ndarray,
-        pixel_data_type: _PixelDataType,
-        real_world_value_mappings: Sequence[Sequence[RealWorldValueMapping]],
-        coordinate_system: CoordinateSystemNames,
-        plane_positions: Sequence[PlanePositionSequence],
-    ) -> Tuple[List[bytes], List[Dataset]]:
-        """Create frame items.
-
-        Parameters
-        ----------
-        pixel_array: np.ndarray
-            4D array of unsigned integer or floating-point data type
-            with shape ``(n, r, c, m)``, where ``n`` is the number of frames,
-            ``r`` is the number of rows per frame, ``c`` is the number of
-            columns per frame, and ``m`` is the number of mapping results per
-            frame (spatial image position).
-        real_world_value_mappings: Sequence[Sequence[highdicom.map.RealWorldValueMappingSequence]]
-            Descriptions of the mapping of values stored in `pixel_array` to
-            real-world values. One or more descriptions may be provided for
-            each mapping result in `pixel_array` (last ``m`` dimension).
-        plane_positions: Sequence[highdicom.PlanePositionSequence]
-            Position of each plane (frame) in `pixel_array` (first ``n``
-            dimension) relative to the patient or slide coordinate system.
-
-        Returns
-        -------
-        frames: List[bytes]
-            Encoded pixel data frames
-        per_frame_functional_groups_sequence: List[pydicom.dataset.Dataset]
-            Functional groups for each frame
-
-        """  # noqa
-        _, spatial_index_values = self.DimensionIndexSequence.get_index_values(
-            plane_positions
-        )
-        per_frame_functional_groups = []
         frames = []
+        self.PerFrameFunctionalGroupsSequence = []
         has_multiple_mappings = pixel_array.shape[3] > 1
         for i in range(pixel_array.shape[0]):
             for j in range(pixel_array.shape[3]):
@@ -711,8 +664,13 @@ class ParametricMap(SOPClass):
 
                 # Frame Content
                 frame_content_item = Dataset()
-                frame_content_item.DimensionIndexValues = \
-                    spatial_index_values[i, ...].tolist()
+                frame_content_item.DimensionIndexValues = [
+                    np.where(
+                        (dimension_position_values[idx] == pos)
+                    )[0][0] + 1
+                    for idx, pos in enumerate(plane_position_values[j])
+                ]
+
                 pffg_item.FrameContentSequence = [frame_content_item]
 
                 # Real World Value Mapping
@@ -723,12 +681,17 @@ class ParametricMap(SOPClass):
                     pffg_item.RealWorldValueMappingSequence = \
                         real_world_value_mappings[j]
 
-                per_frame_functional_groups.append(pffg_item)
+                self.PerFrameFunctionalGroupsSequence.append(pffg_item)
 
                 plane = pixel_array[i, :, :, j]
                 frames.append(self._encode_frame(plane))
 
-        return (frames, per_frame_functional_groups)
+        self.NumberOfFrames = len(frames)
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            pixel_data = encapsulate(frames)
+        else:
+            pixel_data = b''.join(frames)
+        setattr(self, pixel_data_attr, pixel_data)
 
     def _get_pixel_data_type_and_attr(
         self,
