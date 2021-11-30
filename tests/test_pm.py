@@ -377,7 +377,7 @@ class TestParametricMap(unittest.TestCase):
             intercept=0,
             slope=1
         )
-        pmap = ParametricMap(
+        instance = ParametricMap(
             [self._sm_image],
             pixel_array,
             self._series_instance_uid,
@@ -396,12 +396,17 @@ class TestParametricMap(unittest.TestCase):
             image_flavor=ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=DerivedPixelContrastValues.NONE
         )
-        assert np.array_equal(pmap.pixel_array, pixel_array)
-        assert pmap.ContentQualification == 'SERVICE'
-        assert pmap.ImageType[0] == 'DERIVED'
-        assert pmap.ImageType[1] == 'PRIMARY'
-        assert pmap.ImageType[2] == 'WHOLE_BODY'
-        assert pmap.ImageType[3] == 'NONE'
+        sffg_item = instance.SharedFunctionalGroupsSequence[0]
+        assert hasattr(sffg_item, 'RealWorldValueMappingSequence')
+        assert len(sffg_item.RealWorldValueMappingSequence) == 1
+        pffg_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert not hasattr(pffg_item, 'RealWorldValueMappingSequence')
+        assert np.array_equal(instance.pixel_array, pixel_array)
+        assert instance.ContentQualification == 'SERVICE'
+        assert instance.ImageType[0] == 'DERIVED'
+        assert instance.ImageType[1] == 'PRIMARY'
+        assert instance.ImageType[2] == 'WHOLE_BODY'
+        assert instance.ImageType[3] == 'NONE'
 
     def test_multi_frame_sm_image_ushort_encapsulated(self):
         pixel_array = np.random.randint(

@@ -619,7 +619,14 @@ class ParametricMap(SOPClass):
         frame_type_item.FrameType = self.ImageType
         sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
 
-        # TODO: put Real World Value Mapping Sequence into shared
+        has_multiple_mappings = pixel_array.shape[3] > 1
+        if not has_multiple_mappings:
+            # Only if there is only a single set of mappings. Otherwise,
+            # the information will be stored in the Per-Frame Functional
+            # Groups Sequence.
+            sffg_item.RealWorldValueMappingSequence = \
+                real_world_value_mappings[0]
+
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
         # Get the correct pixel data attribute
@@ -648,7 +655,6 @@ class ParametricMap(SOPClass):
 
         frames = []
         self.PerFrameFunctionalGroupsSequence = []
-        has_multiple_mappings = pixel_array.shape[3] > 1
         for i in range(pixel_array.shape[0]):
             for j in range(pixel_array.shape[3]):
                 pffg_item = Dataset()
