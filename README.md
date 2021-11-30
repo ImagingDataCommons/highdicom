@@ -7,11 +7,12 @@
 A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations, and image analysis results.
 It currently provides tools for creating and decoding the following DICOM information object definitions (IODs):
 * Annotations
-* Parametric Maps
+* Parametric Map images
 * Segmentation images
-* Structured Reports
+* Structured Report documents
 * Secondary Capture images
-* Legacy Converted Enhanced CT/PET/MR images (e.g. for single frame to multi-frame conversion)
+* Key Object Selection documents
+* Legacy Converted Enhanced CT/PET/MR images (e.g., for single frame to multi-frame conversion)
 
 ## Documentation
 
