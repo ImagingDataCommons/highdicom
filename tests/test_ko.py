@@ -1,3 +1,4 @@
+from io import BytesIO
 import unittest
 from pathlib import Path
 
@@ -217,7 +218,12 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert isinstance(document, KeyObjectSelectionDocument)
         assert isinstance(document.content, KeyObjectSelection)
 
-        test_document = KeyObjectSelectionDocument.from_dataset(document)
+        with BytesIO() as fp:
+            document.save_as(fp)
+            fp.seek(0)
+            document_reread = dcmread(fp)
+
+        test_document = KeyObjectSelectionDocument.from_dataset(document_reread)
         assert isinstance(test_document, KeyObjectSelectionDocument)
         assert isinstance(test_document.content, KeyObjectSelection)
         assert test_document.Modality == 'KO'
