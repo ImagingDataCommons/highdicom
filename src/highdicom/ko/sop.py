@@ -1,6 +1,7 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
 from typing import Any, cast, List, Optional, Sequence, Tuple, Union
+from copy import deepcopy
 
 from pydicom.dataset import Dataset
 from pydicom.uid import (
@@ -182,7 +183,8 @@ class KeyObjectSelectionDocument(SOPClass):
                 f'"{sop_instance_uid}" in KOS document.'
             )
 
-    def from_dataset(self, dataset: Dataset) -> 'KeyObjectSelectionDocument':
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'KeyObjectSelectionDocument':
         """Construct object from an existing dataset.
 
         Parameters
@@ -198,13 +200,14 @@ class KeyObjectSelectionDocument(SOPClass):
         """
         if dataset.SOPClassUID != KeyObjectSelectionDocumentStorage:
             raise ValueError('Dataset is not a Key Object Selection Document.')
-        sop_instance = super().from_dataset(dataset)
-        sop_instance.__class__ = KeyObjectSelectionDocument
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ = cls
 
         # Cache copy of the content to facilitate subsequent access
         root_item = Dataset()
         root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
         root_item.ContentSequence = dataset.ContentSequence
+        root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
         root_item.ValueType = dataset.ValueType
         root_item.ContinuityOfContent = dataset.ContinuityOfContent
         content_item = ContainerContentItem.from_dataset(root_item)
@@ -214,7 +217,7 @@ class KeyObjectSelectionDocument(SOPClass):
         )
 
         sop_instance._reference_lut = {}
-        for study_item in self.CurrentRequestedProcedureEvidenceSequence:
+        for study_item in sop_instance.CurrentRequestedProcedureEvidenceSequence:  # noqa: E501
             for series_item in study_item.ReferencedSeriesSequence:
                 for instance_item in series_item.ReferencedSOPSequence:
                     sop_instance_uid = instance_item.ReferencedSOPInstanceUID
