@@ -401,6 +401,8 @@ class TestParametricMap(unittest.TestCase):
         assert len(sffg_item.RealWorldValueMappingSequence) == 1
         pffg_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert not hasattr(pffg_item, 'RealWorldValueMappingSequence')
+        assert instance.BitsAllocated == 8
+        assert instance.pixel_array.dtype == np.uint8
         assert np.array_equal(instance.pixel_array, pixel_array)
         assert instance.ContentQualification == 'SERVICE'
         assert instance.ImageType[0] == 'DERIVED'
@@ -443,6 +445,7 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
             transfer_syntax_uid='1.2.840.10008.1.2.4.90'
         )
+        assert pmap.BitsAllocated == 8
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_double(self):
@@ -473,6 +476,7 @@ class TestParametricMap(unittest.TestCase):
             window_center=window_center,
             window_width=window_width,
         )
+        assert pmap.BitsAllocated == 64
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_ushort_native(self):
@@ -508,6 +512,7 @@ class TestParametricMap(unittest.TestCase):
             window_center=window_center,
             window_width=window_width,
         )
+        assert pmap.BitsAllocated == 16
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_ushort(self):
@@ -647,6 +652,8 @@ class TestParametricMap(unittest.TestCase):
             plane_orientation=plane_orientation,
             plane_positions=plane_positions
         )
+        assert instance.pixel_array.dtype == np.uint8
+        assert instance.BitsAllocated == 8
 
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1

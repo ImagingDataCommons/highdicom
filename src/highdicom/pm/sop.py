@@ -634,7 +634,7 @@ class ParametricMap(SOPClass):
             pixel_array
         )
         if pixel_data_type == _PixelDataType.USHORT:
-            self.BitsAllocated = 16
+            self.BitsAllocated = pixel_array.itemsize * 8
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
             self.PixelRepresentation = 0
@@ -786,7 +786,7 @@ class ParametricMap(SOPClass):
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             # Check that only a single plane was passed
             return encode_frame(
-                pixel_array.astype(np.uint16),
+                pixel_array,
                 transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
                 bits_allocated=self.BitsAllocated,
                 bits_stored=self.BitsStored,
@@ -794,10 +794,4 @@ class ParametricMap(SOPClass):
                 pixel_representation=self.PixelRepresentation
             )
         else:
-            if pixel_array.dtype == np.uint8:
-                return pixel_array.astype(np.uint16).flatten().tobytes()
-            elif pixel_array.dtype.kind == 'i':
-                pixel_array = pixel_array.astype(np.int16) + 2 ** 16 / 2
-                return pixel_array.astype(np.uint16).flatten().tobytes()
-            else:
-                return pixel_array.flatten().tobytes()
+            return pixel_array.flatten().tobytes()
