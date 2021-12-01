@@ -470,7 +470,7 @@ class ParametricMap(SOPClass):
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         # Acquisition Context
-        self.AcquisitionContextSequence = []
+        self.AcquisitionContextSequence: List[Dataset] = []
 
         # Image Pixel
         self.Rows = pixel_array.shape[1]
@@ -784,7 +784,6 @@ class ParametricMap(SOPClass):
                 'in case of encapsulated format encoding.'
             )
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            # Check that only a single plane was passed
             return encode_frame(
                 pixel_array,
                 transfer_syntax_uid=self.file_meta.TransferSyntaxUID,

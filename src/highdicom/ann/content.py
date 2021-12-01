@@ -1,6 +1,6 @@
 """Content that is specific to Annotation IODs."""
 from copy import deepcopy
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import cast, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -24,7 +24,7 @@ class Measurements(Dataset):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        values: np.array,
+        values: np.ndarray,
         unit: Union[Code, CodedConcept]
     ) -> None:
         """
@@ -152,7 +152,7 @@ class Measurements(Dataset):
             )
         ]
 
-        return measurements
+        return cast(Measurements, measurements)
 
 
 class AnnotationGroup(Dataset):
@@ -588,9 +588,9 @@ class AnnotationGroup(Dataset):
                 if name is None or item.name == name
             ]
             if len(values) > 0:
-                values = np.vstack(values).T
+                value_array = np.vstack(values).T
             else:
-                values = np.empty((number_of_annotations, 0), np.float32)
+                value_array = np.empty((number_of_annotations, 0), np.float32)
             names = [
                 item.name for item in self.MeasurementsSequence
                 if name is None or item.name == name
@@ -600,10 +600,10 @@ class AnnotationGroup(Dataset):
                 if name is None or item.name == name
             ]
         else:
-            values = np.empty((number_of_annotations, 0), np.float32)
+            value_array = np.empty((number_of_annotations, 0), np.float32)
             names = []
             units = []
-        return (names, values, units)
+        return (names, value_array, units)
 
     def _get_coordinate_index(
         self,
@@ -726,4 +726,4 @@ class AnnotationGroup(Dataset):
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
-        return group
+        return cast(AnnotationGroup, group)

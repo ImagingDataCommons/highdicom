@@ -218,7 +218,7 @@ class ContentItem(Dataset):
         item.ConceptNameCodeSequence = [
             CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
         ]
-        return item
+        return cast(ContentItem, item)
 
     @property
     def name(self) -> CodedConcept:
