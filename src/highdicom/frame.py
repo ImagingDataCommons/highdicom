@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Optional, Union
 
 import numpy as np
+import pillow_jpls  # noqa
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
@@ -13,6 +14,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
     JPEGBaseline8Bit,
+    JPEGLSLossless,
     UID,
     RLELossless,
 )
@@ -22,7 +24,6 @@ from highdicom.enum import (
     PixelRepresentationValues,
     PlanarConfigurationValues,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ def encode_frame(
     compressed_transfer_syntaxes = {
         JPEGBaseline8Bit,
         JPEG2000Lossless,
+        JPEGLSLossless,
         RLELossless,
     }
     supported_transfer_syntaxes = uncompressed_transfer_syntaxes.union(
@@ -114,6 +116,12 @@ def encode_frame(
             )
         )
     if transfer_syntax_uid in uncompressed_transfer_syntaxes:
+        if samples_per_pixel > 1:
+            if planar_configuration != 0:
+                raise ValueError(
+                    'Planar configuration must be 0 for color image frames '
+                    'with native encoding.'
+                )
         if bits_allocated == 1:
             if (rows * cols * samples_per_pixel) % 8 != 0:
                 raise ValueError(
@@ -140,6 +148,12 @@ def encode_frame(
                     'irreversible': False,
                 },
             ),
+            JPEGLSLossless: (
+                'JPEG-LS',
+                {
+                    'near_lossless': 0,
+                }
+            )
         }
 
         if transfer_syntax_uid == JPEGBaseline8Bit:
@@ -185,7 +199,7 @@ def encode_frame(
                     'encoding of image frames with JPEG Baseline codec.'
                 )
 
-        if transfer_syntax_uid == JPEG2000Lossless:
+        elif transfer_syntax_uid == JPEG2000Lossless:
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
@@ -221,6 +235,49 @@ def encode_frame(
                 raise ValueError(
                     'Pixel representation must be 0 for '
                     'encoding of image frames with Lossless JPEG2000 codec.'
+                )
+
+        elif transfer_syntax_uid == JPEGLSLossless:
+            if samples_per_pixel == 1:
+                if planar_configuration is not None:
+                    raise ValueError(
+                        'Planar configuration must be absent for encoding of '
+                        'monochrome image frames with Lossless JPEG-LS codec.'
+                    )
+                if photometric_interpretation not in (
+                        'MONOCHROME1', 'MONOCHROME2'
+                    ):
+                    raise ValueError(
+                        'Photometric intpretation must be either "MONOCHROME1" '
+                        'or "MONOCHROME2" for encoding of monochrome image '
+                        'frames with Lossless JPEG-LS codec.'
+                    )
+            elif samples_per_pixel == 3:
+                if photometric_interpretation != 'YBR_FULL':
+                    raise ValueError(
+                        'Photometric interpretation must be "YBR_FULL" for '
+                        'encoding of color image frames with '
+                        'Lossless JPEG-LS codec.'
+                    )
+                if planar_configuration != 0:
+                    raise ValueError(
+                        'Planar configuration must be 0 for encoding of '
+                        'color image frames with Lossless JPEG-LS codec.'
+                    )
+                if bits_allocated != 8:
+                    raise ValueError(
+                        'Bits Allocated must be 8 for encoding of '
+                        'color image frames with Lossless JPEG-LS codec.'
+                    )
+            else:
+                raise ValueError(
+                    'Samples per pixel must be 1 or 3 for '
+                    'encoding of image frames with Lossless JPEG-LS codec.'
+                )
+            if pixel_representation != 0:
+                raise ValueError(
+                    'Pixel representation must be 0 for '
+                    'encoding of image frames with Lossless JPEG-LS codec.'
                 )
 
         if transfer_syntax_uid in compression_lut.keys():
