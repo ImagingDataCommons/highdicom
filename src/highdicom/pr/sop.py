@@ -7,6 +7,8 @@ from pydicom.sr.coding import Code
 from pydicom.uid import ExplicitVRLittleEndian, UID
 from pydicom._storage_sopclass_uids import (
     GrayscaleSoftcopyPresentationStateStorage,
+    PseudoColorSoftcopyPresentationStateStorage,
+    ColorSoftcopyPresentationStateStorage
 )
 from pydicom.valuerep import DA, PersonName, TM, format_number_as_ds
 
@@ -29,9 +31,7 @@ from highdicom.valuerep import (
 
 class _SoftcopyPresentationState(SOPClass):
 
-    """An abstract base class for various Presentation State objects.
-
-    """
+    """An abstract base class for various Presentation State objects."""
 
     def __init__(
         self,
@@ -39,6 +39,7 @@ class _SoftcopyPresentationState(SOPClass):
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
+        sop_class_uid: str,
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
@@ -70,6 +71,8 @@ class _SoftcopyPresentationState(SOPClass):
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
+        sop_class_uid: str
+            SOP Class UID of the instance.
         instance_number: int
             Number that should be assigned to the instance
         manufacturer: str
@@ -137,7 +140,7 @@ class _SoftcopyPresentationState(SOPClass):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
-            sop_class_uid=GrayscaleSoftcopyPresentationStateStorage,
+            sop_class_uid=sop_class_uid,
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='PR',
@@ -507,6 +510,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
+            sop_class_uid=GrayscaleSoftcopyPresentationStateStorage,
             instance_number=instance_number,
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
@@ -648,6 +652,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
+            sop_class_uid=PseudoColorSoftcopyPresentationStateStorage,
             instance_number=instance_number,
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
