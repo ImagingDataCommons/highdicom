@@ -104,3 +104,50 @@ class GraphicTypeValues(Enum):
     Each point is represented by a (column,row) pair.
 
     """
+
+
+class RescaleTypeValues(Enum):
+
+    """Enumerated values for attribute Rescale Type.
+
+    This specifies the units of the result of the rescale operation.
+    Other values may be used, but they are not defined by the DICOM standard.
+
+    """
+
+    OD = 'OD'
+    """The number in the LUT represents thousands of optical density.
+
+    That is, a value of 2140 represents an optical density of 2.140.
+
+    """
+
+    HU = 'HU'
+    """Hounsfield Units (CT)."""
+
+    US = 'US'
+    """Unspecified."""
+
+    MGML = 'MGML'
+    """Milligrams per milliliter."""
+
+    Z_EFF = 'Z_EFF'
+    """Effective Atomic Number (i.e., Effective-Z)."""
+
+    ED = 'ED'
+    """Electron density in 1023 electrons/ml."""
+
+    EDW = 'EDW'
+    """Electron density normalized to water.
+
+    Units are N/Nw where N is number of electrons per unit volume, and Nw is
+    number of electrons in the same unit of water at standard temperature and
+    pressure.
+
+    """
+
+    HU_MOD = 'HU_MOD'
+    """Modified Hounsfield Unit."""
+
+    PCT = 'PCT'
+    """Percentage (%)"""

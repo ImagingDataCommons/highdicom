@@ -1,9 +1,14 @@
 """Package for creation of Presentation State instances."""
 
-from highdicom.pr.sop import GrayscaleSoftcopyPresentationState
+from highdicom.pr.sop import (
+    GrayscaleSoftcopyPresentationState,
+    PseudoColorSoftcopyPresentationState,
+    ColorSoftcopyPresentationState,
+)
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
-    GraphicTypeValues
+    GraphicTypeValues,
+    RescaleTypeValues
 )
 from highdicom.pr.content import (
     GraphicAnnotation,
@@ -21,11 +26,14 @@ SOP_CLASS_UIDS = {
 
 __all__ = [
     'AnnotationUnitsValues',
+    'ColorSoftcopyPresentationState',
     'GraphicAnnotation',
     'GraphicGroup',
     'GraphicLayer',
     'GraphicObject',
     'GraphicTypeValues',
     'GrayscaleSoftcopyPresentationState',
+    'PseudoColorSoftcopyPresentationState',
+    'RescaleTypeValues',
     'TextObject',
 ]

@@ -8,7 +8,7 @@ from pydicom.uid import ExplicitVRLittleEndian, UID
 from pydicom._storage_sopclass_uids import (
     GrayscaleSoftcopyPresentationStateStorage,
 )
-from pydicom.valuerep import DA, PersonName, TM
+from pydicom.valuerep import DA, PersonName, TM, format_number_as_ds
 
 from highdicom.base import SOPClass
 from highdicom.content import ContentCreatorIdentificationCodeSequence
@@ -16,9 +16,15 @@ from highdicom.pr.content import (
     GraphicLayer,
     GraphicGroup,
     GraphicAnnotation,
+    ModalityLUT,
 )
+from highdicom.pr.enum import RescaleTypeValues
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_code_string,
+    _check_long_string
+)
 
 
 class _SoftcopyPresentationState(SOPClass):
@@ -80,16 +86,16 @@ class _SoftcopyPresentationState(SOPClass):
             A label used to describe the content of this presentation state.
             Must be a valid DICOM code string consisting only of capital
             letters, underscores and spaces.
-        content_description: Union[str, None]
+        content_description: Union[str, None], optional
             Description of the content of this presentation state.
-        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None]
+        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None], optional
             Graphic annotations to include in this presentation state.
-        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
+        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None], optional
             Graphic layers to include in this presentation state. All graphic
             layers referenced in "graphic_annotations" must be included.
-        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
+        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -97,14 +103,17 @@ class _SoftcopyPresentationState(SOPClass):
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance.
-        content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person who created the content of this presentation
             state.
-        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None]
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this presentation state.
-        transfer_syntax_uid: Union[str, highdicom.UID]
+        transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        **kwargs: Any, optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
 
         """  # noqa: E501
         # Check referenced images are from the same series and have the same
@@ -300,16 +309,100 @@ class _SoftcopyPresentationState(SOPClass):
         display_area_item.PresentationPixelAspectRatio = [1, 1]
         self.DisplayedAreaSelectionSequence = [display_area_item]
 
-        # Presentation State LUT
-        self.PresentationLUTShape = 'IDENTITY'
+    def _add_modality_lut(
+        self,
+        rescale_intercept: Union[int, float, None] = None,
+        rescale_slope: Union[int, float, None] = None,
+        rescale_type: Union[RescaleTypeValues, str, None] = None,
+        modality_lut: Optional[ModalityLUT] = None,
+    ) -> None:
+        """Add attributes of the Modality LUT module (used by some subclasses).
+
+        The Modality LUT module specifies an operation to transform the stored
+        pixel values into output pixel values. This is done either by a linear
+        transformation represented by rescale intercept, rescale slope and
+        rescale type, or by a full look-up table (LUT).
+
+        Parameters
+        ----------
+        rescale_intercept: Union[int, float, None]
+            Intercept used for rescaling pixel values.
+        rescale_slope: Union[int, float, None]
+            Slope used for rescaling pixel values.
+        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None]
+            String or enumerated value specifying the units of the output of
+            the Modality LUT or rescale operation.
+        modality_lut: Union[highdicom.pr.ModalityLUT, None]
+            Lookup table specifying the rescale operation.
+
+        Note
+        ----
+        Either modality_lut may be specified or all three of rescale_slope,
+        rescale_intercept and rescale_type may be specified. All four
+        parameters should not be specified simultaneously. All parameters may
+        be None if there is no modality LUT to apply to the image.
+
+        """
+        if modality_lut is not None:
+            if rescale_intercept is not None:
+                raise TypeError(
+                    'Argument "rescale_intercept" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_slope is not None:
+                raise TypeError(
+                    'Argument "rescale_slope" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_type is not None:
+                raise TypeError(
+                    'Argument "rescale_type" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if not isinstance(modality_lut, ModalityLUT):
+                raise TypeError(
+                    'Argument "modality_lut" must be of type '
+                    'highdicom.pr.ModalityLUT.'
+                )
+            self.ModalityLUTSequence = [modality_lut]
+        elif rescale_intercept is not None:
+            if rescale_slope is None:
+                raise TypeError(
+                    'Argument "rescale_slope" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            if rescale_type is None:
+                raise TypeError(
+                    'Argument "rescale_type" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
+            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            if isinstance(rescale_type, RescaleTypeValues):
+                self.RescaleType = rescale_type.value
+            else:
+                _check_long_string(rescale_type)
+                self.RescaleType = rescale_type
+        else:
+            # Nothing to do except check arguments
+            if rescale_slope is not None:
+                raise TypeError(
+                    'Argument "rescale_slope" must not be specified unless '
+                    '"rescale_intercept" is specified.'
+                )
+            if rescale_type is not None:
+                raise TypeError(
+                    'Argument "rescale_type" must not be specified when '
+                    '"rescale_intercept" is specified.'
+                )
 
 
 class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
 
     """SOP class for a Grayscale Softcopy Presentation State (GSPS) object.
 
-    A GSPS object includes instructions for the presentation of an image by
-    software.
+    A GSPS object includes instructions for the presentation of a grayscale
+    image by software.
 
     """
 
@@ -337,6 +430,10 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             ContentCreatorIdentificationCodeSequence
         ] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        rescale_intercept: Union[int, float, None] = None,
+        rescale_slope: Union[int, float, None] = None,
+        rescale_type: Union[RescaleTypeValues, str, None] = None,
+        modality_lut: Optional[ModalityLUT] = None,
         **kwargs
     ):
         """
@@ -366,16 +463,16 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             A label used to describe the content of this presentation state.
             Must be a valid DICOM code string consisting only of capital
             letters, underscores and spaces.
-        content_description: Union[str, None]
+        content_description: Union[str, None], optional
             Description of the content of this presentation state.
-        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None]
+        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None], optional
             Graphic annotations to include in this presentation state.
-        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
+        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None], optional
             Graphic layers to include in this presentation state. All graphic
             layers referenced in "graphic_annotations" must be included.
-        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
+        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -383,14 +480,26 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance.
-        content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
             Name of the person who created the content of this presentation
             state.
-        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None]
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this presentation state.
-        transfer_syntax_uid: Union[str, highdicom.UID]
+        transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        rescale_intercept: Union[int, float, None], optional
+            Intercept used for rescaling pixel values.
+        rescale_slope: Union[int, float, None], optional
+            Slope used for rescaling pixel values.
+        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None], optional
+            String or enumerated value specifying the units of the output of
+            the Modality LUT or rescale operation.
+        modality_lut: Union[highdicom.pr.ModalityLUT, None], optional
+            Lookup table specifying a pixel rescaling operation.
+        **kwargs: Any, optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
 
         """  # noqa: E501
         super().__init__(
@@ -414,4 +523,158 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             content_creator_name=content_creator_name,
             content_creator_identification=content_creator_identification,
             transfer_syntax_uid=transfer_syntax_uid,
+            **kwargs
         )
+
+        # Presentation State LUT
+        self.PresentationLUTShape = 'IDENTITY'
+
+        # Modality LUT
+        self._add_modality_lut(
+            rescale_intercept=rescale_intercept,
+            rescale_slope=rescale_slope,
+            rescale_type=rescale_type,
+            modality_lut=modality_lut
+        )
+
+
+class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
+
+    """SOP class for a Pseudo-Color Softcopy Presentation State object.
+
+    A Pseudo-Color Softcopy Presentation State object includes instructions for
+    the presentation of an image by software.
+
+    """
+
+    def __init__(
+        self,
+        referenced_images: Sequence[Dataset],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: str,
+        manufacturer_model_name: str,
+        software_versions: Union[str, Tuple[str]],
+        device_serial_number: str,
+        content_label: str,
+        content_description: Optional[str] = None,
+        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
+        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
+        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
+        concept_name_code: Union[Code, CodedConcept, None] = None,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        content_creator_name: Optional[Union[str, PersonName]] = None,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        rescale_intercept: Union[int, float, None] = None,
+        rescale_slope: Union[int, float, None] = None,
+        rescale_type: Union[RescaleTypeValues, str, None] = None,
+        modality_lut: Optional[ModalityLUT] = None,
+        **kwargs
+    ):
+        """
+        Parameters
+        ----------
+        referenced_images: Sequence[Dataset]
+            List of images referenced in the GSPS.
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: str
+            Name of the manufacturer of the device (developer of the software)
+            that creates the instance
+        manufacturer_model_name: str
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        device_serial_number: Union[str, None]
+            Manufacturer's serial number of the device
+        content_label: str
+            A label used to describe the content of this presentation state.
+            Must be a valid DICOM code string consisting only of capital
+            letters, underscores and spaces.
+        content_description: Union[str, None], optional
+            Description of the content of this presentation state.
+        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None], optional
+            Graphic annotations to include in this presentation state.
+        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None], optional
+            Graphic layers to include in this presentation state. All graphic
+            layers referenced in "graphic_annotations" must be included.
+        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
+            Description of graphic groups used in this presentation state.
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+            A coded description of the content of this presentation state.
+        institution_name: Union[str, None], optional
+            Name of the institution of the person or device that creates the
+            SR document instance.
+        institutional_department_name: Union[str, None], optional
+            Name of the department of the person or device that creates the
+            SR document instance.
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None], optional
+            Name of the person who created the content of this presentation
+            state.
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this presentation state.
+        transfer_syntax_uid: Union[str, highdicom.UID], optional
+            Transfer syntax UID of the presentation state.
+        rescale_intercept: Union[int, float, None], optional
+            Intercept used for rescaling pixel values.
+        rescale_slope: Union[int, float, None], optional
+            Slope used for rescaling pixel values.
+        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None], optional
+            String or enumerated value specifying the units of the output of
+            the Modality LUT or rescale operation.
+        modality_lut: Union[highdicom.pr.ModalityLUT, None], optional
+            Lookup table specifying a pixel rescaling operation.
+        **kwargs: Any, optional
+            Additional keyword arguments that will be passed to the constructor
+            of `highdicom.base.SOPClass`
+
+        """  # noqa: E501
+        super().__init__(
+            referenced_images=referenced_images,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            manufacturer_model_name=manufacturer_model_name,
+            software_versions=software_versions,
+            device_serial_number=device_serial_number,
+            content_label=content_label,
+            content_description=content_description,
+            graphic_annotations=graphic_annotations,
+            graphic_layers=graphic_layers,
+            graphic_groups=graphic_groups,
+            concept_name_code=concept_name_code,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+            transfer_syntax_uid=transfer_syntax_uid,
+            **kwargs
+        )
+
+        # Modality LUT
+        self._add_modality_lut(
+            rescale_intercept=rescale_intercept,
+            rescale_slope=rescale_slope,
+            rescale_type=rescale_type,
+            modality_lut=modality_lut
+        )
+
+
+class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
+    pass
