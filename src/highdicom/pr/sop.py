@@ -21,12 +21,9 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
 
-class GrayscaleSoftcopyPresentationState(SOPClass):
+class _SoftcopyPresentationState(SOPClass):
 
-    """SOP class for a Grayscale Softcopy Presentation State (GSPS) object.
-
-    A GSPS object includes instructions for the presentation of an image by
-    software.
+    """An abstract base class for various Presentation State objects.
 
     """
 
@@ -305,3 +302,116 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
 
         # Presentation State LUT
         self.PresentationLUTShape = 'IDENTITY'
+
+
+class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
+
+    """SOP class for a Grayscale Softcopy Presentation State (GSPS) object.
+
+    A GSPS object includes instructions for the presentation of an image by
+    software.
+
+    """
+
+    def __init__(
+        self,
+        referenced_images: Sequence[Dataset],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: str,
+        manufacturer_model_name: str,
+        software_versions: Union[str, Tuple[str]],
+        device_serial_number: str,
+        content_label: str,
+        content_description: Optional[str] = None,
+        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
+        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
+        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
+        concept_name_code: Union[Code, CodedConcept, None] = None,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
+        content_creator_name: Optional[Union[str, PersonName]] = None,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
+        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        **kwargs
+    ):
+        """
+        Parameters
+        ----------
+        referenced_images: Sequence[Dataset]
+            List of images referenced in the GSPS.
+        series_instance_uid: str
+            UID of the series
+        series_number: Union[int, None]
+            Number of the series within the study
+        sop_instance_uid: str
+            UID that should be assigned to the instance
+        instance_number: int
+            Number that should be assigned to the instance
+        manufacturer: str
+            Name of the manufacturer of the device (developer of the software)
+            that creates the instance
+        manufacturer_model_name: str
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        device_serial_number: Union[str, None]
+            Manufacturer's serial number of the device
+        content_label: str
+            A label used to describe the content of this presentation state.
+            Must be a valid DICOM code string consisting only of capital
+            letters, underscores and spaces.
+        content_description: Union[str, None]
+            Description of the content of this presentation state.
+        graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None]
+            Graphic annotations to include in this presentation state.
+        graphic_layers: Union[Sequence[highdicom.pr.GraphicLayer], None]
+            Graphic layers to include in this presentation state. All graphic
+            layers referenced in "graphic_annotations" must be included.
+        graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]]
+            Description of graphic groups used in this presentation state.
+        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            A coded description of the content of this presentation state.
+        institution_name: Union[str, None], optional
+            Name of the institution of the person or device that creates the
+            SR document instance.
+        institutional_department_name: Union[str, None], optional
+            Name of the department of the person or device that creates the
+            SR document instance.
+        content_creator_name: Union[str, pydicom.valuerep.PersonName, None]
+            Name of the person who created the content of this presentation
+            state.
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None]
+            Identifying information for the person who created the content of
+            this presentation state.
+        transfer_syntax_uid: Union[str, highdicom.UID]
+            Transfer syntax UID of the presentation state.
+
+        """  # noqa: E501
+        super().__init__(
+            referenced_images=referenced_images,
+            series_instance_uid=series_instance_uid,
+            series_number=series_number,
+            sop_instance_uid=sop_instance_uid,
+            instance_number=instance_number,
+            manufacturer=manufacturer,
+            manufacturer_model_name=manufacturer_model_name,
+            software_versions=software_versions,
+            device_serial_number=device_serial_number,
+            content_label=content_label,
+            content_description=content_description,
+            graphic_annotations=graphic_annotations,
+            graphic_layers=graphic_layers,
+            graphic_groups=graphic_groups,
+            concept_name_code=concept_name_code,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+            transfer_syntax_uid=transfer_syntax_uid,
+        )
