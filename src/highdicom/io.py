@@ -225,12 +225,14 @@ class ImageFileReader(object):
     Examples
     --------
     >>> from highdicom.io import ImageFileReader
-    >>> with ImageFileReader('/path/to/file.dcm') as image:
+    >>> with ImageFileReader('data/test_files/ct_image.dcm') as image:
     ...     print(image.metadata)
     ...     for i in range(image.number_of_frames):
     ...         frame = image.read_frame(i)
     ...         print(frame.shape)
-
+    Dataset.file_meta -------------------------------
+    (0002, 0000) File Meta Information Group Length  UL: 192
+    ...
     """
 
     def __init__(self, filename: str):

@@ -45,19 +45,19 @@ class ImageToReferenceTransformer(object):
     Examples
     --------
 
+    >>> import numpy as np
     >>> # Create a transformer by specifying the reference space of
     >>> # an image
     >>> transformer = ImageToReferenceTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5])
     >>> # Use the transformer to convert coordinates
     >>> image_coords = np.array([[0.0, 10.0], [5.0, 5.0]])
     >>> ref_coords = transformer(image_coords)
     >>> print(ref_coords)
-    >>> # [[56.  39.2  1. ]
-    >>> #  [58.5 36.7  1. ]]
+    [[56.  39.2  1. ]
+     [58.5 36.7  1. ]]
 
     """
 
@@ -198,18 +198,16 @@ class ReferenceToImageTransformer(object):
     >>> # Create a transformer by specifying the reference space of
     >>> # an image
     >>> transformer = ReferenceToImageTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
-    >>>
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5])
     >>> # Use the transformer to convert coordinates
     >>> ref_coords = np.array([[56., 39.2,  1. ], [58.5, 36.7, 1.]])
     >>> image_coords = transformer(ref_coords)
     >>>
     >>> print(image_coords)
-    >>> # [[ 0. 10.  0.]
-    >>> #  [ 5.  5.  0.]]
+    [[ 0. 10.  0.]
+     [ 5.  5.  0.]]
 
     """
 
