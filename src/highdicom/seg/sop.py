@@ -2573,7 +2573,7 @@ class Segmentation(SOPClass):
         >>> import highdicom as hd
         >>> from pydicom.datadict import keyword_for_tag, tag_for_keyword
         >>> from pydicom import dcmread
-        ...
+        >>>
         >>> ds = dcmread('data/test_files/seg_image_sm_control.dcm')
         >>> seg = hd.seg.Segmentation.from_dataset(ds)
 
