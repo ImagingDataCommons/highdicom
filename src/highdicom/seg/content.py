@@ -529,6 +529,11 @@ class DimensionIndexSequence(DataElementSequence):
         >>> dimension_index = DimensionIndexSequence("SLIDE")
         >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
         >>> segment_numbers = dimension_index[i]
+        >>> segment_numbers
+        (0020, 9164) Dimension Organization UID          ...
+        (0020, 9165) Dimension Index Pointer             AT: (0062, 000b)
+        (0020, 9167) Functional Group Pointer            AT: (0062, 000a)
+        (0020, 9421) Dimension Description Label         LO: 'Segment Number'
 
         """
         indices = [
