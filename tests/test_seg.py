@@ -14,7 +14,8 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
-    JPEG2000Lossless
+    JPEG2000Lossless,
+    JPEGLSLossless,
 )
 
 from highdicom.content import (
@@ -1249,7 +1250,8 @@ class TestSegmentation(unittest.TestCase):
                 ExplicitVRLittleEndian,
                 ImplicitVRLittleEndian,
                 RLELossless,
-                JPEG2000Lossless
+                JPEG2000Lossless,
+                JPEGLSLossless,
             ]
 
             max_fractional_value = 255
