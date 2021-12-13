@@ -634,7 +634,7 @@ class ParametricMap(SOPClass):
             pixel_array
         )
         if pixel_data_type == _PixelDataType.USHORT:
-            self.BitsAllocated = pixel_array.itemsize * 8
+            self.BitsAllocated = int(pixel_array.itemsize * 8)
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
             self.PixelRepresentation = 0
@@ -674,7 +674,7 @@ class ParametricMap(SOPClass):
                     np.where(
                         (dimension_position_values[idx] == pos)
                     )[0][0] + 1
-                    for idx, pos in enumerate(plane_position_values[j])
+                    for idx, pos in enumerate(plane_position_values[i])
                 ]
 
                 pffg_item.FrameContentSequence = [frame_content_item]
