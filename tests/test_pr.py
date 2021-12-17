@@ -9,7 +9,12 @@ from pydicom import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
 
-from highdicom import UID, ContentCreatorIdentificationCodeSequence
+from highdicom import (
+    ContentCreatorIdentificationCodeSequence,
+    ModalityLUT,
+    RescaleTypeValues,
+    UID,
+)
 from highdicom.color import CIELabColor
 from highdicom.pr import (
     GraphicAnnotation,
@@ -19,7 +24,7 @@ from highdicom.pr import (
     GraphicTypeValues,
     GrayscaleSoftcopyPresentationState,
     AnnotationUnitsValues,
-    TextObject
+    TextObject,
 )
 
 
@@ -632,6 +637,12 @@ class TestGSPS(unittest.TestCase):
             institution_name='MGH'
         )
 
+        self._modality_lut = ModalityLUT(
+            modality_lut_type=RescaleTypeValues.HU,
+            first_mapped_value=0,
+            lut_data=list(range(256))
+        )
+
     def test_construction(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
@@ -666,6 +677,93 @@ class TestGSPS(unittest.TestCase):
         assert gsps.InstitutionalDepartmentName == 'Radiology'
         assert gsps.ContentCreatorName == 'Doe^John'
         assert gsps.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert not hasattr(gsps, 'ModalityLUTSequence')
+        assert not hasattr(gsps, 'RescaleSlope')
+        assert not hasattr(gsps, 'RescaleIntercept')
+        assert not hasattr(gsps, 'RescaleType')
+
+    def test_construction_with_modality_rescale(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            rescale_intercept=1024.0,
+            rescale_slope=2.0,
+            rescale_type='HU',
+        )
+        assert gsps.SeriesInstanceUID == self._series_uid
+        assert gsps.SOPInstanceUID == self._sop_uid
+        assert gsps.SeriesNumber == 123
+        assert gsps.InstanceNumber == 456
+        assert gsps.Manufacturer == 'Foo Corp.'
+        assert gsps.ManufacturerModelName == 'Bar, Mark 2'
+        assert gsps.SoftwareVersions == '0.0.1'
+        assert gsps.DeviceSerialNumber == '12345'
+        assert gsps.ContentLabel == 'DOODLE'
+        assert len(gsps.ReferencedSeriesSequence) == 1
+        assert len(gsps.GraphicLayerSequence) == 1
+        assert gsps.InstitutionName == 'MGH'
+        assert gsps.InstitutionalDepartmentName == 'Radiology'
+        assert gsps.ContentCreatorName == 'Doe^John'
+        assert gsps.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert gsps.RescaleSlope == 2
+        assert gsps.RescaleIntercept == 1024
+        assert gsps.RescaleType == 'HU'
+        assert not hasattr(gsps, 'ModalityLUTSequence')
+
+    def test_construction_with_modality_lut(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            modality_lut=self._modality_lut,
+        )
+        assert gsps.SeriesInstanceUID == self._series_uid
+        assert gsps.SOPInstanceUID == self._sop_uid
+        assert gsps.SeriesNumber == 123
+        assert gsps.InstanceNumber == 456
+        assert gsps.Manufacturer == 'Foo Corp.'
+        assert gsps.ManufacturerModelName == 'Bar, Mark 2'
+        assert gsps.SoftwareVersions == '0.0.1'
+        assert gsps.DeviceSerialNumber == '12345'
+        assert gsps.ContentLabel == 'DOODLE'
+        assert len(gsps.ReferencedSeriesSequence) == 1
+        assert len(gsps.GraphicLayerSequence) == 1
+        assert gsps.InstitutionName == 'MGH'
+        assert gsps.InstitutionalDepartmentName == 'Radiology'
+        assert gsps.ContentCreatorName == 'Doe^John'
+        assert gsps.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert not hasattr(gsps, 'RescaleSlope')
+        assert not hasattr(gsps, 'RescaleIntercept')
+        assert not hasattr(gsps, 'RescaleType')
+        assert len(gsps.ModalityLUTSequence) == 1
+        print(gsps.ModalityLUTSequence[0]['LUTData'].VM)
 
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(

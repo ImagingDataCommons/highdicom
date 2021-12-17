@@ -6,9 +6,11 @@ from pydicom.sr.codedict import codes
 from highdicom.sr import CodedConcept
 from highdicom import (
     ContentCreatorIdentificationCodeSequence,
+    ModalityLUT,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
+    RescaleTypeValues,
     SpecimenCollection,
     SpecimenPreparationStep,
     SpecimenSampling,
@@ -41,7 +43,6 @@ class TestContentCreatorIdentification(TestCase):
         )
         assert len(creator_id) == 1
         creator_id_item = creator_id[0]
-        print(creator_id)
         assert creator_id_item.InstitutionName == self._institution_name
         for code1, code2 in zip(
             creator_id_item.PersonIdentificationCodeSequence,
@@ -63,7 +64,6 @@ class TestContentCreatorIdentification(TestCase):
         )
         assert len(creator_id) == 1
         creator_id_item = creator_id[0]
-        print(creator_id)
         assert creator_id_item.InstitutionName == self._institution_name
         for code1, code2 in zip(
             creator_id_item.PersonIdentificationCodeSequence,
@@ -91,6 +91,76 @@ class TestContentCreatorIdentification(TestCase):
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
+
+
+class TestModalityLUT(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut_data = list(range(10, 100))
+        self._explanation = 'My LUT'
+
+    def test_construction(self):
+        first_value = 0
+        lut = ModalityLUT(
+            modality_lut_type=RescaleTypeValues.HU,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data
+        )
+        assert lut.RescaleType == RescaleTypeValues.HU.value
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.LUTData == self._lut_data
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_string_type(self):
+        first_value = 0
+        lut_type = 'MY_MAPPING'
+        lut = ModalityLUT(
+            modality_lut_type=lut_type,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data
+        )
+        assert lut.RescaleType == lut_type
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.LUTData == self._lut_data
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_with_exp(self):
+        first_value = 0
+        lut = ModalityLUT(
+            modality_lut_type=RescaleTypeValues.HU,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+            lut_explanation=self._explanation
+        )
+        assert lut.RescaleType == RescaleTypeValues.HU.value
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.LUTData == self._lut_data
+        assert lut.LUTExplanation == self._explanation
+
+    def test_construction_empty_data(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                modality_lut_type=RescaleTypeValues.HU,
+                first_mapped_value=0,
+                lut_data=[],  # empty data
+            )
+
+    def test_construction_negative_first_value(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                modality_lut_type=RescaleTypeValues.HU,
+                first_mapped_value=-1,  # invalid
+                lut_data=self._lut_data,
+            )
+
+    def test_construction_negative_data(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                modality_lut_type=RescaleTypeValues.HU,
+                first_mapped_value=0,  # invalid
+                lut_data=[0, -1, -2],
+            )
 
 
 class TestPlanePositionSequence(TestCase):

@@ -13,6 +13,7 @@ from pydicom.valuerep import DS
 from highdicom.enum import (
     CoordinateSystemNames,
     UniversalEntityIDTypeValues,
+    RescaleTypeValues
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
@@ -986,3 +987,87 @@ class SpecimenDescription(Dataset):
             self.IssuerOfTheSpecimenIdentifierSequence.append(
                 issuer_of_specimen_id
             )
+
+
+class ModalityLUT(Dataset):
+
+    """Dataset describing a modality lookup table."""
+
+    def __init__(
+        self,
+        modality_lut_type: Union[RescaleTypeValues, str],
+        first_mapped_value: int,
+        lut_data: Sequence[int],
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Value of the pixel value that will be mapped to the first value
+            in the lookup-table.
+        modality_lut_type: Union[highdicom.RescaleTypeValues, str]
+            String or enumerated value specifying the units of the output of
+            the LUT operation.
+        lut_data: Sequence[int]
+            Lookup table data.
+        lut_explanation: str
+            Free-form text explanation of the meaning of the LUT.
+
+        Note
+        ----
+        After the LUT is applied, a pixel in the image with value equal to
+        ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
+        an input value of ``first_mapped_value + 1`` is mapped to
+        ``lut_data[1]``, and so on.
+
+        """
+        super().__init__()
+        if isinstance(modality_lut_type, RescaleTypeValues):
+            self.RescaleType = modality_lut_type.value
+        else:
+            _check_long_string(modality_lut_type)
+            self.RescaleType = modality_lut_type
+
+        len_data = len(lut_data)
+        if len_data == 0:
+            raise ValueError('Argument "lut_data" must not be empty.')
+        if len_data > 2**16:
+            raise ValueError(
+                'Length of lut_data must be no greater than 2^16 elements.'
+            )
+        elif len_data == 2**16:
+            # Per the standard, this is recorded as 0
+            len_data = 0
+
+        if not isinstance(first_mapped_value, int):
+            raise TypeError('Argument "first_mapped_value" must be an integer.')
+        if first_mapped_value < 0:
+            raise ValueError(
+                'Argument "first_mapped_value" must be non-negative.'
+            )
+        if first_mapped_value >= 2 ** 16:
+            raise ValueError(
+                'Argument "first_mapped_value" must be less than 2^16.'
+            )
+
+        self.LUTDescriptor = [
+            len_data,
+            first_mapped_value,
+            16
+        ]
+
+        lut_data = list(lut_data)
+        for v in lut_data:
+            if not isinstance(v, int):
+                raise TypeError('Elements of lut_data should be integers.')
+            if v < 0:
+                raise ValueError(
+                    'Elements of the lut_data should be non-negative.'
+                )
+        self.LUTData = b''.join([v.to_bytes(2, 'big') for v in lut_data])
+
+        if lut_explanation is not None:
+            _check_long_string(lut_explanation)
+            self.LUTExplanation = lut_explanation

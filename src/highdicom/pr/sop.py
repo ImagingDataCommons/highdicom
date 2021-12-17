@@ -13,14 +13,16 @@ from pydicom._storage_sopclass_uids import (
 from pydicom.valuerep import DA, PersonName, TM, format_number_as_ds
 
 from highdicom.base import SOPClass
-from highdicom.content import ContentCreatorIdentificationCodeSequence
+from highdicom.content import (
+    ContentCreatorIdentificationCodeSequence,
+    ModalityLUT,
+)
 from highdicom.pr.content import (
     GraphicLayer,
     GraphicGroup,
     GraphicAnnotation,
-    ModalityLUT,
 )
-from highdicom.pr.enum import RescaleTypeValues
+from highdicom.enum import RescaleTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
     check_person_name,
@@ -332,10 +334,10 @@ class _SoftcopyPresentationState(SOPClass):
             Intercept used for rescaling pixel values.
         rescale_slope: Union[int, float, None]
             Slope used for rescaling pixel values.
-        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None]
+        rescale_type: Union[highdicom.RescaleTypeValues, str, None]
             String or enumerated value specifying the units of the output of
             the Modality LUT or rescale operation.
-        modality_lut: Union[highdicom.pr.ModalityLUT, None]
+        modality_lut: Union[highdicom.ModalityLUT, None]
             Lookup table specifying the rescale operation.
 
         Note
@@ -365,7 +367,7 @@ class _SoftcopyPresentationState(SOPClass):
             if not isinstance(modality_lut, ModalityLUT):
                 raise TypeError(
                     'Argument "modality_lut" must be of type '
-                    'highdicom.pr.ModalityLUT.'
+                    'highdicom.ModalityLUT.'
                 )
             self.ModalityLUTSequence = [modality_lut]
         elif rescale_intercept is not None:
@@ -495,10 +497,10 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             Intercept used for rescaling pixel values.
         rescale_slope: Union[int, float, None], optional
             Slope used for rescaling pixel values.
-        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None], optional
+        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
             String or enumerated value specifying the units of the output of
             the Modality LUT or rescale operation.
-        modality_lut: Union[highdicom.pr.ModalityLUT, None], optional
+        modality_lut: Union[highdicom.ModalityLUT, None], optional
             Lookup table specifying a pixel rescaling operation.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
@@ -637,10 +639,10 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             Intercept used for rescaling pixel values.
         rescale_slope: Union[int, float, None], optional
             Slope used for rescaling pixel values.
-        rescale_type: Union[highdicom.pr.RescaleTypeValues, str, None], optional
+        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
             String or enumerated value specifying the units of the output of
             the Modality LUT or rescale operation.
-        modality_lut: Union[highdicom.pr.ModalityLUT, None], optional
+        modality_lut: Union[highdicom.ModalityLUT, None], optional
             Lookup table specifying a pixel rescaling operation.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
