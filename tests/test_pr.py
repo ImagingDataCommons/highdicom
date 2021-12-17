@@ -763,7 +763,6 @@ class TestGSPS(unittest.TestCase):
         assert not hasattr(gsps, 'RescaleIntercept')
         assert not hasattr(gsps, 'RescaleType')
         assert len(gsps.ModalityLUTSequence) == 1
-        print(gsps.ModalityLUTSequence[0]['LUTData'].VM)
 
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(

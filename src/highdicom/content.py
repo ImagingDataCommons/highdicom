@@ -1025,10 +1025,10 @@ class ModalityLUT(Dataset):
         """
         super().__init__()
         if isinstance(modality_lut_type, RescaleTypeValues):
-            self.RescaleType = modality_lut_type.value
+            self.ModalityLUTType = modality_lut_type.value
         else:
             _check_long_string(modality_lut_type)
-            self.RescaleType = modality_lut_type
+            self.ModalityLUTType = modality_lut_type
 
         len_data = len(lut_data)
         if len_data == 0:
@@ -1052,13 +1052,6 @@ class ModalityLUT(Dataset):
                 'Argument "first_mapped_value" must be less than 2^16.'
             )
 
-        self.LUTDescriptor = [
-            len_data,
-            first_mapped_value,
-            16
-        ]
-
-        lut_data = list(lut_data)
         for v in lut_data:
             if not isinstance(v, int):
                 raise TypeError('Elements of lut_data should be integers.')
@@ -1066,7 +1059,26 @@ class ModalityLUT(Dataset):
                 raise ValueError(
                     'Elements of the lut_data should be non-negative.'
                 )
-        self.LUTData = b''.join([v.to_bytes(2, 'little') for v in lut_data])
+        max_val = max(lut_data)
+        if max_val >= 2 ** 16:
+            raise ValueError(
+                "Values greater than cannot be represented in LUT data."
+            )
+        elif max_val >= 2 ** 8:
+            # Allocate 16 bits if necessary
+            np_type = np.uint16
+            bits_allocated = 16
+        else:
+            # Allocate 8 bits if data allows
+            np_type = np.uint8
+            bits_allocated = 8
+        self.LUTData = np.array(lut_data, np_type).tobytes()
+
+        self.LUTDescriptor = [
+            len_data,
+            first_mapped_value,
+            bits_allocated
+        ]
 
         if lut_explanation is not None:
             _check_long_string(lut_explanation)
