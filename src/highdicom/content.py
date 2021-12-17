@@ -1066,7 +1066,7 @@ class ModalityLUT(Dataset):
                 raise ValueError(
                     'Elements of the lut_data should be non-negative.'
                 )
-        self.LUTData = b''.join([v.to_bytes(2, 'big') for v in lut_data])
+        self.LUTData = b''.join([v.to_bytes(2, 'little') for v in lut_data])
 
         if lut_explanation is not None:
             _check_long_string(lut_explanation)
