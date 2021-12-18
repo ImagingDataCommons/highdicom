@@ -1005,8 +1005,8 @@ class ModalityLUT(Dataset):
         Parameters
         ----------
         first_mapped_value: int
-            Value of the pixel value that will be mapped to the first value
-            in the lookup-table.
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
         modality_lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
             the LUT operation.
@@ -1074,3 +1074,26 @@ class ModalityLUT(Dataset):
         if lut_explanation is not None:
             _check_long_string(lut_explanation)
             self.LUTExplanation = lut_explanation
+
+    @property
+    def lut_data(self) -> np.ndarray:
+        """np.ndarray: LUT data formatted as np.ndarray."""
+        if self.bits_allocated == 8:
+            np_dtype = np.uint8
+        elif self.bits_allocated == 16:
+            np_dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
+        return np.frombuffer(self.LUTData, np_dtype)
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        LUT.
+        """
+        return self.LUTDescriptor[1]
+
+    @property
+    def bits_allocated(self) -> int:
+        """int: Bits allocated for the LUT data. 8 or 16."""
+        return self.LUTDescriptor[2]

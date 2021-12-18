@@ -112,10 +112,9 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert np.array_equal(
-            np.frombuffer(lut.LUTData, np.uint8),
-            self._lut_data
-        )
+        assert lut.bits_allocated == 8
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_16bit(self):
@@ -127,10 +126,9 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
-        assert np.array_equal(
-            np.frombuffer(lut.LUTData, np.uint16),
-            self._lut_data_16
-        )
+        assert lut.bits_allocated == 16
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_string_type(self):
@@ -143,10 +141,7 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == lut_type
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert np.array_equal(
-            np.frombuffer(lut.LUTData, np.uint8),
-            self._lut_data
-        )
+        assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_with_exp(self):
@@ -159,10 +154,7 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert np.array_equal(
-            np.frombuffer(lut.LUTData, np.uint8),
-            self._lut_data
-        )
+        assert np.array_equal(lut.lut_data, self._lut_data)
         assert lut.LUTExplanation == self._explanation
 
     def test_construction_empty_data(self):
