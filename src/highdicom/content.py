@@ -997,7 +997,7 @@ class ModalityLUT(Dataset):
         self,
         modality_lut_type: Union[RescaleTypeValues, str],
         first_mapped_value: int,
-        lut_data: Sequence[int],
+        lut_data: np.ndarray,
         lut_explanation: Optional[str] = None
     ):
         """
@@ -1010,8 +1010,8 @@ class ModalityLUT(Dataset):
         modality_lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
             the LUT operation.
-        lut_data: Sequence[int]
-            Lookup table data.
+        lut_data: np.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: str
             Free-form text explanation of the meaning of the LUT.
 
@@ -1030,17 +1030,6 @@ class ModalityLUT(Dataset):
             _check_long_string(modality_lut_type)
             self.ModalityLUTType = modality_lut_type
 
-        len_data = len(lut_data)
-        if len_data == 0:
-            raise ValueError('Argument "lut_data" must not be empty.')
-        if len_data > 2**16:
-            raise ValueError(
-                'Length of lut_data must be no greater than 2^16 elements.'
-            )
-        elif len_data == 2**16:
-            # Per the standard, this is recorded as 0
-            len_data = 0
-
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
@@ -1052,27 +1041,29 @@ class ModalityLUT(Dataset):
                 'Argument "first_mapped_value" must be less than 2^16.'
             )
 
-        for v in lut_data:
-            if not isinstance(v, int):
-                raise TypeError('Elements of lut_data should be integers.')
-            if v < 0:
-                raise ValueError(
-                    'Elements of the lut_data should be non-negative.'
-                )
-        max_val = max(lut_data)
-        if max_val >= 2 ** 16:
+        if not isinstance(lut_data, np.ndarray):
+            raise TypeError('Argument "lut_data" must be of type np.ndarray')
+        if lut_data.ndim != 1:
+            raise ValueError("Numpy array must have a single dimension.")
+        len_data = lut_data.size
+        if len_data == 0:
+            raise ValueError('Argument "lut_data" must not be empty.')
+        if len_data > 2**16:
             raise ValueError(
-                "Values greater than cannot be represented in LUT data."
+                'Length of lut_data must be no greater than 2^16 elements.'
             )
-        elif max_val >= 2 ** 8:
-            # Allocate 16 bits if necessary
-            np_type = np.uint16
+        elif len_data == 2**16:
+            # Per the standard, this is recorded as 0
+            len_data = 0
+        if lut_data.dtype.type == np.uint8:
+            bits_allocated = 8
+        elif lut_data.dtype.type == np.uint16:
             bits_allocated = 16
         else:
-            # Allocate 8 bits if data allows
-            np_type = np.uint8
-            bits_allocated = 8
-        self.LUTData = np.array(lut_data, np_type).tobytes()
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
+        self.LUTData = lut_data.tobytes()
 
         self.LUTDescriptor = [
             len_data,
