@@ -653,7 +653,8 @@ class SoftcopyVOILUT(Dataset):
         window_explanation: Union[str, Sequence[str], None], optional
             Free-form explanation of the window center and width.
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
-
+            Description of the LUT function parametrized by ``window_center``.
+            and ``window_width``.
         voi_luts: Union[Sequence[highdicom.LUT], None]
 
         Note
