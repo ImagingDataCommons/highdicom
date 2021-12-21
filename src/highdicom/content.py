@@ -989,13 +989,12 @@ class SpecimenDescription(Dataset):
             )
 
 
-class ModalityLUT(Dataset):
+class LUT(Dataset):
 
-    """Dataset describing a modality lookup table."""
+    """Dataset describing a pixel value lookup table."""
 
     def __init__(
         self,
-        modality_lut_type: Union[RescaleTypeValues, str],
         first_mapped_value: int,
         lut_data: np.ndarray,
         lut_explanation: Optional[str] = None
@@ -1007,12 +1006,9 @@ class ModalityLUT(Dataset):
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
-        modality_lut_type: Union[highdicom.RescaleTypeValues, str]
-            String or enumerated value specifying the units of the output of
-            the LUT operation.
         lut_data: np.ndarray
             Lookup table data. Must be of type uint8 or uint16.
-        lut_explanation: str
+        lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
         Note
@@ -1024,12 +1020,6 @@ class ModalityLUT(Dataset):
 
         """
         super().__init__()
-        if isinstance(modality_lut_type, RescaleTypeValues):
-            self.ModalityLUTType = modality_lut_type.value
-        else:
-            _check_long_string(modality_lut_type)
-            self.ModalityLUTType = modality_lut_type
-
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
@@ -1097,3 +1087,49 @@ class ModalityLUT(Dataset):
     def bits_allocated(self) -> int:
         """int: Bits allocated for the LUT data. 8 or 16."""
         return self.LUTDescriptor[2]
+
+
+class ModalityLUT(LUT):
+
+    """Dataset describing a modality lookup table."""
+
+    def __init__(
+        self,
+        modality_lut_type: Union[RescaleTypeValues, str],
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        modality_lut_type: Union[highdicom.RescaleTypeValues, str]
+            String or enumerated value specifying the units of the output of
+            the LUT operation.
+        lut_data: np.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
+
+        Note
+        ----
+        After the LUT is applied, a pixel in the image with value equal to
+        ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
+        an input value of ``first_mapped_value + 1`` is mapped to
+        ``lut_data[1]``, and so on.
+
+        """
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
+        if isinstance(modality_lut_type, RescaleTypeValues):
+            self.ModalityLUTType = modality_lut_type.value
+        else:
+            _check_long_string(modality_lut_type)
+            self.ModalityLUTType = modality_lut_type

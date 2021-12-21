@@ -3,6 +3,7 @@
 from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
+from pydicom.valuerep import format_number_as_ds
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
     VLWholeSlideMicroscopyImageStorage
@@ -11,6 +12,8 @@ from pydicom._storage_sopclass_uids import (
 import numpy as np
 
 from highdicom.color import CIELabColor
+from highdicom.content import LUT
+from highdicom.enum import VOILUTFunctionValues
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
     GraphicTypeValues,
@@ -475,18 +478,18 @@ class GraphicAnnotation(Dataset):
             rendered on all images in this list.
         graphic_layer: highdicom.pr.GraphicLayer
             Graphic layer to which this annotation should belong.
-        referenced_frame_number: Union[int, Sequence[int], None]
+        referenced_frame_number: Union[int, Sequence[int], None], optional
             Frame number(s) in a multiframe image upon which annotations shall
             be rendered.
-        referenced_segment_number: Union[int, Sequence[int], None]
+        referenced_segment_number: Union[int, Sequence[int], None], optional
             Frame number(s) in a multi-frame image upon which annotations shall
             be rendered.
-        graphic_objects: Union[Sequence[highdicom.pr.GraphicObject], None]
+        graphic_objects: Union[Sequence[highdicom.pr.GraphicObject], None], optional
             Graphic objects to render over the referenced images.
-        text_objects: Union[Sequence[highdicom.pr.TextObject], None]
+        text_objects: Union[Sequence[highdicom.pr.TextObject], None], optional
             Text objects to render over the referenced images.
 
-        """
+        """  # noqa: E501
         super().__init__()
         if len(referenced_images) == 0:
             raise ValueError('List of referenced images must not be empty.')
@@ -625,3 +628,139 @@ class GraphicAnnotation(Dataset):
                             'images.'
                         )
             self.TextObjectSequence = text_objects
+
+
+class SoftcopyVOILUT(Dataset):
+
+    """Dataset describing a value-of-interest lookup table."""
+
+    def __init__(
+        self,
+        window_center: Union[float, Sequence[float], None] = None,
+        window_width: Union[float, Sequence[float], None] = None,
+        window_explanation: Union[str, Sequence[str], None] = None,
+        voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
+        voi_luts: Optional[Sequence[LUT]] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        window_center: Union[float, Sequence[float], None], optional
+            Center value of the intensity window used for display.
+        window_width: Union[float, Sequence[float], None], optional
+            Width of the intensity window used for display.
+        window_explanation: Union[str, Sequence[str], None], optional
+            Free-form explanation of the window center and width.
+        voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
+
+        voi_luts: Union[Sequence[highdicom.LUT], None]
+
+        Note
+        ----
+        Either ``window_center`` and ``window_width`` should be provided or
+        ``voi_luts`` should be provided, or both. ``window_explanation`` should
+        only be provided if ``window_center`` is provided.
+
+        """  # noqa: E501
+        super().__init__()
+        if window_center is not None:
+            if window_width is None:
+                raise TypeError(
+                    'Providing "window_center" is invalid if "window_width" '
+                    'is not provided.'
+                )
+            window_is_sequence = isinstance(window_center, Sequence)
+            if window_is_sequence:
+                if len(window_center) == 0:
+                    raise TypeError(
+                        'Argument "window_center" must not be an empty '
+                        'sequence.'
+                    )
+                self.WindowCenter = [
+                    format_number_as_ds(x) for x in window_center
+                ]
+            else:
+                self.WindowCenter = format_number_as_ds(window_center)
+        if window_width is not None:
+            if window_center is None:
+                raise TypeError(
+                    'Providing "window_width" is invalid if "window_center" '
+                    'is not provided.'
+                )
+            if isinstance(window_width, Sequence):
+                if (
+                    not window_is_sequence or
+                    (len(window_width) != len(window_center))
+                ):
+                    raise ValueError(
+                        'Length of "window_width" must match length of '
+                        '"window_center".'
+                    )
+                if len(window_width) == 0:
+                    raise TypeError(
+                        'Argument "window_width" must not be an empty sequence.'
+                    )
+                self.WindowWidth = [
+                    format_number_as_ds(x) for x in window_width
+                ]
+            else:
+                if window_is_sequence:
+                    raise TypeError(
+                        'Length of "window_width" must match length of '
+                        '"window_center".'
+                    )
+                self.WindowWidth = format_number_as_ds(window_width)
+        if window_explanation is not None:
+            if window_center is None:
+                raise TypeError(
+                    'Providing "window_explanation" is invalid if '
+                    '"window_center" is not provided.'
+                )
+            if isinstance(window_explanation, Sequence):
+                if (
+                    not window_is_sequence or
+                    (len(window_explanation) != len(window_center))
+                ):
+                    raise ValueError(
+                        'Length of "window_explanation" must match length of '
+                        '"window_center".'
+                    )
+                if len(window_explanation) == 0:
+                    raise TypeError(
+                        'Argument "window_explanation" must not be an empty '
+                        'sequence.'
+                    )
+                for exp in window_explanation:
+                    _check_long_string(exp)
+            else:
+                if window_is_sequence:
+                    raise TypeError(
+                        'Length of "window_explanation" must match length of '
+                        '"window_center".'
+                    )
+                _check_long_string(window_explanation)
+            self.WindowCenterWidthExplanation = window_explanation
+        if voi_lut_function is not None:
+            if window_center is None:
+                raise TypeError(
+                    'Providing "voi_lut_function" is invalid if '
+                    '"window_center" is not provided.'
+                )
+            self.VOILUTFunction = VOILUTFunctionValues(voi_lut_function).value
+
+        if voi_luts is not None:
+            if len(voi_luts) == 0:
+                raise ValueError('"voi_luts" should not be empty.')
+            for lut in voi_luts:
+                if not isinstance(lut, LUT):
+                    raise TypeError(
+                        'Items of "voi_luts" should be of type highdicom.LUT.'
+                    )
+            self.VOILUTSequence = list(voi_luts)
+        else:
+            if window_center is None:
+                raise TypeError(
+                    'At least one of "window_center" or "voi_luts" should be '
+                    'provided.'
+                )

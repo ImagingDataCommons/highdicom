@@ -126,6 +126,15 @@ class RescaleTypeValues(Enum):
     """Percentage (%)"""
 
 
+class VOILUTFunctionValues(Enum):
+
+    """Enumerated values for attribute VOI LUT Function."""
+
+    LINEAR = 'LINEAR'
+    LINEAR_EXACT = 'LINEAR_EXACT'
+    SIGMOID = 'SIGMOID'
+
+
 class LateralityValues(Enum):
 
     """Enumerated values for Laterality attribute."""
