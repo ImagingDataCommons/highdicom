@@ -656,6 +656,7 @@ class SoftcopyVOILUT(Dataset):
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
         voi_luts: Union[Sequence[highdicom.LUT], None]
+            Intensity lookup tables used for display.
 
         Note
         ----
@@ -664,6 +665,7 @@ class SoftcopyVOILUT(Dataset):
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
+        # TODO add optional ReferencedImageSequence
         super().__init__()
         if window_center is not None:
             if window_width is None:
@@ -718,7 +720,14 @@ class SoftcopyVOILUT(Dataset):
                     'Providing "window_explanation" is invalid if '
                     '"window_center" is not provided.'
                 )
-            if isinstance(window_explanation, Sequence):
+            if isinstance(window_explanation, str):
+                if window_is_sequence:
+                    raise TypeError(
+                        'Length of "window_explanation" must match length of '
+                        '"window_center".'
+                    )
+                _check_long_string(window_explanation)
+            elif isinstance(window_explanation, Sequence):
                 if (
                     not window_is_sequence or
                     (len(window_explanation) != len(window_center))
@@ -734,13 +743,6 @@ class SoftcopyVOILUT(Dataset):
                     )
                 for exp in window_explanation:
                     _check_long_string(exp)
-            else:
-                if window_is_sequence:
-                    raise TypeError(
-                        'Length of "window_explanation" must match length of '
-                        '"window_center".'
-                    )
-                _check_long_string(window_explanation)
             self.WindowCenterWidthExplanation = window_explanation
         if voi_lut_function is not None:
             if window_center is None:

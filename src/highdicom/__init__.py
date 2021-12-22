@@ -35,7 +35,8 @@ from highdicom.enum import (
     AnatomicalOrientationTypeValues,
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
-    UniversalEntityIDTypeValues
+    UniversalEntityIDTypeValues,
+    VOILUTFunctionValues,
 )
 from highdicom import frame
 from highdicom import io
@@ -71,6 +72,7 @@ __all__ = [
     'SpecimenStaining',
     'UID',
     'UniversalEntityIDTypeValues',
+    'VOILUTFunctionValues',
     'ann',
     'color',
     'frame',

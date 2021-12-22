@@ -11,9 +11,11 @@ from pydicom.data import get_testdata_file, get_testdata_files
 
 from highdicom import (
     ContentCreatorIdentificationCodeSequence,
+    LUT,
     ModalityLUT,
     RescaleTypeValues,
     UID,
+    VOILUTFunctionValues,
 )
 from highdicom.color import CIELabColor
 from highdicom.pr import (
@@ -24,8 +26,113 @@ from highdicom.pr import (
     GraphicTypeValues,
     GrayscaleSoftcopyPresentationState,
     AnnotationUnitsValues,
+    SoftcopyVOILUT,
     TextObject,
 )
+
+
+class TestSoftcopyVOILUT(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut = LUT(
+            first_mapped_value=0,
+            lut_data=np.array([10, 11, 12], np.uint8)
+        )
+
+    def test_construction_basic(self):
+        lut = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert not hasattr(lut, 'VOILUTSequence')
+
+    def test_construction_explanation(self):
+        lut = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            window_explanation='Soft Tissue Window'
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_multiple(self):
+        lut = SoftcopyVOILUT(
+            window_center=[40.0, 600.0],
+            window_width=[400.0, 1500.0],
+            window_explanation=['Soft Tissue Window', 'Lung Window'],
+        )
+        assert lut.WindowCenter == [40.0, 600.0]
+        assert lut.WindowWidth == [400.0, 1500.0]
+
+    def test_construction_multiple_mismatch1(self):
+        with pytest.raises(ValueError):
+            SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=[400.0, 1500.0],
+        )
+
+    def test_construction_multiple_mismatch2(self):
+        with pytest.raises(TypeError):
+            SoftcopyVOILUT(
+                window_center=[40.0, 600.0],
+                window_width=400.0,
+            )
+
+    def test_construction_multiple_mismatch3(self):
+        with pytest.raises(ValueError):
+            SoftcopyVOILUT(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0, -50.0],
+            )
+
+    def test_construction_explanation_mismatch(self):
+        with pytest.raises(TypeError):
+            SoftcopyVOILUT(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0],
+                window_explanation='Lung Window',
+            )
+
+    def test_construction_explanation_mismatch2(self):
+        with pytest.raises(ValueError):
+            SoftcopyVOILUT(
+                window_center=40.0,
+                window_width=400.0,
+                window_explanation=['Soft Tissue Window', 'Lung Window'],
+            )
+
+    def test_construction_lut_function(self):
+        lut = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            voi_lut_function=VOILUTFunctionValues.SIGMOID,
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
+
+    def test_construction_luts(self):
+        lut = SoftcopyVOILUT(voi_luts=[self._lut])
+        assert len(lut.VOILUTSequence) == 1
+        assert not hasattr(lut, 'WindowWidth')
+        assert not hasattr(lut, 'WindowCenter')
+
+    def test_construction_both(self):
+        lut = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            voi_luts=[self._lut]
+        )
+        assert len(lut.VOILUTSequence) == 1
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_neither(self):
+        with pytest.raises(TypeError):
+            SoftcopyVOILUT()
 
 
 class TestGraphicObject(unittest.TestCase):
