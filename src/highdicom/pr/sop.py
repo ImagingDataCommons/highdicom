@@ -789,6 +789,13 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
 
 class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
 
+    """SOP class for a Pseudo-Color Softcopy Presentation State object.
+
+    A Color Softcopy Presentation State object includes instructions for
+    the presentation of a color image by software.
+
+    """
+
     def __init__(
         self,
         referenced_images: Sequence[Dataset],
