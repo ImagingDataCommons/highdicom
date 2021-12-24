@@ -78,9 +78,9 @@ class TestSoftcopyVOILUT(unittest.TestCase):
     def test_construction_multiple_mismatch1(self):
         with pytest.raises(ValueError):
             SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=[400.0, 1500.0],
-        )
+                window_center=40.0,
+                window_width=[400.0, 1500.0],
+            )
 
     def test_construction_multiple_mismatch2(self):
         with pytest.raises(TypeError):

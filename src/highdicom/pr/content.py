@@ -710,7 +710,7 @@ class SoftcopyVOILUT(Dataset):
                     if f < 1 or f > referenced_images[0].NumberOfFrames:
                         raise ValueError(
                             f'Frame number {f} is invalid for provided '
-                            'dataset.' 
+                            'dataset.'
                         )
                 if referenced_segment_number is not None:
                     raise TypeError(
@@ -734,14 +734,14 @@ class SoftcopyVOILUT(Dataset):
                         if s < 1 or s > number_of_segments:
                             raise ValueError(
                                 f'Segment number {s} is invalid for provided '
-                                'dataset.' 
+                                'dataset.'
                             )
                 else:
                     s = referenced_segment_number
                     if s < 1 or s > number_of_segments:
                         raise ValueError(
                             f'Segment number {s} is invalid for provided '
-                            'dataset.' 
+                            'dataset.'
                         )
             ref_image_seq = []
             for im in referenced_images:
