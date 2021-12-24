@@ -641,6 +641,9 @@ class SoftcopyVOILUT(Dataset):
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
         voi_luts: Optional[Sequence[LUT]] = None,
+        referenced_images: Optional[Sequence[Dataset]] = None,
+        referenced_frame_number: Union[int, Sequence[int], None] = None,
+        referenced_segment_number: Union[int, Sequence[int], None] = None,
     ):
         """
 
@@ -657,6 +660,16 @@ class SoftcopyVOILUT(Dataset):
             and ``window_width``.
         voi_luts: Union[Sequence[highdicom.LUT], None]
             Intensity lookup tables used for display.
+        referenced_images: Union[Sequence[pydicom.Dataset], None]
+            Images to which the VOI LUT described in this dataset applies. Note
+            that if unspecified, the VOI LUT applies to every image referenced
+            in the presentation state object that this dataset is included in.
+        referenced_frame_number: Union[int, Sequence[int], None]
+            Frame number(s) within a referenced multiframe image to which this
+            VOI LUT applies.
+        referenced_segment_number: Union[int, Sequence[int], None]
+            Segment number(s) within a referenced segmentation image to which
+            this VOI LUT applies.
 
         Note
         ----
@@ -665,8 +678,103 @@ class SoftcopyVOILUT(Dataset):
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
-        # TODO add optional ReferencedImageSequence
         super().__init__()
+
+        if referenced_images is not None:
+            # TODO add checks that frame/segment numbers are valid for datasets
+            if len(referenced_images) == 0:
+                raise ValueError(
+                    'Argument "referenced_images" must not be empty.'
+                )
+            multiple_images = len(referenced_images) > 1
+            if referenced_frame_number is not None:
+                if multiple_images:
+                    raise ValueError(
+                        'Specifying "referenced_frame_number" is not supported '
+                        'with multiple referenced images.'
+                    )
+                if not hasattr(referenced_images[0], 'NumberOfFrames'):
+                    raise TypeError(
+                        'Specifying "referenced_frame_number" is not valid '
+                        'when the referenced image is not a multi-frame image.'
+                    )
+                if isinstance(referenced_frame_number, Sequence):
+                    for f in referenced_frame_number:
+                        if f < 1 or f > referenced_images[0].NumberOfFrames:
+                            raise ValueError(
+                                f'Frame number {f} is invalid for provided '
+                                'dataset.'
+                            )
+                else:
+                    f = referenced_frame_number
+                    if f < 1 or f > referenced_images[0].NumberOfFrames:
+                        raise ValueError(
+                            f'Frame number {f} is invalid for provided '
+                            'dataset.' 
+                        )
+                if referenced_segment_number is not None:
+                    raise TypeError(
+                        'Specifying both "referenced_segment_number" and '
+                        '"referenced_frame_number" is not supported.'
+                    )
+            if referenced_segment_number is not None:
+                if multiple_images:
+                    raise ValueError(
+                        'Specifying "referenced_segment_number" is not '
+                        'supported with multiple referenced images.'
+                    )
+                if referenced_images[0].SOPClassUID != SegmentationStorage:
+                    raise TypeError(
+                        '"referenced_segment_number" is only valid when the '
+                        'referenced image is a segmentation image.'
+                    )
+                number_of_segments = len(referenced_images[0].SegmentSequence)
+                if isinstance(referenced_segment_number, Sequence):
+                    for s in referenced_segment_number:
+                        if s < 1 or s > number_of_segments:
+                            raise ValueError(
+                                f'Segment number {s} is invalid for provided '
+                                'dataset.' 
+                            )
+                else:
+                    s = referenced_segment_number
+                    if s < 1 or s > number_of_segments:
+                        raise ValueError(
+                            f'Segment number {s} is invalid for provided '
+                            'dataset.' 
+                        )
+            ref_image_seq = []
+            for im in referenced_images:
+                if (
+                    not hasattr(im, 'PixelData') and
+                    not hasattr(im, 'FloatPixelData') and
+                    not hasattr(im, 'DoubleFloatPixelData')
+                ):
+                    raise ValueError(
+                        'Dataset provided in "referenced_images" does not '
+                        'represent an image.'
+                    )
+                ref_im = Dataset()
+                ref_im.ReferencedSOPInstanceUID = im.SOPInstanceUID
+                ref_im.ReferencedSOPClassUID = im.SOPClassUID
+                if referenced_segment_number is not None:
+                    ref_im.ReferencedSegmentNumber = referenced_segment_number
+                if referenced_frame_number is not None:
+                    ref_im.ReferencedFrameNumber = referenced_frame_number
+                ref_image_seq.append(ref_im)
+            self.ReferencedImageSequence = ref_image_seq
+        else:
+            if referenced_segment_number is not None:
+                raise TypeError(
+                    'Argument "referenced_segment_number" should not be '
+                    'provided if "referenced_images" is not provided.'
+                )
+            if referenced_frame_number is not None:
+                raise TypeError(
+                    'Argument "referenced_frame_number" should not be '
+                    'provided if "referenced_images" is not provided.'
+                )
+
         if window_center is not None:
             if window_width is None:
                 raise TypeError(
