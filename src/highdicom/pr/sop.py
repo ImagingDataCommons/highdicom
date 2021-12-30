@@ -659,6 +659,14 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        for kw in [
+            'icc_profile',
+        ]:
+            if kw in kwargs:
+                raise TypeError(
+                    'GrayscaleSoftcopyPresentationState() got an unexpected '
+                    f'keyword argument "{kw}".'
+                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -687,6 +695,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             softcopy_voi_luts=softcopy_voi_luts,
             presentation_lut_shape=presentation_lut_shape,
             presentation_luts=presentation_luts,
+            icc_profile=None,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
@@ -729,6 +738,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut: Optional[ModalityLUT] = None,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
+        icc_profile: Optional[ImageCmsProfile] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -795,6 +805,9 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to applied after the
             modality LUT and/or rescale operation.
+        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+            ICC color profile object to include in the presentation state. If
+            none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -802,6 +815,15 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        for kw in [
+            'presentation_lut_shape',
+            'presentation_luts',
+        ]:
+            if kw in kwargs:
+                raise TypeError(
+                    'PseudoColorSoftcopyPresentationState() got an unexpected '
+                    f'keyword argument "{kw}".'
+                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -830,6 +852,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             softcopy_voi_luts=softcopy_voi_luts,
             presentation_lut_shape=None,
             presentation_luts=None,
+            icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
@@ -867,6 +890,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
+        icc_profile: Optional[ImageCmsProfile] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -920,6 +944,9 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this presentation state.
+        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+            ICC color profile object to include in the presentation state. If
+            none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -927,6 +954,20 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        for kw in [
+            'rescale_intercept',
+            'rescale_slope',
+            'rescale_type',
+            'modality_lut',
+            'softcopy_voi_luts',
+            'presentation_lut_shape',
+            'presentation_luts',
+        ]:
+            if kw in kwargs:
+                raise TypeError(
+                    'ColorSoftcopyPresentationState() got an unexpected '
+                    f'keyword argument "{kw}".'
+                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -955,6 +996,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             softcopy_voi_luts=None,
             presentation_lut_shape=None,
             presentation_luts=None,
+            icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
