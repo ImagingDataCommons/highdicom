@@ -2,6 +2,8 @@
 import datetime
 from typing import Sequence, Optional, Tuple, Union
 
+from PIL.ImageCms import ImageCmsProfile, createProfile
+
 from pydicom import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import ExplicitVRLittleEndian, UID
@@ -73,6 +75,7 @@ class _SoftcopyPresentationState(SOPClass):
             None
         ] = None,
         presentation_luts: Optional[Sequence[LUT]] = None,
+        icc_profile: Optional[ImageCmsProfile] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -144,9 +147,12 @@ class _SoftcopyPresentationState(SOPClass):
         presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
             Shape of the presentation LUT transform, applied after the softcopy
             VOI transform to create display values.
-        presentation_luts: Optional[Sequence[highdicom.LUT]], optional
+        presentation_luts: Union[Sequence[highdicom.LUT], None], optional
             LUTs for the presentation LUT transform, applied after the softcopy
             VOI transform to create display values.
+        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+            ICC color profile object to include in the presentation state. If
+            none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -401,6 +407,9 @@ class _SoftcopyPresentationState(SOPClass):
                     presentation_lut_shape
                 ).value
 
+        # ICC Profile
+        self._add_icc_profile(icc_profile)
+
     def _add_modality_lut(
         self,
         rescale_intercept: Union[int, float, None] = None,
@@ -486,6 +495,45 @@ class _SoftcopyPresentationState(SOPClass):
                 raise TypeError(
                     'Argument "rescale_type" must not be specified when '
                     '"rescale_intercept" is specified.'
+                )
+
+    def _add_icc_profile(
+        self,
+        icc_profile: Optional[ImageCmsProfile] = None
+    ) -> None:
+        """Add elements of ICC Profile module to the dataset.
+
+        Parameters
+        ----------
+        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+            ICC color profile object to include in the presentation state. If
+            none is provided, a standard RGB ("sRGB") profile will be assumed.
+
+        """
+        if self.SOPClassUID in (
+            ColorSoftcopyPresentationStateStorage,
+            PseudoColorSoftcopyPresentationStateStorage
+        ):
+            if icc_profile is None:
+                # Use sRGB as the default profile if none was provided
+                icc_profile = ImageCmsProfile(createProfile('sRGB'))
+
+                # Populate this optional tag because this is known to be a
+                # "well-known" color space
+                self.ColorSpace = 'SRGB'
+            else:
+                if not isinstance(icc_profile, ImageCmsProfile):
+                    raise TypeError(
+                        'Argument "icc_profile" must be of type '
+                        'PIL.ImageCms.ImageCmsProfile, or None.'
+                    )
+
+            self.ICCProfile = icc_profile.tobytes()
+        else:
+            if icc_profile is not None:
+                raise TypeError(
+                    'Including an "icc_profile" is only valid for Color- and '
+                    'PseudoColor- presentation states.'
                 )
 
 

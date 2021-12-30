@@ -8,6 +8,8 @@ from highdicom.pr.sop import (
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
     GraphicTypeValues,
+    PresentationLUTShapeValues,
+    TextJustificationValues,
 )
 from highdicom.pr.content import (
     GraphicAnnotation,
@@ -36,7 +38,9 @@ __all__ = [
     'GraphicTypeValues',
     'GrayscaleSoftcopyPresentationState',
     'ModalityLUT',
+    'PresentationLUTShapeValues',
     'PseudoColorSoftcopyPresentationState',
     'SoftcopyVOILUT',
+    'TextJustificationValues',
     'TextObject',
 ]

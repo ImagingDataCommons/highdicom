@@ -9,6 +9,7 @@ from highdicom.sr import CodedConcept
 from highdicom import (
     ContentCreatorIdentificationCodeSequence,
     ModalityLUT,
+    LUT,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -93,6 +94,52 @@ class TestContentCreatorIdentification(TestCase):
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
+
+
+class TestLUT(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut_data = np.arange(10, 100, dtype=np.uint8)
+        self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
+        self._explanation = 'My LUT'
+
+    def test_construction(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+        assert lut.bits_allocated == 8
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_16bit(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.bits_allocated == 16
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_explanation(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+            lut_explanation=self._explanation
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+        assert lut.bits_allocated == 8
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert lut.LUTExplanation == self._explanation
 
 
 class TestModalityLUT(TestCase):
