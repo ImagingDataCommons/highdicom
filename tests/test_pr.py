@@ -910,7 +910,6 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         for cls in [
             GrayscaleSoftcopyPresentationState,
             ColorSoftcopyPresentationState,
-            PseudoColorSoftcopyPresentationState
         ]:
             pr = cls(
                 referenced_images=self._ct_series,
@@ -1127,42 +1126,39 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
 
     def test_construction_icc_profile(self):
         profile = ImageCmsProfile(createProfile('LAB'))
-        for cls in [
-            ColorSoftcopyPresentationState,
-            PseudoColorSoftcopyPresentationState
-        ]:
-            pr = cls(
-                referenced_images=self._ct_series,
-                series_instance_uid=self._series_uid,
-                series_number=123,
-                sop_instance_uid=self._sop_uid,
-                instance_number=456,
-                manufacturer='Foo Corp.',
-                manufacturer_model_name='Bar, Mark 2',
-                software_versions='0.0.1',
-                device_serial_number='12345',
-                content_label='DOODLE',
-                graphic_layers=[self._layer],
-                graphic_annotations=[self._ann],
-                concept_name_code=codes.DCM.PresentationState,
-                institution_name='MGH',
-                institutional_department_name='Radiology',
-                content_creator_name='Doe^John',
-                icc_profile=profile
-            )
-            assert hasattr(pr, 'ICCProfile')
 
-            # Write out dataset and test it works as expected
-            with BytesIO() as buf:
-                pr.save_as(buf)
-                buf.seek(0)
-                reread = dcmread(buf)
+        pr = ColorSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            icc_profile=profile
+        )
+        assert hasattr(pr, 'ICCProfile')
 
-            # A basic check that the profile was read correctly
-            profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
-            assert (
-                profile.profile.profile_description == 'Lab identity built-in'
-            )
+        # Write out dataset and test it works as expected
+        with BytesIO() as buf:
+            pr.save_as(buf)
+            buf.seek(0)
+            reread = dcmread(buf)
+
+        # A basic check that the profile was read correctly
+        profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
+        assert (
+            profile.profile.profile_description == 'Lab identity built-in'
+        )
 
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1304,3 +1300,51 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
             )
+
+    def test_construction_palette_color_lut(self):
+        lut_data = np.arange(10, 120, dtype=np.uint16)
+        first_mapped_value = 32
+        pr = PseudoColorSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            red_palette_color_lut_data=lut_data,
+            green_palette_color_lut_data=lut_data,
+            blue_palette_color_lut_data=lut_data,
+            red_first_mapped_value=first_mapped_value,
+            green_first_mapped_value=first_mapped_value,
+            blue_first_mapped_value=first_mapped_value,
+            palette_color_lut_uid=UID(),
+        )
+        assert pr.SeriesInstanceUID == self._series_uid
+        assert pr.SOPInstanceUID == self._sop_uid
+        assert pr.SeriesNumber == 123
+        assert pr.InstanceNumber == 456
+        assert pr.Manufacturer == 'Foo Corp.'
+        assert pr.ManufacturerModelName == 'Bar, Mark 2'
+        assert pr.SoftwareVersions == '0.0.1'
+        assert pr.DeviceSerialNumber == '12345'
+        assert pr.ContentLabel == 'DOODLE'
+        assert len(pr.ReferencedSeriesSequence) == 1
+        assert len(pr.GraphicLayerSequence) == 1
+        assert pr.InstitutionName == 'MGH'
+        assert pr.InstitutionalDepartmentName == 'Radiology'
+        assert pr.ContentCreatorName == 'Doe^John'
+        assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert not hasattr(pr, 'ModalityLUTSequence')
+        assert not hasattr(pr, 'RescaleSlope')
+        assert not hasattr(pr, 'RescaleIntercept')
+        assert not hasattr(pr, 'RescaleType')

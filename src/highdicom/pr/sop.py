@@ -6,13 +6,15 @@ from PIL.ImageCms import ImageCmsProfile, createProfile
 
 from pydicom import Dataset
 from pydicom.sr.coding import Code
-from pydicom.uid import ExplicitVRLittleEndian, UID
+from pydicom.uid import ExplicitVRLittleEndian
 from pydicom._storage_sopclass_uids import (
     GrayscaleSoftcopyPresentationStateStorage,
     PseudoColorSoftcopyPresentationStateStorage,
     ColorSoftcopyPresentationStateStorage
 )
 from pydicom.valuerep import DA, PersonName, TM, format_number_as_ds
+
+import numpy as np
 
 from highdicom.base import SOPClass
 from highdicom.content import (
@@ -29,6 +31,7 @@ from highdicom.pr.content import (
 from highdicom.pr.enum import PresentationLUTShapeValues
 from highdicom.enum import RescaleTypeValues
 from highdicom.sr.coding import CodedConcept
+from highdicom.uid import UID
 from highdicom.valuerep import (
     check_person_name,
     _check_code_string,
@@ -69,12 +72,6 @@ class _SoftcopyPresentationState(SOPClass):
         rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut: Optional[ModalityLUT] = None,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
-        presentation_lut_shape: Union[
-            PresentationLUTShapeValues,
-            str,
-            None
-        ] = None,
-        presentation_luts: Optional[Sequence[LUT]] = None,
         icc_profile: Optional[ImageCmsProfile] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
@@ -144,12 +141,6 @@ class _SoftcopyPresentationState(SOPClass):
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to applied after the
             modality LUT and/or rescale operation.
-        presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
-            Shape of the presentation LUT transform, applied after the softcopy
-            VOI transform to create display values.
-        presentation_luts: Union[Sequence[highdicom.LUT], None], optional
-            LUTs for the presentation LUT transform, applied after the softcopy
-            VOI transform to create display values.
         icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
@@ -378,34 +369,6 @@ class _SoftcopyPresentationState(SOPClass):
                         'highdicom.pr.SoftcopyVOILUT.'
                     )
             self.SoftcopyVOILUTSequence = softcopy_voi_luts
-
-        # Softcopy Presentation LUT
-        if sop_class_uid == GrayscaleSoftcopyPresentationStateStorage:
-            if presentation_luts is not None:
-                if presentation_lut_shape is not None:
-                    raise TypeError(
-                        'Only one of "presentation_luts" or '
-                        '"presentation_lut_shape" should be provided.'
-                    )
-                if len(presentation_luts) == 0:
-                    raise ValueError(
-                        'Argument "presentation_luts" must not be empty.'
-                    )
-                for v in presentation_luts:
-                    if not isinstance(v, LUT):
-                        raise TypeError(
-                            'Items of "presentation_luts" should be of type '
-                            'highdicom.LUT.'
-                        )
-                self.PresentationLUTSequence = presentation_luts
-            else:
-                presentation_lut_shape = (
-                    presentation_lut_shape or
-                    PresentationLUTShapeValues.IDENTITY
-                )
-                self.PresentationLUTShape = PresentationLUTShapeValues(
-                    presentation_lut_shape
-                ).value
 
         # ICC Profile
         self._add_icc_profile(icc_profile)
@@ -693,12 +656,37 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_type=rescale_type,
             modality_lut=modality_lut,
             softcopy_voi_luts=softcopy_voi_luts,
-            presentation_lut_shape=presentation_lut_shape,
-            presentation_luts=presentation_luts,
             icc_profile=None,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
+
+        # Softcopy Presentation LUT
+        if presentation_luts is not None:
+            if presentation_lut_shape is not None:
+                raise TypeError(
+                    'Only one of "presentation_luts" or '
+                    '"presentation_lut_shape" should be provided.'
+                )
+            if len(presentation_luts) == 0:
+                raise ValueError(
+                    'Argument "presentation_luts" must not be empty.'
+                )
+            for v in presentation_luts:
+                if not isinstance(v, LUT):
+                    raise TypeError(
+                        'Items of "presentation_luts" should be of type '
+                        'highdicom.LUT.'
+                    )
+            self.PresentationLUTSequence = presentation_luts
+        else:
+            presentation_lut_shape = (
+                presentation_lut_shape or
+                PresentationLUTShapeValues.IDENTITY
+            )
+            self.PresentationLUTShape = PresentationLUTShapeValues(
+                presentation_lut_shape
+            ).value
 
 
 class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
@@ -722,6 +710,13 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         software_versions: Union[str, Tuple[str]],
         device_serial_number: str,
         content_label: str,
+        red_palette_color_lut_data: np.ndarray,
+        green_palette_color_lut_data: np.ndarray,
+        blue_palette_color_lut_data: np.ndarray,
+        red_first_mapped_value: int,
+        green_first_mapped_value: int,
+        blue_first_mapped_value: int,
+        palette_color_lut_uid: Union[UID, str, None] = None,
         content_description: Optional[str] = None,
         graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
@@ -815,15 +810,6 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
-        for kw in [
-            'presentation_lut_shape',
-            'presentation_luts',
-        ]:
-            if kw in kwargs:
-                raise TypeError(
-                    'PseudoColorSoftcopyPresentationState() got an unexpected '
-                    f'keyword argument "{kw}".'
-                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -850,12 +836,112 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_type=rescale_type,
             modality_lut=modality_lut,
             softcopy_voi_luts=softcopy_voi_luts,
-            presentation_lut_shape=None,
-            presentation_luts=None,
             icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
+
+        # Palette Color Lookup Table
+        self._add_palette_color_lookup_table(
+            red_palette_color_lut_data=red_palette_color_lut_data,
+            green_palette_color_lut_data=green_palette_color_lut_data,
+            blue_palette_color_lut_data=blue_palette_color_lut_data,
+            red_first_mapped_value=red_first_mapped_value,
+            green_first_mapped_value=green_first_mapped_value,
+            blue_first_mapped_value=blue_first_mapped_value,
+            palette_color_lut_uid=palette_color_lut_uid,
+        )
+
+    def _add_palette_color_lookup_table(
+        self,
+        red_palette_color_lut_data: np.ndarray,
+        green_palette_color_lut_data: np.ndarray,
+        blue_palette_color_lut_data: np.ndarray,
+        red_first_mapped_value: int,
+        green_first_mapped_value: int,
+        blue_first_mapped_value: int,
+        palette_color_lut_uid: Union[UID, str, None] = None
+    ) -> None:
+        colors = ['red', 'green', 'blue']
+        all_lut_data = [
+            red_palette_color_lut_data,
+            green_palette_color_lut_data,
+            blue_palette_color_lut_data
+        ]
+        all_first_values = [
+            red_first_mapped_value,
+            green_first_mapped_value,
+            blue_first_mapped_value
+        ]
+
+        if palette_color_lut_uid is not None:
+            self.PaletteColorLookupTableUID = palette_color_lut_uid
+
+        for color, lut_data, first_mapped_value in zip(
+            colors,
+            all_lut_data,
+            all_first_values
+        ):
+            if not isinstance(first_mapped_value, int):
+                raise TypeError(
+                    f'Argument "{color}_first_mapped_value" must be an integer.'
+                )
+            if first_mapped_value < 0:
+                raise ValueError(
+                    'Argument "first_mapped_value" must be non-negative.'
+                )
+            if first_mapped_value >= 2 ** 16:
+                raise ValueError(
+                    f'Argument "{color}_first_mapped_value" must be less than '
+                    '2^16.'
+                )
+
+            if not isinstance(lut_data, np.ndarray):
+                raise TypeError(
+                    f'Argument "f{color}_palette_color_lut_data" must be of '
+                    'type np.ndarray.'
+                )
+            if lut_data.ndim != 1:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" '
+                    'must have a single dimension.'
+                )
+            len_data = lut_data.size
+            if len_data == 0:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" '
+                    'must not be empty.'
+                )
+            if len_data > 2**16:
+                raise ValueError(
+                    f'Length of "f{color}_palette_color_lut_data" must be no '
+                    'greater than 2^16 elements.'
+                )
+            elif len_data == 2**16:
+                # Per the standard, this is recorded as 0
+                len_data = 0
+
+            if lut_data.dtype.type != np.uint16:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" must have '
+                    'dtype uint16.'
+                )
+
+            descriptor = [
+                len_data,
+                first_mapped_value,
+                16  # always 16 as part of Palette Color LUT module
+            ]
+            setattr(
+                self,
+                f'{color.title()}PaletteColorLookupTableDescriptor',
+                descriptor
+            )
+            setattr(
+                self,
+                f'{color.title()}PaletteColorLookupTableData',
+                lut_data.tobytes()
+            )
 
 
 class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
@@ -960,8 +1046,6 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             'rescale_type',
             'modality_lut',
             'softcopy_voi_luts',
-            'presentation_lut_shape',
-            'presentation_luts',
         ]:
             if kw in kwargs:
                 raise TypeError(
@@ -994,8 +1078,6 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_type=None,
             modality_lut=None,
             softcopy_voi_luts=None,
-            presentation_lut_shape=None,
-            presentation_luts=None,
             icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
