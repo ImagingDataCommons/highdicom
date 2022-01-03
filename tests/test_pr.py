@@ -1046,6 +1046,30 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(gsps, 'RescaleType')
         assert len(gsps.ModalityLUTSequence) == 1
 
+    def test_construction_with_copy_modality_lut(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_modality_lut=True,
+        )
+        assert gsps.RescaleIntercept == self._ct_series[0].RescaleIntercept
+        assert gsps.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert gsps.RescaleType == 'HU'
+
     def test_construction_with_voi_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,

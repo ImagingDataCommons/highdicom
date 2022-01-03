@@ -73,6 +73,8 @@ class _SoftcopyPresentationState(SOPClass):
         modality_lut: Optional[ModalityLUT] = None,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
         icc_profile: Optional[ImageCmsProfile] = None,
+        copy_modality_lut: bool = False,
+        copy_voi_lut: bool = False,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -138,9 +140,17 @@ class _SoftcopyPresentationState(SOPClass):
         modality_lut: Union[highdicom.ModalityLUT, None], optional
             Lookup table specifying a pixel rescaling operation to apply to
             the stored values to give modality values.
+        copy_modality_lut: bool, optional
+            Include elements of the Modality LUT module (including
+            RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
+            in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to applied after the
             modality LUT and/or rescale operation.
+        copy_voi_lut: bool, optional
+            Include elements of the Softcopy VOI LUT module (including
+            WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
+            presentation state with values copied from the source images.
         icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
@@ -373,12 +383,25 @@ class _SoftcopyPresentationState(SOPClass):
             GrayscaleSoftcopyPresentationStateStorage,
             PseudoColorSoftcopyPresentationState,
         ):
-            self._add_modality_lut(
-                rescale_intercept=rescale_intercept,
-                rescale_slope=rescale_slope,
-                rescale_type=rescale_type,
-                modality_lut=modality_lut
-            )
+            if copy_modality_lut:
+                if (
+                    rescale_intercept is not None or
+                    rescale_slope is not None or
+                    rescale_type is not None
+                ):
+                    raise TypeError(
+                        'If argument "copy_modality_lut" is  True, arguments '
+                        '"rescale_slope", "rescale_intercept", and '
+                        '"rescale_type" must all be None.'
+                    )
+                self._copy_modality_lut(referenced_images)
+            else:
+                self._add_modality_lut(
+                    rescale_intercept=rescale_intercept,
+                    rescale_slope=rescale_slope,
+                    rescale_type=rescale_type,
+                    modality_lut=modality_lut
+                )
 
         # Softcopy VOI LUT
         if softcopy_voi_luts is not None:
@@ -501,6 +524,106 @@ class _SoftcopyPresentationState(SOPClass):
                     '"rescale_intercept" is specified.'
                 )
 
+    def _copy_modality_lut(self, referenced_images: Sequence[Dataset]) -> None:
+        """Copy elements of the ModalityLUT module from the referenced images.
+
+        Any rescale intercept, rescale slope, and rescale type attributes in
+        the referenced images are copied to the presentation state dataset.
+        Missing values will cause no errors, and will result in the relevant
+        (optional) attributes being omitted from the presentation state object.
+        However, inconsistent values between referenced images will result in
+        an error.
+
+        Parameters
+        ----------
+        referenced_images: Sequence[pydicom.Dataset]
+            The referenced images from which the attributes should be copied.
+
+        Raises
+        ------
+        ValueError
+            In case the presence or value of the RescaleSlope, RescaleIntercept,
+            or RescaleType attributes are inconsistent between datasets.
+
+        """
+        have_slopes = [
+            hasattr(ds, 'RescaleSlope') for ds in referenced_images
+        ]
+        have_intercepts = [
+            hasattr(ds, 'RescaleIntercept') for ds in referenced_images
+        ]
+        have_type = [
+            hasattr(ds, 'RescaleType') for ds in referenced_images
+        ]
+
+        if any(have_slopes) and not all(have_slopes):
+            raise ValueError(
+                'Error while copying Modality LUT attributes: presence of '
+                '"RescaleSlope" is inconsistent among referenced images.'
+            )
+        if any(have_intercepts) and not all(have_intercepts):
+            raise ValueError(
+                'Error while copying Modality LUT attributes: presence of '
+                '"RescaleIntercept" is inconsistent among referenced images.'
+            )
+        if any(have_type) and not all(have_type):
+            raise ValueError(
+                'Error while copying Modality LUT attributes: presence of '
+                '"RescaleType" is inconsistent among referenced images.'
+            )
+
+        if all(have_intercepts) != all(have_slopes):
+            raise ValueError(
+                'Error while copying Modality LUT attributes: datasets should '
+                'have both "RescaleIntercept" and "RescaleSlope", or neither.'
+            )
+
+        if all(have_intercepts):
+            if any(
+                ds.RescaleSlope != referenced_images[0].RescaleSlope
+                for ds in referenced_images
+            ):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: values of '
+                    '"RescaleSlope" are inconsistent among referenced images.'
+                )
+            if any(
+                ds.RescaleIntercept != referenced_images[0].RescaleIntercept
+                for ds in referenced_images
+            ):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: values of '
+                    '"RescaleIntercept" are inconsistent among referenced '
+                    'images.'
+                )
+            slope = referenced_images[0].RescaleSlope
+            intercept = referenced_images[0].RescaleIntercept
+        else:
+            slope = None
+            intercept = None
+
+        if all(have_type):
+            if any(
+                ds.RescaleType != referenced_images[0].RescaleType
+                for ds in referenced_images
+            ):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: values of '
+                    '"RescaleType" are inconsistent among referenced images.'
+                )
+            rescale_type = referenced_images[0].RescaleType
+        else:
+            if intercept is None:
+                rescale_type = None
+            else:
+                rescale_type = RescaleTypeValues.HU
+
+        self._add_modality_lut(
+            rescale_intercept=intercept,
+            rescale_slope=slope,
+            rescale_type=rescale_type,
+        )
+
     def _add_icc_profile(
         self,
         icc_profile: Optional[ImageCmsProfile] = None
@@ -577,7 +700,9 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
         rescale_slope: Union[int, float, None] = None,
         rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut: Optional[ModalityLUT] = None,
+        copy_modality_lut: bool = False,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
+        copy_voi_lut: bool = False,
         presentation_lut_shape: Union[
             PresentationLUTShapeValues,
             str,
@@ -647,9 +772,17 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
         modality_lut: Union[highdicom.ModalityLUT, None], optional
             Lookup table specifying a pixel rescaling operation to apply to
             the stored values to give modality values.
+        copy_modality_lut: bool, optional
+            Include elements of the Modality LUT module (including
+            RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
+            in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to applied after the
             modality LUT and/or rescale operation.
+        copy_voi_lut: bool, optional
+            Include elements of the Softcopy VOI LUT module (including
+            WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
+            presentation state with values copied from the source images.
         presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
             Shape of the presentation LUT transform, applied after the softcopy
             VOI transform to create display values.
@@ -696,7 +829,9 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_slope=rescale_slope,
             rescale_type=rescale_type,
             modality_lut=modality_lut,
+            copy_modality_lut=copy_modality_lut,
             softcopy_voi_luts=softcopy_voi_luts,
+            copy_voi_lut=copy_voi_lut,
             icc_profile=None,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
@@ -773,7 +908,9 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         rescale_slope: Union[int, float, None] = None,
         rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut: Optional[ModalityLUT] = None,
+        copy_modality_lut: bool = False,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
+        copy_voi_lut: bool = False,
         icc_profile: Optional[ImageCmsProfile] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
@@ -838,9 +975,17 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         modality_lut: Union[highdicom.ModalityLUT, None], optional
             Lookup table specifying a pixel rescaling operation to apply to
             the stored values to give modality values.
+        copy_modality_lut: bool, optional
+            Include elements of the Modality LUT module (including
+            RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
+            in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to applied after the
             modality LUT and/or rescale operation.
+        copy_voi_lut: bool, optional
+            Include elements of the Softcopy VOI LUT module (including
+            WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
+            presentation state with values copied from the source images.
         icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
@@ -876,7 +1021,9 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_slope=rescale_slope,
             rescale_type=rescale_type,
             modality_lut=modality_lut,
+            copy_modality_lut=copy_modality_lut,
             softcopy_voi_luts=softcopy_voi_luts,
+            copy_voi_lut=copy_voi_lut,
             icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
@@ -1087,6 +1234,8 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             'rescale_type',
             'modality_lut',
             'softcopy_voi_luts',
+            'copy_modality_lut',
+            'copy_voi_lut',
         ]:
             if kw in kwargs:
                 raise TypeError(
@@ -1119,6 +1268,8 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             rescale_type=None,
             modality_lut=None,
             softcopy_voi_luts=None,
+            copy_modality_lut=False,
+            copy_voi_lut=False,
             icc_profile=icc_profile,
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
