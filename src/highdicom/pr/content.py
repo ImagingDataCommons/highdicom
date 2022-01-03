@@ -681,7 +681,6 @@ class SoftcopyVOILUT(Dataset):
         super().__init__()
 
         if referenced_images is not None:
-            # TODO add checks that frame/segment numbers are valid for datasets
             if len(referenced_images) == 0:
                 raise ValueError(
                     'Argument "referenced_images" must not be empty.'

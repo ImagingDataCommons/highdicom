@@ -151,6 +151,16 @@ class _SoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        if sop_class_uid not in (
+            GrayscaleSoftcopyPresentationStateStorage,
+            PseudoColorSoftcopyPresentationStateStorage,
+            ColorSoftcopyPresentationStateStorage
+        ):
+            raise ValueError(
+                'The IOD indicated by the provided sop_class_uid is not '
+                'implemented.'
+            )
+
         # Check referenced images are from the same series and have the same
         # size
         ref_series_uid = referenced_images[0].SeriesInstanceUID
@@ -166,6 +176,20 @@ class _SoftcopyPresentationState(SOPClass):
                 raise ValueError(
                     'Images with different sizes are not supported.'
                 )
+
+            if sop_class_uid == ColorSoftcopyPresentationStateStorage:
+                if ref_im.SamplesPerPixel != 3:
+                    raise ValueError(
+                        'For color presentation states, all referenced '
+                        'images must have 3 samples per pixel.'
+                    )
+            else:
+                if ref_im.SamplesPerPixel != 1:
+                    raise ValueError(
+                        'For grayscale and pseduo-color presentation states, '
+                        'all referenced images must have a single sample '
+                        'per pixel.'
+                    )
 
         super().__init__(
             study_instance_uid=referenced_images[0].StudyInstanceUID,
@@ -291,7 +315,7 @@ class _SoftcopyPresentationState(SOPClass):
                     )
                 if ann.GraphicLayer not in labels_unique:
                     raise ValueError(
-                        'Graphic layer with name "{ann.GraphicLayer}" is '
+                        f'Graphic layer with name "{ann.GraphicLayer}" is '
                         'referenced in "graphic_annotations" but not '
                         'included "graphic_layers".'
                     )
@@ -302,8 +326,8 @@ class _SoftcopyPresentationState(SOPClass):
                     )
                     if uids not in ref_uids:
                         raise ValueError(
-                            'Instance with SOP Instance UID {uids[1]} and '
-                            'SOP Class UID {uids[0]} is referenced in '
+                            f'Instance with SOP Instance UID {uids[1]} and '
+                            f'SOP Class UID {uids[0]} is referenced in '
                             'items of "graphic_layers", but not included '
                             'in "referenced_images".'
                         )
@@ -368,6 +392,23 @@ class _SoftcopyPresentationState(SOPClass):
                         'Items of "softcopy_voi_luts" must be of type '
                         'highdicom.pr.SoftcopyVOILUT.'
                     )
+
+                # If the softcopy VOI LUT references specific images,
+                # check that the references are valid
+                if hasattr(v, 'ReferencedImageSequence'):
+                    for item in v.ReferencedImageSequence:
+                        uids = (
+                            item.ReferencedSOPClassUID,
+                            item.ReferencedSOPInstanceUID
+                        )
+                        if uids not in ref_uids:
+                            raise ValueError(
+                                f'Instance with SOP Instance UID {uids[1]} and '
+                                f'SOP Class UID {uids[0]} is referenced in '
+                                'items of "softcopy_voi_luts", but not '
+                                'included in "referenced_images".'
+                            )
+
             self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
         # ICC Profile
@@ -694,7 +735,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
     """SOP class for a Pseudo-Color Softcopy Presentation State object.
 
     A Pseudo-Color Softcopy Presentation State object includes instructions for
-    the presentation of an image by software.
+    the presentation of a grayscale image as a color image by software.
 
     """
 

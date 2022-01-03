@@ -810,12 +810,18 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        file_path = Path(__file__)
+        self._test_dir = file_path.parent.parent.joinpath(
+            'data',
+            'test_files'
+        )
         self._series_uid = UID()
         self._sop_uid = UID()
         self._ct_series = [
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
+        self._sm_image = dcmread(self._test_dir / 'sm_image_dots.dcm')
         self._text_value = 'Look Here!'
         self._bounding_box = (10.0, 30.0, 40.0, 60.0)
         self._group = GraphicGroup(
@@ -853,8 +859,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             description='Another Basic layer',
             display_color=self._display_color
         )
-        self._ann = GraphicAnnotation(
+        self._ann_ct = GraphicAnnotation(
             referenced_images=self._ct_series,
+            graphic_layer=self._layer,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object]
+        )
+        self._ann_sm = GraphicAnnotation(
+            referenced_images=[self._sm_image],
             graphic_layer=self._layer,
             graphic_objects=[self._graphic_object],
             text_objects=[self._text_object]
@@ -901,53 +913,56 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             window_explanation='Soft Tissue Window'
         )
 
+        self._softcopy_voi_lut_partial = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            window_explanation='Soft Tissue Window',
+            referenced_images=self._ct_series
+        )
+
         self._presentation_lut = LUT(
             lut_data=np.arange(10, 100, dtype=np.uint8),
             first_mapped_value=0
         )
 
     def test_construction(self):
-        for cls in [
-            GrayscaleSoftcopyPresentationState,
-            ColorSoftcopyPresentationState,
-        ]:
-            pr = cls(
-                referenced_images=self._ct_series,
-                series_instance_uid=self._series_uid,
-                series_number=123,
-                sop_instance_uid=self._sop_uid,
-                instance_number=456,
-                manufacturer='Foo Corp.',
-                manufacturer_model_name='Bar, Mark 2',
-                software_versions='0.0.1',
-                device_serial_number='12345',
-                content_label='DOODLE',
-                graphic_layers=[self._layer],
-                graphic_annotations=[self._ann],
-                concept_name_code=codes.DCM.PresentationState,
-                institution_name='MGH',
-                institutional_department_name='Radiology',
-                content_creator_name='Doe^John',
-            )
-            assert pr.SeriesInstanceUID == self._series_uid
-            assert pr.SOPInstanceUID == self._sop_uid
-            assert pr.SeriesNumber == 123
-            assert pr.InstanceNumber == 456
-            assert pr.Manufacturer == 'Foo Corp.'
-            assert pr.ManufacturerModelName == 'Bar, Mark 2'
-            assert pr.SoftwareVersions == '0.0.1'
-            assert pr.DeviceSerialNumber == '12345'
-            assert pr.ContentLabel == 'DOODLE'
-            assert len(pr.ReferencedSeriesSequence) == 1
-            assert len(pr.GraphicLayerSequence) == 1
-            assert pr.InstitutionName == 'MGH'
-            assert pr.InstitutionalDepartmentName == 'Radiology'
-            assert pr.ContentCreatorName == 'Doe^John'
-            assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
-            assert not hasattr(pr, 'ModalityLUTSequence')
-            assert not hasattr(pr, 'RescaleSlope')
-            assert not hasattr(pr, 'RescaleIntercept')
-            assert not hasattr(pr, 'RescaleType')
+        pr = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+        )
+        assert pr.SeriesInstanceUID == self._series_uid
+        assert pr.SOPInstanceUID == self._sop_uid
+        assert pr.SeriesNumber == 123
+        assert pr.InstanceNumber == 456
+        assert pr.Manufacturer == 'Foo Corp.'
+        assert pr.ManufacturerModelName == 'Bar, Mark 2'
+        assert pr.SoftwareVersions == '0.0.1'
+        assert pr.DeviceSerialNumber == '12345'
+        assert pr.ContentLabel == 'DOODLE'
+        assert len(pr.ReferencedSeriesSequence) == 1
+        assert len(pr.GraphicLayerSequence) == 1
+        assert pr.InstitutionName == 'MGH'
+        assert pr.InstitutionalDepartmentName == 'Radiology'
+        assert pr.ContentCreatorName == 'Doe^John'
+        assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert not hasattr(pr, 'ModalityLUTSequence')
+        assert not hasattr(pr, 'RescaleSlope')
+        assert not hasattr(pr, 'RescaleIntercept')
+        assert not hasattr(pr, 'RescaleType')
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -962,7 +977,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1004,7 +1019,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1044,7 +1059,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1054,6 +1069,27 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert hasattr(gsps.SoftcopyVOILUTSequence[0], 'WindowWidth')
         assert hasattr(gsps.SoftcopyVOILUTSequence[0], 'WindowCenter')
+
+    def test_construction_with_voi_lut_missing_references(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series[:2],  # missing images
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                concept_name_code=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[self._softcopy_voi_lut_partial],
+                # references missing images ^
+            )
 
     def test_construction_with_presentation_lut_shape(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1068,7 +1104,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1091,7 +1127,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1115,7 +1151,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._layer],
-                graphic_annotations=[self._ann],
+                graphic_annotations=[self._ann_ct],
                 concept_name_code=codes.DCM.PresentationState,
                 institution_name='MGH',
                 institutional_department_name='Radiology',
@@ -1124,11 +1160,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
             )
 
-    def test_construction_icc_profile(self):
-        profile = ImageCmsProfile(createProfile('LAB'))
-
+    def test_construction_color(self):
         pr = ColorSoftcopyPresentationState(
-            referenced_images=self._ct_series,
+            referenced_images=[self._sm_image],
             series_instance_uid=self._series_uid,
             series_number=123,
             sop_instance_uid=self._sop_uid,
@@ -1139,7 +1173,90 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_sm],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+        )
+        assert pr.SeriesInstanceUID == self._series_uid
+        assert pr.SOPInstanceUID == self._sop_uid
+        assert pr.SeriesNumber == 123
+        assert pr.InstanceNumber == 456
+        assert pr.Manufacturer == 'Foo Corp.'
+        assert pr.ManufacturerModelName == 'Bar, Mark 2'
+        assert pr.SoftwareVersions == '0.0.1'
+        assert pr.DeviceSerialNumber == '12345'
+        assert pr.ContentLabel == 'DOODLE'
+        assert len(pr.ReferencedSeriesSequence) == 1
+        assert len(pr.GraphicLayerSequence) == 1
+        assert pr.InstitutionName == 'MGH'
+        assert pr.InstitutionalDepartmentName == 'Radiology'
+        assert pr.ContentCreatorName == 'Doe^John'
+        assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
+        assert not hasattr(pr, 'ModalityLUTSequence')
+        assert not hasattr(pr, 'RescaleSlope')
+        assert not hasattr(pr, 'RescaleIntercept')
+        assert not hasattr(pr, 'RescaleType')
+
+    def test_construction_gray_with_color_images(self):
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=[self._sm_image],  # color image
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer],
+                graphic_annotations=[self._ann_sm],
+                concept_name_code=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+            )
+
+    def test_construction_color_with_gray_images(self):
+        with pytest.raises(ValueError):
+            ColorSoftcopyPresentationState(
+                referenced_images=self._ct_series,  # grayscale images
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer],
+                graphic_annotations=[self._ann_ct],
+                concept_name_code=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+            )
+
+    def test_construction_icc_profile(self):
+        profile = ImageCmsProfile(createProfile('LAB'))
+
+        pr = ColorSoftcopyPresentationState(
+            referenced_images=[self._sm_image],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_sm],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1155,9 +1272,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             reread = dcmread(buf)
 
         # A basic check that the profile was read correctly
-        profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
+        image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
         assert (
-            profile.profile.profile_description == 'Lab identity built-in'
+            image_profile.profile.profile_description == 'Lab identity built-in'
         )
 
     def test_construction_creator_id(self):
@@ -1173,7 +1290,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
@@ -1224,7 +1341,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._layer],
-                graphic_annotations=[self._ann],
+                graphic_annotations=[self._ann_ct],
             )
 
     def test_construction_with_duplicate_layers(self):
@@ -1241,7 +1358,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._layer, self._layer],  # duplicate
-                graphic_annotations=[self._ann],
+                graphic_annotations=[self._ann_ct],
             )
 
     def test_construction_with_group_missing(self):
@@ -1294,7 +1411,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 device_serial_number='12345',
                 content_label='DOODLE',
                 graphic_layers=[self._other_layer],  # wrong layer!
-                graphic_annotations=[self._ann],
+                graphic_annotations=[self._ann_ct],
                 concept_name_code=codes.DCM.PresentationState,
                 institution_name='MGH',
                 institutional_department_name='Radiology',
@@ -1302,8 +1419,12 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             )
 
     def test_construction_palette_color_lut(self):
-        lut_data = np.arange(10, 120, dtype=np.uint16)
-        first_mapped_value = 32
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 32
+        g_first_mapped_value = 42
+        b_first_mapped_value = 52
         pr = PseudoColorSoftcopyPresentationState(
             referenced_images=self._ct_series,
             series_instance_uid=self._series_uid,
@@ -1316,17 +1437,17 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             device_serial_number='12345',
             content_label='DOODLE',
             graphic_layers=[self._layer],
-            graphic_annotations=[self._ann],
+            graphic_annotations=[self._ann_ct],
             concept_name_code=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            red_palette_color_lut_data=lut_data,
-            green_palette_color_lut_data=lut_data,
-            blue_palette_color_lut_data=lut_data,
-            red_first_mapped_value=first_mapped_value,
-            green_first_mapped_value=first_mapped_value,
-            blue_first_mapped_value=first_mapped_value,
+            red_palette_color_lut_data=r_lut_data,
+            green_palette_color_lut_data=g_lut_data,
+            blue_palette_color_lut_data=b_lut_data,
+            red_first_mapped_value=r_first_mapped_value,
+            green_first_mapped_value=g_first_mapped_value,
+            blue_first_mapped_value=b_first_mapped_value,
             palette_color_lut_uid=UID(),
         )
         assert pr.SeriesInstanceUID == self._series_uid
@@ -1348,3 +1469,24 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(pr, 'RescaleSlope')
         assert not hasattr(pr, 'RescaleIntercept')
         assert not hasattr(pr, 'RescaleType')
+        red_descriptor = [len(r_lut_data), r_first_mapped_value, 16]
+        r_lut_data_retrieved = np.frombuffer(
+            pr.RedPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(r_lut_data, r_lut_data_retrieved)
+        assert pr.RedPaletteColorLookupTableDescriptor == red_descriptor
+        green_descriptor = [len(g_lut_data), g_first_mapped_value, 16]
+        g_lut_data_retrieved = np.frombuffer(
+            pr.GreenPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(g_lut_data, g_lut_data_retrieved)
+        assert pr.GreenPaletteColorLookupTableDescriptor == green_descriptor
+        blue_descriptor = [len(b_lut_data), b_first_mapped_value, 16]
+        b_lut_data_retrieved = np.frombuffer(
+            pr.BluePaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(b_lut_data, b_lut_data_retrieved)
+        assert pr.BluePaletteColorLookupTableDescriptor == blue_descriptor
