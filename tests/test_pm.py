@@ -9,6 +9,10 @@ from pydicom import dcmread
 from pydicom.data import get_testdata_files
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
+from pydicom.uid import (
+    JPEG2000Lossless,
+    JPEGLSLossless,
+)
 
 from highdicom.content import (
     PlanePositionSequence,
@@ -410,7 +414,7 @@ class TestParametricMap(unittest.TestCase):
         assert instance.ImageType[2] == 'WHOLE_BODY'
         assert instance.ImageType[3] == 'NONE'
 
-    def test_multi_frame_sm_image_ushort_encapsulated(self):
+    def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
         pixel_array = np.random.randint(
             low=0,
             high=2**8,
@@ -443,9 +447,47 @@ class TestParametricMap(unittest.TestCase):
             real_world_value_mappings=[real_world_value_mapping],
             window_center=window_center,
             window_width=window_width,
-            transfer_syntax_uid='1.2.840.10008.1.2.4.90'
+            transfer_syntax_uid=JPEG2000Lossless
         )
         assert pmap.BitsAllocated == 8
+        assert np.array_equal(pmap.pixel_array, pixel_array)
+
+    def test_multi_frame_sm_image_ushort_encapsulated_jpegls(self):
+        pixel_array = np.random.randint(
+            low=0,
+            high=2**8,
+            size=self._sm_image.pixel_array.shape[:3],
+            dtype=np.uint16
+        )
+        window_center = 128
+        window_width = 256
+
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[0, 255],
+            intercept=0,
+            slope=1
+        )
+        pmap = ParametricMap(
+            [self._sm_image],
+            pixel_array,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[real_world_value_mapping],
+            window_center=window_center,
+            window_width=window_width,
+            transfer_syntax_uid=JPEGLSLossless
+        )
+        assert pmap.BitsAllocated == 16
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_double(self):

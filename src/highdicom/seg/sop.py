@@ -18,6 +18,7 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
+    JPEGLSLossless,
     RLELossless,
     UID,
 )
@@ -290,6 +291,7 @@ class Segmentation(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
             JPEG2000Lossless,
+            JPEGLSLossless,
             RLELossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
