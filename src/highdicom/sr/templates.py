@@ -3711,7 +3711,7 @@ class ImageLibraryEntryDescriptors(Template):
         dataset: Dataset
     ) -> Sequence[ContentItem]:
 
-        """
+        """Generate descriptors for projection radiography modalities.
         :dcm:`TID 1603 <part16/chapter_A.html#sect_TID_1603>`
         Image Library Entry Descriptors for Projection Radiography
 
