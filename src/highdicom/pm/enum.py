@@ -1,0 +1,78 @@
+"""Enumerate values specific to Parametric Map IODs."""
+from enum import Enum
+
+
+class ImageFlavorValues(Enum):
+
+    """Enumerated values for value 3 of attribute Image Type or Frame Type."""
+
+    ANGIO = 'ANGIO'
+    CARDIAC = 'CARDIAC'
+    CARDIAC_GATED = 'CARDIAC_GATED'
+    CARDRESP_GATED = 'CARDRESP_GATED'
+    DYNAMIC = 'DYNAMIC'
+    FLUOROSCOPY = 'FLUOROSCOPY'
+    LOCALIZER = 'LOCALIZER'
+    MOTION = 'MOTION'
+    PERFUSION = 'PERFUSION'
+    PRE_CONTRAST = 'PRE_CONTRAST'
+    POST_CONTRAST = 'POST_CONTRAST'
+    RESP_GATED = 'RESP_GATED'
+    REST = 'REST'
+    STATIC = 'STATIC'
+    STRESS = 'STRESS'
+    VOLUME = 'VOLUME'
+    NON_PARALLEL = 'NON_PARALLEL'
+    PARALLEL = 'PARALLEL'
+    WHOLE_BODY = 'WHOLE_BODY'
+    # CT
+    ATTENUATION = 'ATTENUATION'
+    CARDIAC_CTA = 'CARDIAC_CTA'
+    CARDIAC_CASCORE = 'CARDIAC_CASCORE'
+    REFERENCE = 'REFERENCE'
+    # MR
+    ANGIO_TIME = 'ANGIO_TIME'
+    ASL = 'ASL'
+    CINE = 'CINE'
+    DIFFUSION = 'DIFFUSION'
+    DIXON = 'DIXON'
+    FLOW_ENCODED = 'FLOW_ENCODED'
+    FLUID_ATTENUATED = 'FLUID_ATTENUATED'
+    FMRI = 'FMRI'
+    MAX_IP = 'MAX_IP'
+    MIN_IP = 'MIN_IP'
+    M_MODE = 'M_MODE'
+    METABOLITE_MAP = 'METABOLITE_MAP'
+    MULTIECHO = 'MULTIECHO'
+    PROTON_DENSITY = 'PROTON_DENSITY'
+    REALTIME = 'REALTIME'
+    STIR = 'STIR'
+    TAGGING = 'TAGGING'
+    TEMPERATURE = 'TEMPERATURE'
+    T1 = 'T1'
+    T2 = 'T2'
+    T2_STAR = 'T2_STAR'
+    TOF = 'TOF'
+    VELOCITY = 'VELOCITY'
+
+
+class DerivedPixelContrastValues(Enum):
+
+    """Enumerated values for value 4 of attribute Image Type or Frame Type."""
+
+    ADDITION = 'ADDITION'
+    DIVISION = 'DIVISION'
+    MASKED = 'MASKED'
+    MAXIMUM = 'MAXIMUM'
+    MEAN = 'MEAN'
+    MINIMUM = 'MINIMUM'
+    MULTIPLICATION = 'MULTIPLICATION'
+    NONE = 'NONE'
+    RESAMPLED = 'RESAMPLED'
+    STD_DEVIATION = 'STD_DEVIATION'
+    SUBTRACTION = 'SUBTRACTION'
+    QUANTITY = 'QUANTITY'
+    # CT
+    FILTERED = 'FILTERED'
+    MEDIAN = 'MEDIAN'
+    ENERGY_PROP_WT = 'ENERGY_PROP_WT'

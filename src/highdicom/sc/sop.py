@@ -17,6 +17,7 @@ from pydicom.uid import (
     RLELossless,
     JPEGBaseline8Bit,
     JPEG2000Lossless,
+    JPEGLSLossless,
 )
 
 from highdicom.base import SOPClass
@@ -95,7 +96,7 @@ class SCImage(SOPClass):
             specimen_descriptions: Optional[
                 Sequence[SpecimenDescription]
             ] = None,
-            transfer_syntax_uid: str = ImplicitVRLittleEndian,
+            transfer_syntax_uid: str = ExplicitVRLittleEndian,
             **kwargs: Any
         ):
         """
@@ -172,7 +173,8 @@ class SCImage(SOPClass):
             UID of transfer syntax that should be used for encoding of
             data elements. The following compressed transfer syntaxes
             are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``), JPEG
-            2000 Lossless (``"1.2.840.10008.1.2.4.90"``), JPEG Baseline
+            2000 Lossless (``"1.2.840.10008.1.2.4.90"``), JPEG-LS Lossless
+            (``"1.2.840.10008.1.2.4.80"``), and JPEG Baseline
             (``"1.2.840.10008.1.2.4.50"``). Note that JPEG Baseline is a
             lossy compression method that will lead to a loss of detail in
             the image.
@@ -187,6 +189,7 @@ class SCImage(SOPClass):
             RLELossless,
             JPEGBaseline8Bit,
             JPEG2000Lossless,
+            JPEGLSLossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(

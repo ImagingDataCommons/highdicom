@@ -2,7 +2,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from operator import eq
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -417,4 +417,4 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             for item in ann.AnnotationGroupSequence
         ]
 
-        return ann
+        return cast(MicroscopyBulkSimpleAnnotations, ann)

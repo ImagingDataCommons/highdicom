@@ -14,15 +14,15 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
-    JPEG2000Lossless
+    JPEG2000Lossless,
+    JPEGLSLossless,
 )
 
-from highdicom import (
+from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
-    UID,
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
@@ -37,6 +37,7 @@ from highdicom.seg import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
+from highdicom.uid import UID
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -1249,7 +1250,8 @@ class TestSegmentation(unittest.TestCase):
                 ExplicitVRLittleEndian,
                 ImplicitVRLittleEndian,
                 RLELossless,
-                JPEG2000Lossless
+                JPEG2000Lossless,
+                JPEGLSLossless,
             ]
 
             max_fractional_value = 255
@@ -2129,7 +2131,7 @@ class TestSegmentation(unittest.TestCase):
         assert po_item.ImageOrientationPatient == list(image_orientation)
         self.check_dimension_index_vals(instance)
 
-    def test_construction_optional_arguments_3(self):
+    def test_spatial_positions_not_preserved(self):
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(

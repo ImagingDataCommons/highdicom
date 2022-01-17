@@ -10,10 +10,10 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
 from highdicom.frame import encode_frame
-from highdicom.pm.content import RealWorldValueMapping
-from highdicom.pm.content import DimensionIndexSequence
+from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
+from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
 from highdicom.valuerep import check_person_name, _check_code_string
 from pydicom import Dataset
 from pydicom.uid import (
@@ -21,22 +21,31 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
+    JPEGLSLossless,
     RLELossless,
 )
+from pydicom.valuerep import format_number_as_ds
 
 
 class _PixelDataType(Enum):
-    """Helper enum for tracking the type of the pixel data"""
+    """Helper class for tracking the type of the pixel data."""
 
-    SHORT = 1
-    USHORT = 2
-    SINGLE = 3
-    DOUBLE = 4
+    USHORT = 1
+    SINGLE = 2
+    DOUBLE = 3
 
 
 class ParametricMap(SOPClass):
 
-    """SOP class for a Parametric Map."""
+    """SOP class for a Parametric Map.
+
+    Note
+    ----
+    This class only supports creation of Parametric Map instances with a
+    value of interest (VOI) lookup table that describes a linear transformation
+    that equally applies to all frames in the image.
+
+    """
 
     def __init__(
         self,
@@ -64,6 +73,15 @@ class ParametricMap(SOPClass):
         plane_orientation: Optional[PlaneOrientationSequence] = None,
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         content_label: Optional[str] = None,
+        content_qualification: Union[
+            str,
+            ContentQualificationValues
+        ] = ContentQualificationValues.RESEARCH,
+        image_flavor: Union[str, ImageFlavorValues] = ImageFlavorValues.VOLUME,
+        derived_pixel_contrast: Union[
+            str,
+            DerivedPixelContrastValues
+        ] = DerivedPixelContrastValues.QUANTITY,
         **kwargs,
     ):
         """
@@ -74,10 +92,10 @@ class ParametricMap(SOPClass):
             One or more single- or multi-frame images (or metadata of images)
             from which the parametric map was derived
         pixel_array: numpy.ndarray
-            2D, 3D, or 4D array of signed integer, unsigned integer, or
-            floating-point data type representing one or more channels
-            (images derived from source images via an image transformation)
-            for one or more spatial image positions:
+            2D, 3D, or 4D array of unsigned integer or floating-point data type
+            representing one or more channels (images derived from source
+            images via an image transformation) for one or more spatial image
+            positions:
 
             * In case of a 2D array, the values represent a single channel
               for a single 2D frame and the array shall have shape ``(r, c)``,
@@ -126,7 +144,7 @@ class ParametricMap(SOPClass):
             used for different representations such as log versus linear scales
             or for different representations in different units.
             If `pixel_array` is a 2D or 3D array and only one channel exists
-            at each spatial image position), then one or more real-world value
+            at each spatial image position, then one or more real-world value
             mappings shall be provided in a flat sequence.
             If `pixel_array` is a 4D array and multiple channels exist at each
             spatial image position, then one or more mappings shall be provided
@@ -135,22 +153,22 @@ class ParametricMap(SOPClass):
 
             In some situations the mapping may be difficult to describe (e.g., in
             case of a transformation performed by a deep convolutional neural
-            network). The real-world value mapping may simply describe an
+            network). The real-world value mapping may then simply describe an
             identity function that maps stored values to unit-less real-world
             values.
         window_center: Union[int, float, None], optional
-            Window center for rescaling stored values for display purposes by
-            applying a linear transformation function. For example, in case of
-            floating-point values in the range ``[0.0, 1.0]``, the window
-            center may be ``0.5``, in case of floating-point values in the
-            range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
+            Window center (intensity) for rescaling stored values for display
+            purposes by applying a linear transformation function. For example,
+            in case of floating-point values in the range ``[0.0, 1.0]``, the
+            window center may be ``0.5``, in case of floating-point values in
+            the range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
             of unsigned integer values in the range ``[0, 255]`` the window
             center may be ``128``.
         window_width: Union[int, float, None], optional
-            Window width for rescaling stored values for display purposes by
-            applying a linear transformation function. For example, in case of
-            floating-point values in the range ``[0.0, 1.0]``, the window
-            width may be ``1.0``, in case of floating-point values in the
+            Window width (contrast) for rescaling stored values for display
+            purposes by applying a linear transformation function. For example,
+            in case of floating-point values in the range ``[0.0, 1.0]``, the
+            window width may be ``1.0``, in case of floating-point values in the
             range ``[-1.0, 1.0]`` the window width may be ``2.0``, and in
             case of unsigned integer values in the range ``[0, 255]`` the
             window width may be ``256``. In case of unbounded floating-point
@@ -158,8 +176,8 @@ class ParametricMap(SOPClass):
             stored values to be displayed on 8-bit monitors.
         transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
-            data elements. Defaults to Implicit VR Little Endian
-            (UID ``"1.2.840.10008.1.2"``)
+            data elements. Defaults to Explicit VR Little Endian
+            (UID ``"1.2.840.10008.1.2.1"``)
         content_description: Union[str, None], optional
             Brief description of the parametric map image
         content_creator_name: Union[str, None], optional
@@ -184,6 +202,14 @@ class ParametricMap(SOPClass):
             source images).
         content_label: Union[str, None], optional
             Content label
+        content_qualification: Union[str, highdicom.ContentQualificationValues], optional
+            Indicator of whether content was produced with approved hardware
+            and software
+        image_flavor: Union[str, highdicom.pm.ImageFlavorValues], optional
+            Overall representation of the image type
+        derived_pixel_contrast: Union[str, highdicom.pm.DerivedPixelContrast], optional
+            Contrast created by combining or processing source images with the
+            same geometry
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -205,7 +231,9 @@ class ParametricMap(SOPClass):
         Note
         ----
         The assumption is made that planes in `pixel_array` are defined in
-        the same frame of reference as `source_images`.
+        the same frame of reference as `source_images`. It is further assumed
+        that all image frame have the same type (i.e., the same `image_flavor`
+        and `derived_pixel_contrast`).
 
         """  # noqa
         if len(source_images) == 0:
@@ -244,15 +272,14 @@ class ParametricMap(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
         }
-        if pixel_array.dtype.kind in ('u', 'i'):
+        if pixel_array.dtype.kind == 'u':
             # If pixel data has unsigned or signed integer data type, then it
             # can be lossless compressed. The standard does not specify any
             # compression codecs for floating-point data types.
-            # In case of signed integer data type, values will be rescaled to
-            # a signed integer range prior to compression.
             supported_transfer_syntaxes.update(
                 {
                     JPEG2000Lossless,
+                    JPEGLSLossless,
                     RLELossless,
                 }
             )
@@ -271,7 +298,6 @@ class ParametricMap(SOPClass):
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
         self._pixel_data_type_map = {
-            _PixelDataType.SHORT: 'PixelData',
             _PixelDataType.USHORT: 'PixelData',
             _PixelDataType.SINGLE: 'FloatPixelData',
             _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
@@ -341,7 +367,20 @@ class ParametricMap(SOPClass):
             self.ReferencedSeriesSequence.append(ref)
 
         # Parametric Map Image
-        self.ImageType = ["DERIVED", "PRIMARY"]
+        image_flavor = ImageFlavorValues(image_flavor)
+        derived_pixel_contrast = DerivedPixelContrastValues(
+            derived_pixel_contrast
+        )
+        self.ImageType = [
+            "DERIVED",
+            "PRIMARY",
+            image_flavor.value,
+            derived_pixel_contrast.value,
+        ]
+        content_qualification = ContentQualificationValues(
+            content_qualification
+        )
+        self.ContentQualification = content_qualification.value
         self.LossyImageCompression = getattr(
             src_img, 'LossyImageCompression', '00'
         )
@@ -430,11 +469,12 @@ class ParametricMap(SOPClass):
         else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
+        # Acquisition Context
+        self.AcquisitionContextSequence: List[Dataset] = []
+
         # Image Pixel
         self.Rows = pixel_array.shape[1]
         self.Columns = pixel_array.shape[2]
-
-        # TODO: tiled image with Total Pixel Matrix Rows/Columns
 
         if len(real_world_value_mappings) != pixel_array.shape[3]:
             raise ValueError(
@@ -496,6 +536,7 @@ class ParametricMap(SOPClass):
             plane_orientation == source_plane_orientation
         )
 
+        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
         plane_position_values, plane_sort_index = \
             self.DimensionIndexSequence.get_index_values(plane_positions)
 
@@ -510,22 +551,22 @@ class ParametricMap(SOPClass):
                 self.TotalPixelMatrixColumns = \
                     source_images[0].TotalPixelMatrixColumns
             else:
-                row_index = self.DimensionIndexSequence.get_index_position(
+                row_index = plane_position_names.index(
                     'RowPositionInTotalImagePixelMatrix'
                 )
                 row_offsets = plane_position_values[:, row_index]
-                col_index = self.DimensionIndexSequence.get_index_position(
+                col_index = plane_position_names.index(
                     'ColumnPositionInTotalImagePixelMatrix'
                 )
                 col_offsets = plane_position_values[:, col_index]
                 frame_indices = np.lexsort([row_offsets, col_offsets])
                 first_frame_index = frame_indices[0]
                 last_frame_index = frame_indices[-1]
-                x_index = self.DimensionIndexSequence.get_index_position(
+                x_index = plane_position_names.index(
                     'XOffsetInSlideCoordinateSystem'
                 )
                 x_offset = plane_position_values[first_frame_index, x_index]
-                y_index = self.DimensionIndexSequence.get_index_position(
+                y_index = plane_position_names.index(
                     'YOffsetInSlideCoordinateSystem'
                 )
                 y_offset = plane_position_values[first_frame_index, y_index]
@@ -533,11 +574,11 @@ class ParametricMap(SOPClass):
                 origin_item.XOffsetInSlideCoordinateSystem = x_offset
                 origin_item.YOffsetInSlideCoordinateSystem = y_offset
                 self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = (
+                self.TotalPixelMatrixRows = int(
                     plane_position_values[last_frame_index, row_index] +
                     self.Rows
                 )
-                self.TotalPixelMatrixColumns = (
+                self.TotalPixelMatrixColumns = int(
                     plane_position_values[last_frame_index, col_index] +
                     self.Columns
                 )
@@ -560,25 +601,17 @@ class ParametricMap(SOPClass):
         sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
-        if pixel_array.dtype.kind == 'i':
-            # In case of signed integer type we rescale values to unsigned
-            # 16-bit integer range.
-            transformation_item = Dataset()
-            transformation_item.RescaleIntercept = 2 ** 16 / 2
-            transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = 'US'
-        else:
-            transformation_item = Dataset()
-            transformation_item.RescaleIntercept = 0
-            transformation_item.RescaleSlope = 1
-            transformation_item.RescaleType = 'US'
+        transformation_item = Dataset()
+        transformation_item.RescaleIntercept = 0
+        transformation_item.RescaleSlope = 1
+        transformation_item.RescaleType = 'US'
         sffg_item.PixelValueTransformationSequence = [transformation_item]
 
         # Frame VOI LUT With LUT
         voi_lut_item = Dataset()
-        voi_lut_item.WindowCenter = window_center
-        voi_lut_item.WindowWidth = window_width
-        voi_lut_item.VOILUTFunction = "LINEAR_EXACT"
+        voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
+        voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
+        voi_lut_item.VOILUTFunction = 'LINEAR'
         sffg_item.FrameVOILUTSequence = [voi_lut_item]
 
         # Parametric Map Frame Type
@@ -586,16 +619,22 @@ class ParametricMap(SOPClass):
         frame_type_item.FrameType = self.ImageType
         sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
 
-        # TODO: put Real World Value Mapping Sequence into shared
+        has_multiple_mappings = pixel_array.shape[3] > 1
+        if not has_multiple_mappings:
+            # Only if there is only a single set of mappings. Otherwise,
+            # the information will be stored in the Per-Frame Functional
+            # Groups Sequence.
+            sffg_item.RealWorldValueMappingSequence = \
+                real_world_value_mappings[0]
+
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
         # Get the correct pixel data attribute
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
             pixel_array
         )
-        if (pixel_data_type == _PixelDataType.SHORT or
-                pixel_data_type == _PixelDataType.USHORT):
-            self.BitsAllocated = 16
+        if pixel_data_type == _PixelDataType.USHORT:
+            self.BitsAllocated = int(pixel_array.itemsize * 8)
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
             self.PixelRepresentation = 0
@@ -603,66 +642,19 @@ class ParametricMap(SOPClass):
             self.BitsAllocated = 32
         elif pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
+        else:
+            raise ValueError('Encountered unexpected pixel data type.')
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
 
-        frames, per_frame_func_groups = self._create_frame_items(
-            pixel_array,
-            pixel_data_type=pixel_data_type,
-            real_world_value_mappings=real_world_value_mappings,
-            coordinate_system=coordinate_system,
-            plane_positions=plane_positions
-        )
-        self.NumberOfFrames = len(frames)
-        self.PerFrameFunctionalGroupsSequence = per_frame_func_groups
+        dimension_position_values = [
+            np.unique(plane_position_values[:, index], axis=0)
+            for index in range(plane_position_values.shape[1])
+        ]
 
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            pixel_data = encapsulate(frames)
-        else:
-            pixel_data = b''.join(frames)
-        setattr(self, pixel_data_attr, pixel_data)
-
-    def _create_frame_items(
-        self,
-        pixel_array: np.ndarray,
-        pixel_data_type: _PixelDataType,
-        real_world_value_mappings: Sequence[Sequence[RealWorldValueMapping]],
-        coordinate_system: CoordinateSystemNames,
-        plane_positions: Sequence[PlanePositionSequence],
-    ) -> Tuple[List[bytes], List[Dataset]]:
-        """Create frame items.
-
-        Parameters
-        ----------
-        pixel_array: np.ndarray
-            4D array of unsigned integer or floating-point data type
-            with shape ``(n, r, c, m)``, where ``n`` is the number of frames,
-            ``r`` is the number of rows per frame, ``c`` is the number of
-            columns per frame, and ``m`` is the number of mapping results per
-            frame (spatial image position).
-        real_world_value_mappings: Sequence[Sequence[highdicom.map.RealWorldValueMappingSequence]]
-            Descriptions of the mapping of values stored in `pixel_array` to
-            real-world values. One or more descriptions may be provided for
-            each mapping result in `pixel_array` (last ``m`` dimension).
-        plane_positions: Sequence[highdicom.PlanePositionSequence]
-            Position of each plane (frame) in `pixel_array` (first ``n``
-            dimension) relative to the patient or slide coordinate system.
-
-        Returns
-        -------
-        frames: List[bytes]
-            Encoded pixel data frames
-        per_frame_functional_groups_sequence: List[pydicom.dataset.Dataset]
-            Functional groups for each frame
-
-        """  # noqa
-        _, spatial_index_values = self.DimensionIndexSequence.get_index_values(
-            plane_positions
-        )
-        per_frame_functional_groups = []
         frames = []
-        has_multiple_mappings = pixel_array.shape[3] > 1
+        self.PerFrameFunctionalGroupsSequence = []
         for i in range(pixel_array.shape[0]):
             for j in range(pixel_array.shape[3]):
                 pffg_item = Dataset()
@@ -678,8 +670,13 @@ class ParametricMap(SOPClass):
 
                 # Frame Content
                 frame_content_item = Dataset()
-                frame_content_item.DimensionIndexValues = \
-                    spatial_index_values[i, ...].tolist()
+                frame_content_item.DimensionIndexValues = [
+                    np.where(
+                        (dimension_position_values[idx] == pos)
+                    )[0][0] + 1
+                    for idx, pos in enumerate(plane_position_values[i])
+                ]
+
                 pffg_item.FrameContentSequence = [frame_content_item]
 
                 # Real World Value Mapping
@@ -690,12 +687,17 @@ class ParametricMap(SOPClass):
                     pffg_item.RealWorldValueMappingSequence = \
                         real_world_value_mappings[j]
 
-                per_frame_functional_groups.append(pffg_item)
+                self.PerFrameFunctionalGroupsSequence.append(pffg_item)
 
                 plane = pixel_array[i, :, :, j]
                 frames.append(self._encode_frame(plane))
 
-        return (frames, per_frame_functional_groups)
+        self.NumberOfFrames = len(frames)
+        if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            pixel_data = encapsulate(frames)
+        else:
+            pixel_data = b''.join(frames)
+        setattr(self, pixel_data_attr, pixel_data)
 
     def _get_pixel_data_type_and_attr(
         self,
@@ -724,7 +726,6 @@ class ParametricMap(SOPClass):
 
         """
         if pixel_array.dtype.kind == 'f':
-            # Further check for float32 vs float64
             if pixel_array.dtype.name == 'float32':
                 return (
                     _PixelDataType.SINGLE,
@@ -751,20 +752,10 @@ class ParametricMap(SOPClass):
                 _PixelDataType.USHORT,
                 self._pixel_data_type_map[_PixelDataType.USHORT],
             )
-        elif pixel_array.dtype.kind == "i":
-            if pixel_array.dtype not in (np.int8, np.int16):
-                raise ValueError(
-                    'Unsupported signed integer type for pixel data: '
-                    '8-bit or 16-bit signed integer types are supported.'
-                )
-            return (
-                _PixelDataType.SHORT,
-                self._pixel_data_type_map[_PixelDataType.SHORT],
-            )
         raise ValueError(
             'Unsupported data type for pixel data.'
-            'Supported are 8-bit or 16-bit signed and unsigned integer types '
-            'as well as 32-bit (single-precision) or 64-bit (double-precision) '
+            'Supported are 8-bit or 16-bit unsigned integer types as well as '
+            '32-bit (single-precision) or 64-bit (double-precision) '
             'floating-point types.'
         )
 
@@ -793,9 +784,8 @@ class ParametricMap(SOPClass):
                 'in case of encapsulated format encoding.'
             )
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            # Check that only a single plane was passed
             return encode_frame(
-                pixel_array.astype(np.uint16),
+                pixel_array,
                 transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
                 bits_allocated=self.BitsAllocated,
                 bits_stored=self.BitsStored,
@@ -803,10 +793,4 @@ class ParametricMap(SOPClass):
                 pixel_representation=self.PixelRepresentation
             )
         else:
-            if pixel_array.dtype == np.uint8:
-                return pixel_array.astype(np.uint16).flatten().tobytes()
-            elif pixel_array.dtype.kind == 'i':
-                pixel_array = pixel_array.astype(np.int16) + 2 ** 16 / 2
-                return pixel_array.astype(np.uint16).flatten().tobytes()
-            else:
-                return pixel_array.flatten().tobytes()
+            return pixel_array.flatten().tobytes()

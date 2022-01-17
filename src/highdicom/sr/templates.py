@@ -4449,6 +4449,7 @@ class MeasurementReport(Template):
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
+                    found_gt: Union[GraphicTypeValues, GraphicTypeValues3D]
                     if isinstance(graphic_type, GraphicTypeValues):
                         if ref_value_type == ValueTypeValues.SCOORD:
                             found_gt = GraphicTypeValues(ref_item.GraphicType)
@@ -4704,6 +4705,7 @@ class MeasurementReport(Template):
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
+                    found_gt: Union[GraphicTypeValues, GraphicTypeValues3D]
                     if isinstance(graphic_type, GraphicTypeValues):
                         if ref_value_type == ValueTypeValues.SCOORD:
                             found_gt = GraphicTypeValues(

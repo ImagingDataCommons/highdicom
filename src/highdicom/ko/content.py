@@ -112,6 +112,7 @@ class KeyObjectSelection(ContentSequence):
             meaning='Source',
         )
         for ds in referenced_objects:
+            reference_item: Union[ImageContentItem, CompositeContentItem]
             if 'Rows' in ds and 'Columns' in ds:
                 reference_item = ImageContentItem(
                     name=name,

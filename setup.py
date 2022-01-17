@@ -31,6 +31,8 @@ setuptools.setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Development Status :: 4 - Beta',
     ],
     include_package_data=True,
@@ -40,6 +42,10 @@ setuptools.setup(
     install_requires=[
         'pydicom>=2.2.2',
         'numpy>=1.19',
-        'pillow>=8.3'
+        'pillow>=8.3',
+        'pillow-jpls>=1.0',
+        'pylibjpeg>=1.3',
+        'pylibjpeg-libjpeg>=1.2',
+        'pylibjpeg-openjpeg>=1.1',
     ],
 )
