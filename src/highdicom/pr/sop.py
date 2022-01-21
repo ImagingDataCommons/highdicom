@@ -1,4 +1,5 @@
 """Module for SOP Classes of Presentation State (PR) IODs."""
+from collections import defaultdict
 import datetime
 from typing import Sequence, Optional, Tuple, Union
 
@@ -404,7 +405,14 @@ class _SoftcopyPresentationState(SOPClass):
                 )
 
         # Softcopy VOI LUT
-        if softcopy_voi_luts is not None:
+        if copy_voi_lut:
+            if softcopy_voi_luts is not None:
+                raise TypeError(
+                    'If argument "copy_voi_lut" is  True, argument '
+                    '"softcopy_voi_luts" must be None.'
+                )
+            self._copy_voi_lut(referenced_images)
+        elif softcopy_voi_luts is not None:
             if len(softcopy_voi_luts) == 0:
                 raise ValueError(
                     'Argument "softcopy_voi_luts" must not be empty.'
@@ -623,6 +631,106 @@ class _SoftcopyPresentationState(SOPClass):
             rescale_slope=slope,
             rescale_type=rescale_type,
         )
+
+    def _copy_voi_lut(self, referenced_images: Sequence[Dataset]) -> None:
+        """Copy elements of the Softcopy VOI LUT module from referenced images.
+
+        Any window center, window width, window explanation, VOI LUT function,
+        or VOI LUT Sequence attributes the referenced images are copied to the
+        presentation state dataset.  Missing values will cause no errors, and
+        will result in the relevant (optional) attributes being omitted from
+        the presentation state object.  Inconsistent values between
+        referenced images will result in multiple different items of the
+        Softcopy VOI LUT Sequence in the presentation state object.
+
+        Parameters
+        ----------
+        referenced_images: Sequence[pydicom.Dataset]
+            The referenced images from which the attributes should be copied.
+
+        """
+        by_window = defaultdict(list)
+        by_lut = defaultdict(list)
+
+        for ref_im in referenced_images:
+            has_width = hasattr(ref_im, 'WindowWidth')
+            has_center = hasattr(ref_im, 'WindowCenter')
+            has_lut = hasattr(ref_im, 'VOILUTSequence')
+
+            if has_width != has_center:
+                raise ValueError(
+                    'Error while copying VOI LUT attributes: found dataset '
+                    'with mismatched WindowWidth and WindowCenter attributes.'
+                )
+
+            if has_width and has_lut:
+                raise ValueError(
+                    'Error while copying VOI LUT attributes: found dataset '
+                    'with both window width/center and VOI LUT Sequence '
+                    'attributes.'
+                )
+
+            if has_width:
+                by_window[(
+                    ref_im.WindowWidth,
+                    ref_im.WindowCenter,
+                    getattr(ref_im, 'WindowCenterWidthExplanation', None),
+                    getattr(ref_im, 'VOILUTFunction', None),
+                )].append(ref_im)
+            else:
+                for voi_lut in ref_im.VOILUTSequence:
+                    by_lut[(
+                        voi_lut.LUTDescriptor,
+                        getattr(voi_lut, 'LUTExplanation', None),
+                        voi_lut.LUTData
+                    )].append(ref_im)
+
+        # TODO multiple LUTs
+        # TODO referenced frames/segments
+        # TODO multiframe
+        softcopy_voi_luts = []
+        for (width, center, exp, func), im_list in by_window.items():
+            if len(im_list) == len(referenced_images):
+                # All datasets included, no need to include the referenced
+                # images explicitly
+                refs_to_include = None
+            else:
+                # Include specific references
+                refs_to_include = im_list
+
+            softcopy_voi_luts.append(
+                SoftcopyVOILUT(
+                    window_center=center,
+                    window_width=width,
+                    window_explanation=exp,
+                    voi_lut_function=func,
+                    referenced_images=refs_to_include
+                )
+            )
+
+        for (desc, exp, data), im_list in by_lut.items():
+            if len(im_list) == len(referenced_images):
+                # All datasets included, no need to include the referenced
+                # images explicitly
+                refs_to_include = None
+            else:
+                # Include specific references
+                refs_to_include = im_list
+
+            lut = LUT(
+                first_mapped_value=desc[1],
+                lut_data=np.frombuffer(data),
+                lut_explanation=exp
+            )
+            softcopy_voi_luts.append(
+                SoftcopyVOILUT(
+                    referenced_images=refs_to_include,
+                    voi_luts=[lut]
+                )
+            )
+
+        if len(softcopy_voi_luts) > 0:
+            self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
     def _add_icc_profile(
         self,
@@ -942,6 +1050,28 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             A label used to describe the content of this presentation state.
             Must be a valid DICOM code string consisting only of capital
             letters, underscores and spaces.
+        red_palette_color_lut_data: np.ndarray
+            Array of values for the red color lookup table data. Must be a 1D
+            array of uint16 values, where the first entry is the red output
+            value of the palette color lookup table operation when the input
+            pixel is ``"red_first_mapped_value"``, and so on.
+        green_palette_color_lut_data: np.ndarray
+            Array of values for the green color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        blue_palette_color_lut_data: np.ndarray
+            Array of values for the blue color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        red_first_mapped_value: int
+            Integer representing the first input value mapped by the red palette
+            lookup table operation.
+        green_first_mapped_value: int
+            Integer representing the first input value mapped by the green
+            lookup table operation.
+        blue_first_mapped_value: int
+            Integer representing the first input value mapped by the blue
+            palette lookup table operation.
+        palette_color_lut_uid: Union[UID, str, None], optional
+            Unique identifier for the palette color lookup table.
         content_description: Union[str, None], optional
             Description of the content of this presentation state.
         graphic_annotations: Union[Sequence[highdicom.pr.GraphicAnnotation], None], optional
@@ -1050,6 +1180,34 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         blue_first_mapped_value: int,
         palette_color_lut_uid: Union[UID, str, None] = None
     ) -> None:
+        """Add attributes from the Palette Color Lookup Table module.
+
+        Parameters
+        ----------
+        red_palette_color_lut_data: np.ndarray
+            Array of values for the red color lookup table data. Must be a 1D
+            array of uint16 values, where the first entry is the red output
+            value of the palette color lookup table operation when the input
+            pixel is ``"red_first_mapped_value"``, and so on.
+        green_palette_color_lut_data: np.ndarray
+            Array of values for the green color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        blue_palette_color_lut_data: np.ndarray
+            Array of values for the blue color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        red_first_mapped_value: int
+            Integer representing the first input value mapped by the red palette
+            lookup table operation.
+        green_first_mapped_value: int
+            Integer representing the first input value mapped by the green
+            lookup table operation.
+        blue_first_mapped_value: int
+            Integer representing the first input value mapped by the blue
+            palette lookup table operation.
+        palette_color_lut_uid: Union[UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        """
         colors = ['red', 'green', 'blue']
         all_lut_data = [
             red_palette_color_lut_data,
