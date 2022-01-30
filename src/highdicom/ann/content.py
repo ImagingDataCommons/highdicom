@@ -368,6 +368,8 @@ class AnnotationGroup(Dataset):
         else:
             self.PointCoordinatesData = coordinates_data.tobytes()
 
+        self._graphic_data = graphic_data
+
         if graphic_type in (
             GraphicTypeValues.POLYGON,
             GraphicTypeValues.POLYLINE,
@@ -496,6 +498,73 @@ class AnnotationGroup(Dataset):
             return []
         return list(self.PrimaryAnatomicStructureSequence)
 
+    def get_graphic_data(
+        self,
+        coordinate_type: Union[str, AnnotationCoordinateTypeValues]
+    ) -> List[np.ndarray]:
+        """Get spatial coordinates of all graphical annotations.
+
+        Parameters
+        ----------
+        coordinate_type: Union[str, highdicom.ann.AnnotationCoordinateTypeValues]
+            Coordinate type of annotation
+
+        Returns
+        -------
+        List[numpy.ndarray]
+            Two-dimensional array of floating-point values representing either
+            2D or 3D spatial coordinates for each graphical annotation
+
+        """  # noqa: E501
+        coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
+        if self._graphic_data is None:
+            if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+                coordinate_dimensionality = 2
+            else:
+                coordinate_dimensionality = 3
+
+            try:
+                coordinates_data = getattr(self, 'DoublePointCoordinatesData')
+                coordinates_dtype = np.float64
+            except AttributeError:
+                coordinates_data = getattr(self, 'PointCoordinatesData')
+                coordinates_dtype = np.float32
+            decoded_coordinates_data = np.frombuffer(
+                coordinates_data,
+                coordinates_dtype
+            )
+
+            self._graphic_data = []
+            for i in range(self.number_of_annotations):
+                annotation_number = i + 1
+                coordinate_index = self._get_coordinate_index(
+                    annotation_number,
+                    coordinate_dimensionality=coordinate_dimensionality,
+                    number_of_coordinates=decoded_coordinates_data.shape[0],
+                )
+                coordinates = decoded_coordinates_data[coordinate_index]
+                if hasattr(self, 'CommonZCoordinateValue'):
+                    coordinates = coordinates.reshape(-1, 2)
+                    z_values = np.zeros(
+                        (coordinates.shape[0], 1),
+                        dtype=coordinates.dtype
+                    )
+                    z_values[:] = coordinates.dtype.type(
+                        self.CommonZCoordinateValue
+                    )
+                    coordinates = np.concatenate(
+                        [coordinates, z_values],
+                        axis=1
+                    )
+                else:
+                    coordinates = coordinates.reshape(
+                        -1,
+                        coordinate_dimensionality
+                    )
+                self._graphic_data.append(coordinates)
+
+        return self._graphic_data
+
     def get_coordinates(
         self,
         annotation_number: int,
@@ -517,36 +586,9 @@ class AnnotationGroup(Dataset):
             2D or 3D spatial coordinates of a graphical annotation
 
         """  # noqa: E501
-        coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
-        if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
-            coordinate_dimensionality = 2
-        else:
-            coordinate_dimensionality = 3
-
-        try:
-            coordinates_data = getattr(self, 'DoublePointCoordinatesData')
-            coordinates = np.frombuffer(coordinates_data, np.float64)
-        except AttributeError:
-            coordinates_data = getattr(self, 'PointCoordinatesData')
-            coordinates = np.frombuffer(coordinates_data, np.float32)
-
-        coordinate_index = self._get_coordinate_index(
-            annotation_number,
-            coordinate_dimensionality=coordinate_dimensionality,
-            number_of_coordinates=coordinates.shape[0],
-        )
-        coordinates = coordinates[coordinate_index]
-
-        if hasattr(self, 'CommonZCoordinateValue'):
-            coordinates = coordinates.reshape(-1, 2)
-            if coordinates.dtype == np.double:
-                z_values = np.zeros((coordinates.shape[0], 1), np.float64)
-            else:
-                z_values = np.zeros((coordinates.shape[0], 1), np.float32)
-            z_values[:] = float(self.CommonZCoordinateValue)
-            return np.concatenate([coordinates, z_values], axis=1)
-        else:
-            return coordinates.reshape(-1, coordinate_dimensionality)
+        graphic_data = self.get_graphic_data(coordinate_type)
+        annotation_index = annotation_number - 1
+        return graphic_data[annotation_index]
 
     @property
     def number_of_annotations(self) -> int:
@@ -694,6 +736,7 @@ class AnnotationGroup(Dataset):
         )
         group = deepcopy(dataset)
         group.__class__ = cls
+        group._graphic_data = None
 
         group.AnnotationPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
