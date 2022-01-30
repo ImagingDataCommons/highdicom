@@ -14,6 +14,7 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
+from highdicom.spatial import map_pixel_into_coordinate_system
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
@@ -500,13 +501,39 @@ class DimensionIndexSequence(DataElementSequence):
                 'Argument "images" must be a series of single-frame images.'
             )
 
-        plane_positions = [
-            PlanePositionSequence(
-                coordinate_system=CoordinateSystemNames.PATIENT,
-                image_position=img.ImagePositionPatient
-            )
-            for img in images
-        ]
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            plane_positions = []
+            for img in images:
+                # Unfortunatel, the image position is not specified relative to
+                # the top left corner but to the center of the image.
+                # Therefore, we need to compute the offset and subtract it.
+                center_item = img.ImageCenterPointCoordinatesSequence[0]
+                x_center = center_item.XOffsetInSlideCoordinateSystem
+                y_center = center_item.YOffsetInSlideCoordinateSystem
+                z_center = center_item.ZOffsetInSlideCoordinateSystem
+                offset_coordinate = map_pixel_into_coordinate_system(
+                    coordinate=((img.Columns / 2, img.Rows / 2)),
+                    image_position=(x_center, y_center, z_center),
+                    image_orientation=img.ImageOrientationSlide,
+                    pixel_spacing=img.PixelSpacing
+                )
+                center_coordinate = np.array((0., 0., 0.), dtype=float)
+                origin_coordinate = center_coordinate - offset_coordinate
+                plane_positions.append(
+                    PlanePositionSequence(
+                        coordinate_system=CoordinateSystemNames.SLIDE,
+                        image_position=origin_coordinate,
+                        pixel_matrix_position=(1, 1)
+                    )
+                )
+        else:
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system=CoordinateSystemNames.PATIENT,
+                    image_position=img.ImagePositionPatient
+                )
+                for img in images
+            ]
 
         return plane_positions
 
