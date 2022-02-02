@@ -288,7 +288,6 @@ class Segmentation(SOPClass):
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
             )
-        is_relative_to_slide = hasattr(src_img, 'ImageOrientationSlide')
         is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
@@ -446,7 +445,7 @@ class Segmentation(SOPClass):
                     )
                 )
 
-        if is_relative_to_slide:
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
             source_plane_orientation = PlaneOrientationSequence(
                 coordinate_system=self._coordinate_system,
                 image_orientation=src_img.ImageOrientationSlide
