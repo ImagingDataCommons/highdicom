@@ -95,7 +95,7 @@ class Measurements(Dataset):
         """
         item = self.MeasurementValuesSequence[0]
         values = np.zeros((number_of_annotations, ), np.float32)
-        values[:] = np.nan
+        values[:] = np.float32(np.nan)
         stored_values = np.frombuffer(item.FloatingPointValues, np.float32)
         if hasattr(item, 'AnnotationIndexList'):
             stored_indices = np.frombuffer(item.AnnotationIndexList, np.int32)
@@ -338,11 +338,16 @@ class AnnotationGroup(Dataset):
                 'Items of argument "graphic_data" must be two-dimensional '
                 'arrays.'
             )
+
         if coordinates.shape[1] not in (2, 3):
             raise ValueError(
                 'Items of argument "graphic_data" must be two-dimensional '
                 'arrays where the second array dimension has size 2 or 3.'
             )
+        coordinate_type = AnnotationCoordinateTypeValues.SCOORD
+        if coordinates.shape[1] == 3:
+            coordinate_type = AnnotationCoordinateTypeValues.SCOORD3D
+
         if not np.all(np.isfinite(coordinates)):
             raise ValueError(
                 'Items of argument "graphic_data" must be arrays of finite '
@@ -368,7 +373,7 @@ class AnnotationGroup(Dataset):
         else:
             self.PointCoordinatesData = coordinates_data.tobytes()
 
-        self._graphic_data = graphic_data
+        self._graphic_data = {coordinate_type: graphic_data}
 
         if graphic_type in (
             GraphicTypeValues.POLYGON,
@@ -517,7 +522,13 @@ class AnnotationGroup(Dataset):
 
         """  # noqa: E501
         coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
-        if self._graphic_data is None:
+        if self._graphic_data:
+            if coordinate_type not in self._graphic_data:
+                raise ValueError(
+                    'Graphic data is not available for Annotation Coordinate '
+                    f'Type "{coordinate_type.value}".'
+                )
+        else:
             if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
                 coordinate_dimensionality = 2
             else:
@@ -534,9 +545,8 @@ class AnnotationGroup(Dataset):
                 coordinates_dtype
             )
 
-            self._graphic_data = []
-            for i in range(self.number_of_annotations):
-                annotation_number = i + 1
+            graphic_data = []
+            for annotation_number in range(1, self.number_of_annotations + 1):
                 coordinate_index = self._get_coordinate_index(
                     annotation_number,
                     coordinate_dimensionality=coordinate_dimensionality,
@@ -561,9 +571,11 @@ class AnnotationGroup(Dataset):
                         -1,
                         coordinate_dimensionality
                     )
-                self._graphic_data.append(coordinates)
+                graphic_data.append(coordinates)
 
-        return self._graphic_data
+            self._graphic_data[coordinate_type] = graphic_data
+
+        return self._graphic_data[coordinate_type]
 
     def get_coordinates(
         self,
@@ -736,7 +748,7 @@ class AnnotationGroup(Dataset):
         )
         group = deepcopy(dataset)
         group.__class__ = cls
-        group._graphic_data = None
+        group._graphic_data = {}
 
         group.AnnotationPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(

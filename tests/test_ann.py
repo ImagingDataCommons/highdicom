@@ -474,6 +474,9 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
                 second_graphic_data[i]
             )
 
+        with pytest.raises(ValueError):
+            second_retrieved_group.get_graphic_data(coordinate_type='2D')
+
         retrieved_groups = annotations.get_annotation_groups(
             graphic_type=GraphicTypeValues.POINT
         )
