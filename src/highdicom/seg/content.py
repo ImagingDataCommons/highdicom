@@ -504,7 +504,7 @@ class DimensionIndexSequence(DataElementSequence):
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
             plane_positions = []
             for img in images:
-                # Unfortunatel, the image position is not specified relative to
+                # Unfortunately, the image position is not specified relative to
                 # the top left corner but to the center of the image.
                 # Therefore, we need to compute the offset and subtract it.
                 center_item = img.ImageCenterPointCoordinatesSequence[0]
