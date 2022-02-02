@@ -535,8 +535,7 @@ class AnnotationGroup(Dataset):
             )
 
             self._graphic_data = []
-            for i in range(self.number_of_annotations):
-                annotation_number = i + 1
+            for annotation_number in range(1, self.number_of_annotations + 1):
                 coordinate_index = self._get_coordinate_index(
                     annotation_number,
                     coordinate_dimensionality=coordinate_dimensionality,
