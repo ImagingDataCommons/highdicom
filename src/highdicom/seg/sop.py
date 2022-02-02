@@ -23,7 +23,7 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import PersonName
+from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
@@ -453,7 +453,9 @@ class Segmentation(SOPClass):
         else:
             if is_multiframe:
                 src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = src_sfg.PlaneOrientationSequence
+                source_plane_orientation = deepcopy(
+                    src_sfg.PlaneOrientationSequence
+                )
             else:
                 source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
@@ -584,8 +586,10 @@ class Segmentation(SOPClass):
 
                 if is_tiled:
                     origin_item = Dataset()
-                    origin_item.XOffsetInSlideCoordinateSystem = x_origin
-                    origin_item.YOffsetInSlideCoordinateSystem = y_origin
+                    origin_item.XOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(x_origin)
+                    origin_item.YOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(y_origin)
                     self.TotalPixelMatrixOriginSequence = [origin_item]
                     self.TotalPixelMatrixRows = int(
                         plane_position_values[last_frame_index, row_index] +
@@ -604,9 +608,12 @@ class Segmentation(SOPClass):
                     )
                     x_center, y_center, z_center = center_coordinate
                     center_item = Dataset()
-                    origin_item.XOffsetInSlideCoordinateSystem = x_center
-                    origin_item.YOffsetInSlideCoordinateSystem = y_center
-                    origin_item.ZOffsetInSlideCoordinateSystem = z_center
+                    center_item.XOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(x_center)
+                    center_item.YOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(y_center)
+                    center_item.ZOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(z_center)
                     self.ImageCenterPointCoordinatesSequence = [center_item]
 
         # Remove empty slices
