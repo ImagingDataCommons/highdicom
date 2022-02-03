@@ -545,66 +545,66 @@ class AnnotationGroup(Dataset):
                 coordinates_dtype
             )
 
+            if hasattr(self, 'CommonZCoordinateValue'):
+                stored_coordinate_dimensionality = 2
+            else:
+                stored_coordinate_dimensionality = coordinate_dimensionality
+
+            # Reshape array to stack of points
+            decoded_coordinates_data = decoded_coordinates_data.reshape(
+                -1,
+                stored_coordinate_dimensionality
+            )
+
+            if hasattr(self, 'CommonZCoordinateValue'):
+                # Add in a column for the shared z coordinate
+                z_values = np.full(
+                    shape=(decoded_coordinates_data.shape[0], 1),
+                    fill_value=self.CommonZCoordinateValue,
+                    dtype=coordinates_dtype
+                )
+                decoded_coordinates_data = np.concatenate(
+                    [decoded_coordinates_data, z_values],
+                    axis=1
+                )
+
+            # Split into objects down the first dimension
             graphic_type = self.graphic_type
             if graphic_type in (
-                GraphicTypeValues.POLYGON,
-                GraphicTypeValues.POLYLINE,
+                GraphicTypeValues.RECTANGLE,
+                GraphicTypeValues.ELLIPSE,
             ):
+                # Fixed 4 coordinates per object
+                split_param: Union[
+                    int,
+                    Sequence[int]
+                ] = len(decoded_coordinates_data) // 4
+            elif graphic_type == GraphicTypeValues.POINT:
+                # Fixed 1 coordinate per object
+                split_param = len(decoded_coordinates_data)
+            elif graphic_type in (
+                GraphicTypeValues.POLYLINE,
+                GraphicTypeValues.POLYGON,
+            ):
+                # Variable number of coordinates per point
                 point_indices = np.frombuffer(
                     self.LongPrimitivePointIndexList,
                     dtype=np.int32
                 ) - 1
+                split_param = (
+                    point_indices // stored_coordinate_dimensionality
+                )[1:]
             else:
-                if hasattr(self, 'CommonZCoordinateValue'):
-                    stored_coordinate_dimensionality = 2
-                else:
-                    stored_coordinate_dimensionality = coordinate_dimensionality
-                if graphic_type in (
-                    GraphicTypeValues.ELLIPSE,
-                    GraphicTypeValues.RECTANGLE,
-                ):
-                    length = 4 * stored_coordinate_dimensionality
-                elif graphic_type == GraphicTypeValues.POINT:
-                    length = stored_coordinate_dimensionality
-                else:
-                    raise ValueError(
-                        'Encountered unexpected graphic type '
-                        f'"{graphic_type.value}".'
-                    )
-                point_indices = np.array([
-                    i * length
-                    for i in range(self.number_of_annotations)
-                ])
+                raise ValueError(
+                    'Encountered unexpected graphic type '
+                    f'"{graphic_type.value}".'
+                )
 
-            object_coordinates = np.split(
+            graphic_data = np.split(
                 decoded_coordinates_data,
-                indices_or_sections=point_indices[1:]
+                indices_or_sections=split_param
             )
-            if hasattr(self, 'CommonZCoordinateValue'):
-                graphic_data = []
-                for coordinates in object_coordinates:
-                    coordinates = coordinates.reshape(-1, 2)
-                    z_values = np.zeros(
-                        (coordinates.shape[0], 1),
-                        dtype=coordinates.dtype
-                    )
-                    z_values[:] = coordinates.dtype.type(
-                        self.CommonZCoordinateValue
-                    )
-                    graphic_data.append(
-                        np.concatenate(
-                            [coordinates, z_values],
-                            axis=1
-                        )
-                    )
-            else:
-                graphic_data = [
-                    coordinates.reshape(
-                        -1,
-                        coordinate_dimensionality
-                    )
-                    for coordinates in object_coordinates
-                ]
+
             self._graphic_data[coordinate_type] = graphic_data
 
         return self._graphic_data[coordinate_type]
