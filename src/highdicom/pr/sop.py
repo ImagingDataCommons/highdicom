@@ -677,13 +677,18 @@ class _SoftcopyPresentationState(SOPClass):
                     getattr(ref_im, 'WindowCenterWidthExplanation', None),
                     getattr(ref_im, 'VOILUTFunction', None),
                 )].append(ref_im)
-            else:
+            elif has_lut:
+                # Create a unique identifier for this list of LUTs
+                lut_info = []
                 for voi_lut in ref_im.VOILUTSequence:
-                    by_lut[(
-                        voi_lut.LUTDescriptor,
+                    lut_info.append((
+                        voi_lut.LUTDescriptor[1],
+                        voi_lut.LUTDescriptor[2],
                         getattr(voi_lut, 'LUTExplanation', None),
                         voi_lut.LUTData
-                    )].append(ref_im)
+                    ))
+                lut_id = tuple(lut_info)
+                by_lut[lut_id].append(ref_im)
 
         # TODO multiple LUTs
         # TODO referenced frames/segments
@@ -708,7 +713,7 @@ class _SoftcopyPresentationState(SOPClass):
                 )
             )
 
-        for (desc, exp, data), im_list in by_lut.items():
+        for lut_id, im_list in by_lut.items():
             if len(im_list) == len(referenced_images):
                 # All datasets included, no need to include the referenced
                 # images explicitly
@@ -717,15 +722,20 @@ class _SoftcopyPresentationState(SOPClass):
                 # Include specific references
                 refs_to_include = im_list
 
-            lut = LUT(
-                first_mapped_value=desc[1],
-                lut_data=np.frombuffer(data),
-                lut_explanation=exp
-            )
+            luts = [
+                LUT(
+                    first_mapped_value=fmv,
+                    lut_data=np.frombuffer(
+                        data,
+                        np.uint8 if ba == 8 else np.uint16
+                    ),
+                    lut_explanation=exp
+                ) for (fmv, ba, exp, data) in lut_id
+            ]
             softcopy_voi_luts.append(
                 SoftcopyVOILUT(
                     referenced_images=refs_to_include,
-                    voi_luts=[lut]
+                    voi_luts=luts
                 )
             )
 

@@ -1120,6 +1120,61 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
         assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
 
+    def test_construction_with_copy_voi_lut_empty(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        # This file has no VOI LUT info
+        ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[ct_im],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_voi_lut=True
+        )
+        assert not hasattr(gsps, 'SoftcopyVOILUTSequence')
+
+    def test_construction_with_copy_voi_lut_data(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        # This file has no VOI LUT info
+        ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
+        # Construct test LUT data
+        luts = [
+            LUT(0, np.array([2, 3, 4], np.uint16)),
+            LUT(0, np.array([5, 6, 7], np.uint16))
+        ]
+        ct_im.VOILUTSequence = luts
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[ct_im],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_voi_lut=True
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 1
+        assert len(gsps.SoftcopyVOILUTSequence[0].VOILUTSequence) == 2
+
     def test_construction_with_voi_lut_missing_references(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(
