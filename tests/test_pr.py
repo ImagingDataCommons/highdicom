@@ -1,3 +1,4 @@
+from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 import unittest
@@ -1119,6 +1120,52 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         expected_center = self._ct_series[0].WindowCenter
         assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
         assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
+        assert not hasattr(
+            gsps.SoftcopyVOILUTSequence[0],
+            'ReferencedImageSequence'
+        )
+
+    def test_construction_with_copy_voi_lut_different(self):
+        new_dcm = deepcopy(self._ct_series[0])
+        new_dcm.WindowCenter = 40.0
+        new_dcm.WindowWidth = 400.0
+        series = [new_dcm] + self._ct_series[1:]
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_voi_lut=True
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 2
+        ref_ims_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
+        assert len(ref_ims_0) == 1
+        assert ref_ims_0[0].ReferencedSOPInstanceUID == new_dcm.SOPInstanceUID
+        ref_ims_1 = gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence
+        for im, ref_im in zip(self._ct_series[1:], ref_ims_1):
+            assert ref_im.ReferencedSOPInstanceUID == im.SOPInstanceUID
+        assert len(ref_ims_1) == 3
+        assert len(gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence) == 3
+        expected_width = new_dcm.WindowWidth
+        expected_center = new_dcm.WindowCenter
+        assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
+        assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
+        expected_width = self._ct_series[1].WindowWidth
+        expected_center = self._ct_series[1].WindowCenter
+        assert gsps.SoftcopyVOILUTSequence[1].WindowWidth == expected_width
+        assert gsps.SoftcopyVOILUTSequence[1].WindowCenter == expected_center
 
     def test_construction_with_copy_voi_lut_empty(self):
         file_path = Path(__file__)
