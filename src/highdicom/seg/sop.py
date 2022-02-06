@@ -555,7 +555,7 @@ class Segmentation(SOPClass):
                 )
                 self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
                 self.TotalPixelMatrixColumns = src_img.TotalPixelMatrixColumns
-            elif are_spatial_locations_preserved and ~is_tiled:
+            elif are_spatial_locations_preserved and not is_tiled:
                 self.ImageCenterPointCoordinatesSequence = deepcopy(
                     src_img.ImageCenterPointCoordinatesSequence
                 )
