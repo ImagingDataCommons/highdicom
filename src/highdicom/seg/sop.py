@@ -47,7 +47,7 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import map_pixel_into_coordinate_system
+from highdicom.spatial import ImageToReferenceTransformer
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 from highdicom.uid import UID as hd_UID
@@ -600,13 +600,21 @@ class Segmentation(SOPClass):
                         self.Columns
                     )
                 else:
-                    center_coordinate = map_pixel_into_coordinate_system(
-                        coordinate=((self.Columns / 2, self.Rows / 2)),
+                    transform = ImageToReferenceTransformer(
                         image_position=(x_origin, y_origin, z_origin),
                         image_orientation=plane_orientation,
                         pixel_spacing=pixel_measures[0].PixelSpacing
                     )
-                    x_center, y_center, z_center = center_coordinate
+                    center_image_coordinates = np.array(
+                        [[self.Columns / 2, self.Rows / 2]],
+                        dtype=float
+                    )
+                    center_reference_coordinates = transform(
+                        center_image_coordinates
+                    )
+                    x_center = center_reference_coordinates[0, 0]
+                    y_center = center_reference_coordinates[0, 1]
+                    z_center = center_reference_coordinates[0, 2]
                     center_item = Dataset()
                     center_item.XOffsetInSlideCoordinateSystem = \
                         format_number_as_ds(x_center)
