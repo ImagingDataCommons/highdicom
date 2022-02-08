@@ -421,9 +421,7 @@ class ReferenceToPixelTransformer(object):
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
         pixel_matrix_coordinates = np.dot(self._affine, reference_coordinates)
-        # FIXME
-        # return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
-        return np.around(pixel_matrix_coordinates[:3, :].T)
+        return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
 
 
 class ImageToReferenceTransformer(object):
