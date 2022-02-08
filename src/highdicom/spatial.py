@@ -421,7 +421,9 @@ class ReferenceToPixelTransformer(object):
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
         pixel_matrix_coordinates = np.dot(self._affine, reference_coordinates)
-        return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
+        # FIXME
+        # return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
+        return np.around(pixel_matrix_coordinates[:3, :].T)
 
 
 class ImageToReferenceTransformer(object):
@@ -483,11 +485,18 @@ class ImageToReferenceTransformer(object):
             When any of the arguments has an incorrect length.
 
         """
-        self._affine = _create_affine_transformation_matrix(
+        affine = _create_affine_transformation_matrix(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing
         )
+        correction_affine = np.array([
+            [1.0, 0.0, 0.0, -0.5],
+            [0.0, 1.0, 0.0, -0.5],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        self._affine = np.dot(affine, correction_affine)
 
     @property
     def affine(self) -> np.ndarray:
@@ -529,7 +538,7 @@ class ImageToReferenceTransformer(object):
                 'with shape [n, 2].'
             )
         image_coordinates = np.row_stack([
-            coordinates.T.astype(float) - 0.5,
+            coordinates.T.astype(float),
             np.zeros((coordinates.shape[0], ), dtype=float),
             np.ones((coordinates.shape[0], ), dtype=float),
         ])
@@ -556,8 +565,8 @@ class ReferenceToImageTransformer(object):
     >>> ref_coords = np.array([[56., 39.2,  1. ], [58.5, 36.7, 1.]])
     >>> image_coords = transformer(ref_coords)
     >>> print(image_coords)
-    >>> # [[-0.5  9.5  0. ]
-    >>> #  [ 4.5  4.5  0. ]]
+    >>> # [[0.5  10.5  0. ]
+    >>> #  [5.5   5.5  0. ]]
 
     """
 
@@ -607,12 +616,21 @@ class ReferenceToImageTransformer(object):
             an incorrect length.
 
         """
-        self._affine = _create_inv_affine_transformation_matrix(
+        # Image coordinates are shifted relative to pixel matrix indices by
+        # 0.5 pixels and we thus have to correct for this shift.
+        correction_affine = np.array([
+            [1.0, 0.0, 0.0, 0.5],
+            [0.0, 1.0, 0.0, 0.5],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        affine = _create_inv_affine_transformation_matrix(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
             spacing_between_slices=spacing_between_slices
         )
+        self._affine = np.dot(correction_affine, affine)
 
     @property
     def affine(self) -> np.ndarray:
@@ -660,13 +678,8 @@ class ReferenceToImageTransformer(object):
             coordinates.T.astype(float),
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
-        pixel_matrix_coordinates = np.dot(self._affine, reference_coordinates)
-
-        # Image coordinates are shifted relative to pixel matrix indices by
-        # -0.5 pixels and we thus have to correct for this shift.
-        image_matrix_coordinates = pixel_matrix_coordinates[:3, :].T
-        image_matrix_coordinates[:, :2] -= 0.5
-        return image_matrix_coordinates
+        image_coordinates = np.dot(self._affine, reference_coordinates)
+        return image_coordinates[:3, :].T
 
 
 def map_pixel_into_coordinate_system(
