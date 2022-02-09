@@ -23,7 +23,7 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import PersonName
+from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
@@ -47,6 +47,7 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
+from highdicom.spatial import ImageToReferenceTransformer
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 from highdicom.uid import UID as hd_UID
@@ -287,6 +288,7 @@ class Segmentation(SOPClass):
                 'Only one source image should be provided in case images '
                 'are multi-frame images.'
             )
+        is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
@@ -443,20 +445,23 @@ class Segmentation(SOPClass):
                     )
                 )
 
-        if is_multiframe:
-            if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                source_plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationSlide
-                )
-            else:
-                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = src_sfg.PlaneOrientationSequence
-        else:
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
             source_plane_orientation = PlaneOrientationSequence(
                 coordinate_system=self._coordinate_system,
-                image_orientation=src_img.ImageOrientationPatient
+                image_orientation=src_img.ImageOrientationSlide
             )
+        else:
+            if is_multiframe:
+                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+                source_plane_orientation = deepcopy(
+                    src_sfg.PlaneOrientationSequence
+                )
+            else:
+                source_plane_orientation = PlaneOrientationSequence(
+                    coordinate_system=self._coordinate_system,
+                    image_orientation=src_img.ImageOrientationPatient
+                )
+
         if plane_orientation is None:
             plane_orientation = source_plane_orientation
 
@@ -541,15 +546,19 @@ class Segmentation(SOPClass):
             self.DimensionIndexSequence.get_index_values(plane_positions)
 
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            self.ImageOrientationSlide = \
+            self.ImageOrientationSlide = deepcopy(
                 plane_orientation[0].ImageOrientationSlide
-            if are_spatial_locations_preserved:
-                self.TotalPixelMatrixOriginSequence = \
-                    source_images[0].TotalPixelMatrixOriginSequence
-                self.TotalPixelMatrixRows = \
-                    source_images[0].TotalPixelMatrixRows
-                self.TotalPixelMatrixColumns = \
-                    source_images[0].TotalPixelMatrixColumns
+            )
+            if are_spatial_locations_preserved and is_tiled:
+                self.TotalPixelMatrixOriginSequence = deepcopy(
+                    src_img.TotalPixelMatrixOriginSequence
+                )
+                self.TotalPixelMatrixRows = src_img.TotalPixelMatrixRows
+                self.TotalPixelMatrixColumns = src_img.TotalPixelMatrixColumns
+            elif are_spatial_locations_preserved and not is_tiled:
+                self.ImageCenterPointCoordinatesSequence = deepcopy(
+                    src_img.ImageCenterPointCoordinatesSequence
+                )
             else:
                 row_index = plane_position_names.index(
                     'RowPositionInTotalImagePixelMatrix'
@@ -565,23 +574,55 @@ class Segmentation(SOPClass):
                 x_index = plane_position_names.index(
                     'XOffsetInSlideCoordinateSystem'
                 )
-                x_offset = plane_position_values[first_frame_index, x_index]
+                x_origin = plane_position_values[first_frame_index, x_index]
                 y_index = plane_position_names.index(
                     'YOffsetInSlideCoordinateSystem'
                 )
-                y_offset = plane_position_values[first_frame_index, y_index]
-                origin_item = Dataset()
-                origin_item.XOffsetInSlideCoordinateSystem = x_offset
-                origin_item.YOffsetInSlideCoordinateSystem = y_offset
-                self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = int(
-                    plane_position_values[last_frame_index, row_index] +
-                    self.Rows
+                y_origin = plane_position_values[first_frame_index, y_index]
+                z_index = plane_position_names.index(
+                    'ZOffsetInSlideCoordinateSystem'
                 )
-                self.TotalPixelMatrixColumns = int(
-                    plane_position_values[last_frame_index, col_index] +
-                    self.Columns
-                )
+                z_origin = plane_position_values[first_frame_index, z_index]
+
+                if is_tiled:
+                    origin_item = Dataset()
+                    origin_item.XOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(x_origin)
+                    origin_item.YOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(y_origin)
+                    self.TotalPixelMatrixOriginSequence = [origin_item]
+                    self.TotalPixelMatrixRows = int(
+                        plane_position_values[last_frame_index, row_index] +
+                        self.Rows
+                    )
+                    self.TotalPixelMatrixColumns = int(
+                        plane_position_values[last_frame_index, col_index] +
+                        self.Columns
+                    )
+                else:
+                    transform = ImageToReferenceTransformer(
+                        image_position=(x_origin, y_origin, z_origin),
+                        image_orientation=plane_orientation,
+                        pixel_spacing=pixel_measures[0].PixelSpacing
+                    )
+                    center_image_coordinates = np.array(
+                        [[self.Columns / 2, self.Rows / 2]],
+                        dtype=float
+                    )
+                    center_reference_coordinates = transform(
+                        center_image_coordinates
+                    )
+                    x_center = center_reference_coordinates[0, 0]
+                    y_center = center_reference_coordinates[0, 1]
+                    z_center = center_reference_coordinates[0, 2]
+                    center_item = Dataset()
+                    center_item.XOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(x_center)
+                    center_item.YOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(y_center)
+                    center_item.ZOffsetInSlideCoordinateSystem = \
+                        format_number_as_ds(z_center)
+                    self.ImageCenterPointCoordinatesSequence = [center_item]
 
         # Remove empty slices
         if omit_empty_frames:

@@ -6,6 +6,7 @@ from highdicom import pm
 from highdicom import sc
 from highdicom import seg
 from highdicom import sr
+from highdicom.base import SOPClass
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     IssuerOfIdentifier,
@@ -37,6 +38,7 @@ from highdicom import io
 from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
+from highdicom.version import __version__
 
 __all__ = [
     'AlgorithmIdentificationSequence',
@@ -60,6 +62,7 @@ __all__ = [
     'SpecimenPreparationStep',
     'SpecimenSampling',
     'SpecimenStaining',
+    'SOPClass',
     'UID',
     'UniversalEntityIDTypeValues',
     'ann',
@@ -74,4 +77,5 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
+    '__version__',
 ]
