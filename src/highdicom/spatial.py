@@ -15,7 +15,7 @@ def create_rotation_matrix(
         increasing column index) and the column direction (second triplet:
         vertical, top to bottom, increasing row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
-        Frame of Reference
+        frame of reference
 
     Returns
     -------
@@ -41,27 +41,26 @@ def _create_affine_transformation_matrix(
     pixel_spacing: Sequence[float],
 ) -> np.ndarray:
     """Create affine matrix for transformation.
-    
-    The resulting transformation matrix maps the center of a pixel identified by zero-based 
-    integer indices into the frame of reference, i.e. an input value of (0, 0) represents the
-    center of the top left hand corner pixel.
-    
+
+    The resulting transformation matrix maps the center of a pixel identified
+    by zero-based integer indices into the frame of reference, i.e., an input
+    value of (0, 0) represents the center of the top left hand corner pixel.
+
     See :dcm:`Equation C.7.6.2.1-1 <part03/sect_C.7.6.2.html#sect_C.7.6.2.1.1>`.
-    
 
     Parameters
     ----------
     image_position: Sequence[float]
-        Position of the slice (image or frame) in the Frame of Reference,
-        i.e., the offset of the top left pixel in the pixel matrix from the
-        origin of the reference coordinate system along the X, Y, and Z
+        Position of the slice (image or frame) in the frame of reference, i.e.,
+        the offset of the top left hand corner pixel in the pixel matrix from
+        the origin of the reference coordinate system along the X, Y, and Z
         axis
     image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to
         right, increasing column index) and the column direction (second
         triplet: vertical, top to bottom, increasing row index) direction
         expressed in the three-dimensional patient or slide coordinate
-        system defined by the Frame of Reference
+        system defined by the frame of reference
     pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column
         direction (first value: spacing between rows, vertical, top to
@@ -120,24 +119,25 @@ def _create_inv_affine_transformation_matrix(
     spacing_between_slices: float = 1.0
 ) -> np.ndarray:
     """Create affine matrix for inverse transformation.
- 
-    The resulting transformation matrix maps a frame of reference coordinate
-    to pixel indices, where integer pixel index values represent the center of the
-    pixel in the image, i.e. an output value of exactly (0.0, 0.0)
-    represents the center of the top left hand corner pixel.
+
+    The resulting transformation matrix maps a frame of reference coordinate to
+    pixel indices, where integer pixel index values represent the center of the
+    pixel in the image, i.e., an output value of exactly (0.0, 0.0) represents
+    the center of the top left hand corner pixel.
+
     Parameters
     ----------
     image_position: Sequence[float]
-        Position of the slice (image or frame) in the Frame of Reference,
-        i.e., the offset of the top left pixel in the pixel matrix from the
-        origin of the reference coordinate system along the X, Y, and Z
+        Position of the slice (image or frame) in the frame of reference, i.e.,
+        the offset of the top left hand corner pixel in the pixel matrix from
+        the origin of the reference coordinate system along the X, Y, and Z
         axis
     image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to
         right, increasing column index) and the column direction (second
         triplet: vertical, top to bottom, increasing row index) direction
         expressed in the three-dimensional patient or slide coordinate
-        system defined by the Frame of Reference
+        system defined by the frame of reference
     pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column
         direction (first value: spacing between rows, vertical, top to
@@ -145,7 +145,7 @@ def _create_inv_affine_transformation_matrix(
         spacing between columns: horizontal, left to right, increasing
         column index)
     spacing_between_slices: float, optional
-        Distance (in the coordinate defined by the Frame of Reference)
+        Distance (in the coordinate defined by the frame of reference)
         between neighboring slices. Default: 1
 
     Raises
@@ -202,6 +202,18 @@ class PixelToReferenceTransformer(object):
 
     """Class for transforming pixel indices to reference coordinates.
 
+    This class facilitates the mapping of pixel indices to the pixel matrix of
+    an image or an image frame (tile or plane) into the patient or slide
+    coordinate system defined by the frame of reference.
+
+    Pixel indices are (column, row) pairs of zero-based integer values, where
+    the (0, 0) index is located at the **center** of the top left hand corner
+    pixel of the pixel matrix.
+
+    Reference coordinates are (x, y, z) triplets of floating-point values,
+    where the (0.0, 0.0) point is located at the origin of the frame of
+    reference.
+
     Examples
     --------
 
@@ -216,6 +228,12 @@ class PixelToReferenceTransformer(object):
     >>> # [[56.  39.2  1. ]
     >>> #  [58.5 36.7  1. ]]
 
+    Warning
+    -------
+    This class shall not be used to map spatial coordinates (SCOORD)
+    to 3D spatial coordinates (SCOORD3D). Use the
+    :class:`highdicom.spatial.ImageToReferenceTransformer` class instead.
+
     """
 
     def __init__(
@@ -229,16 +247,16 @@ class PixelToReferenceTransformer(object):
         Parameters
         ----------
         image_position: Sequence[float]
-            Position of the slice (image or frame) in the Frame of Reference,
-            i.e., the offset of the top left pixel in the pixel matrix from the
-            origin of the reference coordinate system along the X, Y, and Z
-            axis
+            Position of the slice (image or frame) in the frame of reference,
+            i.e., the offset of the top left hand corner pixel in the pixel
+            matrix from the origin of the reference coordinate system along the
+            X, Y, and Z axis
         image_orientation: Sequence[float]
             Cosines of the row direction (first triplet: horizontal, left to
             right, increasing column index) and the column direction (second
             triplet: vertical, top to bottom, increasing row index) direction
             expressed in the three-dimensional patient or slide coordinate
-            system defined by the Frame of Reference
+            system defined by the frame of reference
         pixel_spacing: Sequence[float]
             Spacing between pixels in millimeter unit along the column
             direction (first value: spacing between rows, vertical, top to
@@ -283,7 +301,7 @@ class PixelToReferenceTransformer(object):
         -------
         numpy.ndarray
             Array of (x, y, z) coordinates in the coordinate system defined by
-            the Frame of Reference. Array has shape ``(n, 3)``, where *n* is
+            the frame of reference. Array has shape ``(n, 3)``, where *n* is
             the number of coordinates, the first column represents the `x`
             offsets, the second column represents the `y` offsets and the third
             column represents the `z` offsets
@@ -319,6 +337,18 @@ class ReferenceToPixelTransformer(object):
 
     """Class for transforming reference coordinates to pixel indices.
 
+    This class facilitates the mapping of coordinates in the patient or slide
+    coordinate system defined by the frame of reference into the total pixel
+    matrix.
+
+    Reference coordinates are (x, y, z) triplets of floating-point values,
+    where the (0.0, 0.0) point is located at the origin of the frame of
+    reference.
+
+    Pixel indices are (column, row) pairs of zero-based integer values, where
+    the (0, 0) index is located at the **center** of the top left hand corner
+    pixel of the pixel matrix.
+
     Examples
     --------
 
@@ -332,6 +362,12 @@ class ReferenceToPixelTransformer(object):
     >>> print(pixel_indices)
     >>> # [[ 0 10  0]
     >>> #  [ 5  5  0]]
+
+    Warning
+    -------
+    This class shall not be used to map 3D spatial coordinates (SCOORD3D)
+    to spatial coordinates (SCOORD). Use the
+    :class:`highdicom.spatial.ReferenceToImageTransformer` class instead.
 
     """
 
@@ -351,16 +387,16 @@ class ReferenceToPixelTransformer(object):
         Parameters
         ----------
         image_position: Sequence[float]
-            Position of the slice (image or frame) in the Frame of Reference,
-            i.e., the offset of the top left pixel in the pixel matrix from the
-            origin of the reference coordinate system along the X, Y, and Z
-            axis
+            Position of the slice (image or frame) in the frame of reference,
+            i.e., the offset of the top left hand corner pixel in the pixel
+            matrix from the origin of the reference coordinate system along the
+            X, Y, and Z axis
         image_orientation: Sequence[float]
             Cosines of the row direction (first triplet: horizontal, left to
             right, increasing column index) and the column direction (second
             triplet: vertical, top to bottom, increasing row index) direction
             expressed in the three-dimensional patient or slide coordinate
-            system defined by the Frame of Reference
+            system defined by the frame of reference
         pixel_spacing: Sequence[float]
             Spacing between pixels in millimeter unit along the column
             direction (first value: spacing between rows, vertical, top to
@@ -368,7 +404,7 @@ class ReferenceToPixelTransformer(object):
             spacing between columns: horizontal, left to right, increasing
             column index)
         spacing_between_slices: float, optional
-            Distance (in the coordinate defined by the Frame of Reference)
+            Distance (in the coordinate defined by the frame of reference)
             between neighboring slices. Default: 1
 
         Raises
@@ -400,7 +436,7 @@ class ReferenceToPixelTransformer(object):
         ----------
         coordinates: numpy.ndarray
             Array of (x, y, z) coordinates in the coordinate system defined by
-            the Frame of Reference. Array has shape ``(n, 3)``, where *n* is
+            the frame of reference. Array has shape ``(n, 3)``, where *n* is
             the number of coordinates, the first column represents the *X*
             offsets, the second column represents the *Y* offsets and the third
             column represents the *Z* offsets
@@ -439,8 +475,20 @@ class ImageToReferenceTransformer(object):
 
     """Class for transforming coordinates from image to reference space.
 
-    Builds an affine transformation matrix for mapping two dimensional
-    pixel matrix coordinates into the three dimensional frame of reference.
+    This class facilitates the mapping of image coordinates in the pixel matrix
+    of an image or an image frame (tile or plane) into the patient or slide
+    coordinate system defined by the frame of reference.
+    For example, this class may be used to map spatial coordinates (SCOORD)
+    to 3D spatial coordinates (SCOORD3D).
+
+    Image coordinates are (column, row) pairs of floating-point values, where
+    the (0.0, 0.0) point is located at the top left corner of the top left hand
+    corner pixel of the pixel matrix. Image coordinates have pixel units at
+    sub-pixel resolution.
+
+    Reference coordinates are (x, y, z) triplets of floating-point values,
+    where the (0.0, 0.0) point is located at the origin of the frame of
+    reference. Reference coordinates have millimeter units.
 
     Examples
     --------
@@ -456,6 +504,11 @@ class ImageToReferenceTransformer(object):
     >>> # [[55.75 38.95  1. ]
     >>> #  [58.25 36.45  1. ]]
 
+    Warning
+    -------
+    This class shall not be used for pixel indices. Use the
+    class:`highdicom.spatial.PixelToReferenceTransformer` class instead.
+
     """
 
     def __init__(
@@ -469,16 +522,16 @@ class ImageToReferenceTransformer(object):
         Parameters
         ----------
         image_position: Sequence[float]
-            Position of the slice (image or frame) in the Frame of Reference,
-            i.e., the offset of the top left pixel in the pixel matrix from the
-            origin of the reference coordinate system along the X, Y, and Z
-            axis
+            Position of the slice (image or frame) in the frame of reference,
+            i.e., the offset of the top left hand corner pixel in the pixel
+            matrix from the origin of the reference coordinate system along the
+            X, Y, and Z axis
         image_orientation: Sequence[float]
             Cosines of the row direction (first triplet: horizontal, left to
             right, increasing column index) and the column direction (second
             triplet: vertical, top to bottom, increasing row index) direction
             expressed in the three-dimensional patient or slide coordinate
-            system defined by the Frame of Reference
+            system defined by the frame of reference
         pixel_spacing: Sequence[float]
             Spacing between pixels in millimeter unit along the column
             direction (first value: spacing between rows, vertical, top to
@@ -524,13 +577,13 @@ class ImageToReferenceTransformer(object):
             the number of coordinates, the first column represents the `column`
             values and the second column represents the `row` values.
             The ``(0.0, 0.0)`` coordinate is located at the top left corner
-            of the top left pixel in the total pixel matrix.
+            of the top left hand corner pixel in the total pixel matrix.
 
         Returns
         -------
         numpy.ndarray
             Array of (x, y, z) coordinates in the coordinate system defined by
-            the Frame of Reference. Array has shape ``(n, 3)``, where *n* is
+            the frame of reference. Array has shape ``(n, 3)``, where *n* is
             the number of coordinates, the first column represents the *X*
             offsets, the second column represents the *Y* offsets and the third
             column represents the *Z* offsets
@@ -559,9 +612,20 @@ class ReferenceToImageTransformer(object):
 
     """Class for transforming coordinates from reference to image space.
 
-    Builds an affine transformation matrix for mapping coordinates in the
-    three dimensional frame of reference into two-dimensional pixel matrix
-    coordinates.
+    This class facilitates the mapping of coordinates in the patient or slide
+    coordinate system defined by the frame of reference into the total pixel
+    matrix.
+    For example, this class may be used to map 3D spatial coordinates (SCOORD3D)
+    to spatial coordinates (SCOORD).
+
+    Reference coordinates are (x, y, z) triplets of floating-point values,
+    where the (0.0, 0.0) point is located at the origin of the frame of
+    reference. Reference coordinates have millimeter units.
+
+    Image coordinates are (column, row) pairs of floating-point values, where
+    the (0.0, 0.0) point is located at the top left corner of the top left hand
+    corner pixel of the pixel matrix. Image coordinates have pixel units at
+    sub-pixel resolution.
 
     Examples
     --------
@@ -576,6 +640,11 @@ class ReferenceToImageTransformer(object):
     >>> print(image_coords)
     >>> # [[0.5  10.5  0. ]
     >>> #  [5.5   5.5  0. ]]
+
+    Warning
+    -------
+    This class shall not be used for pixel indices. Use the
+    :class:`highdicom.spatial.ReferenceToPixelTransformer` class instead.
 
     """
 
@@ -595,16 +664,16 @@ class ReferenceToImageTransformer(object):
         Parameters
         ----------
         image_position: Sequence[float]
-            Position of the slice (image or frame) in the Frame of Reference,
-            i.e., the offset of the top left pixel in the pixel matrix from the
-            origin of the reference coordinate system along the X, Y, and Z
-            axis
+            Position of the slice (image or frame) in the frame of reference,
+            i.e., the offset of the top left hand corner pixel in the pixel
+            matrix from the origin of the reference coordinate system along the
+            X, Y, and Z axis
         image_orientation: Sequence[float]
             Cosines of the row direction (first triplet: horizontal, left to
             right, increasing column index) and the column direction (second
             triplet: vertical, top to bottom, increasing row index) direction
             expressed in the three-dimensional patient or slide coordinate
-            system defined by the Frame of Reference
+            system defined by the frame of reference
         pixel_spacing: Sequence[float]
             Spacing between pixels in millimeter unit along the column
             direction (first value: spacing between rows, vertical, top to
@@ -612,7 +681,7 @@ class ReferenceToImageTransformer(object):
             spacing between columns: horizontal, left to right, increasing
             column index)
         spacing_between_slices: float, optional
-            Distance (in the coordinate defined by the Frame of Reference)
+            Distance (in the coordinate defined by the frame of reference)
             between neighboring slices. Default: 1
 
         Raises
@@ -655,7 +724,7 @@ class ReferenceToImageTransformer(object):
         ----------
         coordinates: numpy.ndarray
             Array of (x, y, z) coordinates in the coordinate system defined by
-            the Frame of Reference. Array should have shape ``(n, 3)``, where
+            the frame of reference. Array should have shape ``(n, 3)``, where
             *n* is the number of coordinates, the first column represents the
             *X* offsets, the second column represents the *Y* offsets and the
             third column represents the *Z* offsets
@@ -705,16 +774,16 @@ def map_pixel_into_coordinate_system(
         (column, row) zero-based index at pixel resolution in the range
         [0, Columns - 1] and [0, Rows - 1], respectively.
     image_position: Sequence[float]
-        Position of the slice (image or frame) in the Frame of Reference, i.e.,
-        the offset of the center of top left pixel in the total pixel matrix
-        from the origin of the reference coordinate system along the X, Y, and
-        Z axis
+        Position of the slice (image or frame) in the frame of reference, i.e.,
+        the offset of the center of top left hand corner pixel in the total
+        pixel matrix from the origin of the reference coordinate system along
+        the X, Y, and Z axis
     image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing column index) and the column direction (second triplet:
         vertical, top to bottom, increasing row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
-        Frame of Reference
+        frame of reference
     pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
@@ -725,12 +794,12 @@ def map_pixel_into_coordinate_system(
     -------
     Tuple[float, float, float]
         (x, y, z) coordinate in the coordinate system defined by the
-        Frame of Reference
+        frame of reference
 
     Note
     ----
     This function is a convenient wrapper around
-    ``highdicom.spatial.PixelToReferenceTransformer`` for mapping an
+    :class:`highdicom.spatial.PixelToReferenceTransformer` for mapping an
     individual coordinate. When mapping a large number of coordinates, consider
     using this class directly for speedup.
 
@@ -772,23 +841,23 @@ def map_coordinate_into_pixel_matrix(
     coordinate: Sequence[float]
         (x, y, z) coordinate in the coordinate system in millimeter unit.
     image_position: Sequence[float]
-        Position of the slice (image or frame) in the Frame of Reference, i.e.,
-        the offset of the center of top left pixel in the total pixel matrix
-        from the origin of the reference coordinate system along the X, Y, and
-        Z axis
+        Position of the slice (image or frame) in the frame of reference, i.e.,
+        the offset of the center of top left hand corner pixel in the total
+        pixel matrix from the origin of the reference coordinate system along
+        the X, Y, and Z axis
     image_orientation: Sequence[float]
         Cosines of the row direction (first triplet: horizontal, left to right,
         increasing column index) and the column direction (second triplet:
         vertical, top to bottom, increasing row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
-        Frame of Reference
+        frame of reference
     pixel_spacing: Sequence[float]
         Spacing between pixels in millimeter unit along the column direction
         (first value: spacing between rows, vertical, top to bottom,
         increasing row index) and the rows direction (second value: spacing
         between columns: horizontal, left to right, increasing column index)
     spacing_between_slices: float, optional
-        Distance (in the coordinate defined by the Frame of Reference) between
+        Distance (in the coordinate defined by the frame of reference) between
         neighboring slices. Default: ``1.0``
 
     Returns
@@ -806,7 +875,7 @@ def map_coordinate_into_pixel_matrix(
     Note
     ----
     This function is a convenient wrapper around
-    ``highdicom.spatial.ReferenceToPixelTransformer``.
+    :class:`highdicom.spatial.ReferenceToPixelTransformer`.
     When mapping a large number of coordinates, consider using these underlying
     functions directly for speedup.
 
