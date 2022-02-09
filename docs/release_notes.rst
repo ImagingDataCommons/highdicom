@@ -99,3 +99,47 @@ Note that segments must always be stacked down the fourth dimension (with index
 3) of the ``pixel_array``. In order to create a segmentation with multiple
 segments for a single source frame, it is required to add a new dimension
 (with length 1) as the first dimension (index 0) of the array.
+
+
+.. _correct-coordinate-mapping:
+
+Correct coordinate mapping
+--------------------------
+
+Prior to highdicom 0.14.1, mappings between image coordinates and reference
+coordinates did not take into account that there are two image coordinate
+systems, which are shifted by 0.5 pixels.
+
+1. **Pixel indices**: (column, row) indices into the pixel matrix. The values
+   are zero-based integers in the range [0, Columns - 1] and [0, Rows - 1].
+   Pixel indices are defined relative to the centers of pixels and the (0, 0)
+   index is located at the center of the top left corner hand pixel of the
+   total pixel matrix.
+2. **Image coordinates**: (column, row) coordinates in the pixel matrix at
+   sub-pixel resolution. The values are floating-point numbers in the range
+   [0, Columns] and [0, Rows]. Image coordinates are defined relative to the
+   top left corner of the pixels and the (0.0, 0.0) point is located at the top
+   left corner of the top left corner hand pixel of the total pixel matrix.
+
+To account for these differences, introduced two additional transformer classes
+in highdicom 0.14.1. and made changes to the existing ones.
+The existing transformer class now map between image coordinates and reference
+coordinates (:class:`highdicom.spatial.ImageToReferenceTransformer` and
+:class:`highdicom.spatial.ReferenceToImageTransformer`).
+While the new transformer classes map between pixel indices and reference
+coordinates (:class:`highdicom.spatial.PixelToReferenceTransformer` and
+:class:`highdicom.spatial.ReferenceToPixelTransformer`).
+Note that you want to use the former classes for converting between spatial
+coordinates (SCOORD) (:class:`highdicom.sr.ScoordContentItem`) and 3D spatial
+coordinates (SCOORD3D) (:class:`highdicom.sr.Scoord3DContentItem`) and the
+latter for determining the position of a pixel in the frame of reference or for
+projecting a coordinate in the frame of reference onto the image plane.
+
+To make the distinction between pixel indices and image coordinates as clear as
+possible, we renamed the parameter of the
+:func:`highdicom.spatial.map_pixel_into_coordinate_system` function from
+``coordinate`` to ``index`` and enforce that the values that are provided via
+the argument are integers rather than floats.
+In addition, the return value of
+:func:`highdicom.spatial.map_coordinate_into_pixel_matrix` is now a tuple of
+integers.
