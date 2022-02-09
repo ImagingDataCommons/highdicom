@@ -41,6 +41,13 @@ def _create_affine_transformation_matrix(
     pixel_spacing: Sequence[float],
 ) -> np.ndarray:
     """Create affine matrix for transformation.
+    
+    The resulting transformation matrix maps the center of a pixel identified by zero-based 
+    integer indices into the frame of reference, i.e. an input value of (0, 0) represents the
+    center of the top left hand corner pixel.
+    
+    See :dcm:`Equation C.7.6.2.1-1 <part03/sect_C.7.6.2.html#sect_C.7.6.2.1.1>`.
+    
 
     Parameters
     ----------
@@ -113,7 +120,11 @@ def _create_inv_affine_transformation_matrix(
     spacing_between_slices: float = 1.0
 ) -> np.ndarray:
     """Create affine matrix for inverse transformation.
-
+ 
+    The resulting transformation matrix maps a frame of reference coordinate
+    to pixel indices, where integer pixel index values represent the center of the
+    pixel in the image, i.e. an output value of exactly (0.0, 0.0)
+    represents the center of the top left hand corner pixel.
     Parameters
     ----------
     image_position: Sequence[float]
