@@ -822,6 +822,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
         self._sm_image = dcmread(self._test_dir / 'sm_image_dots.dcm')
         self._text_value = 'Look Here!'
         self._bounding_box = (10.0, 30.0, 40.0, 60.0)
@@ -1070,6 +1071,30 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert gsps.RescaleSlope == self._ct_series[0].RescaleSlope
         assert gsps.RescaleType == 'HU'
+
+    def test_construction_with_copy_modality_lut_multiframe(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[self._ct_multiframe],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_modality_lut=True,
+        )
+        shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
+        trans_seq = shared_grp.PixelValueTransformationSequence[0]
+        assert gsps.RescaleIntercept == trans_seq.RescaleIntercept
+        assert gsps.RescaleSlope == trans_seq.RescaleSlope
+        assert gsps.RescaleType == trans_seq.RescaleType
 
     def test_construction_with_voi_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(

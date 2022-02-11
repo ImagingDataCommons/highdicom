@@ -554,83 +554,135 @@ class _SoftcopyPresentationState(SOPClass):
             or RescaleType attributes are inconsistent between datasets.
 
         """
-        have_slopes = [
-            hasattr(ds, 'RescaleSlope') for ds in referenced_images
-        ]
-        have_intercepts = [
-            hasattr(ds, 'RescaleIntercept') for ds in referenced_images
-        ]
-        have_type = [
-            hasattr(ds, 'RescaleType') for ds in referenced_images
-        ]
-
-        if any(have_slopes) and not all(have_slopes):
-            raise ValueError(
-                'Error while copying Modality LUT attributes: presence of '
-                '"RescaleSlope" is inconsistent among referenced images.'
-            )
-        if any(have_intercepts) and not all(have_intercepts):
-            raise ValueError(
-                'Error while copying Modality LUT attributes: presence of '
-                '"RescaleIntercept" is inconsistent among referenced images.'
-            )
-        if any(have_type) and not all(have_type):
-            raise ValueError(
-                'Error while copying Modality LUT attributes: presence of '
-                '"RescaleType" is inconsistent among referenced images.'
-            )
-
-        if all(have_intercepts) != all(have_slopes):
-            raise ValueError(
-                'Error while copying Modality LUT attributes: datasets should '
-                'have both "RescaleIntercept" and "RescaleSlope", or neither.'
-            )
-
-        if all(have_intercepts):
-            if any(
-                ds.RescaleSlope != referenced_images[0].RescaleSlope
-                for ds in referenced_images
-            ):
+        # Multframe images
+        if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+            if len(referenced_images) > 1:
                 raise ValueError(
-                    'Error while copying Modality LUT attributes: values of '
-                    '"RescaleSlope" are inconsistent among referenced images.'
+                    "The 'copy_modality_lut' option is not available when "
+                    "multiple images are passed and any of them are multiframe."
                 )
-            if any(
-                ds.RescaleIntercept != referenced_images[0].RescaleIntercept
-                for ds in referenced_images
-            ):
-                raise ValueError(
-                    'Error while copying Modality LUT attributes: values of '
-                    '"RescaleIntercept" are inconsistent among referenced '
-                    'images.'
-                )
-            slope = referenced_images[0].RescaleSlope
-            intercept = referenced_images[0].RescaleIntercept
-        else:
+
+            im = referenced_images[0]
+
+            # Check only the Shared Groups, as PRs require all frames to have
+            # the same Modality LUT
             slope = None
             intercept = None
+            rescale_type = None
+            shared_grps = im.SharedFunctionalGroupsSequence[0]
+            if hasattr(shared_grps, 'PixelValueTransformationSequence'):
+                trans_seq = shared_grps.PixelValueTransformationSequence[0]
+                if hasattr(trans_seq, 'RescaleSlope'):
+                    slope = trans_seq.RescaleSlope
+                if hasattr(trans_seq, 'RescaleIntercept'):
+                    intercept = trans_seq.RescaleIntercept
+                if hasattr(trans_seq, 'RescaleType'):
+                    rescale_type = trans_seq.RescaleType
 
-        if all(have_type):
-            if any(
-                ds.RescaleType != referenced_images[0].RescaleType
-                for ds in referenced_images
-            ):
-                raise ValueError(
-                    'Error while copying Modality LUT attributes: values of '
-                    '"RescaleType" are inconsistent among referenced images.'
-                )
-            rescale_type = referenced_images[0].RescaleType
+            # Modality LUT data in the Per Frame Functional Groups will not
+            # be copied, but we should check for it rather than silently
+            # failing to copy it
+            if hasattr(im, 'PerFrameFunctionalGroupsSequence'):
+                perframe_grps = im.PerFrameFunctionalGroupsSequence
+                if any(
+                    hasattr(frm_grps, 'PixelValueTransformationSequence')
+                    for frm_grps in perframe_grps
+                ):
+                    raise ValueError(
+                        'This multiframe image, contains modality LUT '
+                        'table data in the per-frame functional groups '
+                        'sequence. This is not compatible with the '
+                        '"copy_modality_lut" option.'
+                    )
+
+            self._add_modality_lut(
+                rescale_intercept=intercept,
+                rescale_slope=slope,
+                rescale_type=rescale_type,
+            )
+
         else:
-            if intercept is None:
-                rescale_type = None
-            else:
-                rescale_type = RescaleTypeValues.HU
+            have_slopes = [
+                hasattr(ds, 'RescaleSlope') for ds in referenced_images
+            ]
+            have_intercepts = [
+                hasattr(ds, 'RescaleIntercept') for ds in referenced_images
+            ]
+            have_type = [
+                hasattr(ds, 'RescaleType') for ds in referenced_images
+            ]
 
-        self._add_modality_lut(
-            rescale_intercept=intercept,
-            rescale_slope=slope,
-            rescale_type=rescale_type,
-        )
+            if any(have_slopes) and not all(have_slopes):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: presence of '
+                    '"RescaleSlope" is inconsistent among referenced images.'
+                )
+            if any(have_intercepts) and not all(have_intercepts):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: presence of '
+                    '"RescaleIntercept" is inconsistent among referenced '
+                    'images.'
+                )
+            if any(have_type) and not all(have_type):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: presence of '
+                    '"RescaleType" is inconsistent among referenced images.'
+                )
+
+            if all(have_intercepts) != all(have_slopes):
+                raise ValueError(
+                    'Error while copying Modality LUT attributes: datasets '
+                    'should have both "RescaleIntercept" and "RescaleSlope", '
+                    'or neither.'
+                )
+
+            if all(have_intercepts):
+                if any(
+                    ds.RescaleSlope != referenced_images[0].RescaleSlope
+                    for ds in referenced_images
+                ):
+                    raise ValueError(
+                        'Error while copying Modality LUT attributes: values '
+                        'of "RescaleSlope" are inconsistent among referenced '
+                        'images.'
+                    )
+                if any(
+                    ds.RescaleIntercept != referenced_images[0].RescaleIntercept
+                    for ds in referenced_images
+                ):
+                    raise ValueError(
+                        'Error while copying Modality LUT attributes: values '
+                        'of "RescaleIntercept" are inconsistent among '
+                        'referenced images.'
+                    )
+                slope = referenced_images[0].RescaleSlope
+                intercept = referenced_images[0].RescaleIntercept
+            else:
+                slope = None
+                intercept = None
+
+            if all(have_type):
+                if any(
+                    ds.RescaleType != referenced_images[0].RescaleType
+                    for ds in referenced_images
+                ):
+                    raise ValueError(
+                        'Error while copying Modality LUT attributes: values '
+                        'of "RescaleType" are inconsistent among referenced '
+                        'images.'
+                    )
+                rescale_type = referenced_images[0].RescaleType
+            else:
+                if intercept is None:
+                    rescale_type = None
+                else:
+                    rescale_type = RescaleTypeValues.HU
+
+            self._add_modality_lut(
+                rescale_intercept=intercept,
+                rescale_slope=slope,
+                rescale_type=rescale_type,
+            )
 
     def _copy_voi_lut(self, referenced_images: Sequence[Dataset]) -> None:
         """Copy elements of the Softcopy VOI LUT module from referenced images.
@@ -651,6 +703,23 @@ class _SoftcopyPresentationState(SOPClass):
         """
         by_window = defaultdict(list)
         by_lut = defaultdict(list)
+
+        if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+            if len(referenced_images) > 1:
+                raise ValueError(
+                    "The 'copy_modality_lut' option is not available when "
+                    "multiple images are passed and any of them are multiframe."
+                )
+
+            im = referenced_images[0]
+            if hasattr(im, 'SharedFunctionalGroupsSequence'):
+                shared_grps = im.SharedFunctionalGroupsSequence[0]
+                if hasattr(shared_grps, 'FrameVOILUTSequence'):
+                    voi_seq = shared_grps.FrameVOILUTSequence
+                    if hasattr(voi_seq, 'WindowCenter'):
+                        have_widths = [True]
+                    if hasattr(voi_seq, 'WindowCenter'):
+                        have_widths = [True]
 
         for ref_im in referenced_images:
             has_width = hasattr(ref_im, 'WindowWidth')
@@ -690,7 +759,6 @@ class _SoftcopyPresentationState(SOPClass):
                 lut_id = tuple(lut_info)
                 by_lut[lut_id].append(ref_im)
 
-        # TODO multiple LUTs
         # TODO referenced frames/segments
         # TODO multiframe
         softcopy_voi_luts = []
