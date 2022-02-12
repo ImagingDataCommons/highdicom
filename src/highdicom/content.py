@@ -197,19 +197,19 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
             accountable.
         person_address: Union[str, None]
             Mailing address of the person.
-        person_telephone_numbers: Union[Sequence[str], None]
+        person_telephone_numbers: Union[Sequence[str], None], optional
             Person's telephone number(s).
-        person_telecom_information: Union[str, None]
+        person_telecom_information: Union[str, None], optional
             The person's telecommunication contact information, including
             email or other addresses.
-        institution_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]
+        institution_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             Coded concept identifying the institution.
-        institution_address: Union[str, None]
+        institution_address: Union[str, None], optional
             Mailing address of the institution.
-        institutional_department_name: Union[str, None]
+        institutional_department_name: Union[str, None], optional
             Name of the department, unit or service within the healthcare
             facility.
-        institutional_department_type_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]
+        institutional_department_type_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             A coded description of the type of Department or Service.
 
         """  # noqa: E501
