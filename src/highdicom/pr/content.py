@@ -49,9 +49,9 @@ class GraphicLayer(Dataset):
         order: int
             Integer indicating the order in which this layer should be rendered.
             Lower values are rendered first.
-        description: Union[str, None]
+        description: Union[str, None], optional
             A description of the contents of this graphic layer.
-        display_color: Union[CIELabColor, None]
+        display_color: Union[CIELabColor, None], optional
             A default color value for rendering this layer.
 
         """
@@ -105,7 +105,7 @@ class GraphicGroup(Dataset):
             A positive integer that uniquely identifies this graphic group.
         label: str
             Name used to identify the Graphic Group (maximum 64 characters).
-        description: Union[str, None]
+        description: Union[str, None], optional
             Description of the group (maxiumum 10240 characters).
 
         """
@@ -166,10 +166,10 @@ class GraphicObject(Dataset):
             when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or the
             graphic type is ``'INTERPOLATED'`` or ``'POLYLINE'`` and the first
             and last points are equal giving a closed shape.
-        tracking_id: str
+        tracking_id: str, optional
             User defined text identifier for tracking this finding or feature.
             Shall be unique within the domain in which it is used.
-        tracking_uid: str
+        tracking_uid: str, optional
             Unique identifier for tracking this finding or feature.
         graphic_group: Union[highdicom.pr.GraphicGroup, None]
             Graphic group to which this annotation belongs.
@@ -317,28 +317,28 @@ class TextObject(Dataset):
         ----------
         text_value: str
             The unformatted text value.
-        bounding_box: Optional[Tuple[float, float, float, float]]
+        bounding_box: Optional[Tuple[float, float, float, float]], optional
             Coordinates of the bounding box in which the text should be
             displayed, given in the following order [left, top, right, bottom],
             where 'left' and 'right' are the horizontal offsets of the left and
             right sides of the box, respectively, and 'top' and 'bottom' are
             the vertical offsets of the upper and lower sides of the box.
-        anchor_point: Optional[Tuple[float, float]]
+        anchor_point: Optional[Tuple[float, float]], optional
             Location of a point in the image to which the text value is related,
             given as a (Column, Row) pair.
-        units: Union[highdicom.pr.AnnotationUnitsValues, str]
+        units: Union[highdicom.pr.AnnotationUnitsValues, str], optional
             The units in which the coordinates of the bounding box and/or
             anchor point are is expressed.
-        anchor_point_visible: bool
+        anchor_point_visible: bool, optional
             Whether the relationship between the anchor point and the text
             should be displayed in the image, for example via a line or arrow.
             This parameter is ignored if the anchor_point is not provided.
-        tracking_id: str
+        tracking_id: str, optional
             User defined text identifier for tracking this finding or feature.
             Shall be unique within the domain in which it is used.
-        tracking_uid: str
+        tracking_uid: str, optional
             Unique identifier for tracking this finding or feature.
-        graphic_group: Union[highdicom.pr.GraphicGroup, None]
+        graphic_group: Union[highdicom.pr.GraphicGroup, None], optional
             Graphic group to which this annotation belongs.
 
         Note
@@ -658,16 +658,16 @@ class SoftcopyVOILUT(Dataset):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        voi_luts: Union[Sequence[highdicom.LUT], None]
+        voi_luts: Union[Sequence[highdicom.LUT], None], optional
             Intensity lookup tables used for display.
-        referenced_images: Union[Sequence[pydicom.Dataset], None]
+        referenced_images: Union[Sequence[pydicom.Dataset], None], optional
             Images to which the VOI LUT described in this dataset applies. Note
             that if unspecified, the VOI LUT applies to every image referenced
             in the presentation state object that this dataset is included in.
-        referenced_frame_number: Union[int, Sequence[int], None]
+        referenced_frame_number: Union[int, Sequence[int], None], optional
             Frame number(s) within a referenced multiframe image to which this
             VOI LUT applies.
-        referenced_segment_number: Union[int, Sequence[int], None]
+        referenced_segment_number: Union[int, Sequence[int], None], optional
             Segment number(s) within a referenced segmentation image to which
             this VOI LUT applies.
 
