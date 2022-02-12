@@ -30,7 +30,7 @@ Segments
 
 Each distinct region of an image represented in a DICOM Seg is known as a
 *segment*. For example a single segment could represent an organ (liver, lung,
-kideny), tissue (fat, muscle, bone), or abnormality (tumor, infarct).
+kidney), tissue (fat, muscle, bone), or abnormality (tumor, infarct).
 Elsewhere the same concept is known by other names such as *class* or *label*.
 
 A single DICOM Seg image can represent one or more segments contained within
@@ -578,16 +578,103 @@ and 1):
 Geometry of Seg Images
 ----------------------
 
+In the simple cases we have seen so far, the geometry of the segmentation
+``pixel_array`` has matched that of the source images, i.e. there is a spatial
+correspondence between a given pixel in the ``pixel_array`` and the
+corresponding pixel in the relevant source frame. While this covers most use
+cases, DICOM Segs actually allow for more general segmentations in which there
+is a more complicated relationship between the source frames and the
+segmentation masks. This code arise when a source image is resampled or
+transformed before the segmentation method is applied, such that there is no
+longer a simple correspondence between pixels in the segmentation mask and
+pixels in the source image.
+
+Highdicom supports this case by allowing you to manually specify the plane
+positions of the each frame in the segmentation mask, and further the
+orientations and pixel spacigs of these planes if they do not match that in the
+source images. In this case, the correspondence between the items of the
+``source_images`` list and axis 0 of the segmentation ``pixel_array`` is broken
+and the number of frames in each may differ.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_files
+
+    import highdicom as hd
+
+    # Load a CT image
+    source_files = [
+        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Sort source frames by instance number
+    source_files = sorted(source_files, key=lambda x: x.InstanceNumber)
+
+    # Now the shape and size of the mask does not have to match the source
+    # images
+    mask = np.zeros((2, 100, 100), np.uint8)
+    mask[0, 50:60, 50:60] = 1
+
+    # Define custom positions for each frame
+    positions = [
+        hd.PlanePositionSequence(
+            hd.CoordinateSystemNames.PATIENT,
+            [100.0, 50.0, -50.0]
+        ),
+        hd.PlanePositionSequence(
+            hd.CoordinateSystemNames.PATIENT,
+            [100.0, 50.0, -48.0]
+        ),
+    ]
+
+    # Define a custom orientation and spacing for the segmentation mask
+    orientation = hd.PlaneOrientationSequence(
+        hd.CoordinateSystemNames.PATIENT,
+        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0]
+    )
+    spacings = hd.PixelMeasuresSequence(
+        slice_thickness=2.0,
+        pixel_spacing=[2.0, 2.0]
+    )
+
+    # Description of liver segment produced by a manual algorithm
+    # Note that now there are multiple frames but still only a single segment
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_files,
+        pixel_array=mask,
+        plane_positions=positions,
+        plane_orientation=orientation,
+        pixel_measures=spacings,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
 Organization of Frames in Segs
 ------------------------------
 
-Constructing DICOM Seg Images
------------------------------
-
 Reconstructing Segmentation Masks From DICOM Segs
 -------------------------------------------------
-
-fractional scaling
 
 Viewing DICOM Seg Images
 ------------------------
