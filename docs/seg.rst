@@ -11,7 +11,7 @@ DICOM images of other modalities, such as magnetic resonance (MR), computed
 tomography (CT), slide microscopy (SM) and many others.
 A segmentation is a partitioning of an image into different regions. In medical
 imaging these regions may commonly represent different organs or tissue types,
-or region of abnormality (e.g. tumor or infarct) identified within an image.
+or regions of abnormality (e.g. tumor or infarct) identified within an image.
 
 The crucial difference between Segs and other IODs that allow for storing image
 regions is that Segs store the segmented regions in *raster* format as pixel
@@ -56,7 +56,7 @@ this information. When you construct a DICOM Seg image using *highdicom*, you
 must construct a single SegmentDescription object for each segment, and provide
 the following information:
 
-- **Segment Label**: A human-readable name for the segment (e.g.  ``"Left
+- **Segment Label**: A human-readable name for the segment (e.g. ``"Left
   Kidney"``).
 - **Segmented Property Category**: A coded value describing the
   category of the segmented region. For example this could specify that the
@@ -76,8 +76,8 @@ Notice that the segment description makes use of coded concepts to ensure that
 the way a particular anatomical structure is described is standardized and
 unambiguous (if standard nomenclatures are used).
 
-Here is an example of constructing a few different segment descriptions using
-*highdicom*:
+Here is an example of constructing a simple segment description for a segment
+representing a liver that has been manually segmented.
 
 .. code-block:: python
 
@@ -94,6 +94,13 @@ Here is an example of constructing a few different segment descriptions using
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
+
+In this second example, we describe a segment representing a tumor that has been
+automatically segmented by an artificial intelligence algorithm. For this, we
+must first provide more information about the algorithm used in an algorithm
+identification sequence.
+
+.. code-block:: python
 
     # For the next segment, we will describe the specific algorithm used to
     # create it
@@ -158,7 +165,7 @@ segments whose descriptions meet certain criteria. For example:
 Binary and Fractional Segs
 --------------------------
 
-One particularly important characteristic of segmentation images is its
+One particularly important characteristic of a segmentation image is its
 "Segmentation Type" (0062,0001), which may take the value of either ``"BINARY"``
 or ``"FRACTIONAL"`` and describes the values that a given segment may take.
 Segments in a ``"BINARY"`` segmentation image may only take values 0 or 1, i.e.
@@ -167,9 +174,10 @@ each pixel either belongs to the segment or does not.
 By contrast, pixels in a ``"FRACTIONAL"`` segmentation image lie in the range 0
 to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
 whether these values should be interpreted as ``"PROBABILITY"`` (i.e. the
-probability that a pixel belongs to the segmentation) or ``"OCCUPANCY"`` i.e.
-the fraction of the volume of the pixel's (or voxel's) area (or volume) that
-belongs to the segment.
+number between 0 and 1 respresents a probability that a pixel belongs to the
+segmentation) or ``"OCCUPANCY"`` i.e. the number represents the fraction of the
+volume of the pixel's (or voxel's) area (or volume) that belongs to the
+segment.
 
 A potential source of confusion is that having a Segmentations Type of
 ``"BINARY"`` only limits the range of values *within a given segment*. It is
@@ -195,10 +203,14 @@ some other basic information.
 
     import numpy as np
 
+    from pydicom import dcmread
     from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_file
 
     import highdicom as hd
 
+    # Load a CT image
+    source_file = dcmread(get_testdata_file('CT_small.dcm'))
 
     # Description of liver segment produced by a manual algorithm
     liver_description = hd.seg.SegmentDescription(
@@ -215,9 +227,10 @@ some other basic information.
 
     # Construct the Segmentation Image
     seg = hd.seg.Segmentation(
-        source_images=[],  # Todo
+        source_images=[source_file],
+        pixel_array=mask,
         segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
-        segment_descriptions: Sequence[SegmentDescription],
+        segment_descriptions=[liver_description],
         series_instance_uid=hd.UID(),
         series_number=1,
         sop_instance_uid=hd.UID(),
@@ -228,13 +241,234 @@ some other basic information.
         device_serial_number='1234567890',
     )
 
-
 Constructing Binary Seg Images with Multiple Frames
 ---------------------------------------------------
+
+DICOM Segs are multiframe objects, which means that they may contain more than
+one frame within the same object. For example, a Seg image may contain the
+segmentations for an entire series of CT images. In this case you can pass a 3D
+numpy array as the ``pixel_array`` parameter of the constructor. Axis 0 of the
+numpy array contains the masks for each frame. The order of segmentation masks
+is assumed to match the order of the frames within the ``source_images``
+parameter, i.e. ``pixel_array[i, ...]`` is the segmentation of
+``source_images[i]``. Note that highdicom makes no attempt to sort the input
+source images in any way. It is the responsibility of the user to ensure that
+they pass the source images in a meaningful order, and the source images and
+segmentation frames at the same index correspond.
+
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_files
+
+    import highdicom as hd
+
+    # Load a CT image
+    source_files = [
+        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Sort source frames by instance number
+    source_files = sorted(source_files, key=lambda x: x.InstanceNumber)
+
+    # Create a segmentation by thresholding the CT image at 1000 HU
+    thresholded = [
+        im.pixel_array * im.RescaleSlope + im.RescaleIntercept > 1000
+        for im in source_files
+    ]
+
+    # Stack segmentations of each frame down axis zero. Now we have an array
+    # with shape (frames x height x width)
+    mask = np.stack(thresholded, axis=0)
+
+    # Description of liver segment produced by a manual algorithm
+    # Note that now there are multiple frames but still only a single segment
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_files,
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+Note that the example of the previous section with a 2D pixel array is simply
+a convenient shorthand for the special case where there is only a single source
+frame and a single segment. It is equivalent in every way to passing a 3D
+with a single frame down axis 0.
+
+Alternatively, we could create a segmentation of a source image that is itself
+a multiframe image (such as an Enhanced CT or MR image, or a Whole Slide
+Microscopy image). In this case, we just pass the single source image object,
+and the ``pixel_array`` input with one segmentation frame in axis 0 for each
+frame of the source file, listed in ascending order by frame number. I.e.
+``pixel_array[i, ...]`` is the segmentation of frame ``i`` of the single
+source image.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_file
+
+    import highdicom as hd
+
+    # Load an enhanced CT image
+    source_dcm = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    pixel_xform_seq = source_dcm.SharedFunctionalGroupsSequence[0]\
+        .PixelValueTransformationSequence[0]
+    slope = pixel_xform_seq.RescaleSlope
+    intercept = pixel_xform_seq.RescaleIntercept
+    image_array = source_dcm.pixel_array * slope + intercept
+
+    # Create a segmentation by thresholding the CT image at 0 HU
+    mask = image_array > 0
+
+    # Description of liver segment produced by a manual algorithm
+    # Note that now there are multiple frames but still only a single segment
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=[source_dcm],
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
 
 Constructing Binary Seg Images with Multiple Segments
 -----------------------------------------------------
 
+To further generalize our initial example, we can include multiple segments
+representing, for example, multiple organs. The first change is to include
+the descriptions of both segments in the ``segment_descriptions`` parameter.
+Note that the ``segment_descriptions`` list must contain segment descriptions
+ordered consecutively by their ``segment_number``, starting with
+``segment_number=1``.
+
+.. code-block:: python
+
+    # Load a CT image
+    source_files = [
+        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Sort source frames by instance number
+    source_files = sorted(source_files, key=lambda x: x.InstanceNumber)
+    image_array = np.stack([
+        im.pixel_array * im.RescaleSlope + im.RescaleIntercept
+        for im in source_files
+    ], axis=0)
+
+    # Create a segmentation by thresholding the CT image at 1000 HU
+    thresholded_0 = image_array > 1000
+
+    # ...and a second below 500 HU
+    thresholded_1 = image_array < 500
+
+    # Stack the two segments down axis 3
+    mask = np.stack([thresholded_0, thresholded_1], axis=3)
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_files,
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=segment_descriptions,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Multi-Organ Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+The second way to pass segmentation masks for multiple labels is as a "label
+map". A label map is a 3D array (or 2D in the case of a single frame) in which
+each pixel's value determines which segment it belongs to, i.e. a pixel with
+value 1 belongs to segment 1 (which is the first item in the
+``segment_descriptions``). A pixel with value 0 belongs to no segments. The
+label map form is more convenient to work with in many applications, however it
+is limited to representing segmentations that do not overlap (i.e. those in
+which a single pixel can belong to at most one segment). The more general form
+does not have this limitation: a given pixel may belong to any number of
+segments.
+
+The following snippet produces an equivalent Seg image to the previous snippet,
+but passes the mask as a label map rather than as a stack of segments.
+
+.. code-block:: python
+
+    # Load a CT image
+    source_files = [
+        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Sort source frames by instance number
+    source_files = sorted(source_files, key=lambda x: x.InstanceNumber)
+    image_array = np.stack([
+        im.pixel_array * im.RescaleSlope + im.RescaleIntercept
+        for im in source_files
+    ], axis=0)
+
+    # Create the same two segments as above as a label map
+    mask = np.zeros_like(image_array, np.uint8)
+    mask[image_array > 1000] = 1
+    mask[image_array < 500] = 2
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_files,
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=segment_descriptions,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Multi-Organ Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
 
 
 Representation of Fractional Segs
@@ -252,14 +486,67 @@ When constructing ``"FRACTIONAL"`` segmentation images, you pass a
 floating-point valued pixel array and *highdicom* handles this
 quantization for you. If you wish, you may change the "Maximum Fractional Value"
 from the default of 255 (which gives the maximum possible level of precision).
+Note that this does entail a loss of precision.
 
 Similarly, *highdicom* will rescale stored values back down to the range 0-1 by
 default in its methods for retrieving pixel arrays (more on this below).
 
+Otherwise, constructing ``"FRACTIONAL"`` segs is identical to constructing
+binary ones ``"BINARY"``, with the caveat that fractional segs may not use the
+"label map" method to pass multiple segments but must instead stack them along
+axis 3.
+
+The example below shows a simple example of construction a fractional seg
+representing a probabilistic segmentation of the liver.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_file
+
+    import highdicom as hd
+
+    # Load a CT image
+    source_file = dcmread(get_testdata_file('CT_small.dcm'))
+
+    # Description of liver segment produced by a manual algorithm
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Pixel array is an float array with values between 0 and 1
+    mask = np.zeros((128, 128), dtype=float)
+    mask[10:20, 10:20] = 0.5
+    mask[30:40, 30:40] = 0.75
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=[source_file],
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.FRACTIONAL,
+        fractional_type=hd.seg.SegmentationFractionalTypeValues.PROBABILITY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
 Compression
 -----------
 
-The type of compression available in segmentation images depends on the
+The type of pixel compression available in segmentation images depends on the
 segmentation type. Pixels in a ``"BINARY"`` segmentation image are "bit-packed"
 such that 8 pixels are grouped into 1 byte in the stored array. If a given frame
 contains a number of pixels that is not divisible by 8 exactly, a single byte 
