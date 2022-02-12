@@ -1247,6 +1247,89 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert len(gsps.SoftcopyVOILUTSequence[0].VOILUTSequence) == 2
 
+    def test_construction_with_copy_voi_lut_multiframe(self):
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[self._ct_multiframe],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_voi_lut=True,
+        )
+        shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
+        voi_seq = shared_grp.FrameVOILUTSequence[0]
+        assert len(gsps.SoftcopyVOILUTSequence) == 1
+        expected_width = voi_seq.WindowWidth
+        expected_center = voi_seq.WindowCenter
+        assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
+        assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
+        assert not hasattr(
+            gsps.SoftcopyVOILUTSequence[0],
+            'ReferencedImageSequence'
+        )
+
+    def test_construction_with_copy_voi_lut_multiframe_perframe(self):
+        # Create a multiframe image with different VOI LUTs per frame
+        edited_multiframe = deepcopy(self._ct_multiframe)
+        delattr(
+            edited_multiframe.SharedFunctionalGroupsSequence[0],
+            'FrameVOILUTSequence'
+        )
+        new_voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+        )
+        new_voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+        )
+        edited_multiframe.PerFrameFunctionalGroupsSequence[0]. \
+            FrameVOILUTSequence = [new_voi_lut_0]
+        edited_multiframe.PerFrameFunctionalGroupsSequence[1]. \
+            FrameVOILUTSequence = [new_voi_lut_1]
+
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[edited_multiframe],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name_code=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            copy_voi_lut=True,
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 2
+
+        expected_width = new_voi_lut_0.WindowWidth
+        expected_center = new_voi_lut_0.WindowCenter
+        assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
+        assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
+        ref_im = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence[0]
+        assert ref_im.ReferencedFrameNumber == [1]
+
+        expected_width = new_voi_lut_1.WindowWidth
+        expected_center = new_voi_lut_1.WindowCenter
+        assert gsps.SoftcopyVOILUTSequence[1].WindowWidth == expected_width
+        assert gsps.SoftcopyVOILUTSequence[1].WindowCenter == expected_center
+        ref_im = gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence[0]
+        assert ref_im.ReferencedFrameNumber == [2]
+
     def test_construction_with_voi_lut_missing_references(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(

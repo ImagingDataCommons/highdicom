@@ -701,114 +701,169 @@ class _SoftcopyPresentationState(SOPClass):
             The referenced images from which the attributes should be copied.
 
         """
-        by_window = defaultdict(list)
-        by_lut = defaultdict(list)
-
         if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
             if len(referenced_images) > 1:
                 raise ValueError(
-                    "The 'copy_modality_lut' option is not available when "
+                    "The 'copy_voi_lut' option is not available when "
                     "multiple images are passed and any of them are multiframe."
                 )
 
             im = referenced_images[0]
-            if hasattr(im, 'SharedFunctionalGroupsSequence'):
-                shared_grps = im.SharedFunctionalGroupsSequence[0]
-                if hasattr(shared_grps, 'FrameVOILUTSequence'):
-                    voi_seq = shared_grps.FrameVOILUTSequence
-                    if hasattr(voi_seq, 'WindowCenter'):
-                        have_widths = [True]
-                    if hasattr(voi_seq, 'WindowCenter'):
-                        have_widths = [True]
+            shared_grps = im.SharedFunctionalGroupsSequence[0]
+            perframe_grps = im.PerFrameFunctionalGroupsSequence
+            if hasattr(shared_grps, 'FrameVOILUTSequence'):
+                # Simple case where VOI information is in the Shared functional
+                # groups and therefore are consistent between frames
+                voi_seq = shared_grps.FrameVOILUTSequence[0]
 
-        for ref_im in referenced_images:
-            has_width = hasattr(ref_im, 'WindowWidth')
-            has_center = hasattr(ref_im, 'WindowCenter')
-            has_lut = hasattr(ref_im, 'VOILUTSequence')
-
-            if has_width != has_center:
-                raise ValueError(
-                    'Error while copying VOI LUT attributes: found dataset '
-                    'with mismatched WindowWidth and WindowCenter attributes.'
-                )
-
-            if has_width and has_lut:
-                raise ValueError(
-                    'Error while copying VOI LUT attributes: found dataset '
-                    'with both window width/center and VOI LUT Sequence '
-                    'attributes.'
-                )
-
-            if has_width:
-                by_window[(
-                    ref_im.WindowWidth,
-                    ref_im.WindowCenter,
-                    getattr(ref_im, 'WindowCenterWidthExplanation', None),
-                    getattr(ref_im, 'VOILUTFunction', None),
-                )].append(ref_im)
-            elif has_lut:
-                # Create a unique identifier for this list of LUTs
-                lut_info = []
-                for voi_lut in ref_im.VOILUTSequence:
-                    lut_info.append((
-                        voi_lut.LUTDescriptor[1],
-                        voi_lut.LUTDescriptor[2],
-                        getattr(voi_lut, 'LUTExplanation', None),
-                        voi_lut.LUTData
-                    ))
-                lut_id = tuple(lut_info)
-                by_lut[lut_id].append(ref_im)
-
-        # TODO referenced frames/segments
-        # TODO multiframe
-        softcopy_voi_luts = []
-        for (width, center, exp, func), im_list in by_window.items():
-            if len(im_list) == len(referenced_images):
-                # All datasets included, no need to include the referenced
-                # images explicitly
-                refs_to_include = None
-            else:
-                # Include specific references
-                refs_to_include = im_list
-
-            softcopy_voi_luts.append(
-                SoftcopyVOILUT(
-                    window_center=center,
-                    window_width=width,
-                    window_explanation=exp,
-                    voi_lut_function=func,
-                    referenced_images=refs_to_include
-                )
-            )
-
-        for lut_id, im_list in by_lut.items():
-            if len(im_list) == len(referenced_images):
-                # All datasets included, no need to include the referenced
-                # images explicitly
-                refs_to_include = None
-            else:
-                # Include specific references
-                refs_to_include = im_list
-
-            luts = [
-                LUT(
-                    first_mapped_value=fmv,
-                    lut_data=np.frombuffer(
-                        data,
-                        np.uint8 if ba == 8 else np.uint16
+                softcopy_voi_lut = SoftcopyVOILUT(
+                    window_center=voi_seq.WindowCenter,
+                    window_width=voi_seq.WindowWidth,
+                    window_explanation=getattr(
+                        voi_seq,
+                        'WindowCenterWidthExplanation',
+                        None
                     ),
-                    lut_explanation=exp
-                ) for (fmv, ba, exp, data) in lut_id
-            ]
-            softcopy_voi_luts.append(
-                SoftcopyVOILUT(
-                    referenced_images=refs_to_include,
-                    voi_luts=luts
+                    voi_lut_function=getattr(voi_seq, 'VOILUTFunction', None),
                 )
-            )
+                self.SoftcopyVOILUTSequence = [softcopy_voi_lut]
 
-        if len(softcopy_voi_luts) > 0:
-            self.SoftcopyVOILUTSequence = softcopy_voi_luts
+            else:
+                # Check the per-frame functional groups, which may be
+                # inconsistent between frames and require multiple entries
+                # in the GSPS SoftcopyVOILUTSequence
+                by_window = defaultdict(list)
+                for frame_number, frm_grp in enumerate(perframe_grps, 1):
+                    if hasattr(frm_grp, 'FrameVOILUTSequence'):
+                        voi_seq = frm_grp.FrameVOILUTSequence[0]
+                        # Create unique ID for this VOI lookup as a tuple
+                        # of the contents
+                        by_window[(
+                            voi_seq.WindowWidth,
+                            voi_seq.WindowCenter,
+                            getattr(
+                                voi_seq,
+                                'WindowCenterWidthExplanation',
+                                None
+                            ),
+                            getattr(voi_seq, 'VOILUTFunction', None),
+                        )].append(frame_number)
+
+                softcopy_voi_luts = []
+                for (width, center, exp, func), frame_list in by_window.items():
+                    if len(frame_list) == im.NumberOfFrames:
+                        # All frames included, no need to include the
+                        # referenced frames explicitly
+                        refs_to_include = None
+                    else:
+                        # Include specific references
+                        refs_to_include = frame_list
+
+                    softcopy_voi_luts.append(
+                        SoftcopyVOILUT(
+                            window_center=center,
+                            window_width=width,
+                            window_explanation=exp,
+                            voi_lut_function=func,
+                            referenced_images=referenced_images,
+                            referenced_frame_number=refs_to_include
+                        )
+                    )
+
+                if len(softcopy_voi_luts) > 0:
+                    self.SoftcopyVOILUTSequence = softcopy_voi_luts
+
+        else:  # single frame
+            by_window = defaultdict(list)
+            by_lut = defaultdict(list)
+            for ref_im in referenced_images:
+                has_width = hasattr(ref_im, 'WindowWidth')
+                has_center = hasattr(ref_im, 'WindowCenter')
+                has_lut = hasattr(ref_im, 'VOILUTSequence')
+
+                if has_width != has_center:
+                    raise ValueError(
+                        'Error while copying VOI LUT attributes: found dataset '
+                        'with mismatched WindowWidth and WindowCenter '
+                        'attributes.'
+                    )
+
+                if has_width and has_lut:
+                    raise ValueError(
+                        'Error while copying VOI LUT attributes: found dataset '
+                        'with both window width/center and VOI LUT Sequence '
+                        'attributes.'
+                    )
+
+                if has_width:
+                    by_window[(
+                        ref_im.WindowWidth,
+                        ref_im.WindowCenter,
+                        getattr(ref_im, 'WindowCenterWidthExplanation', None),
+                        getattr(ref_im, 'VOILUTFunction', None),
+                    )].append(ref_im)
+                elif has_lut:
+                    # Create a unique identifier for this list of LUTs
+                    lut_info = []
+                    for voi_lut in ref_im.VOILUTSequence:
+                        lut_info.append((
+                            voi_lut.LUTDescriptor[1],
+                            voi_lut.LUTDescriptor[2],
+                            getattr(voi_lut, 'LUTExplanation', None),
+                            voi_lut.LUTData
+                        ))
+                    lut_id = tuple(lut_info)
+                    by_lut[lut_id].append(ref_im)
+
+            softcopy_voi_luts = []
+            for (width, center, exp, func), im_list in by_window.items():
+                if len(im_list) == len(referenced_images):
+                    # All datasets included, no need to include the referenced
+                    # images explicitly
+                    refs_to_include = None
+                else:
+                    # Include specific references
+                    refs_to_include = im_list
+
+                softcopy_voi_luts.append(
+                    SoftcopyVOILUT(
+                        window_center=center,
+                        window_width=width,
+                        window_explanation=exp,
+                        voi_lut_function=func,
+                        referenced_images=refs_to_include
+                    )
+                )
+
+            for lut_id, im_list in by_lut.items():
+                if len(im_list) == len(referenced_images):
+                    # All datasets included, no need to include the referenced
+                    # images explicitly
+                    refs_to_include = None
+                else:
+                    # Include specific references
+                    refs_to_include = im_list
+
+                luts = [
+                    LUT(
+                        first_mapped_value=fmv,
+                        lut_data=np.frombuffer(
+                            data,
+                            np.uint8 if ba == 8 else np.uint16
+                        ),
+                        lut_explanation=exp
+                    )
+                    for (fmv, ba, exp, data) in lut_id
+                ]
+                softcopy_voi_luts.append(
+                    SoftcopyVOILUT(
+                        referenced_images=refs_to_include,
+                        voi_luts=luts
+                    )
+                )
+
+            if len(softcopy_voi_luts) > 0:
+                self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
     def _add_icc_profile(
         self,
