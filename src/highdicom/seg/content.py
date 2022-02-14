@@ -512,7 +512,7 @@ class DimensionIndexSequence(DataElementSequence):
                 y_center = center_item.YOffsetInSlideCoordinateSystem
                 z_center = center_item.ZOffsetInSlideCoordinateSystem
                 offset_coordinate = map_pixel_into_coordinate_system(
-                    coordinate=((img.Columns / 2, img.Rows / 2)),
+                    index=((img.Columns / 2, img.Rows / 2)),
                     image_position=(x_center, y_center, z_center),
                     image_orientation=img.ImageOrientationSlide,
                     pixel_spacing=img.PixelSpacing
