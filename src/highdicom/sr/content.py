@@ -1172,6 +1172,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def topographical_modifier(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.TopographicalModifier,
@@ -1188,6 +1190,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def laterality(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.Laterality,

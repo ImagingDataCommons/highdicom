@@ -2365,6 +2365,8 @@ class Measurement(Template):
     @property
     def derivation(self) -> Union[CodedConcept, None]:
         """Union[highdicom.sr.CodedConcept, None]: derivation"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return None
         matches = find_content_items(
             self[0],
             name=codes.DCM.Derivation,
@@ -2377,6 +2379,8 @@ class Measurement(Template):
     @property
     def method(self) -> Union[CodedConcept, None]:
         """Union[highdicom.sr.CodedConcept, None]: method"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return None
         matches = find_content_items(
             self[0],
             name=codes.SCT.MeasurementMethod,
@@ -2389,6 +2393,8 @@ class Measurement(Template):
     @property
     def referenced_images(self) -> List[SourceImageForMeasurement]:
         """List[highdicom.sr.SourceImageForMeasurement]: referenced images"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
         matches = find_content_items(
             self[0],
             name=codes.DCM.SourceOfMeasurement,
@@ -2399,6 +2405,8 @@ class Measurement(Template):
     @property
     def finding_sites(self) -> List[FindingSite]:
         """List[highdicom.sr.FindingSite]: finding sites"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
         matches = find_content_items(
             self[0],
             name=codes.SCT.FindingSite,
