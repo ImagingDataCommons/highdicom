@@ -270,7 +270,7 @@ class SourceImageForMeasurement(ImageContentItem):
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
+            Dataset representing an SR Content Item with value type IMAGE
 
         Returns
         -------

@@ -2354,13 +2354,59 @@ class Measurement(Template):
 
     @property
     def unit(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: unit"""
+        """highdicom.sr.CodedConcept: unit"""
         return self[0].unit
 
     @property
     def qualifier(self) -> Union[CodedConcept, None]:
-        """Union[highdicom.sr.coding.CodedConcept, None]: qualifier"""
+        """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         return self[0].qualifier
+
+    @property
+    def derivation(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.CodedConcept, None]: derivation"""
+        matches = find_content_items(
+            self[0],
+            name=codes.DCM.Derivation,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def method(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.CodedConcept, None]: method"""
+        matches = find_content_items(
+            self[0],
+            name=codes.SCT.MeasurementMethod,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def referenced_images(self) -> List[SourceImageForMeasurement]:
+        """List[highdicom.sr.SourceImageForMeasurement]: referenced images"""
+        matches = find_content_items(
+            self[0],
+            name=codes.DCM.SourceOfMeasurement,
+            value_type=ValueTypeValues.IMAGE
+        )
+        return [SourceImageForMeasurement.from_dataset(m) for m in matches]
+
+    @property
+    def finding_sites(self) -> List[FindingSite]:
+        """List[highdicom.sr.FindingSite]: finding sites"""
+        matches = find_content_items(
+            self[0],
+            name=codes.SCT.FindingSite,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return [FindingSite.from_dataset(m) for m in matches]
+        return []
 
 
 class MeasurementsAndQualitativeEvaluations(Template):
