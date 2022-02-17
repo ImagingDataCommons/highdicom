@@ -638,11 +638,13 @@ def _is_image(dataset: Dataset) -> bool:
         ``True`` if `dataset` is an image, ``False`` otherwise
 
     """
-    if all(key in dataset for key in ('Rows',
-                                      'Columns',
-                                      'SamplesPerPixel',
-                                      'PhotometricInterpretation',
-                                      'BitsAllocated')):
+    if all(key in dataset for key in (
+        'Rows',
+        'Columns',
+        'SamplesPerPixel',
+        'PhotometricInterpretation',
+        'BitsAllocated'
+    )):
         return True
     else:
         return False
@@ -3645,7 +3647,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
 class ImageLibraryEntryDescriptors(Template):
 
-    """:dcm:"`TID 1602 <part16/chapter_A.html#sect_TID_1602>`_
+    """:dcm:`TID 1602 <part16/chapter_A.html#sect_TID_1602>`
      Image Library Entry Descriptors"""
 
     def __init__(
@@ -3659,7 +3661,7 @@ class ImageLibraryEntryDescriptors(Template):
         ----------
         image: pydicom.Dataset
             Metadata of a referenced image instance
-        additional_descriptors: Sequence[highdicom.sr.ContentItem],
+        additional_descriptors: Union[Sequence[highdicom.sr.ContentItem], None], optional
             Optional additional SR Content Items that should be included
             for description of the referenced image
 
@@ -3693,11 +3695,7 @@ class ImageLibraryEntryDescriptors(Template):
             )
             self.append(frame_of_reference_uid_item)
         pixel_data_rows_item = NumContentItem(
-            name=CodedConcept(
-                value='110910',
-                meaning='Pixel Data Rows',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.PixelDataRows,
             value=image.Rows,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
@@ -4920,7 +4918,6 @@ class ImageLibraryEntry(Template):
             Image to include in ImageLibrary
 
         """  # noqa
-
         super().__init__()
 
         library_item_entry = ImageLibraryEntryDescriptors(dataset)
