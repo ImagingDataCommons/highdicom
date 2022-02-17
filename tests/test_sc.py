@@ -462,7 +462,6 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
-
     def test_construct_rgb_from_ref_dataset(self):
         bits_allocated = 8
         photometric_interpretation = 'RGB'
