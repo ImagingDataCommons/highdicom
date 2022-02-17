@@ -270,7 +270,7 @@ class SourceImageForMeasurement(ImageContentItem):
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
+            Dataset representing an SR Content Item with value type IMAGE
 
         Returns
         -------
@@ -1172,6 +1172,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def topographical_modifier(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.TopographicalModifier,
@@ -1188,6 +1190,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def laterality(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.Laterality,
