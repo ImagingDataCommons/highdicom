@@ -555,8 +555,7 @@ class IssuerOfIdentifier(Dataset):
 
 class SpecimenCollection(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    collection procedure.
+    """Sequence of SR content item describing a specimen collection procedure.
     """
 
     def __init__(
@@ -580,9 +579,11 @@ class SpecimenCollection(ContentSequence):
 
 class SpecimenSampling(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    sampling procedure according to structured reporting template
+    """Sequence of SR content item describing a specimen sampling procedure.
+
+    See SR template
     :dcm:`TID 8002 Specimen Sampling <part16/chapter_C.html#sect_TID_8002>`.
+
     """
 
     def __init__(
@@ -637,36 +638,74 @@ class SpecimenSampling(ContentSequence):
 
 class SpecimenStaining(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    staining procedure according to structured reporting template
+    """Sequence of SR content item describing a specimen staining procedure
+
+    See SR template
     :dcm:`TID 8003 Specimen Staining <part16/chapter_C.html#sect_TID_8003>`.
+
     """
 
     def __init__(
         self,
-        substances: Sequence[Union[Code, CodedConcept]]
+        substances: Sequence[Union[Code, CodedConcept, str]]
     ):
         """
         Parameters
         ----------
-        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
+        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, str]]
             Substances used to stain examined specimen(s)
 
         """  # noqa: E501
         super().__init__(is_root=True)
         # CID 8112
         for s in substances:
-            item = CodeContentItem(
-                name=codes.SCT.UsingSubstance,
-                value=s
-            )
+            if isinstance(s, (Code, CodedConcept)):
+                item = CodeContentItem(
+                    name=codes.SCT.UsingSubstance,
+                    value=s
+                )
+            elif isinstance(s, str):
+                item = TextContentItem(
+                    name=codes.SCT.UsingSubstance,
+                    value=s
+                )
+            else:
+                raise TypeError(
+                    'Items of argument "substances" must have type '
+                    'CodedConcept, Code, or str.'
+                )
             self.append(item)
+
+
+class SpecimenProcessing(ContentSequence):
+
+    """Sequence of SR content item describing a specimen processing procedure.
+    """
+
+    def __init__(
+        self,
+        description: Union[Code, CodedConcept]
+    ):
+        """
+        Parameters
+        ----------
+        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Description of the processing
+
+        """  # noqa: E501
+        super().__init__(is_root=True)
+        # CID 8112
+        item = CodeContentItem(
+            name=codes.DCM.ProcessingStepDescription,
+            value=description
+        )
+        self.append(item)
 
 
 class SpecimenPreparationStep(ContentSequence):
 
-    """Dataset describing a specimen preparation step according to.
-    structured reporting template
+    """Dataset describing a specimen preparation step according to structured
+    reporting template
     :dcm:`TID 8001 Specimen Preparation <part16/chapter_C.html#sect_TID_8001>`.
 
     """
@@ -679,6 +718,7 @@ class SpecimenPreparationStep(ContentSequence):
             SpecimenCollection,
             SpecimenSampling,
             SpecimenStaining,
+            SpecimenProcessing,
         ],
         processing_description: Optional[
             Union[str, Code, CodedConcept]
@@ -724,12 +764,48 @@ class SpecimenPreparationStep(ContentSequence):
                 value=entity_id
             )
             self.append(issuer_of_specimen_id_item)
+
+        if isinstance(processing_procedure, SpecimenCollection):
+            if processing_type != codes.SCT.SpecimenCollection:
+                raise ValueError(
+                    f'Processing type must be "Specimen Collection" '
+                    'for processing procedure of type '
+                    f'{processing_procedure.__class__.__name__}.'
+                )
+        elif isinstance(processing_procedure, SpecimenProcessing):
+            if processing_type != codes.SCT.SpecimenProcessing:
+                raise ValueError(
+                    f'Processing type must be "Specimen Processing" '
+                    'for processing procedure of type '
+                    f'{processing_procedure.__class__.__name__}.'
+                )
+        elif isinstance(processing_procedure, SpecimenStaining):
+            if processing_type != codes.SCT.Staining:
+                raise ValueError(
+                    f'Processing type must be "Staining" '
+                    'for processing procedure of type '
+                    f'{processing_procedure.__class__.__name__}.'
+                )
+        elif isinstance(processing_procedure, SpecimenSampling):
+            if processing_type != codes.SCT.SamplingOfTissueSpecimen:
+                raise ValueError(
+                    f'Processing type must be "Sampling of Tissue Specimen" '
+                    'for processing procedure of type '
+                    f'{processing_procedure.__class__.__name__}.'
+                )
+        else:
+            raise TypeError(
+                'Argument "processing_procedure" must have type '
+                f'"{processing_procedure.__class__.__name__}".'
+            )
+
         # CID 8111
         processing_type_item = CodeContentItem(
             name=codes.DCM.ProcessingType,
             value=processing_type
         )
         self.append(processing_type_item)
+
         if processing_datetime is not None:
             processing_datetime_item = DateTimeContentItem(
                 name=codes.DCM.DateTimeOfProcessing,
@@ -752,15 +828,7 @@ class SpecimenPreparationStep(ContentSequence):
                     value=processing_description
                 )
             self.append(processing_description_item)
-        accepted_procedure_types = (
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-        )
-        if not isinstance(processing_procedure, accepted_procedure_types):
-            raise TypeError(
-                'Unknown procedure of specimen preparation step.'
-            )
+
         self.extend(processing_procedure)
         if fixative is not None:
             tissue_fixative_item = CodeContentItem(
