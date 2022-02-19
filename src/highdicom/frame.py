@@ -3,7 +3,6 @@ from io import BytesIO
 from typing import Optional, Union
 
 import numpy as np
-import pillow_jpls  # noqa
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
@@ -37,7 +36,7 @@ def encode_frame(
     pixel_representation: Union[PixelRepresentationValues, int] = 0,
     planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
 ) -> bytes:
-    """Encodes pixel data of an individual frame.
+    """Encode pixel data of an individual frame.
 
     Parameters
     ----------
@@ -238,6 +237,7 @@ def encode_frame(
                 )
 
         elif transfer_syntax_uid == JPEGLSLossless:
+            import pillow_jpls  # noqa
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
@@ -312,7 +312,7 @@ def decode_frame(
     pixel_representation: Union[PixelRepresentationValues, int] = 0,
     planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
 ) -> np.ndarray:
-    """Decodes pixel data of an individual frame.
+    """Decode pixel data of an individual frame.
 
     Parameters
     ----------
@@ -390,4 +390,13 @@ def decode_frame(
     else:
         ds.PixelData = value
 
-    return ds.pixel_array
+    array = ds.pixel_array
+
+    # The pixel_array property does not convert the pixel data into the correct
+    # (or let's say expected) color space.
+    if 'YBR' in ds.PhotometricInterpretation and ds.SamplesPerPixel == 3:
+        image = Image.fromarray(array, mode='YCbCr')
+        image = image.convert(mode='RGB')
+        array = np.asarray(image)
+
+    return array
