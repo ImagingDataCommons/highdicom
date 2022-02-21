@@ -194,7 +194,7 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
         iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
     except KeyError as e:
         msg = f'No IOD found for SOP Class UID: {sop_class_uid}.'
-        raise KeyError() from e
+        raise KeyError(msg) from e
 
     for module in IOD_MODULE_MAP[iod_name]:
         module_attributes = MODULE_ATTRIBUTE_MAP[module['key']]

@@ -162,7 +162,7 @@ class GraphicObject(Dataset):
             The units in which each point in graphic data is expressed.
         filled: bool
             Whether the graphic object should be rendered as a solid shape
-            (True), or just an outline (False). Using True is only valid
+            (``True``), or just an outline (``False``). Using ``True`` is only valid
             when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or the
             graphic type is ``'INTERPOLATED'`` or ``'POLYLINE'`` and the first
             and last points are equal giving a closed shape.
@@ -184,18 +184,21 @@ class GraphicObject(Dataset):
         self.GraphicAnnotationUnits = units.value
 
         if not isinstance(graphic_data, np.ndarray):
-            raise TypeError('graphic_data must be a numpy array.')
+            raise TypeError('Argument "graphic_data" must be a numpy array.')
         if graphic_data.ndim != 2:
-            raise ValueError('graphic_data must be a 2D array.')
+            raise ValueError('Argument "graphic_data" must be a 2D array.')
         if graphic_data.shape[1] != 2:
-            raise ValueError('graphic_data must be an array of shape (N, 2).')
+            raise ValueError(
+                'Argument "graphic_data" must be an array of shape (N, 2).'
+            )
         num_points = graphic_data.shape[0]
         self.NumberOfGraphicPoints = num_points
 
         if graphic_type == GraphicTypeValues.POINT:
             if num_points != 1:
                 raise ValueError(
-                    'Graphic data of type POINT must be a single (column, row)'
+                    'Graphic data of type "POINT" '
+                    'must be a single (column, row)'
                     'pair.'
                 )
             if filled:
@@ -206,14 +209,14 @@ class GraphicObject(Dataset):
         elif graphic_type == GraphicTypeValues.CIRCLE:
             if num_points != 2:
                 raise ValueError(
-                    'Graphic data of type POINT must be two (column, row)'
-                    'pairs.'
+                    'Graphic data of type "CIRCLE" '
+                    'must be two (column, row) pairs.'
                 )
         elif graphic_type == GraphicTypeValues.ELLIPSE:
             if num_points != 4:
                 raise ValueError(
-                    'Graphic data of type POINT must be four (column, row)'
-                    'pairs.'
+                    'Graphic data of type "ELLIPSE" '
+                    'must be four (column, row) pairs.'
                 )
         elif graphic_type in (
             GraphicTypeValues.POLYLINE,
@@ -221,15 +224,16 @@ class GraphicObject(Dataset):
         ):
             if num_points < 2:
                 raise ValueError(
-                    'Graphic data of type POINT must be two or more '
-                    '(column, row) pairs.'
+                    'Graphic data of type "POLYLINE" or "INTERPOLATED" '
+                    'must be two or more (column, row) pairs.'
                 )
             if filled:
                 if not np.array_equal(graphic_data[0, :], graphic_data[-1, :]):
                     raise ValueError(
                         'Setting "filled" to True when using a '
                         '"POLYLINE" or "INTERPOLATED" graphic type requires '
-                        'that the first and last points are equal.'
+                        'that the first and last points are equal, '
+                        'i.e., that the graphic has a closed contour. '
                     )
         if units == AnnotationUnitsValues.PIXEL:
             if graphic_data.min() < 0.0:
@@ -255,7 +259,7 @@ class GraphicObject(Dataset):
         if graphic_group is not None:
             if not isinstance(graphic_group, GraphicGroup):
                 raise TypeError(
-                    'Argument "graphic_group" ID should be of type '
+                    'Argument "graphic_group" should be of type '
                     'highdicom.pr.GraphicGroup.'
                 )
             self.GraphicGroupID = graphic_group.graphic_group_id
@@ -408,7 +412,7 @@ class TextObject(Dataset):
         if graphic_group is not None:
             if not isinstance(graphic_group, GraphicGroup):
                 raise TypeError(
-                    'Argument "graphic_group" ID should be of type '
+                    'Argument "graphic_group" should be of type '
                     'highdicom.pr.GraphicGroup.'
                 )
             self.GraphicGroupID = graphic_group.graphic_group_id
@@ -533,7 +537,7 @@ class GraphicAnnotation(Dataset):
             if not isinstance(ref_im, Dataset):
                 raise TypeError(
                     'Argument "referenced_images" must be a sequence of '
-                    'pydicom.Datasets.'
+                    'pydicom.Dataset instances.'
                 )
             if ref_im.SeriesInstanceUID != referenced_series_uid:
                 raise ValueError(
@@ -600,7 +604,7 @@ class GraphicAnnotation(Dataset):
             for go in graphic_objects:
                 if not isinstance(go, GraphicObject):
                     raise TypeError(
-                        'All items in graphic_objects must be of type '
+                        'All items in "graphic_objects" must be of type '
                         'highdicom.pr.GraphicObject'
                     )
                 if go.units == AnnotationUnitsValues.MATRIX:
@@ -701,15 +705,15 @@ class SoftcopyVOILUT(Dataset):
                     for f in referenced_frame_number:
                         if f < 1 or f > referenced_images[0].NumberOfFrames:
                             raise ValueError(
-                                f'Frame number {f} is invalid for provided '
-                                'dataset.'
+                                f'Frame number {f} is invalid for referenced '
+                                'image.'
                             )
                 else:
                     f = referenced_frame_number
                     if f < 1 or f > referenced_images[0].NumberOfFrames:
                         raise ValueError(
-                            f'Frame number {f} is invalid for provided '
-                            'dataset.'
+                            f'Frame number {f} is invalid for referenced '
+                            'image.'
                         )
                 if referenced_segment_number is not None:
                     raise TypeError(
@@ -732,15 +736,15 @@ class SoftcopyVOILUT(Dataset):
                     for s in referenced_segment_number:
                         if s < 1 or s > number_of_segments:
                             raise ValueError(
-                                f'Segment number {s} is invalid for provided '
-                                'dataset.'
+                                f'Segment number {s} is invalid for referenced '
+                                'image.'
                             )
                 else:
                     s = referenced_segment_number
                     if s < 1 or s > number_of_segments:
                         raise ValueError(
-                            f'Segment number {s} is invalid for provided '
-                            'dataset.'
+                            f'Segment number {s} is invalid for referenced '
+                            'image.'
                         )
             ref_image_seq = []
             for im in referenced_images:

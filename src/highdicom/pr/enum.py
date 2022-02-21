@@ -15,7 +15,7 @@ class AnnotationUnitsValues(Enum):
     PIXEL = 'PIXEL'
     """Image position in pixel units.
 
-    Image relative position specified with sub-pixel resolution such that the
+    Image coordinates in pixel unit specified with sub-pixel resolution such that the
     origin, which is at the Top Left Hand Corner (TLHC) of the TLHC pixel is
     (0.0, 0.0), the Bottom Right Hand Corner (BRHC) of the TLHC pixel is (1.0,
     1.0), and the BRHC of the BRHC pixel is Columns, Rows.
@@ -24,17 +24,17 @@ class AnnotationUnitsValues(Enum):
     """
 
     DISPLAY = 'DISPLAY'
-    """Fraction of the displayed area.
+    """Display coordinates.
 
-    Image position relative to the displayed area, where (0.0, 0.0) is the top
+    Display coordinates in pixel unit specified with sub-pixel resolution, where (0.0, 0.0) is the top
     left hand corner of the displayed area and (1.0, 1.0) is the bottom right
     hand corner of the displayed area. Values are between 0.0 and 1.0.
     """
 
     MATRIX = 'MATRIX'
-    """Position relative to the total pixel matrix in whole slide images.
+    """Image coordinates relative to the total pixel matrix of a tiled image.
 
-    Image relative position specified with sub-pixel resolution such that the
+    Image coordinates in pixel unit specified with sub-pixel resolution such that the
     origin, which is at the Top Left Hand Corner (TLHC) of the TLHC pixel of
     the Total Pixel Matrix, is (0.0, 0.0), the Bottom Right Hand Corner (BRHC)
     of the TLHC pixel is (1.0, 1.0), and the BRHC of the BRHC pixel of the
@@ -50,10 +50,7 @@ class AnnotationUnitsValues(Enum):
 
 class TextJustificationValues(Enum):
 
-    """
-
-    Enumerated values for the BoundingBoxTextHorizontalJustification attribute.
-
+    """Enumerated values for attribute Bounding Box Text Horizontal Justification.
     """
 
     LEFT = 'LEFT'

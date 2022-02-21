@@ -165,11 +165,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
 class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
-    """
-
-    Sequence identifying the person who created the content.
-
-    """
+    """Sequence identifying the person who created the content."""
     def __init__(
         self,
         person_identification_codes: Sequence[Union[Code, CodedConcept]],
@@ -1104,12 +1100,12 @@ class ModalityLUT(LUT):
 
         Parameters
         ----------
-        first_mapped_value: int
+         modality_lut_type: Union[highdicom.RescaleTypeValues, str]
+            String or enumerated value specifying the units of the output of
+            the LUT operation.     
+          first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
-        modality_lut_type: Union[highdicom.RescaleTypeValues, str]
-            String or enumerated value specifying the units of the output of
-            the LUT operation.
         lut_data: np.ndarray
             Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: Union[str, None], optional

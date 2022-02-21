@@ -518,10 +518,9 @@ and text overlays.
 
     import highdicom as hd
 
+    import numpy as np
     from pydicom import dcmread
     from pydicom.valuerep import PersonName
-
-    import numpy as np
 
 
     # Read in an example CT image
