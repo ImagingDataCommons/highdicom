@@ -7,7 +7,7 @@ from pydicom.valuerep import PersonName
 
 
 def check_person_name(person_name: Union[str, PersonName]) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "person name".
 
     The DICOM Person Name (PN) value representation has a specific format with
     multiple components (family name, given name, middle name, prefix, suffix)
@@ -65,7 +65,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
 
 
 def _check_code_string(value: str) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "code string".
 
     Parameters
     ----------
