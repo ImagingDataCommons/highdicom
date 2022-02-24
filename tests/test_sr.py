@@ -861,7 +861,7 @@ class TestContentItem(unittest.TestCase):
     def test_pname_content_item_invalid_name(self):
         name = codes.DCM.PersonObserverName
         value = 'John Doe'  # invalid name format
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PnameContentItem(
                 name=name,
                 value=value,
@@ -1363,7 +1363,7 @@ class TestPersonObserverIdentifyingAttributes(unittest.TestCase):
         assert seq[4].ConceptCodeSequence[0] == self._role_in_procedure
 
     def test_construction_invalid(self):
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PersonObserverIdentifyingAttributes(
                 name=self._invalid_name
             )

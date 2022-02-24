@@ -1,12 +1,13 @@
 """Functions for working with DICOM value representations."""
 import re
 from typing import Union
+import warnings
 
 from pydicom.valuerep import PersonName
 
 
 def check_person_name(person_name: Union[str, PersonName]) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "person name".
 
     The DICOM Person Name (PN) value representation has a specific format with
     multiple components (family name, given name, middle name, prefix, suffix)
@@ -50,7 +51,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
         'sect_6.2.html#sect_6.2.1.2'
     )
     if '^' not in person_name and person_name != '':  # empty string is allowed
-        raise ValueError(
+        warnings.warn(
             f'The string "{person_name}" is unlikely to represent the '
             'intended person name since it contains only a single component. '
             'Construct a person name according to the format in described '
@@ -58,12 +59,13 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
             'pydicom.valuerep.PersonName.from_named_components() method '
             'to construct the person name correctly. If a single-component '
             'name is really intended, add a trailing caret character to '
-            'disambiguate the name.'
+            'disambiguate the name.',
+            UserWarning
         )
 
 
 def _check_code_string(value: str) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "code string".
 
     Parameters
     ----------
