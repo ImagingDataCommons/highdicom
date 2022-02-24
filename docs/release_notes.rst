@@ -143,3 +143,13 @@ the argument are integers rather than floats.
 In addition, the return value of
 :func:`highdicom.spatial.map_coordinate_into_pixel_matrix` is now a tuple of
 integers.
+
+.. _processing-type-deprecation:
+
+Deprecation of `processing_type` parameter
+------------------------------------------
+
+In highdicom 0.15.0, the ``processing_type`` parameter was removed from the
+constructor of :class:`highdicom.content.SpecimenPreparationStep`.
+The parameter turned out to be superfluous, because the argument could be
+derived from the type of the ``processing_procedure`` argument.

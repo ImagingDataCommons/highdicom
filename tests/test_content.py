@@ -181,7 +181,6 @@ class TestSpecimenPreparationStep(TestCase):
         procedure = codes.SCT.Excision
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenCollection(procedure=procedure)
         )
         assert len(seq) == 3
@@ -199,16 +198,6 @@ class TestSpecimenPreparationStep(TestCase):
         assert procedure_item.value == procedure
         assert procedure_item.relationship_type is None
 
-    def test_construction_collection_wrong_processing_type(self):
-        with pytest.raises(ValueError):
-            SpecimenPreparationStep(
-                specimen_id='specimen id',
-                processing_type=codes.SCT.Staining,
-                processing_procedure=SpecimenCollection(
-                    procedure=codes.SCT.Biopsy
-                )
-            )
-
     def test_construction_sampling(self):
         specimen_id = 'specimen id'
         processing_type = codes.SCT.SamplingOfTissueSpecimen
@@ -219,7 +208,6 @@ class TestSpecimenPreparationStep(TestCase):
         embedding_medium = codes.SCT.ParaffinWax
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenSampling(
                 method=method,
                 parent_specimen_id=parent_specimen_id,
@@ -265,7 +253,6 @@ class TestSpecimenPreparationStep(TestCase):
         substance = codes.SCT.HematoxylinStain
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenStaining(substances=[substance])
         )
         assert len(seq) == 3
@@ -282,13 +269,3 @@ class TestSpecimenPreparationStep(TestCase):
         assert staining_item.name == codes.SCT.UsingSubstance
         assert staining_item.value == substance
         assert staining_item.relationship_type is None
-
-    def test_construction_staining_wrong_processing_type(self):
-        with pytest.raises(ValueError):
-            SpecimenPreparationStep(
-                specimen_id='specimen id',
-                processing_type=codes.SCT.SpecimenCollection,
-                processing_procedure=SpecimenStaining(
-                    substances=[codes.SCT.HematoxylinStain]
-                )
-            )
