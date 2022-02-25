@@ -610,8 +610,8 @@ class GraphicAnnotation(Dataset):
         have_text = text_objects is not None and len(text_objects) > 0
         if not have_graphics and not have_text:
             raise TypeError(
-                'Either graphic_objects or text_objects must contain at least '
-                'one item.'
+                'Either "graphic_objects" or "text_objects" must contain at '
+                'least one item.'
             )
         if have_graphics:
             for go in graphic_objects:
