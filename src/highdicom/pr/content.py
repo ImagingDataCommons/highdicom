@@ -521,8 +521,8 @@ class GraphicAnnotation(Dataset):
         is_multiframe = hasattr(referenced_images[0], 'NumberOfFrames')
         if is_multiframe and len(referenced_images) > 1:
             raise ValueError(
-                'If datasets are multi-frame, only a single dataset should'
-                'be passed.'
+                'If referenced images are multi-frame, only a single image '
+                'should be passed.'
             )
         if is_multiframe:
             if (
