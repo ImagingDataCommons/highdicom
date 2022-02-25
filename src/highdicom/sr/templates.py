@@ -2362,6 +2362,60 @@ class Measurement(Template):
         """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         return self[0].qualifier
 
+    @property
+    def derivation(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.CodedConcept, None]: derivation"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return None
+        matches = find_content_items(
+            self[0],
+            name=codes.DCM.Derivation,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def method(self) -> Union[CodedConcept, None]:
+        """Union[highdicom.sr.CodedConcept, None]: method"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return None
+        matches = find_content_items(
+            self[0],
+            name=codes.SCT.MeasurementMethod,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return matches[0].value
+        return None
+
+    @property
+    def referenced_images(self) -> List[SourceImageForMeasurement]:
+        """List[highdicom.sr.SourceImageForMeasurement]: referenced images"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+        matches = find_content_items(
+            self[0],
+            name=codes.DCM.SourceOfMeasurement,
+            value_type=ValueTypeValues.IMAGE
+        )
+        return [SourceImageForMeasurement.from_dataset(m) for m in matches]
+
+    @property
+    def finding_sites(self) -> List[FindingSite]:
+        """List[highdicom.sr.FindingSite]: finding sites"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+        matches = find_content_items(
+            self[0],
+            name=codes.SCT.FindingSite,
+            value_type=ValueTypeValues.CODE
+        )
+        if len(matches) > 0:
+            return [FindingSite.from_dataset(m) for m in matches]
+        return []
+
 
 class MeasurementsAndQualitativeEvaluations(Template):
 

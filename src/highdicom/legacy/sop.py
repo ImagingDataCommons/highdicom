@@ -2,12 +2,21 @@
 
 import logging
 from collections import defaultdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
+from pydicom.encaps import encapsulate
+from pydicom.uid import (
+    ImplicitVRLittleEndian,
+    ExplicitVRLittleEndian,
+    JPEG2000Lossless,
+    JPEGLSLossless,
+)
 
 from highdicom.base import SOPClass
+from highdicom.frame import encode_frame
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
@@ -26,9 +35,9 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
 
 
 def _convert_legacy_to_enhanced(
-        sf_datasets: Sequence[Dataset],
-        mf_dataset: Optional[Dataset] = None
-    ) -> Dataset:
+    sf_datasets: Sequence[Dataset],
+    mf_dataset: Optional[Dataset] = None
+) -> Dataset:
     """Converts one or more MR, CT or PET Image instances into one
     Legacy Converted Enhanced MR/CT/PET Image instance by copying information
     from `sf_datasets` into `mf_dataset`.
@@ -163,10 +172,9 @@ def _convert_legacy_to_enhanced(
         # Frame Content (M)
         frame_content_item = Dataset()
         if 'AcquisitionDate' in ds and 'AcquisitionTime' in ds:
-            frame_content_item.FrameAcquisitionDateTime = '{}{}'.format(
-                ds.AcquisitionDate,
-                ds.AcquisitionTime
-            )
+            frame_content_item.FrameAcquisitionDateTime = datetime.combine(
+                ds.AcquisitionDate, ds.AcquisitionTime
+            ).strftime('%Y%m%d%H%M%S')
         frame_content_item.FrameAcquisitionNumber = ds.InstanceNumber
         perframe_item.FrameContentSequence = [
             frame_content_item,
@@ -383,15 +391,25 @@ def _convert_legacy_to_enhanced(
 
     mf_dataset.AcquisitionContextSequence = []
 
-    # TODO: Encapsulated Pixel Data with compressed frame items.
-
     # Create the Pixel Data element of the mulit-frame image instance using
     # native encoding (simply concatenating pixels of individual frames)
     # Sometimes there may be numpy types such as ">i2". The (* 1) hack
     # ensures that pixel values have the correct integer type.
-    mf_dataset.PixelData = b''.join([
-        (ds.pixel_array * 1).data for ds in sf_datasets
-    ])
+    encoded_frames = [
+        encode_frame(
+            ds.pixel_array * 1,
+            transfer_syntax_uid=mf_dataset.file_meta.TransferSyntaxUID,
+            bits_allocated=ds.BitsAllocated,
+            bits_stored=ds.BitsStored,
+            photometric_interpretation=ds.PhotometricInterpretation,
+            pixel_representation=ds.PixelRepresentation
+        )
+        for ds in sf_datasets
+    ]
+    if mf_dataset.file_meta.TransferSyntaxUID.is_encapsulated:
+        mf_dataset.PixelData = encapsulate(encoded_frames)
+    else:
+        mf_dataset.PixelData = b''.join(encoded_frames)
 
     return mf_dataset
 
@@ -407,6 +425,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
+        transfer_syntax_uid: str = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -423,6 +442,11 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. The following compressed transfer syntaxes
+            are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
+            and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -445,6 +469,17 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
 
         sop_class_uid = LEGACY_ENHANCED_SOP_CLASS_UID_MAP[ref_ds.SOPClassUID]
 
+        supported_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            JPEG2000Lossless,
+            JPEGLSLossless,
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported'
+            )
+
         super().__init__(
             study_instance_uid=ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -454,7 +489,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             instance_number=instance_number,
             manufacturer=ref_ds.Manufacturer,
             modality=ref_ds.Modality,
-            transfer_syntax_uid=None,  # FIXME: frame encoding
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=ref_ds.PatientID,
             patient_name=ref_ds.PatientName,
             patient_birth_date=ref_ds.PatientBirthDate,
@@ -483,6 +518,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
+        transfer_syntax_uid: str = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -499,6 +535,11 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. The following compressed transfer syntaxes
+            are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
+            and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -530,7 +571,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             instance_number=instance_number,
             manufacturer=ref_ds.Manufacturer,
             modality=ref_ds.Modality,
-            transfer_syntax_uid=None,  # FIXME: frame encoding
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=ref_ds.PatientID,
             patient_name=ref_ds.PatientName,
             patient_birth_date=ref_ds.PatientBirthDate,
@@ -550,14 +591,15 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
     def __init__(
-            self,
-            legacy_datasets: Sequence[Dataset],
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            **kwargs: Any
-        ) -> None:
+        self,
+        legacy_datasets: Sequence[Dataset],
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        transfer_syntax_uid: str = ExplicitVRLittleEndian,
+        **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -572,6 +614,11 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of
+            data elements. The following compressed transfer syntaxes
+            are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
+            and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -594,6 +641,17 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
 
         sop_class_uid = LEGACY_ENHANCED_SOP_CLASS_UID_MAP[ref_ds.SOPClassUID]
 
+        supported_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            JPEG2000Lossless,
+            JPEGLSLossless,
+        }
+        if transfer_syntax_uid not in supported_transfer_syntaxes:
+            raise ValueError(
+                f'Transfer syntax "{transfer_syntax_uid}" is not supported'
+            )
+
         super().__init__(
             study_instance_uid=ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -603,7 +661,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             instance_number=instance_number,
             manufacturer=ref_ds.Manufacturer,
             modality=ref_ds.Modality,
-            transfer_syntax_uid=None,  # FIXME: frame encoding
+            transfer_syntax_uid=transfer_syntax_uid,
             patient_id=ref_ds.PatientID,
             patient_name=ref_ds.PatientName,
             patient_birth_date=ref_ds.PatientBirthDate,

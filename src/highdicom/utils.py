@@ -54,9 +54,8 @@ def compute_plane_position_tiled_full(
     spacing_between_slices: Optional[float] = None,
     slice_index: Optional[int] = None
 ) -> PlanePositionSequence:
-    """Computes the absolute position of a Frame (image plane) in the
-    Frame of Reference defined by the three-dimensional slide coordinate
-    system given their relative position in the Total Pixel Matrix.
+    """Compute the position of a frame (image plane) in the frame of reference
+    defined by the three-dimensional slide coordinate system.
 
     This information is not provided in image instances with Dimension
     Orientation Type TILED_FULL and therefore needs to be computed.
@@ -112,10 +111,8 @@ def compute_plane_position_tiled_full(
         When only one of `slice_index` and `spacing_between_slices` is provided
 
     """
-    # Offset values are one-based, i.e., the top left pixel in the Total Pixel
-    # Matrix has offset (1, 1) rather than (0, 0)
-    row_offset_frame = ((row_index - 1) * rows) + 1
-    column_offset_frame = ((column_index - 1) * columns) + 1
+    row_offset_frame = ((row_index - 1) * rows)
+    column_offset_frame = ((column_index - 1) * columns)
 
     provided_3d_params = (
         slice_index is not None,
@@ -134,7 +131,7 @@ def compute_plane_position_tiled_full(
 
     # We should only be dealing with planar rotations.
     x, y, z = map_pixel_into_coordinate_system(
-        coordinate=(column_offset_frame, row_offset_frame),
+        index=(column_offset_frame, row_offset_frame),
         image_position=(x_offset, y_offset, z_offset),
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
@@ -143,7 +140,9 @@ def compute_plane_position_tiled_full(
     return PlanePositionSequence(
         coordinate_system=CoordinateSystemNames.SLIDE,
         image_position=(x, y, z),
-        pixel_matrix_position=(column_offset_frame, row_offset_frame)
+        # Position of plane (tile) in Total Pixel Matrix:
+        # First tile has position (1, 1)
+        pixel_matrix_position=(column_offset_frame + 1, row_offset_frame + 1)
     )
 
 

@@ -270,7 +270,7 @@ class SourceImageForMeasurement(ImageContentItem):
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
+            Dataset representing an SR Content Item with value type IMAGE
 
         Returns
         -------
@@ -1172,6 +1172,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def topographical_modifier(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.TopographicalModifier,
@@ -1188,6 +1190,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def laterality(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.Laterality,
@@ -1345,7 +1349,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
-        return new_seq
+        return cast(ReferencedSegmentationFrame, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -1434,7 +1438,7 @@ class ReferencedSegmentationFrame(ContentSequence):
             if isinstance(frame_number, int):
                 frame_numbers = [frame_number]
             else:
-                frame_numbers = frame_number
+                frame_numbers = list(frame_number)
 
         number_of_frames = int(segmentation.NumberOfFrames)
         segment_numbers = []

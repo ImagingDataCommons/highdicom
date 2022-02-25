@@ -40,7 +40,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                     sop,
                     "LegacyConvertedEnhanced{}Image".format(m)
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
 
                 multiframe_item = LegacyConverterClass(
                     legacy_datasets=ref_dataset_seq,
@@ -80,7 +80,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                     sop,
                     "LegacyConvertedEnhanced{}Image".format(m)
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 tmp_orig_modality = ref_dataset_seq[0].Modality
                 ref_dataset_seq[0].Modality = ''
                 with self.assertRaises(ValueError):
@@ -99,7 +99,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                     sop,
                     "LegacyConvertedEnhanced{}Image".format(m)
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 tmp_orig_sop_class_id = ref_dataset_seq[0].SOPClassUID
                 ref_dataset_seq[0].SOPClassUID = '1.2.3.4.5.6.7.8.9'
                 with self.assertRaises(ValueError):
@@ -118,7 +118,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                     sop,
                     "LegacyConvertedEnhanced{}Image".format(m)
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 # first run with intact input
 
                 LegacyConverterClass(
@@ -148,7 +148,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
                     sop,
                     "LegacyConvertedEnhanced{}Image".format(m)
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 # first run with intact input
                 LegacyConverterClass(
                     legacy_datasets=ref_dataset_seq,
@@ -173,33 +173,38 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f'LegacyConvertedEnhanced{m}Image'
                 )
-                ref_dataset_seq = getattr(self, "_ref_dataset_seq_{}".format(m))
+                ref_dataset_seq = getattr(self, f'_ref_dataset_seq_{m}')
                 # first run with intact input
                 LegacyConverterClass(
                     legacy_datasets=ref_dataset_seq,
                     series_instance_uid=self._output_series_instance_uid,
                     series_number=self._output_instance_number,
                     sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
+                    instance_number=self._output_instance_number
+                )
                 # second run with defected input
-                tmp_transfer_syntax_uid = ref_dataset_seq[
-                    0].file_meta.TransferSyntaxUID
-                ref_dataset_seq[
-                    0].file_meta.TransferSyntaxUID = '1.2.3.4.5.6.7.8.9'
+                ref_item = ref_dataset_seq[0]
+                tmp_transfer_syntax_uid = str(
+                    ref_item.file_meta.TransferSyntaxUID
+                )
+                ref_item.file_meta.TransferSyntaxUID = '1.2.3.4.5.6.7.8.9'
                 with self.assertRaises(ValueError):
                     LegacyConverterClass(
                         legacy_datasets=ref_dataset_seq,
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[
-                    0].file_meta.TransferSyntaxUID = tmp_transfer_syntax_uid
+                        instance_number=self._output_instance_number
+                    )
+                ref_item.file_meta.TransferSyntaxUID = tmp_transfer_syntax_uid
 
-    def generate_common_dicom_dataset_series(self, slice_count: int,
-                                             system: Modality) -> list:
+    def generate_common_dicom_dataset_series(
+        self,
+        slice_count: int,
+        system: Modality
+    ) -> list:
         output_dataset = []
         slice_pos = 0
         slice_thickness = 0

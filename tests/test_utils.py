@@ -19,7 +19,7 @@ params_plane_positions = [
         ),
         PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
-            image_position=(1.0, 1.0, 0.0),
+            image_position=(0.0, 0.0, 0.0),
             pixel_matrix_position=(1, 1)
         ),
     ),
@@ -36,7 +36,7 @@ params_plane_positions = [
         ),
         PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
-            image_position=(17.0, 9.0, 0.0),
+            image_position=(16.0, 8.0, 0.0),
             pixel_matrix_position=(9, 17)
         ),
     ),
@@ -53,7 +53,7 @@ params_plane_positions = [
         ),
         PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
-            image_position=(59.0, 21.0, 0.0),
+            image_position=(58.0, 20.0, 0.0),
             pixel_matrix_position=(1, 49)
         ),
     ),
@@ -70,7 +70,7 @@ params_plane_positions = [
         ),
         PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
-            image_position=(11.0, 11.0, 0.0),
+            image_position=(10.0, 12.0, 0.0),
             pixel_matrix_position=(1, 49)
         ),
     ),
@@ -89,7 +89,7 @@ params_plane_positions = [
         ),
         PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
-            image_position=(11.0, 11.0, 1.0),
+            image_position=(10.0, 12.0, 1.0),
             pixel_matrix_position=(1, 49)
         ),
     ),

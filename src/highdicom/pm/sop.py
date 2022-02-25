@@ -21,6 +21,7 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
+    JPEGLSLossless,
     RLELossless,
 )
 from pydicom.valuerep import format_number_as_ds
@@ -175,8 +176,8 @@ class ParametricMap(SOPClass):
             stored values to be displayed on 8-bit monitors.
         transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
-            data elements. Defaults to Implicit VR Little Endian
-            (UID ``"1.2.840.10008.1.2"``)
+            data elements. Defaults to Explicit VR Little Endian
+            (UID ``"1.2.840.10008.1.2.1"``)
         content_description: Union[str, None], optional
             Brief description of the parametric map image
         content_creator_name: Union[str, None], optional
@@ -275,11 +276,10 @@ class ParametricMap(SOPClass):
             # If pixel data has unsigned or signed integer data type, then it
             # can be lossless compressed. The standard does not specify any
             # compression codecs for floating-point data types.
-            # In case of signed integer data type, values will be rescaled to
-            # a signed integer range prior to compression.
             supported_transfer_syntaxes.update(
                 {
                     JPEG2000Lossless,
+                    JPEGLSLossless,
                     RLELossless,
                 }
             )
@@ -634,7 +634,7 @@ class ParametricMap(SOPClass):
             pixel_array
         )
         if pixel_data_type == _PixelDataType.USHORT:
-            self.BitsAllocated = pixel_array.itemsize * 8
+            self.BitsAllocated = int(pixel_array.itemsize * 8)
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
             self.PixelRepresentation = 0
@@ -674,7 +674,7 @@ class ParametricMap(SOPClass):
                     np.where(
                         (dimension_position_values[idx] == pos)
                     )[0][0] + 1
-                    for idx, pos in enumerate(plane_position_values[j])
+                    for idx, pos in enumerate(plane_position_values[i])
                 ]
 
                 pffg_item.FrameContentSequence = [frame_content_item]

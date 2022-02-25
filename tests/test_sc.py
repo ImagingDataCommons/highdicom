@@ -8,7 +8,8 @@ from pydicom import dcmread
 from pydicom.uid import (
     RLELossless,
     JPEGBaseline8Bit,
-    JPEG2000Lossless
+    JPEG2000Lossless,
+    JPEGLSLossless,
 )
 from pydicom.valuerep import DA, TM
 
@@ -401,6 +402,60 @@ class TestSCImage(unittest.TestCase):
         )
 
         assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_monochrome_jpegls(self):
+        bits_allocated = 16
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_rgb_jpegls(self):
+        bits_allocated = 8
+        photometric_interpretation = 'YBR_FULL'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
 
         assert np.array_equal(
             self.get_array_after_writing(instance),

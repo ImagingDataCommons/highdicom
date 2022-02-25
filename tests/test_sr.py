@@ -861,7 +861,7 @@ class TestContentItem(unittest.TestCase):
     def test_pname_content_item_invalid_name(self):
         name = codes.DCM.PersonObserverName
         value = 'John Doe'  # invalid name format
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PnameContentItem(
                 name=name,
                 value=value,
@@ -1363,7 +1363,7 @@ class TestPersonObserverIdentifyingAttributes(unittest.TestCase):
         assert seq[4].ConceptCodeSequence[0] == self._role_in_procedure
 
     def test_construction_invalid(self):
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PersonObserverIdentifyingAttributes(
                 name=self._invalid_name
             )
@@ -2361,6 +2361,12 @@ class TestMeasurement(unittest.TestCase):
             graphic_data=np.array([[1.0, 1.0]]),
             source_image=self._image
         )
+        self._ref_images = [
+            SourceImageForMeasurement(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=generate_uid()
+            ) for _ in range(3)
+        ]
 
     def test_construction_with_required_parameters(self):
         measurement = Measurement(
@@ -2412,7 +2418,8 @@ class TestMeasurement(unittest.TestCase):
             tracking_identifier=self._tracking_identifier,
             method=self._method,
             derivation=self._derivation,
-            finding_sites=[self._finding_site, ]
+            finding_sites=[self._finding_site, ],
+            referenced_images=self._ref_images
         )
 
         subitem = measurement[0].ContentSequence[0]
@@ -2436,6 +2443,18 @@ class TestMeasurement(unittest.TestCase):
         assert subitem.ConceptCodeSequence[0] == self._location
         # Laterality and topological modifier were not specified
         assert not hasattr(subitem, 'ContentSequence')
+
+        sites = measurement.finding_sites
+        assert len(sites) == 1
+        assert sites[0] == self._finding_site
+
+        assert measurement.derivation == self._derivation
+        assert measurement.method == self._method
+        ref_images = measurement.referenced_images
+        assert len(ref_images) == len(self._ref_images)
+        for retrieved, original in zip(ref_images, self._ref_images):
+            assert isinstance(retrieved, SourceImageForMeasurement)
+            assert retrieved == original
 
 
 class TestQualitativeEvaluation(unittest.TestCase):
