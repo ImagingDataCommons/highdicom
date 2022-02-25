@@ -142,7 +142,7 @@ class GraphicObject(Dataset):
         graphic_type: Union[GraphicTypeValues, str],
         graphic_data: np.ndarray,
         units: Union[AnnotationUnitsValues, str] = AnnotationUnitsValues.PIXEL,
-        filled: bool = False,
+        is_filled: bool = False,
         tracking_id: Optional[str] = None,
         tracking_uid: Optional[str] = None,
         graphic_group: Optional[GraphicGroup] = None,
@@ -162,7 +162,7 @@ class GraphicObject(Dataset):
             :class:`highdicom.pr.enum.GraphicTypeValues` for details.
         units: Union[highdicom.pr.AnnotationUnitsValues, str]
             The units in which each point in graphic data is expressed.
-        filled: bool
+        is_filled: bool
             Whether the graphic object should be rendered as a solid shape
             (``True``), or just an outline (``False``). Using ``True`` is only
             valid when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or
@@ -203,9 +203,9 @@ class GraphicObject(Dataset):
                     'must be a single (column, row)'
                     'pair.'
                 )
-            if filled:
+            if is_filled:
                 raise ValueError(
-                    'Setting "filled" to True is invalid when using a '
+                    'Setting "is_filled" to True is invalid when using a '
                     '"POINT" graphic type.'
                 )
         elif graphic_type == GraphicTypeValues.CIRCLE:
@@ -229,10 +229,10 @@ class GraphicObject(Dataset):
                     'Graphic data of type "POLYLINE" or "INTERPOLATED" '
                     'must be two or more (column, row) pairs.'
                 )
-            if filled:
+            if is_filled:
                 if not np.array_equal(graphic_data[0, :], graphic_data[-1, :]):
                     raise ValueError(
-                        'Setting "filled" to True when using a '
+                        'Setting "is_filled" to True when using a '
                         '"POLYLINE" or "INTERPOLATED" graphic type requires '
                         'that the first and last points are equal, '
                         'i.e., that the graphic has a closed contour. '
@@ -247,7 +247,7 @@ class GraphicObject(Dataset):
                     '"DISPLAY" units.'
                 )
         self.GraphicData = graphic_data.flatten().tolist()
-        self.GraphicFilled = 'Y' if filled else 'N'
+        self.GraphicFilled = 'Y' if is_filled else 'N'
 
         if (tracking_id is None) != (tracking_uid is None):
             raise TypeError(

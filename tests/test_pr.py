@@ -437,7 +437,7 @@ class TestGraphicObject(unittest.TestCase):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
-            filled=True
+            is_filled=True
         )
         assert ann.GraphicFilled == 'Y'
 
@@ -447,7 +447,7 @@ class TestGraphicObject(unittest.TestCase):
             GraphicObject(
                 graphic_type=GraphicTypeValues.POLYLINE,
                 graphic_data=self._polyline,
-                filled=True
+                is_filled=True
             )
 
 
