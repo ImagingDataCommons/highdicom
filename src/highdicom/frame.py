@@ -392,9 +392,26 @@ def decode_frame(
 
     array = ds.pixel_array
 
-    # The pixel_array property does not convert the pixel data into the correct
-    # (or let's say expected) color space.
-    if 'YBR' in ds.PhotometricInterpretation and ds.SamplesPerPixel == 3:
+    # In case of the JPEG baseline transfer syntax, the pixel_array property
+    # does not convert the pixel data into the correct (or let's say expected)
+    # color space after decompression.
+    # JPEG codec generally convert pixels from RGB into YBR color space prior
+    # to compression to take advantage of the correlation between RGB color
+    # bands and improve compression efficiency. In case of an encapsulated
+    # Pixel Data element with compressed image frames, the value of the
+    # Photometric Interpretation element specifies the color space in which
+    # image frames were compressed.  If the value of Photometric Interpretation
+    # is (or contains) YBR, then pixels were converted from RGB to YBR color
+    # space during JPEG encoding prior to compression and need to be converted
+    # back into RGB color space after decompression during JPEG decoding. If
+    # the value of Photometric Interpretation is RGB, then no color conversion
+    # has been performed during JPEG encoding and therefore no conversion needs
+    # to be performed during JPEG decoding either.
+    if (
+        'YBR' in ds.PhotometricInterpretation and
+        ds.SamplesPerPixel == 3 and
+        transfer_syntax_uid == JPEGBaseline8Bit
+    ):
         image = Image.fromarray(array, mode='YCbCr')
         image = image.convert(mode='RGB')
         array = np.asarray(image)
