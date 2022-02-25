@@ -127,7 +127,6 @@ class SOPClass(Dataset):
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
-        self.preamble = b'\x00' * 128
         self.file_meta = FileMetaDataset()
         self.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
         self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
