@@ -162,10 +162,10 @@ class GraphicObject(Dataset):
             The units in which each point in graphic data is expressed.
         filled: bool
             Whether the graphic object should be rendered as a solid shape
-            (``True``), or just an outline (``False``). Using ``True`` is only valid
-            when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or the
-            graphic type is ``'INTERPOLATED'`` or ``'POLYLINE'`` and the first
-            and last points are equal giving a closed shape.
+            (``True``), or just an outline (``False``). Using ``True`` is only
+            valid when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or
+            the graphic type is ``'INTERPOLATED'`` or ``'POLYLINE'`` and the
+            first and last points are equal giving a closed shape.
         tracking_id: str, optional
             User defined text identifier for tracking this finding or feature.
             Shall be unique within the domain in which it is used.

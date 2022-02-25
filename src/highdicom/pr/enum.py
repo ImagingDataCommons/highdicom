@@ -15,42 +15,46 @@ class AnnotationUnitsValues(Enum):
     PIXEL = 'PIXEL'
     """Image position in pixel units.
 
-    Image coordinates in pixel unit specified with sub-pixel resolution such that the
-    origin, which is at the Top Left Hand Corner (TLHC) of the TLHC pixel is
-    (0.0, 0.0), the Bottom Right Hand Corner (BRHC) of the TLHC pixel is (1.0,
-    1.0), and the BRHC of the BRHC pixel is Columns, Rows.
-    The values must be within the range 0, 0 to (Columns, Rows).
+    Image coordinates in pixel unit specified with sub-pixel resolution such
+    that the origin, which is at the Top Left Hand Corner (TLHC) of the TLHC
+    pixel is (0.0, 0.0), the Bottom Right Hand Corner (BRHC) of the TLHC pixel
+    is (1.0, 1.0), and the BRHC of the BRHC pixel is Columns, Rows.  The values
+    must be within the range 0, 0 to (Columns, Rows).
 
     """
 
     DISPLAY = 'DISPLAY'
     """Display coordinates.
 
-    Display coordinates in pixel unit specified with sub-pixel resolution, where (0.0, 0.0) is the top
-    left hand corner of the displayed area and (1.0, 1.0) is the bottom right
-    hand corner of the displayed area. Values are between 0.0 and 1.0.
+    Display coordinates in pixel unit specified with sub-pixel resolution,
+    where (0.0, 0.0) is the top left hand corner of the displayed area and
+    (1.0, 1.0) is the bottom right hand corner of the displayed area. Values
+    are between 0.0 and 1.0.
+
     """
 
     MATRIX = 'MATRIX'
     """Image coordinates relative to the total pixel matrix of a tiled image.
 
-    Image coordinates in pixel unit specified with sub-pixel resolution such that the
-    origin, which is at the Top Left Hand Corner (TLHC) of the TLHC pixel of
-    the Total Pixel Matrix, is (0.0, 0.0), the Bottom Right Hand Corner (BRHC)
-    of the TLHC pixel is (1.0, 1.0), and the BRHC of the BRHC pixel of the
-    Total Pixel Matrix is (Total Pixel Matrix Columns,Total Pixel Matrix Rows).
-    The values must be within the range (0.0, 0.0) to (Total Pixel Matrix
-    Columns, Total Pixel Matrix Rows). MATRIX may be used only if the value of
-    Referenced SOP Class UID (0008,1150) within Referenced Image Sequence
-    (0008,1140) is 1.2.840.10008.5.1.4.1.1.77.1.6 (VL Whole Slide Microscopy
-    Image).
+    Image coordinates in pixel unit specified with sub-pixel resolution such
+    that the origin, which is at the Top Left Hand Corner (TLHC) of the TLHC
+    pixel of the Total Pixel Matrix, is (0.0, 0.0), the Bottom Right Hand
+    Corner (BRHC) of the TLHC pixel is (1.0, 1.0), and the BRHC of the BRHC
+    pixel of the Total Pixel Matrix is (Total Pixel Matrix Columns,Total Pixel
+    Matrix Rows).  The values must be within the range (0.0, 0.0) to (Total
+    Pixel Matrix Columns, Total Pixel Matrix Rows). MATRIX may be used only if
+    the value of Referenced SOP Class UID (0008,1150) within Referenced Image
+    Sequence (0008,1140) is 1.2.840.10008.5.1.4.1.1.77.1.6 (VL Whole Slide
+    Microscopy Image).
 
     """
 
 
 class TextJustificationValues(Enum):
 
-    """Enumerated values for attribute Bounding Box Text Horizontal Justification.
+    """Enumerated values for attribute Bounding Box Text Horizontal
+    Justification.
+
     """
 
     LEFT = 'LEFT'

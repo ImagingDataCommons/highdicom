@@ -1102,7 +1102,7 @@ class ModalityLUT(LUT):
         ----------
          modality_lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
-            the LUT operation.     
+            the LUT operation.
           first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
