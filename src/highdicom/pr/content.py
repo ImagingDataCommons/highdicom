@@ -237,7 +237,10 @@ class GraphicObject(Dataset):
                         'that the first and last points are equal, '
                         'i.e., that the graphic has a closed contour. '
                     )
-        if units == AnnotationUnitsValues.PIXEL:
+        if (
+            units == AnnotationUnitsValues.PIXEL or
+            units == AnnotationUnitsValues.MATRIX
+        ):
             if graphic_data.min() < 0.0:
                 raise ValueError('Graphic data must be non-negative.')
         elif units == AnnotationUnitsValues.DISPLAY:
