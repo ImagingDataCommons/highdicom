@@ -423,7 +423,7 @@ class TextObject(Dataset):
             self.GraphicGroupID = graphic_group.graphic_group_id
 
     @property
-    def text_value(self) -> Union[str, None]:
+    def text_value(self) -> str:
         """str: unformatted text value"""
         return self.UnformattedTextValue
 
