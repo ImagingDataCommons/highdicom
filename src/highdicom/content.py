@@ -679,8 +679,7 @@ class IssuerOfIdentifier(Dataset):
 
 class SpecimenCollection(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    collection procedure.
+    """Sequence of SR content item describing a specimen collection procedure.
     """
 
     def __init__(
@@ -704,9 +703,11 @@ class SpecimenCollection(ContentSequence):
 
 class SpecimenSampling(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    sampling procedure according to structured reporting template
+    """Sequence of SR content item describing a specimen sampling procedure.
+
+    See SR template
     :dcm:`TID 8002 Specimen Sampling <part16/chapter_C.html#sect_TID_8002>`.
+
     """
 
     def __init__(
@@ -761,36 +762,74 @@ class SpecimenSampling(ContentSequence):
 
 class SpecimenStaining(ContentSequence):
 
-    """Sequence of structured reporting content item describing a specimen
-    staining procedure according to structured reporting template
+    """Sequence of SR content item describing a specimen staining procedure
+
+    See SR template
     :dcm:`TID 8003 Specimen Staining <part16/chapter_C.html#sect_TID_8003>`.
+
     """
 
     def __init__(
         self,
-        substances: Sequence[Union[Code, CodedConcept]]
+        substances: Sequence[Union[Code, CodedConcept, str]]
     ):
         """
         Parameters
         ----------
-        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
+        substances: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, str]]
             Substances used to stain examined specimen(s)
 
         """  # noqa: E501
         super().__init__(is_root=True)
         # CID 8112
         for s in substances:
-            item = CodeContentItem(
-                name=codes.SCT.UsingSubstance,
-                value=s
-            )
+            if isinstance(s, (Code, CodedConcept)):
+                item = CodeContentItem(
+                    name=codes.SCT.UsingSubstance,
+                    value=s
+                )
+            elif isinstance(s, str):
+                item = TextContentItem(
+                    name=codes.SCT.UsingSubstance,
+                    value=s
+                )
+            else:
+                raise TypeError(
+                    'Items of argument "substances" must have type '
+                    'CodedConcept, Code, or str.'
+                )
             self.append(item)
+
+
+class SpecimenProcessing(ContentSequence):
+
+    """Sequence of SR content item describing a specimen processing procedure.
+    """
+
+    def __init__(
+        self,
+        description: Union[Code, CodedConcept]
+    ):
+        """
+        Parameters
+        ----------
+        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Description of the processing
+
+        """  # noqa: E501
+        super().__init__(is_root=True)
+        # CID 8112
+        item = CodeContentItem(
+            name=codes.DCM.ProcessingStepDescription,
+            value=description
+        )
+        self.append(item)
 
 
 class SpecimenPreparationStep(ContentSequence):
 
-    """Dataset describing a specimen preparation step according to.
-    structured reporting template
+    """Dataset describing a specimen preparation step according to structured
+    reporting template
     :dcm:`TID 8001 Specimen Preparation <part16/chapter_C.html#sect_TID_8001>`.
 
     """
@@ -798,11 +837,11 @@ class SpecimenPreparationStep(ContentSequence):
     def __init__(
         self,
         specimen_id: str,
-        processing_type: Union[Code, CodedConcept],
         processing_procedure: Union[
             SpecimenCollection,
             SpecimenSampling,
             SpecimenStaining,
+            SpecimenProcessing,
         ],
         processing_description: Optional[
             Union[str, Code, CodedConcept]
@@ -817,8 +856,6 @@ class SpecimenPreparationStep(ContentSequence):
         ----------
         specimen_id: str
             Identifier of the processed specimen
-        processing_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Type of processing
         processing_procedure: Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling, highdicom.SpecimenStaining]
             Procedure used during processing
         processing_datetime: datetime.datetime, optional
@@ -848,12 +885,29 @@ class SpecimenPreparationStep(ContentSequence):
                 value=entity_id
             )
             self.append(issuer_of_specimen_id_item)
+
+        if isinstance(processing_procedure, SpecimenCollection):
+            processing_type = codes.SCT.SpecimenCollection
+        elif isinstance(processing_procedure, SpecimenProcessing):
+            processing_type = codes.SCT.SpecimenProcessing
+        elif isinstance(processing_procedure, SpecimenStaining):
+            processing_type = codes.SCT.Staining
+        elif isinstance(processing_procedure, SpecimenSampling):
+            processing_type = codes.SCT.SamplingOfTissueSpecimen
+        else:
+            raise TypeError(
+                'Argument "processing_procedure" must have type '
+                'SpecimenCollection, SpecimenSampling, SpecimenProcessing, '
+                'or SpecimenStaining.'
+            )
+
         # CID 8111
         processing_type_item = CodeContentItem(
             name=codes.DCM.ProcessingType,
             value=processing_type
         )
         self.append(processing_type_item)
+
         if processing_datetime is not None:
             processing_datetime_item = DateTimeContentItem(
                 name=codes.DCM.DateTimeOfProcessing,
@@ -876,15 +930,7 @@ class SpecimenPreparationStep(ContentSequence):
                     value=processing_description
                 )
             self.append(processing_description_item)
-        accepted_procedure_types = (
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-        )
-        if not isinstance(processing_procedure, accepted_procedure_types):
-            raise TypeError(
-                'Unknown procedure of specimen preparation step.'
-            )
+
         self.extend(processing_procedure)
         if fixative is not None:
             tissue_fixative_item = CodeContentItem(
@@ -914,7 +960,10 @@ class SpecimenDescription(Dataset):
         specimen_preparation_steps: Optional[
             Sequence[SpecimenPreparationStep]
         ] = None,
-        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None
+        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
+        primary_anatomic_structures: Optional[
+            Sequence[Union[Code, CodedConcept]]
+        ] = None
     ):
         """
         Parameters
@@ -934,6 +983,8 @@ class SpecimenDescription(Dataset):
             specimen in the laboratory prior to image acquisition
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
             Description of the issuer of the specimen identifier
+        primary_anatomic_structures: Sequence[Union[pydicom.sr.Code, highdicom.sr.CodedConcept]]
+            Body site at which specimen was collected
 
         """  # noqa: E501
         super().__init__()
@@ -978,11 +1029,37 @@ class SpecimenDescription(Dataset):
                     )
                     loc_seq.append(loc_item)
             self.SpecimenLocalizationContentItemSequence = loc_seq
+
         self.IssuerOfTheSpecimenIdentifierSequence: List[Dataset] = []
         if issuer_of_specimen_id is not None:
             self.IssuerOfTheSpecimenIdentifierSequence.append(
                 issuer_of_specimen_id
             )
+
+        if primary_anatomic_structures is not None:
+            if not isinstance(primary_anatomic_structures, Sequence):
+                raise TypeError(
+                    'Argument "primary_anatomic_structures" must be a '
+                    'sequence.'
+                )
+            if len(primary_anatomic_structures) == 0:
+                raise ValueError(
+                    'Argument "primary_anatomic_structures" must not be '
+                    'empty.'
+                )
+            self.PrimaryAnatomicStructureSequence: List[Dataset] = []
+            for structure in primary_anatomic_structures:
+                if isinstance(structure, CodedConcept):
+                    self.PrimaryAnatomicStructureSequence.append(structure)
+                elif isinstance(structure, Code):
+                    self.PrimaryAnatomicStructureSequence.append(
+                        CodedConcept(*structure)
+                    )
+                else:
+                    raise TypeError(
+                        'Items of argument "primary_anatomic_structures" '
+                        'must have type Code or CodedConcept.'
+                    )
 
 
 class LUT(Dataset):

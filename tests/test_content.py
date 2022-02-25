@@ -396,7 +396,6 @@ class TestSpecimenPreparationStep(TestCase):
         procedure = codes.SCT.Excision
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenCollection(procedure=procedure)
         )
         assert len(seq) == 3
@@ -424,7 +423,6 @@ class TestSpecimenPreparationStep(TestCase):
         embedding_medium = codes.SCT.ParaffinWax
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenSampling(
                 method=method,
                 parent_specimen_id=parent_specimen_id,
@@ -470,7 +468,6 @@ class TestSpecimenPreparationStep(TestCase):
         substance = codes.SCT.HematoxylinStain
         seq = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_type=processing_type,
             processing_procedure=SpecimenStaining(substances=[substance])
         )
         assert len(seq) == 3
