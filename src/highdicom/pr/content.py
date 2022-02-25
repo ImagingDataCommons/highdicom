@@ -429,6 +429,10 @@ class TextObject(Dataset):
 
     @property
     def bounding_box(self) -> Union[Tuple[float, float, float, float], None]:
+        """Union[Tuple[float, float, float, float], None]:
+        bounding box in the format [left, top, right, bottom]
+
+        """
         if not hasattr(self, 'BoundingBoxTopLeftHandCorner'):
             return None
         return tuple(self.BoundingBoxTopLeftHandCorner) + tuple(
@@ -437,6 +441,10 @@ class TextObject(Dataset):
 
     @property
     def anchor_point(self) -> Union[Tuple[float, float], None]:
+        """Union[Tuple[float, float], None]:
+        anchor point as a (Row, Column) pair of image coordinates
+
+        """
         if not hasattr(self, 'AnchorPoint'):
             return None
         return tuple(self.AnchorPoint)
