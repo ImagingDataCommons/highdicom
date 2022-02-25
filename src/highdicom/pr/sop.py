@@ -473,8 +473,8 @@ class _SoftcopyPresentationState(SOPClass):
 
         Note
         ----
-        Either modality_lut may be specified or all three of rescale_slope,
-        rescale_intercept and rescale_type may be specified. All four
+        Either `modality_lut` may be specified or all three of `rescale_slope`,
+        `rescale_intercept` and `rescale_type` may be specified. All four
         parameters should not be specified simultaneously. All parameters may
         be None if there is no modality LUT to apply to the image.
 
