@@ -512,7 +512,9 @@ Creating Grayscale Softcopy Presentation State (GSPS) Objects
 
 A presentation state contains information about how another image should be
 rendered, and may include "annotations" in the form of basic shapes, polylines,
-and text overlays.
+and text overlays. Note that a GSPS is not recommended for storing annotations
+for any purpose except visualization. A structured report would usually be
+preferred for storing annotations for clinical or research purposes.
 
 .. code-block:: python
 
