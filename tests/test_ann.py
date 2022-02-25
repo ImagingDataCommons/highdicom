@@ -508,5 +508,3 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
         assert isinstance(retrieved_group, AnnotationGroup)
         assert retrieved_group.number == 1
         assert retrieved_group.label == first_label
-
-        annotations.save_as('/tmp/ann.dcm')
