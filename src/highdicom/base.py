@@ -129,8 +129,6 @@ class SOPClass(Dataset):
         # to a file in PS3.10 format.
         self.preamble = b'\x00' * 128
         self.file_meta = FileMetaDataset()
-        self.file_meta.DICOMPrefix = 'DICM'
-        self.file_meta.FilePreamble = self.preamble
         self.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
         self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
         self.file_meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
