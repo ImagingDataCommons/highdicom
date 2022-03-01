@@ -265,7 +265,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_ref_ims_segment_number_and_frames_mismatch(self):
         with pytest.raises(ValueError):
-            lut = SoftcopyVOILUT(
+            SoftcopyVOILUT(
                 window_center=40.0,
                 window_width=400.0,
                 referenced_images=[self._seg],
