@@ -49,22 +49,22 @@ class TestDecodeFrame(TestCase):
         np.testing.assert_allclose(
             frame[0, 0, :],
             [255, 255, 255],
-            atol=1
+            atol=1.
         )
         np.testing.assert_allclose(
             frame[0, 30, :],
             [255, 0, 0],
-            atol=1
+            atol=1.
         )
         np.testing.assert_allclose(
             frame[0, 50, :],
             [0, 255, 0],
-            atol=1
+            atol=1.
         )
         np.testing.assert_allclose(
             frame[0, 70, :],
             [0, 0, 255],
-            atol=1
+            atol=1.
         )
 
     def test_jpeg_rgb_empty(self):
