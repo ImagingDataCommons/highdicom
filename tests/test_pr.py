@@ -251,6 +251,28 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert len(lut.ReferencedImageSequence) == 1
         assert lut.ReferencedImageSequence[0].ReferencedSegmentNumber == [1, 2]
 
+    def test_construction_ref_ims_segment_number_and_frames(self):
+        lut = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=[self._seg],
+            referenced_segment_number=1,
+            referenced_frame_number=[1, 2, 3],
+        )
+        assert len(lut.ReferencedImageSequence) == 1
+        assert lut.ReferencedImageSequence[0].ReferencedSegmentNumber == 1
+        assert lut.ReferencedImageSequence[0].ReferencedFrameNumber == [1, 2, 3]
+
+    def test_construction_ref_ims_segment_number_and_frames_mismatch(self):
+        with pytest.raises(ValueError):
+            lut = SoftcopyVOILUT(
+                window_center=40.0,
+                window_width=400.0,
+                referenced_images=[self._seg],
+                referenced_segment_number=2,
+                referenced_frame_number=[1, 2, 3],  # segment frame mismatch
+            )
+
     def test_construction_ref_ims_invalid_segment_number_1(self):
         with pytest.raises(ValueError):
             SoftcopyVOILUT(

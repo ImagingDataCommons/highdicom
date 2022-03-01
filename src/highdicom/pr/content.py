@@ -715,24 +715,15 @@ class SoftcopyVOILUT(Dataset):
                         'when the referenced image is not a multi-frame image.'
                     )
                 if isinstance(referenced_frame_number, Sequence):
-                    for f in referenced_frame_number:
-                        if f < 1 or f > referenced_images[0].NumberOfFrames:
-                            raise ValueError(
-                                f'Frame number {f} is invalid for referenced '
-                                'image.'
-                            )
+                    _referenced_frame_numbers = referenced_frame_number
                 else:
-                    f = referenced_frame_number
+                    _referenced_frame_numbers = [referenced_frame_number]
+                for f in _referenced_frame_numbers:
                     if f < 1 or f > referenced_images[0].NumberOfFrames:
                         raise ValueError(
                             f'Frame number {f} is invalid for referenced '
                             'image.'
                         )
-                if referenced_segment_number is not None:
-                    raise TypeError(
-                        'Specifying both "referenced_segment_number" and '
-                        '"referenced_frame_number" is not supported.'
-                    )
             if referenced_segment_number is not None:
                 if multiple_images:
                     raise ValueError(
@@ -746,19 +737,31 @@ class SoftcopyVOILUT(Dataset):
                     )
                 number_of_segments = len(referenced_images[0].SegmentSequence)
                 if isinstance(referenced_segment_number, Sequence):
-                    for s in referenced_segment_number:
-                        if s < 1 or s > number_of_segments:
-                            raise ValueError(
-                                f'Segment number {s} is invalid for referenced '
-                                'image.'
-                            )
+                    _referenced_segment_numbers = referenced_segment_number
                 else:
-                    s = referenced_segment_number
+                    _referenced_segment_numbers = [referenced_segment_number]
+                for s in _referenced_segment_numbers:
                     if s < 1 or s > number_of_segments:
                         raise ValueError(
                             f'Segment number {s} is invalid for referenced '
                             'image.'
                         )
+                if referenced_frame_number is not None:
+                    # Check that the one of the specified segments exists
+                    # in each of the referenced frame
+                    for f in _referenced_frame_numbers:
+                        f_ind = f - 1
+                        seg_num = (
+                            referenced_images[0].
+                            PerFrameFunctionalGroupsSequence[f_ind].
+                            SegmentIdentificationSequence[0].
+                            ReferencedSegmentNumber
+                        )
+                        if seg_num not in _referenced_segment_numbers:
+                            raise ValueError(
+                                f'Referenced frame {f} does not contain any of '
+                                'the referenced segments.'
+                            )
             ref_image_seq = []
             for im in referenced_images:
                 if (
