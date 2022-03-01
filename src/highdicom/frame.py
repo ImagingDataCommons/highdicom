@@ -76,7 +76,7 @@ def encode_frame(
     In case of color image frames, the `photometric_interpretation` parameter
     describes the color space of the **encoded** pixel data and data may be
     converted from RGB color space into the specified color space upon
-    encoding.  For example, the used JPEG codec convert pixels from RGB into
+    encoding.  For example, the JPEG codec converts pixels from RGB into
     YBR color space prior to compression to take advantage of the correlation
     between RGB color bands and improve compression efficiency. Therefore,
     pixels are supposed to be provided via `array` in RGB color space, but
@@ -364,13 +364,13 @@ def decode_frame(
     In case of color image frames, the `photometric_interpretation` parameter
     describes the color space of the **encoded** pixel data and data may be
     converted from the specified color space into RGB color space upon
-    decoding.  For example, JPEG codec generally convert pixels from RGB into
+    decoding.  For example, the JPEG codec generally converts pixels from RGB into
     YBR color space prior to compression to take advantage of the correlation
     between RGB color bands and improve compression efficiency. In case of an
     image data set with an encapsulated Pixel Data element containing JPEG
     compressed image frames, the value of the Photometric Interpretation
     element specifies the color space in which image frames were compressed.
-    If `photometric_interpretation` specifies a YBR color space, then the
+    If `photometric_interpretation` specifies a YBR color space, then this
     function assumes that pixels were converted from RGB to YBR color space
     during encoding prior to JPEG compression and need to be converted back
     into RGB color space after JPEG decompression during decoding. If
