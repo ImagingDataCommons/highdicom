@@ -345,7 +345,7 @@ class _SoftcopyPresentationState(SOPClass):
         # May want to generalize this later
         display_area_item = Dataset()
         display_area_item.ReferencedImageSequence = ref_im_seq
-        display_area_item.PixelOriginInterpretation = 'FRAME'
+        display_area_item.PixelOriginInterpretation = 'VOLUME'
         display_area_item.DisplayedAreaTopLeftHandCorner = [1, 1]
         display_area_item.DisplayedAreaBottomRightHandCorner = [
             ref_im_columns,
