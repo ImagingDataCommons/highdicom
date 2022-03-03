@@ -13,7 +13,7 @@ class AnnotationUnitsValues(Enum):
     """
 
     PIXEL = 'PIXEL'
-    """Image position in pixel units.
+    """Image coordinates within the image (or image frame/tile).
 
     Image coordinates in pixel unit specified with sub-pixel resolution such
     that the origin, which is at the Top Left Hand Corner (TLHC) of the TLHC
