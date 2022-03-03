@@ -43,9 +43,8 @@ class AnnotationUnitsValues(Enum):
     pixel of the Total Pixel Matrix is (Total Pixel Matrix Columns,Total Pixel
     Matrix Rows).  The values must be within the range (0.0, 0.0) to (Total
     Pixel Matrix Columns, Total Pixel Matrix Rows). MATRIX may be used only if
-    the value of Referenced SOP Class UID (0008,1150) within Referenced Image
-    Sequence (0008,1140) is 1.2.840.10008.5.1.4.1.1.77.1.6 (VL Whole Slide
-    Microscopy Image).
+    the referenced image is tiled (i.e. has attributes Total Pixel Matrix Rows
+    and Total Pixel Matrix Columns).
 
     """
 
