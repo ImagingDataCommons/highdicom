@@ -20,6 +20,7 @@ from highdicom.pr.enum import (
     TextJustificationValues,
 )
 from highdicom.uid import UID
+from highdicom.utils import has_pixel_data
 from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
@@ -764,11 +765,7 @@ class SoftcopyVOILUT(Dataset):
                             )
             ref_image_seq = []
             for im in referenced_images:
-                if (
-                    not hasattr(im, 'PixelData') and
-                    not hasattr(im, 'FloatPixelData') and
-                    not hasattr(im, 'DoubleFloatPixelData')
-                ):
+                if not has_pixel_data(im):
                     raise ValueError(
                         'Dataset provided in "referenced_images" does not '
                         'represent an image.'
