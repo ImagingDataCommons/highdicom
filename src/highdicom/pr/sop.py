@@ -162,16 +162,6 @@ class _SoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
-        if sop_class_uid not in (
-            GrayscaleSoftcopyPresentationStateStorage,
-            PseudoColorSoftcopyPresentationStateStorage,
-            ColorSoftcopyPresentationStateStorage
-        ):
-            raise ValueError(
-                'The IOD indicated by the provided sop_class_uid is not '
-                'implemented.'
-            )
-
         # Check referenced images are from the same series and have the same
         # size
         ref_series_uid = referenced_images[0].SeriesInstanceUID
@@ -187,20 +177,6 @@ class _SoftcopyPresentationState(SOPClass):
                 raise ValueError(
                     'Images with different sizes are not supported.'
                 )
-
-            if sop_class_uid == ColorSoftcopyPresentationStateStorage:
-                if ref_im.SamplesPerPixel != 3:
-                    raise ValueError(
-                        'For color presentation states, all referenced '
-                        'images must have 3 samples per pixel.'
-                    )
-            else:
-                if ref_im.SamplesPerPixel != 1:
-                    raise ValueError(
-                        'For grayscale and pseduo-color presentation states, '
-                        'all referenced images must have a single sample '
-                        'per pixel.'
-                    )
 
         super().__init__(
             study_instance_uid=referenced_images[0].StudyInstanceUID,
@@ -1045,6 +1021,12 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
                     'GrayscaleSoftcopyPresentationState() got an unexpected '
                     f'keyword argument "{kw}".'
                 )
+        for ref_im in referenced_images:
+            if ref_im.SamplesPerPixel != 1:
+                raise ValueError(
+                    'For grayscale presentation states, all referenced images '
+                    'must have a single sample per pixel.'
+                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -1259,6 +1241,12 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        for ref_im in referenced_images:
+            if ref_im.SamplesPerPixel != 1:
+                raise ValueError(
+                    'For pseudo-color presentation states, all referenced '
+                    'images must have a single sample per pixel.'
+                )
         super().__init__(
             referenced_images=referenced_images,
             series_instance_uid=series_instance_uid,
@@ -1532,6 +1520,12 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
                 raise TypeError(
                     'ColorSoftcopyPresentationState() got an unexpected '
                     f'keyword argument "{kw}".'
+                )
+        for ref_im in referenced_images:
+            if ref_im.SamplesPerPixel != 3:
+                raise ValueError(
+                    'For color presentation states, all referenced '
+                    'images must have three samples per pixel.'
                 )
         super().__init__(
             referenced_images=referenced_images,
