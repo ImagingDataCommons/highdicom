@@ -146,8 +146,8 @@ class _SoftcopyPresentationState(SOPClass):
             RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
             in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
-            One or more pixel value-of-interest operations to applied after the
-            modality LUT and/or rescale operation.
+            One or more pixel value-of-interest operations to be applied after
+            the modality LUT and/or rescale operation.
         copy_voi_lut: bool, optional
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
