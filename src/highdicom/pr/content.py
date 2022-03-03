@@ -6,7 +6,6 @@ from pydicom.dataset import Dataset
 from pydicom.valuerep import format_number_as_ds
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
-    VLWholeSlideMicroscopyImageStorage
 )
 
 import numpy as np
@@ -20,7 +19,7 @@ from highdicom.pr.enum import (
     TextJustificationValues,
 )
 from highdicom.uid import UID
-from highdicom.utils import has_pixel_data
+from highdicom.utils import has_pixel_data, is_tiled_image
 from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
@@ -622,11 +621,10 @@ class GraphicAnnotation(Dataset):
                         'highdicom.pr.GraphicObject'
                     )
                 if go.units == AnnotationUnitsValues.MATRIX:
-                    sm_uid = VLWholeSlideMicroscopyImageStorage
                     if not is_tiled_image(referenced_images)[0]:
                         raise ValueError(
                             'Graphic Objects may only use MATRIX units if the '
-                            'referenced images tiled images. '
+                            'referenced images are tiled images. '
                         )
             self.GraphicObjectSequence = graphic_objects
         if have_text:
@@ -637,12 +635,10 @@ class GraphicAnnotation(Dataset):
                         'highdicom.pr.TextObject'
                     )
                 if to.units == AnnotationUnitsValues.MATRIX:
-                    sm_uid = VLWholeSlideMicroscopyImageStorage
-                    if referenced_images[0].SOPClassUID != sm_uid:
+                    if not is_tiled_image(referenced_images)[0]:
                         raise ValueError(
                             'Text Objects may only use MATRIX units if the '
-                            'referenced images are VL Whole Slide Microscopy '
-                            'images.'
+                            'referenced images are tiled images. '
                         )
             self.TextObjectSequence = text_objects
 
