@@ -72,9 +72,9 @@ class _SoftcopyPresentationState(SOPClass):
         rescale_slope: Union[int, float, None] = None,
         rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut: Optional[ModalityLUT] = None,
+        copy_modality_lut: bool = False,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
         icc_profile: Optional[ImageCmsProfile] = None,
-        copy_modality_lut: bool = False,
         copy_voi_lut: bool = False,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
