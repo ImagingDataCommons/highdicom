@@ -626,8 +626,7 @@ class GraphicAnnotation(Dataset):
                     if not is_tiled_image(referenced_images)[0]:
                         raise ValueError(
                             'Graphic Objects may only use MATRIX units if the '
-                            'referenced images are VL Whole Slide Microscopy '
-                            'images.'
+                            'referenced images tiled images. '
                         )
             self.GraphicObjectSequence = graphic_objects
         if have_text:
