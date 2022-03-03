@@ -1,8 +1,11 @@
+from pathlib import Path
 import pytest
+
+from pydicom import dcmread
 
 from highdicom import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
-from highdicom.utils import compute_plane_position_tiled_full
+from highdicom.utils import compute_plane_position_tiled_full, is_tiled_image
 
 
 params_plane_positions = [
@@ -127,3 +130,33 @@ def test_should_raise_error_when_3d_param_is_missing():
             pixel_spacing=(1.0, 1.0),
             spacing_between_slices=1.0
         )
+
+
+@pytest.mark.parametrize(
+    'filepath,expected_output',
+    [
+        (
+            Path(__file__).parents[1].joinpath('data/test_files/ct_image.dcm'),
+            False
+        ),
+        (
+            Path(__file__).parents[1].joinpath('data/test_files/sm_image.dcm'),
+            True
+        ),
+        (
+            Path(__file__).parents[1].joinpath(
+                'data/test_files/seg_image_ct_binary.dcm'
+            ),
+            False
+        ),
+        (
+            Path(__file__).parents[1].joinpath(
+                'data/test_files/seg_image_sm_control.dcm'
+            ),
+            True
+        ),
+    ]
+)
+def test_is_tiled_image(filepath, expected_output):
+    dcm = dcmread(filepath)
+    assert is_tiled_image(dcm) == expected_output

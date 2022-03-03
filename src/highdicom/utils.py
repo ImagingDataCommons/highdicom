@@ -250,3 +250,21 @@ def has_pixel_data(dataset: Dataset) -> bool:
         'DoubleFloatPixelData',
     ]
     return any(hasattr(dataset, attr) for attr in pixel_attrs)
+
+
+def is_tiled_image(dataset: Dataset) -> bool:
+    """Determine whether a dataset represents a tiled image.
+
+    Returns
+    -------
+    bool:
+        True if the dataset is a tiled image. False otherwise.
+
+    """
+    if (
+        hasattr(dataset, 'TotalPixelMatrixRows') and
+        hasattr(dataset, 'TotalPixelMatrixColumns') and
+        hasattr(dataset, 'NumberOfFrames')
+    ):
+        return True
+    return False

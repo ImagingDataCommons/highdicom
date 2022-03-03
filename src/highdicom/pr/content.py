@@ -623,7 +623,7 @@ class GraphicAnnotation(Dataset):
                     )
                 if go.units == AnnotationUnitsValues.MATRIX:
                     sm_uid = VLWholeSlideMicroscopyImageStorage
-                    if referenced_images[0].SOPClassUID != sm_uid:
+                    if not is_tiled_image(referenced_images)[0]:
                         raise ValueError(
                             'Graphic Objects may only use MATRIX units if the '
                             'referenced images are VL Whole Slide Microscopy '
