@@ -97,8 +97,8 @@ def compute_plane_position_tiled_full(
     spacing_between_slices: Union[float, None], optional
         Distance between neighboring focal planes in micrometers
     slice_index: Union[int, None], optional
-        Relative one-based index of the slice in the array of slices
-        within the volume
+        Relative one-based index of the focal plane in the array of focal
+        planes within the imaged volume from the slide to the coverslip
 
     Returns
     -------
@@ -188,7 +188,7 @@ def compute_plane_position_slide_per_frame(
     )
     num_focal_planes = getattr(
         dataset,
-        'NumberOfFocalPlanes',
+        'TotalPixelMatrixFocalPlanes',
         1
     )
 
@@ -209,6 +209,8 @@ def compute_plane_position_slide_per_frame(
         1.0
     )
 
+    num_optical_paths = len(dataset.OpticalPathSequence)
+
     return [
         compute_plane_position_tiled_full(
             row_index=r,
@@ -223,7 +225,8 @@ def compute_plane_position_slide_per_frame(
             spacing_between_slices=spacing_between_slices,
             slice_index=s,
         )
-        for s, r, c in itertools.product(
+        for _, s, r, c in itertools.product(
+            range(num_optical_paths),
             range(1, num_focal_planes + 1),
             range(1, tiles_per_column + 1),  # column direction, top to bottom
             range(1, tiles_per_row + 1),  # row direction, left to right
