@@ -214,6 +214,8 @@ def compute_plane_position_slide_per_frame(
         1.0
     )
 
+    num_optical_paths = len(dataset.OpticalPathSequence)
+
     return [
         compute_plane_position_tiled_full(
             row_index=r,
