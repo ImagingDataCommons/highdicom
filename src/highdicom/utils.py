@@ -191,6 +191,11 @@ def compute_plane_position_slide_per_frame(
         'TotalPixelMatrixFocalPlanes',
         1
     )
+    num_optical_paths = getattr(
+        dataset,
+        'NumberOfOpticalPaths',
+        len(dataset.OpticalPathSequence)
+    )
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -208,8 +213,6 @@ def compute_plane_position_slide_per_frame(
         'SpacingBetweenSlices',
         1.0
     )
-
-    num_optical_paths = len(dataset.OpticalPathSequence)
 
     return [
         compute_plane_position_tiled_full(
