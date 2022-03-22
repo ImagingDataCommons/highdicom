@@ -22,6 +22,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom.uid import UID
 from highdicom._module_utils import check_required_attributes
 
 
@@ -1121,10 +1122,10 @@ class SpecimenDescription(Dataset):
         self.SpecimenPreparationSequence: List[Dataset] = []
         if specimen_preparation_steps is not None:
             for step_item in specimen_preparation_steps:
-                if not isinstance(step_item, Dataset):
+                if not isinstance(step_item, SpecimenPreparationStep):
                     raise TypeError(
-                        'Each specimen preparation step must be provided as '
-                        'a sequence of content items.'
+                        'Items of "specimen_preparation_steps" must have '
+                        'type SpecimenPreparationStep.'
                     )
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
@@ -1187,6 +1188,21 @@ class SpecimenDescription(Dataset):
                         'must have type Code or CodedConcept.'
                     )
 
+    @property
+    def specimen_id(self) -> str:
+        """str: Specimen identifier"""
+        return str(self.SpecimenIdentifier)
+
+    @property
+    def specimen_uid(self) -> UID:
+        """highdicom.UID: Unique specimen identifier"""
+        return UID(self.SpecimenUID)
+
+    @property
+    def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
+        """highdicom.SpecimenPreparationStep: Specimen preparation steps"""
+        return list(self.SpecimenPreparationSequence)
+
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'SpecimenDescription':
         """Construct object from an existing dataset.
@@ -1209,8 +1225,8 @@ class SpecimenDescription(Dataset):
         check_required_attributes(
             dataset,
             module='specimen',
-            base_path=['SpecimenDescription'],
-            check_optical_sequences=True
+            base_path=['SpecimenDescriptionSequence'],
+            check_optional_sequences=True
         )
         desc = deepcopy(dataset)
         desc.__class__ = cls

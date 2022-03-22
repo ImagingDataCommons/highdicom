@@ -9,12 +9,14 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
     SpecimenCollection,
+    SpecimenDescription,
     SpecimenPreparationStep,
     SpecimenProcessing,
     SpecimenSampling,
     SpecimenStaining,
 )
 from highdicom.sr.value_types import CodeContentItem, TextContentItem
+from highdicom.uid import UID
 
 from .utils import write_and_read_dataset
 
@@ -486,3 +488,69 @@ class TestSpecimenPreparationStep(TestCase):
         processing_procedure = instance.processing_procedure
         assert isinstance(processing_procedure, SpecimenProcessing)
         assert processing_procedure.description == description
+
+
+class TestSpecimenDescription(TestCase):
+
+    def test_construction(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        instance = SpecimenDescription(
+            specimen_id=specimen_id,
+            specimen_uid=specimen_uid
+        )
+        assert instance.specimen_id == specimen_id
+        assert instance.specimen_uid == specimen_uid
+        assert len(instance.specimen_preparation_steps) == 0
+
+    def test_construction_with_preparation_steps(self):
+        parent_specimen_id = 'surgical specimen'
+        specimen_id = 'section specimen'
+        specimen_uid = UID()
+        specimen_collection = SpecimenCollection(procedure=codes.SCT.Biopsy)
+        specimen_sampling = SpecimenSampling(
+            method=codes.SCT.BlockSectioning,
+            parent_specimen_id=parent_specimen_id,
+            parent_specimen_type=codes.SCT.GrossSpecimen
+        )
+        specimen_staining = SpecimenStaining(
+            substances=[
+                codes.SCT.HematoxylinStain,
+                codes.SCT.WaterSolubleEosinStain,
+            ]
+        )
+        instance = SpecimenDescription(
+            specimen_id=specimen_id,
+            specimen_uid=specimen_uid,
+            specimen_preparation_steps=[
+                SpecimenPreparationStep(
+                    specimen_id=parent_specimen_id,
+                    processing_procedure=specimen_collection,
+                ),
+                SpecimenPreparationStep(
+                    specimen_id=specimen_id,
+                    processing_procedure=specimen_sampling,
+                ),
+                SpecimenPreparationStep(
+                    specimen_id=specimen_id,
+                    processing_procedure=specimen_staining,
+                ),
+            ]
+        )
+        assert instance.specimen_id == specimen_id
+        assert instance.specimen_uid == specimen_uid
+        assert len(instance.specimen_preparation_steps) == 3
+
+    def test_construction_from_dataset(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        dataset = Dataset()
+        dataset.SpecimenIdentifier = specimen_id
+        dataset.SpecimenUID = str(specimen_uid)
+        dataset.IssuerOfTheSpecimenIdentifierSequence = []
+        dataset.SpecimenPreparationSequence = []
+        dataset_reread = write_and_read_dataset(dataset)
+        instance = SpecimenDescription.from_dataset(dataset_reread)
+        assert instance.specimen_id == specimen_id
+        assert instance.specimen_uid == specimen_uid
+        assert len(instance.specimen_preparation_steps) == 0
