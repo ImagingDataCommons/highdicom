@@ -159,7 +159,7 @@ derived from the type of the ``processing_procedure`` argument.
 Refactoring of `SpecimenPreparationStep` class
 ----------------------------------------------
 
-In highdicom 0.15.2 and later versions,
+In highdicom 0.16.0 and later versions,
 :class:`highdicom.content.SpecimenPreparationStep` represents an item of the
 Specimen Preparation Sequence rather than the Specimen Preparation Step Content
 Item Sequence and the class is consequently derived from
