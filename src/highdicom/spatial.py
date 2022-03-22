@@ -444,13 +444,17 @@ class ReferenceToPixelTransformer(object):
         Returns
         -------
         numpy.ndarray
-            Array of (column, row) zero-based indices at pixel resolution in
-            the range [0, Columns - 1] and [0, Rows - 1], respectively.
+            Array of (column, row) zero-based indices at pixel resolution.
             Array of integer values with shape ``(n, 2)``, where *n* is
             the number of indices, the first column represents the `column`
             index and the second column represents the `row` index.
             The ``(0, 0)`` coordinate is located at the **center** of the top
             left pixel in the total pixel matrix.
+
+        Note
+        ----
+        The returned pixel indices may be negative if `coordinates` fall
+        outside of the total pixel matrix.
 
         Raises
         ------

@@ -254,7 +254,8 @@ class ContentSequence(DataElementSequence):
         items: Optional[
             Union[Sequence[ContentItem], 'ContentSequence']
         ] = None,
-        is_root: bool = False
+        is_root: bool = False,
+        is_sr: bool = True
     ) -> None:
         """
 
@@ -266,34 +267,15 @@ class ContentSequence(DataElementSequence):
             Whether the sequence is used to contain SR Content Items that are
             intended to be added to an SR document at the root of the document
             content tree
+        is_sr: bool, optional
+            Whether the sequence is use to contain SR Content Items that are
+            intended to be added to an SR document as opposed to other types
+            of IODs based on an acquisition, protocol or workflow context
+            template
 
         """  # noqa: E501
         self._is_root = is_root
-        if items is not None:
-            for i in items:
-                if not isinstance(i, ContentItem):
-                    raise TypeError(
-                        f'Items of "{self.__class__.__name__}" must have '
-                        'type ContentItem.'
-                    )
-                if is_root:
-                    if i.relationship_type is not None:
-                        raise AttributeError(
-                            'Item at the root of the content tree must '
-                            f'have no Relationship Type:\n{i.name}.'
-                        )
-                    if not isinstance(i, ContainerContentItem):
-                        raise TypeError(
-                            'Item at the root of a SR content tree must '
-                            f'have type ContainerContentItem:\n{i.name}'
-                        )
-                else:
-                    if i.relationship_type is None:
-                        raise AttributeError(
-                            'Item to be included in a '
-                            f'{self.__class__.__name__} must have an '
-                            f'established relationship type:\n{i.name}'
-                        )
+        self._is_sr = is_sr
 
         # The implementation of this class is quite a hack. It is derived from
         # "pydicom.sequence.Sequence", because this is the only type that is
@@ -320,6 +302,39 @@ class ContentSequence(DataElementSequence):
                 self._lut[i.name].append(i)
         else:
             super().__init__()
+
+        if items is not None:
+            for i in items:
+                if not isinstance(i, ContentItem):
+                    raise TypeError(
+                        f'Items of "{self.__class__.__name__}" must have '
+                        'type ContentItem.'
+                    )
+                if is_root:
+                    if i.relationship_type is not None:
+                        raise AttributeError(
+                            'Item at the root of the content tree must '
+                            f'have no Relationship Type:\n{i.name}.'
+                        )
+                    if not isinstance(i, ContainerContentItem):
+                        raise TypeError(
+                            'Item at the root of a SR content tree must '
+                            f'have type ContainerContentItem:\n{i.name}'
+                        )
+                elif is_sr:
+                    if i.relationship_type is None:
+                        raise AttributeError(
+                            'Item to be included in a '
+                            f'{self.__class__.__name__} must have an '
+                            f'established relationship type:\n{i.name}'
+                        )
+                else:
+                    if i.relationship_type is not None:
+                        raise AttributeError(
+                            'Item of content of acquisition, protocol, or '
+                            'workflow context must have no Relationship Type: '
+                            f'\n{i.name}.'
+                        )
 
     @overload
     def __setitem__(self, idx: int, val: ContentItem) -> None:
@@ -415,7 +430,11 @@ class ContentSequence(DataElementSequence):
             Matched content items
 
         """
-        return ContentSequence(self._lut[name])
+        return ContentSequence(
+            self._lut[name],
+            is_root=False,
+            is_sr=self._is_sr
+        )
 
     def get_nodes(self) -> 'ContentSequence':
         """Get content items that represent nodes in the content tree.
@@ -450,14 +469,14 @@ class ContentSequence(DataElementSequence):
                 )
             )
         if self._is_root:
-            if val.relationship_type is not None:
+            if self._is_sr and val.relationship_type is not None:
                 raise AttributeError(
                     f'Items to be appended to a {self.__class__.__name__} '
                     'that is the root of the SR content tree must not have '
                     'relationship type.'
                 )
         else:
-            if val.relationship_type is None:
+            if self._is_sr and val.relationship_type is None:
                 raise AttributeError(
                     f'Items to be appended to a {self.__class__.__name__} must '
                     'have an established relationship type.'
@@ -522,7 +541,8 @@ class ContentSequence(DataElementSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset],
-        is_root: bool = False
+        is_root: bool = False,
+        is_sr: bool = True
     ) -> 'ContentSequence':
         """Construct object from a sequence of datasets.
 
@@ -534,6 +554,11 @@ class ContentSequence(DataElementSequence):
             Whether the sequence is used to contain SR Content Items that are
             intended to be added to an SR document at the root of the document
             content tree
+        is_sr: bool, optional
+            Whether the sequence is use to contain SR Content Items that are
+            intended to be added to an SR document as opposed to other types
+            of IODs based on an acquisition, protocol or workflow context
+            template
 
         Returns
         -------
@@ -546,18 +571,20 @@ class ContentSequence(DataElementSequence):
             cls._check_dataset(
                 dataset,
                 is_root=is_root,
+                is_sr=is_sr,
                 index=i
             )
             dataset_copy = deepcopy(dataset)
             item = ContentItem._from_dataset_derived(dataset_copy)
             content_items.append(item)
-        return ContentSequence(content_items, is_root=is_root)
+        return ContentSequence(content_items, is_root=is_root, is_sr=is_sr)
 
     @classmethod
     def _from_sequence(
         cls,
         sequence: Sequence[Dataset],
-        is_root: bool = False
+        is_root: bool = False,
+        is_sr: bool = True
     ) -> 'ContentSequence':
         """Construct object from a sequence of datasets.
 
@@ -569,6 +596,11 @@ class ContentSequence(DataElementSequence):
             Whether the sequence is used to contain SR Content Items that are
             intended to be added to an SR document at the root of the document
             content tree
+        is_sr: bool, optional
+            Whether the sequence is use to contain SR Content Items that are
+            intended to be added to an SR document as opposed to other types
+            of IODs based on an acquisition, protocol or workflow context
+            template
 
         Returns
         -------
@@ -581,17 +613,19 @@ class ContentSequence(DataElementSequence):
             cls._check_dataset(
                 dataset,
                 is_root=is_root,
+                is_sr=is_sr,
                 index=i
             )
             item = ContentItem._from_dataset_derived(dataset)
             content_items.append(item)
-        return ContentSequence(content_items, is_root=is_root)
+        return ContentSequence(content_items, is_root=is_root, is_sr=is_sr)
 
     @classmethod
     def _check_dataset(
         cls,
         dataset: Dataset,
         is_root: bool,
+        is_sr: bool,
         index: int
     ) -> None:
         if not isinstance(dataset, Dataset):
@@ -612,7 +646,7 @@ class ContentSequence(DataElementSequence):
                 f'Item #{index} of sequence is not an SR Content Item:\n'
                 f'{dataset}'
             )
-        if not hasattr(dataset, 'RelationshipType') and not is_root:
+        if not hasattr(dataset, 'RelationshipType') and not is_root and is_sr:
             raise AttributeError(
                 'Item #{index} of sequence is not a value SR Content Item '
                 'because it is not a root item and lacks the otherwise '
@@ -626,6 +660,11 @@ class ContentSequence(DataElementSequence):
 
         """
         return self._is_root
+
+    @property
+    def is_sr(self) -> bool:
+        """bool: whether the sequence is intended for use in an SR document"""
+        return self._is_sr
 
 
 class CodeContentItem(ContentItem):

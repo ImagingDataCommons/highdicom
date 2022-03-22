@@ -3,6 +3,7 @@ from pathlib import Path
 from random import shuffle
 
 import numpy as np
+import pytest
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
 
@@ -22,7 +23,8 @@ class TestImageFileReader(unittest.TestCase):
     def test_construct_image_file_reader(self):
         filename = '/tmp/foo.dcm'
         reader = ImageFileReader(filename)
-        assert reader.filename == filename
+        with pytest.raises(AttributeError):
+            reader.filename
 
     def test_read_single_frame_ct_image_native(self):
         filename = str(self._test_dir.joinpath('ct_image.dcm'))
