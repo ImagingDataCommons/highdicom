@@ -153,3 +153,17 @@ In highdicom 0.15.0, the ``processing_type`` parameter was removed from the
 constructor of :class:`highdicom.content.SpecimenPreparationStep`.
 The parameter turned out to be superfluous, because the argument could be
 derived from the type of the ``processing_procedure`` argument.
+
+.. _specimen-preparation-step-refactoring:
+
+Refactoring of `SpecimenPreparationStep` class
+----------------------------------------------
+
+In highdicom 0.15.2 and later versions,
+:class:`highdicom.content.SpecimenPreparationStep` represents an item of the
+Specimen Preparation Sequence rather than the Specimen Preparation Step Content
+Item Sequence and the class is consequently derived from
+``pydicom.dataset.Dataset`` instead of ``pydicom.sequence.Sequence``.
+As a consequence, alternative construction of an instance of
+:class:`highdicom.content.SpecimenPreparationStep` needs to be performed using
+the ``from_dataset()`` instead of the ``from_sequence()`` class method.
