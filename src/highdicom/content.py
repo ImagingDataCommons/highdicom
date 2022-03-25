@@ -731,21 +731,27 @@ class SpecimenProcessing(ContentSequence):
 
     def __init__(
         self,
-        description: Union[Code, CodedConcept]
+        description: Union[Code, CodedConcept, str]
     ):
         """
         Parameters
         ----------
-        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, str]
             Description of the processing
 
         """  # noqa: E501
         super().__init__(is_root=False, is_sr=False)
         # CID 8112
-        item = CodeContentItem(
-            name=codes.DCM.ProcessingStepDescription,
-            value=description
-        )
+        if isinstance(description, str):
+            item = TextContentItem(
+                name=codes.DCM.ProcessingStepDescription,
+                value=description
+            )
+        else:
+            item = CodeContentItem(
+                name=codes.DCM.ProcessingStepDescription,
+                value=description
+            )
         self.append(item)
 
     @property
