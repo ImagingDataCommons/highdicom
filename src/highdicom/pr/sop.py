@@ -202,6 +202,7 @@ class _SoftcopyPresentationState(SOPClass):
             **kwargs
         )
         self.copy_patient_and_study_information(referenced_images[0])
+        self.copy_specimen_information(referenced_images[0])
 
         # General Equipment
         self.Manufacturer = manufacturer
