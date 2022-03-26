@@ -4,6 +4,11 @@ import io
 import re
 
 import setuptools
+from pathlib import Path
+
+root_directory = Path(__file__).parent
+readme_filepath = root_directory.joinpath('README.md')
+long_description = readme_filepath.read_text()
 
 with io.open('src/highdicom/version.py', 'rt', encoding='utf8') as f:
     version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
@@ -13,9 +18,11 @@ setuptools.setup(
     name='highdicom',
     version=version,
     description='High-level DICOM abstractions.',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/mghcomputationalpathology/highdicom',
+    url='https://github.com/herrmannlab/highdicom',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
