@@ -1302,8 +1302,8 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             setattr(self, data_kw, lut)
 
         if hasattr(palette_color_lut, 'PaletteColorLookupTableUID'):
-            lut = palette_color_lut.PaletteColorLookupTableUID
-            self.PaletteColorLookupTableUID = lut
+            uid = palette_color_lut.PaletteColorLookupTableUID
+            self.PaletteColorLookupTableUID = uid
 
 
 class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
