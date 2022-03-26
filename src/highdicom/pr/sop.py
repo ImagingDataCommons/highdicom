@@ -1277,6 +1277,11 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             A palette color lookup table to apply to the image.
 
         """
+        if not isinstance(palette_color_lut, PaletteColorLookupTable):
+            raise TypeError(
+                'Argument "palette_color_lut" must be of type '
+                'PaletteColorLookupTable.'
+            )
         colors = ['Red', 'Green', 'Blue']
 
         for color in colors:
