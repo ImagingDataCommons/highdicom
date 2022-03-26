@@ -252,6 +252,14 @@ class _SoftcopyPresentationState(SOPClass):
         self.ContentCreatorName = content_creator_name
 
         if content_creator_identification is not None:
+            if not isinstance(
+                content_creator_identification,
+                ContentCreatorIdentificationCodeSequence
+            ):
+                raise TypeError(
+                    'Argument "content_creator_identification" must be of type '
+                    'ContentCreatorIdentificationCodeSequence.'
+                )
             self.ContentCreatorIdentificationCodeSequence = \
                 content_creator_identification
 

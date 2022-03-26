@@ -29,6 +29,7 @@ from pydicom.filereader import dcmread
 
 from highdicom.base import SOPClass
 from highdicom.content import (
+    ContentCreatorIdentificationCodeSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence
@@ -89,6 +90,9 @@ class Segmentation(SOPClass):
         plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
         omit_empty_frames: bool = True,
         content_label: Optional[str] = None,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -237,6 +241,9 @@ class Segmentation(SOPClass):
             the segmentation image. If False, all frames are included.
         content_label: Union[str, None], optional
             Content label
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this segmentation.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -386,6 +393,17 @@ class Segmentation(SOPClass):
         if content_creator_name is not None:
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
+        if content_creator_identification is not None:
+            if not isinstance(
+                content_creator_identification,
+                ContentCreatorIdentificationCodeSequence
+            ):
+                raise TypeError(
+                    'Argument "content_creator_identification" must be of type '
+                    'ContentCreatorIdentificationCodeSequence.'
+                )
+            self.ContentCreatorIdentificationCodeSequence = \
+                content_creator_identification
 
         segmentation_type = SegmentationTypeValues(segmentation_type)
         self.SegmentationType = segmentation_type.value

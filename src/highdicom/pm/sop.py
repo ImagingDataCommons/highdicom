@@ -6,6 +6,7 @@ import numpy as np
 from pydicom.encaps import encapsulate
 from highdicom.base import SOPClass
 from highdicom.content import (
+    ContentCreatorIdentificationCodeSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -82,6 +83,9 @@ class ParametricMap(SOPClass):
             str,
             DerivedPixelContrastValues
         ] = DerivedPixelContrastValues.QUANTITY,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
         **kwargs,
     ):
         """
@@ -210,6 +214,9 @@ class ParametricMap(SOPClass):
         derived_pixel_contrast: Union[str, highdicom.pm.DerivedPixelContrast], optional
             Contrast created by combining or processing source images with the
             same geometry
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this parametric map.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -408,6 +415,18 @@ class ParametricMap(SOPClass):
         if content_creator_name is not None:
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
+        if content_creator_identification is not None:
+            if not isinstance(
+                content_creator_identification,
+                ContentCreatorIdentificationCodeSequence
+            ):
+                raise TypeError(
+                    'Argument "content_creator_identification" must be of type '
+                    'ContentCreatorIdentificationCodeSequence.'
+                )
+            self.ContentCreatorIdentificationCodeSequence = \
+                content_creator_identification
+
         self.PresentationLUTShape = 'IDENTITY'
 
         self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
