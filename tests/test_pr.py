@@ -17,6 +17,7 @@ from highdicom import (
     ContentCreatorIdentificationCodeSequence,
     LUT,
     ModalityLUT,
+    PaletteColorLookupTable,
     RescaleTypeValues,
     UID,
     VOILUTFunctionValues,
@@ -1707,6 +1708,15 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         r_first_mapped_value = 32
         g_first_mapped_value = 42
         b_first_mapped_value = 52
+        lut = PaletteColorLookupTable(
+            red_palette_color_lut_data=r_lut_data,
+            green_palette_color_lut_data=g_lut_data,
+            blue_palette_color_lut_data=b_lut_data,
+            red_first_mapped_value=r_first_mapped_value,
+            green_first_mapped_value=g_first_mapped_value,
+            blue_first_mapped_value=b_first_mapped_value,
+            palette_color_lut_uid=UID(),
+        )
         pr = PseudoColorSoftcopyPresentationState(
             referenced_images=self._ct_series,
             series_instance_uid=self._series_uid,
@@ -1724,13 +1734,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            red_palette_color_lut_data=r_lut_data,
-            green_palette_color_lut_data=g_lut_data,
-            blue_palette_color_lut_data=b_lut_data,
-            red_first_mapped_value=r_first_mapped_value,
-            green_first_mapped_value=g_first_mapped_value,
-            blue_first_mapped_value=b_first_mapped_value,
-            palette_color_lut_uid=UID(),
+            palette_color_lut=lut,
         )
         assert pr.SeriesInstanceUID == self._series_uid
         assert pr.SOPInstanceUID == self._sop_uid

@@ -23,6 +23,7 @@ from highdicom.sr.value_types import (
     NumContentItem,
     TextContentItem,
 )
+from highdicom.uid import UID
 from highdicom.valuerep import (
     _check_long_string,
     _check_long_text,
@@ -1206,3 +1207,128 @@ class ModalityLUT(LUT):
         else:
             _check_long_string(modality_lut_type)
             self.ModalityLUTType = modality_lut_type
+
+
+class PaletteColorLookupTable(Dataset):
+
+    """Dataset describing a palette color lookup table."""
+
+    def __init__(
+        self,
+        red_palette_color_lut_data: np.ndarray,
+        green_palette_color_lut_data: np.ndarray,
+        blue_palette_color_lut_data: np.ndarray,
+        red_first_mapped_value: int,
+        green_first_mapped_value: int,
+        blue_first_mapped_value: int,
+        palette_color_lut_uid: Union[UID, str, None] = None
+    ):
+        """Add attributes from the Palette Color Lookup Table module.
+
+        Parameters
+        ----------
+        red_palette_color_lut_data: np.ndarray
+            Array of values for the red color lookup table data. Must be a 1D
+            array of uint16 values, where the first entry is the red output
+            value of the palette color lookup table operation when the input
+            pixel is ``"red_first_mapped_value"``, and so on.
+        green_palette_color_lut_data: np.ndarray
+            Array of values for the green color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        blue_palette_color_lut_data: np.ndarray
+            Array of values for the blue color lookup table data. Otherwise as
+            described for ``red_palette_color_lut_data``.
+        red_first_mapped_value: int
+            Integer representing the first input value mapped by the red palette
+            lookup table operation.
+        green_first_mapped_value: int
+            Integer representing the first input value mapped by the green
+            lookup table operation.
+        blue_first_mapped_value: int
+            Integer representing the first input value mapped by the blue
+            palette lookup table operation.
+        palette_color_lut_uid: Union[UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        """
+        super().__init__()
+        colors = ['red', 'green', 'blue']
+        all_lut_data = [
+            red_palette_color_lut_data,
+            green_palette_color_lut_data,
+            blue_palette_color_lut_data
+        ]
+        all_first_values = [
+            red_first_mapped_value,
+            green_first_mapped_value,
+            blue_first_mapped_value
+        ]
+
+        if palette_color_lut_uid is not None:
+            self.PaletteColorLookupTableUID = palette_color_lut_uid
+
+        for color, lut_data, first_mapped_value in zip(
+            colors,
+            all_lut_data,
+            all_first_values
+        ):
+            if not isinstance(first_mapped_value, int):
+                raise TypeError(
+                    f'Argument "{color}_first_mapped_value" must be an integer.'
+                )
+            if first_mapped_value < 0:
+                raise ValueError(
+                    'Argument "first_mapped_value" must be non-negative.'
+                )
+            if first_mapped_value >= 2 ** 16:
+                raise ValueError(
+                    f'Argument "{color}_first_mapped_value" must be less than '
+                    '2^16.'
+                )
+
+            if not isinstance(lut_data, np.ndarray):
+                raise TypeError(
+                    f'Argument "f{color}_palette_color_lut_data" must be of '
+                    'type np.ndarray.'
+                )
+            if lut_data.ndim != 1:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" '
+                    'must have a single dimension.'
+                )
+            len_data = lut_data.size
+            if len_data == 0:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" '
+                    'must not be empty.'
+                )
+            if len_data > 2**16:
+                raise ValueError(
+                    f'Length of "f{color}_palette_color_lut_data" must be no '
+                    'greater than 2^16 elements.'
+                )
+            elif len_data == 2**16:
+                # Per the standard, this is recorded as 0
+                len_data = 0
+
+            if lut_data.dtype.type != np.uint16:
+                raise ValueError(
+                    f'Argument "f{color}_palette_color_lut_data" must have '
+                    'dtype uint16.'
+                )
+
+            descriptor = [
+                len_data,
+                first_mapped_value,
+                16  # always 16 as part of Palette Color LUT module
+            ]
+            setattr(
+                self,
+                f'{color.title()}PaletteColorLookupTableDescriptor',
+                descriptor
+            )
+            setattr(
+                self,
+                f'{color.title()}PaletteColorLookupTableData',
+                lut_data.tobytes()
+            )
