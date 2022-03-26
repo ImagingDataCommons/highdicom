@@ -222,8 +222,14 @@ class _SoftcopyPresentationState(SOPClass):
                 'Argument "content_description" must not exceed 64 characters.'
             )
         self.ContentDescription = content_description
-        self.PresentationCreationDate = DA(datetime.datetime.now().date())
-        self.PresentationCreationTime = TM(datetime.datetime.now().time())
+        now = datetime.datetime.now()
+        self.PresentationCreationDate = DA(now.date())
+        self.PresentationCreationTime = TM(now.time())
+
+        # Not technically part of PR IODs, but we include anyway
+        self.ContentCreationDate = DA(now.date())
+        self.ContentCreationTime = TM(now.time())
+
         if concept_name_code is not None:
             if not isinstance(concept_name_code, (Code, CodedConcept)):
                 raise TypeError(
