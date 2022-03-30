@@ -3,7 +3,6 @@
 from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom.valuerep import format_number_as_ds
 from pydicom._storage_sopclass_uids import (
     SegmentationStorage,
 )
@@ -11,7 +10,7 @@ from pydicom._storage_sopclass_uids import (
 import numpy as np
 
 from highdicom.color import CIELabColor
-from highdicom.content import LUT
+from highdicom.content import LUT, ReferencedImageSequence, VOILUT
 from highdicom.enum import VOILUTFunctionValues
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
@@ -19,7 +18,7 @@ from highdicom.pr.enum import (
     TextJustificationValues,
 )
 from highdicom.uid import UID
-from highdicom.utils import has_pixel_data, is_tiled_image
+from highdicom.utils import is_tiled_image
 from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
@@ -643,7 +642,7 @@ class GraphicAnnotation(Dataset):
             self.TextObjectSequence = text_objects
 
 
-class SoftcopyVOILUT(Dataset):
+class SoftcopyVOILUT(VOILUT):
 
     """Dataset describing a value-of-interest lookup table."""
 
@@ -654,9 +653,7 @@ class SoftcopyVOILUT(Dataset):
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
         voi_luts: Optional[Sequence[LUT]] = None,
-        referenced_images: Optional[Sequence[Dataset]] = None,
-        referenced_frame_number: Union[int, Sequence[int], None] = None,
-        referenced_segment_number: Union[int, Sequence[int], None] = None,
+        referenced_images: Optional[ReferencedImageSequence] = None,
     ):
         """
 
@@ -673,16 +670,10 @@ class SoftcopyVOILUT(Dataset):
             and ``window_width``.
         voi_luts: Union[Sequence[highdicom.LUT], None], optional
             Intensity lookup tables used for display.
-        referenced_images: Union[Sequence[pydicom.Dataset], None], optional
+        referenced_images: Union[highdicom.content.ReferencedImageSequence, None], optional
             Images to which the VOI LUT described in this dataset applies. Note
             that if unspecified, the VOI LUT applies to every image referenced
             in the presentation state object that this dataset is included in.
-        referenced_frame_number: Union[int, Sequence[int], None], optional
-            Frame number(s) within a referenced multiframe image to which this
-            VOI LUT applies.
-        referenced_segment_number: Union[int, Sequence[int], None], optional
-            Segment number(s) within a referenced segmentation image to which
-            this VOI LUT applies.
 
         Note
         ----
@@ -691,198 +682,18 @@ class SoftcopyVOILUT(Dataset):
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
-        super().__init__()
+        super().__init__(
+            window_center=window_center,
+            window_width=window_width,
+            window_explanation=window_explanation,
+            voi_lut_function=voi_lut_function,
+            voi_luts=voi_luts,
+        )
 
         if referenced_images is not None:
-            if len(referenced_images) == 0:
-                raise ValueError(
-                    'Argument "referenced_images" must not be empty.'
-                )
-            multiple_images = len(referenced_images) > 1
-            if referenced_frame_number is not None:
-                if multiple_images:
-                    raise ValueError(
-                        'Specifying "referenced_frame_number" is not supported '
-                        'with multiple referenced images.'
-                    )
-                if not hasattr(referenced_images[0], 'NumberOfFrames'):
-                    raise TypeError(
-                        'Specifying "referenced_frame_number" is not valid '
-                        'when the referenced image is not a multi-frame image.'
-                    )
-                if isinstance(referenced_frame_number, Sequence):
-                    _referenced_frame_numbers = referenced_frame_number
-                else:
-                    _referenced_frame_numbers = [referenced_frame_number]
-                for f in _referenced_frame_numbers:
-                    if f < 1 or f > referenced_images[0].NumberOfFrames:
-                        raise ValueError(
-                            f'Frame number {f} is invalid for referenced '
-                            'image.'
-                        )
-            if referenced_segment_number is not None:
-                if multiple_images:
-                    raise ValueError(
-                        'Specifying "referenced_segment_number" is not '
-                        'supported with multiple referenced images.'
-                    )
-                if referenced_images[0].SOPClassUID != SegmentationStorage:
-                    raise TypeError(
-                        '"referenced_segment_number" is only valid when the '
-                        'referenced image is a segmentation image.'
-                    )
-                number_of_segments = len(referenced_images[0].SegmentSequence)
-                if isinstance(referenced_segment_number, Sequence):
-                    _referenced_segment_numbers = referenced_segment_number
-                else:
-                    _referenced_segment_numbers = [referenced_segment_number]
-                for s in _referenced_segment_numbers:
-                    if s < 1 or s > number_of_segments:
-                        raise ValueError(
-                            f'Segment number {s} is invalid for referenced '
-                            'image.'
-                        )
-                if referenced_frame_number is not None:
-                    # Check that the one of the specified segments exists
-                    # in each of the referenced frame
-                    for f in _referenced_frame_numbers:
-                        f_ind = f - 1
-                        seg_num = (
-                            referenced_images[0].
-                            PerFrameFunctionalGroupsSequence[f_ind].
-                            SegmentIdentificationSequence[0].
-                            ReferencedSegmentNumber
-                        )
-                        if seg_num not in _referenced_segment_numbers:
-                            raise ValueError(
-                                f'Referenced frame {f} does not contain any of '
-                                'the referenced segments.'
-                            )
-            ref_image_seq = []
-            for im in referenced_images:
-                if not has_pixel_data(im):
-                    raise ValueError(
-                        'Dataset provided in "referenced_images" does not '
-                        'represent an image.'
-                    )
-                ref_im = Dataset()
-                ref_im.ReferencedSOPInstanceUID = im.SOPInstanceUID
-                ref_im.ReferencedSOPClassUID = im.SOPClassUID
-                if referenced_segment_number is not None:
-                    ref_im.ReferencedSegmentNumber = referenced_segment_number
-                if referenced_frame_number is not None:
-                    ref_im.ReferencedFrameNumber = referenced_frame_number
-                ref_image_seq.append(ref_im)
-            self.ReferencedImageSequence = ref_image_seq
-        else:
-            if referenced_segment_number is not None:
+            if not isinstance(referenced_images, ReferencedImageSequence):
                 raise TypeError(
-                    'Argument "referenced_segment_number" should not be '
-                    'provided if "referenced_images" is not provided.'
+                    'Argument "referenced_images" must be of type '
+                    'highdicom.ReferencedImageSequence.'
                 )
-            if referenced_frame_number is not None:
-                raise TypeError(
-                    'Argument "referenced_frame_number" should not be '
-                    'provided if "referenced_images" is not provided.'
-                )
-
-        if window_center is not None:
-            if window_width is None:
-                raise TypeError(
-                    'Providing "window_center" is invalid if "window_width" '
-                    'is not provided.'
-                )
-            window_is_sequence = isinstance(window_center, Sequence)
-            if window_is_sequence:
-                if len(window_center) == 0:
-                    raise TypeError(
-                        'Argument "window_center" must not be an empty '
-                        'sequence.'
-                    )
-                self.WindowCenter = [
-                    format_number_as_ds(x) for x in window_center
-                ]
-            else:
-                self.WindowCenter = format_number_as_ds(window_center)
-        if window_width is not None:
-            if window_center is None:
-                raise TypeError(
-                    'Providing "window_width" is invalid if "window_center" '
-                    'is not provided.'
-                )
-            if isinstance(window_width, Sequence):
-                if (
-                    not window_is_sequence or
-                    (len(window_width) != len(window_center))
-                ):
-                    raise ValueError(
-                        'Length of "window_width" must match length of '
-                        '"window_center".'
-                    )
-                if len(window_width) == 0:
-                    raise TypeError(
-                        'Argument "window_width" must not be an empty sequence.'
-                    )
-                self.WindowWidth = [
-                    format_number_as_ds(x) for x in window_width
-                ]
-            else:
-                if window_is_sequence:
-                    raise TypeError(
-                        'Length of "window_width" must match length of '
-                        '"window_center".'
-                    )
-                self.WindowWidth = format_number_as_ds(window_width)
-        if window_explanation is not None:
-            if window_center is None:
-                raise TypeError(
-                    'Providing "window_explanation" is invalid if '
-                    '"window_center" is not provided.'
-                )
-            if isinstance(window_explanation, str):
-                if window_is_sequence:
-                    raise TypeError(
-                        'Length of "window_explanation" must match length of '
-                        '"window_center".'
-                    )
-                _check_long_string(window_explanation)
-            elif isinstance(window_explanation, Sequence):
-                if (
-                    not window_is_sequence or
-                    (len(window_explanation) != len(window_center))
-                ):
-                    raise ValueError(
-                        'Length of "window_explanation" must match length of '
-                        '"window_center".'
-                    )
-                if len(window_explanation) == 0:
-                    raise TypeError(
-                        'Argument "window_explanation" must not be an empty '
-                        'sequence.'
-                    )
-                for exp in window_explanation:
-                    _check_long_string(exp)
-            self.WindowCenterWidthExplanation = window_explanation
-        if voi_lut_function is not None:
-            if window_center is None:
-                raise TypeError(
-                    'Providing "voi_lut_function" is invalid if '
-                    '"window_center" is not provided.'
-                )
-            self.VOILUTFunction = VOILUTFunctionValues(voi_lut_function).value
-
-        if voi_luts is not None:
-            if len(voi_luts) == 0:
-                raise ValueError('"voi_luts" should not be empty.')
-            for lut in voi_luts:
-                if not isinstance(lut, LUT):
-                    raise TypeError(
-                        'Items of "voi_luts" should be of type highdicom.LUT.'
-                    )
-            self.VOILUTSequence = list(voi_luts)
-        else:
-            if window_center is None:
-                raise TypeError(
-                    'At least one of "window_center" or "voi_luts" should be '
-                    'provided.'
-                )
+            self.ReferencedImageSequence = referenced_images

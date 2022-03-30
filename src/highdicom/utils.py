@@ -237,27 +237,6 @@ def compute_plane_position_slide_per_frame(
     ]
 
 
-def has_pixel_data(dataset: Dataset) -> bool:
-    """Determine whether a dataset has pixel data.
-
-     This represents as simple and robust way to determine whether a dataset
-     represents an image, rather than some other sort of object such as a
-     report, waveform or presentation state.
-
-     Returns
-     -------
-     bool:
-         True if the dataset has pixel data of any data type. False otherwise.
-
-    """
-    pixel_attrs = [
-        'PixelData',
-        'FloatPixelData',
-        'DoubleFloatPixelData',
-    ]
-    return any(hasattr(dataset, attr) for attr in pixel_attrs)
-
-
 def is_tiled_image(dataset: Dataset) -> bool:
     """Determine whether a dataset represents a tiled image.
 

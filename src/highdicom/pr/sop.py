@@ -23,6 +23,7 @@ from highdicom.content import (
     LUT,
     ModalityLUT,
     PaletteColorLookupTable,
+    ReferencedImageSequence,
 )
 from highdicom.pr.content import (
     GraphicLayer,
@@ -749,7 +750,10 @@ class _SoftcopyPresentationState(SOPClass):
                         refs_to_include = None
                     else:
                         # Include specific references
-                        refs_to_include = frame_list
+                        refs_to_include = ReferencedImageSequence(
+                            referenced_images=referenced_images,
+                            referenced_frame_number=frame_list,
+                        )
 
                     softcopy_voi_luts.append(
                         SoftcopyVOILUT(
@@ -757,8 +761,7 @@ class _SoftcopyPresentationState(SOPClass):
                             window_width=width,
                             window_explanation=exp,
                             voi_lut_function=func,
-                            referenced_images=referenced_images,
-                            referenced_frame_number=refs_to_include
+                            referenced_images=refs_to_include
                         )
                     )
 
@@ -815,7 +818,7 @@ class _SoftcopyPresentationState(SOPClass):
                     refs_to_include = None
                 else:
                     # Include specific references
-                    refs_to_include = im_list
+                    refs_to_include = ReferencedImageSequence(im_list)
 
                 softcopy_voi_luts.append(
                     SoftcopyVOILUT(
@@ -834,7 +837,7 @@ class _SoftcopyPresentationState(SOPClass):
                     refs_to_include = None
                 else:
                     # Include specific references
-                    refs_to_include = im_list
+                    refs_to_include = ReferencedImageSequence(im_list)
 
                 luts = [
                     LUT(

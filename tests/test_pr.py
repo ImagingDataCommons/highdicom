@@ -19,6 +19,7 @@ from highdicom import (
     ModalityLUT,
     PaletteColorLookupTable,
     RescaleTypeValues,
+    ReferencedImageSequence,
     UID,
     VOILUTFunctionValues,
 )
@@ -154,154 +155,9 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         lut = SoftcopyVOILUT(
             window_center=40.0,
             window_width=400.0,
-            referenced_images=self._ct_series
+            referenced_images=ReferencedImageSequence(self._ct_series)
         )
         assert len(lut.ReferencedImageSequence) == len(self._ct_series)
-
-    def test_construction_ref_ims_empty(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[]
-            )
-
-    def test_construction_ref_ims_frame_number(self):
-        lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            referenced_images=[self._ct_multiframe],
-            referenced_frame_number=1
-        )
-        assert len(lut.ReferencedImageSequence) == 1
-        assert lut.ReferencedImageSequence[0].ReferencedFrameNumber == 1
-
-    def test_construction_ref_ims_multi_frame_numbers(self):
-        lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            referenced_images=[self._ct_multiframe],
-            referenced_frame_number=[1, 2]
-        )
-        assert len(lut.ReferencedImageSequence) == 1
-        assert lut.ReferencedImageSequence[0].ReferencedFrameNumber == [1, 2]
-
-    def test_construction_ref_ims_invalid_frame_number_1(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._ct_multiframe],
-                referenced_frame_number=0
-            )
-
-    def test_construction_ref_ims_invalid_frame_number_2(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._ct_multiframe],
-                referenced_frame_number=self._ct_multiframe.NumberOfFrames + 1
-            )
-
-    def test_construction_ref_ims_invalid_frame_number_3(self):
-        nonexistent_frame = self._ct_multiframe.NumberOfFrames + 1
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._ct_multiframe],
-                referenced_frame_number=[1, nonexistent_frame]
-            )
-
-    def test_construction_ref_ims_frame_number_single_frames(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=self._ct_series,
-                referenced_frame_number=0
-            )
-
-    def test_construction_ref_ims_segment_number(self):
-        lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            referenced_images=[self._seg],
-            referenced_segment_number=1
-        )
-        assert len(lut.ReferencedImageSequence) == 1
-        assert lut.ReferencedImageSequence[0].ReferencedSegmentNumber == 1
-
-    def test_construction_ref_ims_segment_number_non_seg(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=self._ct_series,
-                referenced_segment_number=1
-            )
-
-    def test_construction_ref_ims_segment_number_multiple(self):
-        lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            referenced_images=[self._seg],
-            referenced_segment_number=[1, 2]
-        )
-        assert len(lut.ReferencedImageSequence) == 1
-        assert lut.ReferencedImageSequence[0].ReferencedSegmentNumber == [1, 2]
-
-    def test_construction_ref_ims_segment_number_and_frames(self):
-        lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            referenced_images=[self._seg],
-            referenced_segment_number=1,
-            referenced_frame_number=[1, 2, 3],
-        )
-        assert len(lut.ReferencedImageSequence) == 1
-        assert lut.ReferencedImageSequence[0].ReferencedSegmentNumber == 1
-        assert lut.ReferencedImageSequence[0].ReferencedFrameNumber == [1, 2, 3]
-
-    def test_construction_ref_ims_segment_number_and_frames_mismatch(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._seg],
-                referenced_segment_number=2,
-                referenced_frame_number=[1, 2, 3],  # segment frame mismatch
-            )
-
-    def test_construction_ref_ims_invalid_segment_number_1(self):
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._seg],
-                referenced_segment_number=0
-            )
-
-    def test_construction_ref_ims_invalid_segment_number_2(self):
-        invalid_segment_number = len(self._seg.SegmentSequence) + 1
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._seg],
-                referenced_segment_number=invalid_segment_number
-            )
-
-    def test_construction_ref_ims_invalid_segment_number_3(self):
-        invalid_segment_number = len(self._seg.SegmentSequence) + 1
-        with pytest.raises(ValueError):
-            SoftcopyVOILUT(
-                window_center=40.0,
-                window_width=400.0,
-                referenced_images=[self._seg],
-                referenced_segment_number=[1, invalid_segment_number]
-            )
 
 
 class TestGraphicObject(unittest.TestCase):
@@ -942,7 +798,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             window_center=40.0,
             window_width=400.0,
             window_explanation='Soft Tissue Window',
-            referenced_images=self._ct_series
+            referenced_images=ReferencedImageSequence(self._ct_series)
         )
 
         self._presentation_lut = LUT(

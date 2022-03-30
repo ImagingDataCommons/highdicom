@@ -1,7 +1,10 @@
 from unittest import TestCase
 
 import pytest
+from pydicom import dcmread
 from pydicom.sr.codedict import codes
+from pydicom.data import get_testdata_file, get_testdata_files
+
 
 import numpy as np
 
@@ -13,11 +16,14 @@ from highdicom import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
+    ReferencedImageSequence,
     RescaleTypeValues,
     SpecimenCollection,
     SpecimenPreparationStep,
     SpecimenSampling,
     SpecimenStaining,
+    VOILUT,
+    VOILUTFunctionValues,
 )
 
 
@@ -484,3 +490,242 @@ class TestSpecimenPreparationStep(TestCase):
         assert staining_item.name == codes.SCT.UsingSubstance
         assert staining_item.value == substance
         assert staining_item.relationship_type is None
+
+
+class TestVOILUT(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut = LUT(
+            first_mapped_value=0,
+            lut_data=np.array([10, 11, 12], np.uint8)
+        )
+
+    def test_construction_basic(self):
+        lut = VOILUT(
+            window_center=40.0,
+            window_width=400.0
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert not hasattr(lut, 'VOILUTSequence')
+
+    def test_construction_explanation(self):
+        lut = VOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            window_explanation='Soft Tissue Window'
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_multiple(self):
+        lut = VOILUT(
+            window_center=[40.0, 600.0],
+            window_width=[400.0, 1500.0],
+            window_explanation=['Soft Tissue Window', 'Lung Window'],
+        )
+        assert lut.WindowCenter == [40.0, 600.0]
+        assert lut.WindowWidth == [400.0, 1500.0]
+
+    def test_construction_multiple_mismatch1(self):
+        with pytest.raises(ValueError):
+            VOILUT(
+                window_center=40.0,
+                window_width=[400.0, 1500.0],
+            )
+
+    def test_construction_multiple_mismatch2(self):
+        with pytest.raises(TypeError):
+            VOILUT(
+                window_center=[40.0, 600.0],
+                window_width=400.0,
+            )
+
+    def test_construction_multiple_mismatch3(self):
+        with pytest.raises(ValueError):
+            VOILUT(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0, -50.0],
+            )
+
+    def test_construction_explanation_mismatch(self):
+        with pytest.raises(TypeError):
+            VOILUT(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0],
+                window_explanation='Lung Window',
+            )
+
+    def test_construction_explanation_mismatch2(self):
+        with pytest.raises(ValueError):
+            VOILUT(
+                window_center=40.0,
+                window_width=400.0,
+                window_explanation=['Soft Tissue Window', 'Lung Window'],
+            )
+
+    def test_construction_lut_function(self):
+        lut = VOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            voi_lut_function=VOILUTFunctionValues.SIGMOID,
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
+
+    def test_construction_luts(self):
+        lut = VOILUT(voi_luts=[self._lut])
+        assert len(lut.VOILUTSequence) == 1
+        assert not hasattr(lut, 'WindowWidth')
+        assert not hasattr(lut, 'WindowCenter')
+
+    def test_construction_both(self):
+        lut = VOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            voi_luts=[self._lut]
+        )
+        assert len(lut.VOILUTSequence) == 1
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_neither(self):
+        with pytest.raises(TypeError):
+            VOILUT()
+
+
+class TestReferencedImageSequence(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._seg = dcmread(
+            'data/test_files/seg_image_ct_binary_overlap.dcm'
+        )
+
+    def test_construction_ref_ims(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=self._ct_series
+        )
+        assert len(ref_ims) == len(self._ct_series)
+
+    def test_construction_empty(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[]
+            )
+
+    def test_construction_frame_number(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=1
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedFrameNumber == 1
+
+    def test_construction_multi_frame_numbers(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1, 2]
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedFrameNumber == [1, 2]
+
+    def test_construction_invalid_frame_number_1(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=0
+            )
+
+    def test_construction_invalid_frame_number_2(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=self._ct_multiframe.NumberOfFrames + 1
+            )
+
+    def test_construction_invalid_frame_number_3(self):
+        nonexistent_frame = self._ct_multiframe.NumberOfFrames + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=[1, nonexistent_frame]
+            )
+
+    def test_construction_frame_number_single_frames(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series,
+                referenced_frame_number=0
+            )
+
+    def test_construction_segment_number(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=1
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == 1
+
+    def test_construction_segment_number_non_seg(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series,
+                referenced_segment_number=1
+            )
+
+    def test_construction_segment_number_multiple(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1, 2]
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == [1, 2]
+
+    def test_construction_segment_number_and_frames(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=1,
+            referenced_frame_number=[1, 2, 3],
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == 1
+        assert ref_ims[0].ReferencedFrameNumber == [1, 2, 3]
+
+    def test_construction_segment_number_and_frames_mismatch(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=2,
+                referenced_frame_number=[1, 2, 3],  # segment frame mismatch
+            )
+
+    def test_construction_invalid_segment_number_1(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=0
+            )
+
+    def test_construction_invalid_segment_number_2(self):
+        invalid_segment_number = len(self._seg.SegmentSequence) + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=invalid_segment_number
+            )
+
+    def test_construction_invalid_segment_number_3(self):
+        invalid_segment_number = len(self._seg.SegmentSequence) + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=[1, invalid_segment_number]
+            )

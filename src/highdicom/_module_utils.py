@@ -203,3 +203,33 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
                 return True
 
     return False
+
+
+def iod_has_pixel_data(sop_class_uid: str) -> bool:
+    """Check whether any pixel data attribute is present within an IOD.
+
+    This may be used to determine whether a particular SOP class represents an
+    image.
+
+    Parameters
+    ----------
+    sop_class_uid: str
+        SOP Class UID identifying the IOD.
+
+    Returns
+    -------
+    bool:
+        True if the any pixel data attribute is present within any module
+        within the IOD specified by the sop_class_uid. False otherwise. Pixel
+        data attributes include ``PixelData``, ``FloatPixelData``, and
+        ``DoubleFloatPixelData``.
+
+    """
+    pixel_attrs = [
+        'PixelData',
+        'FloatPixelData',
+        'DoubleFloatPixelData',
+    ]
+    return any(
+        is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
+    )
