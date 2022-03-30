@@ -1872,7 +1872,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -1941,7 +1941,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
