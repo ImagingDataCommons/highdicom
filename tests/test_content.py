@@ -729,3 +729,9 @@ class TestReferencedImageSequence(TestCase):
                 referenced_images=[self._seg],
                 referenced_segment_number=[1, invalid_segment_number]
             )
+
+    def test_construction_duplicate(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series * 2,
+            )

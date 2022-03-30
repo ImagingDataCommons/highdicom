@@ -670,7 +670,7 @@ class SoftcopyVOILUT(VOILUT):
             and ``window_width``.
         voi_luts: Union[Sequence[highdicom.LUT], None], optional
             Intensity lookup tables used for display.
-        referenced_images: Union[highdicom.content.ReferencedImageSequence, None], optional
+        referenced_images: Union[highdicom.ReferencedImageSequence, None], optional
             Images to which the VOI LUT described in this dataset applies. Note
             that if unspecified, the VOI LUT applies to every image referenced
             in the presentation state object that this dataset is included in.

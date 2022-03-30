@@ -1,4 +1,5 @@
 """Generic Data Elements that can be included in a variety of IODs."""
+from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
@@ -1100,6 +1101,15 @@ class ReferencedImageSequence(DataElementSequence):
             raise ValueError(
                 'Argument "referenced_images" must not be empty.'
             )
+
+        # Check for duplicate instances
+        sop_uid_counts = Counter(
+            ins.SOPInstanceUID for ins in referenced_images
+        )
+        most_common, max_count = sop_uid_counts.most_common(1)[0]
+        if max_count > 1:
+            raise ValueError("Found duplicate instances in referenced images.")
+
         multiple_images = len(referenced_images) > 1
         if referenced_frame_number is not None:
             if multiple_images:
