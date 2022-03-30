@@ -536,7 +536,9 @@ preferred for storing annotations for clinical or research purposes.
             [20.0, 10.0],
             [20.0, 20.0],
             [10.0, 20.0]]
-        )  # coordinates of polyline vertices
+        ),  # coordinates of polyline vertices
+        tracking_id='Finding1',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
     )
 
     # Create a text object annotation
@@ -544,7 +546,9 @@ preferred for storing annotations for clinical or research purposes.
         text_value='Important Finding!',
         bounding_box=np.array(
             [30.0, 30.0, 40.0, 40.0]  # left, top, right, bottom
-        )
+        ),
+        tracking_id='Finding1Text',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
     )
 
     # Create a single layer that will contain both graphics
