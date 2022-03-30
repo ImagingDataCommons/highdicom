@@ -585,7 +585,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         assert len(ann.GraphicObjectSequence) == 1
 
     def test_construction_frame_number_single_frame(self):
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=self._ct_series,
                 graphic_layer=self._graphic_layer,
@@ -652,7 +652,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         assert len(ann.GraphicObjectSequence) == 1
 
     def test_construction_segment_number_single_segment(self):
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError):
             GraphicAnnotation(
                 referenced_images=self._ct_series,
                 graphic_layer=self._graphic_layer,

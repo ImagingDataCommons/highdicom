@@ -5,7 +5,6 @@ from pydicom import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
 
-
 import numpy as np
 
 from highdicom.sr import CodedConcept

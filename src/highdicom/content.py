@@ -1101,6 +1101,12 @@ class ReferencedImageSequence(DataElementSequence):
             raise ValueError(
                 'Argument "referenced_images" must not be empty.'
             )
+        for ref_im in referenced_images:
+            if not isinstance(ref_im, Dataset):
+                raise TypeError(
+                    'Argument "referenced_images" must be a sequence of '
+                    'pydicom.Dataset instances.'
+                )
 
         # Check for duplicate instances
         sop_uid_counts = Counter(

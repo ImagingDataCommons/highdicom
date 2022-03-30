@@ -3,9 +3,6 @@
 from typing import Optional, Union, Sequence, Tuple
 
 from pydicom.dataset import Dataset
-from pydicom._storage_sopclass_uids import (
-    SegmentationStorage,
-)
 
 import numpy as np
 
@@ -532,78 +529,16 @@ class GraphicAnnotation(Dataset):
                     'At most one of "referenced_frame_number" or '
                     '"referenced_segment_number" should be provided.'
                 )
-        else:
-            if referenced_frame_number is not None:
-                raise TypeError(
-                    'Passing a "referenced_frame_number" is not valid with '
-                    'single-frame referenced images.'
-                )
-        if referenced_segment_number is not None:
-            if referenced_images[0].SOPClassUID != SegmentationStorage:
-                raise TypeError(
-                    '"referenced_segment_number" is only valid when the '
-                    'referenced image is a segmentation.'
-                )
-        ref_im_seq = []
         for ref_im in referenced_images:
-            if not isinstance(ref_im, Dataset):
-                raise TypeError(
-                    'Argument "referenced_images" must be a sequence of '
-                    'pydicom.Dataset instances.'
-                )
             if ref_im.SeriesInstanceUID != referenced_series_uid:
                 raise ValueError(
                     'All referenced images must belong to the same series.'
                 )
-            ref_im_item = Dataset()
-            ref_im_item.ReferencedSOPClassUID = ref_im.SOPClassUID
-            ref_im_item.ReferencedSOPInstanceUID = ref_im.SOPInstanceUID
-
-            if referenced_frame_number is not None:
-
-                def check_frame_number(f: int) -> None:
-                    if f < 1:
-                        raise ValueError(
-                            'Frame numbers must be positive integers'
-                        )
-                    elif f > ref_im.NumberOfFrames:
-                        raise ValueError(
-                            f'Frame number {f} is invalid for image with '
-                            f'{ref_im.NumberOfFrames} frames.'
-                        )
-
-                if isinstance(referenced_frame_number, Sequence):
-                    for f in referenced_frame_number:
-                        check_frame_number(f)
-                else:
-                    check_frame_number(referenced_frame_number)
-
-                ref_im_item.ReferencedFrameNumber = referenced_frame_number
-
-            if referenced_segment_number is not None:
-                n_segments = len(ref_im.SegmentSequence)
-
-                def check_segment_number(f: int) -> None:
-                    if f < 1:
-                        raise ValueError(
-                            'Segment numbers must be positive integers'
-                        )
-                    elif f > n_segments:
-                        raise ValueError(
-                            f'Segment number {f} is invalid for image with '
-                            f'{n_segments} segments.'
-                        )
-
-                if isinstance(referenced_segment_number, Sequence):
-                    for f in referenced_segment_number:
-                        check_segment_number(f)
-                else:
-                    check_segment_number(referenced_segment_number)
-
-                ref_im_item.ReferencedSegmentNumber = referenced_segment_number
-
-            ref_im_seq.append(ref_im_item)
-        self.ReferencedImageSequence = ref_im_seq
+        self.ReferencedImageSequence = ReferencedImageSequence(
+            referenced_images=referenced_images,
+            referenced_frame_number=referenced_frame_number,
+            referenced_segment_number=referenced_segment_number
+        )
 
         have_graphics = graphic_objects is not None and len(graphic_objects) > 0
         have_text = text_objects is not None and len(text_objects) > 0
