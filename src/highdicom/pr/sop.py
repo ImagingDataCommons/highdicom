@@ -229,8 +229,8 @@ class _SoftcopyPresentationState(SOPClass):
         self.PresentationCreationTime = TM(now.time())
 
         # Not technically part of PR IODs, but we include anyway
-        self.ContentCreationDate = DA(now.date())
-        self.ContentCreationTime = TM(now.time())
+        self.ContentDate = DA(now.date())
+        self.ContentTime = TM(now.time())
 
         if concept_name_code is not None:
             if not isinstance(concept_name_code, (Code, CodedConcept)):
