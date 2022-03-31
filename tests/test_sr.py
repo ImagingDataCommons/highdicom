@@ -14,7 +14,7 @@ from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid
 from pydicom.valuerep import DA, DS, DT, TM, PersonName
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import SegmentationStorage
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
@@ -1872,7 +1872,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -1941,7 +1941,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
