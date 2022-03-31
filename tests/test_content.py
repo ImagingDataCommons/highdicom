@@ -81,7 +81,7 @@ class TestContentCreatorIdentification(TestCase):
         assert creator_id_item.PersonAddress == self._person_address
         assert (
             creator_id_item.PersonTelephoneNumbers ==
-            self._person_telephone_numbers
+            self._person_telephone_numbers[0]
         )
         assert (
             creator_id_item.PersonTelecomInformation ==

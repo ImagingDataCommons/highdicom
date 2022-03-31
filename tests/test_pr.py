@@ -1200,14 +1200,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == expected_width
         assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == expected_center
         ref_im = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence[0]
-        assert ref_im.ReferencedFrameNumber == [1]
+        assert ref_im.ReferencedFrameNumber == 1
 
         expected_width = new_voi_lut_1.WindowWidth
         expected_center = new_voi_lut_1.WindowCenter
         assert gsps.SoftcopyVOILUTSequence[1].WindowWidth == expected_width
         assert gsps.SoftcopyVOILUTSequence[1].WindowCenter == expected_center
         ref_im = gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence[0]
-        assert ref_im.ReferencedFrameNumber == [2]
+        assert ref_im.ReferencedFrameNumber == 2
 
     def test_construction_with_voi_lut_missing_references(self):
         with pytest.raises(ValueError):
