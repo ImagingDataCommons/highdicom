@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     SegmentationStorage,
     VLWholeSlideMicroscopyImageStorage
 )
