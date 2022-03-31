@@ -5,7 +5,7 @@ import datetime
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
+from pydicom.uid import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes

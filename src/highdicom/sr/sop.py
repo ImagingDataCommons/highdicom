@@ -13,7 +13,7 @@ from pydicom.uid import (
     UID,
 )
 from pydicom.valuerep import DT, PersonName
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     ComprehensiveSRStorage,
     Comprehensive3DSRStorage,
     EnhancedSRStorage,

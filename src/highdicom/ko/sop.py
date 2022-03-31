@@ -9,7 +9,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     KeyObjectSelectionDocumentStorage,
 )
 

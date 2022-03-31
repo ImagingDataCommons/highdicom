@@ -736,7 +736,6 @@ class Segmentation(SOPClass):
 
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
-                frame_content_item.DimensionIndexValues = [segment_number]
 
                 # Look up the position of the plane relative to the indexed
                 # dimension.
@@ -767,7 +766,9 @@ class Segmentation(SOPClass):
                         'three dimensional coordinate system based on '
                         'dimension index values: {}'.format(j, error)
                     )
-                frame_content_item.DimensionIndexValues.extend(index_values)
+                frame_content_item.DimensionIndexValues = (
+                    [segment_number] + index_values
+                )
                 pffp_item.FrameContentSequence = [frame_content_item]
                 if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     pffp_item.PlanePositionSlideSequence = plane_positions[j]
