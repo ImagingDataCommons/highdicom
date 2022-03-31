@@ -1491,7 +1491,7 @@ class PaletteColorLookupTable(Dataset):
         blue_first_mapped_value: int,
         palette_color_lut_uid: Union[UID, str, None] = None
     ):
-        """Add attributes from the Palette Color Lookup Table module.
+        """
 
         Parameters
         ----------
