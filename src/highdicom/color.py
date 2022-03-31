@@ -60,7 +60,7 @@ class CIELabColor(object):
         self._value = (l_val, a_val, b_val)
 
     @property
-    def value(self) -> Tuple[int]:
+    def value(self) -> Tuple[int, int, int]:
         """Tuple[int]:
             Value formatted as a triplet of 16 bit unsigned integers.
         """

@@ -193,7 +193,7 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
         Parameters
         ----------
-        person_identification_codes: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None]]
+        person_identification_codes: Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]]
             Coded description(s) identifying the person.
         institution_name: str
             Name of the to which the identified individual is responsible or
@@ -1260,7 +1260,7 @@ class LUT(Dataset):
 
         self.LUTDescriptor = [
             len_data,
-            first_mapped_value,
+            int(first_mapped_value),
             bits_allocated
         ]
 
@@ -1284,17 +1284,17 @@ class LUT(Dataset):
         """int: Pixel value that will be mapped to the first value in the
         LUT.
         """
-        return self.LUTDescriptor[1]
+        return int(self.LUTDescriptor[1])
 
     @property
     def bits_allocated(self) -> int:
         """int: Bits allocated for the LUT data. 8 or 16."""
-        return self.LUTDescriptor[2]
+        return int(self.LUTDescriptor[2])
 
 
 class ModalityLUT(LUT):
 
-    """Dataset describing a modality lookup table."""
+    """Dataset describing an item of the Modality LUT Sequence."""
 
     def __init__(
         self,
@@ -1495,15 +1495,15 @@ class PaletteColorLookupTable(Dataset):
 
         Parameters
         ----------
-        red_palette_color_lut_data: np.ndarray
+        red_palette_color_lut_data: numpy.ndarray
             Array of values for the red color lookup table data. Must be a 1D
             array of uint16 values, where the first entry is the red output
             value of the palette color lookup table operation when the input
             pixel is ``"red_first_mapped_value"``, and so on.
-        green_palette_color_lut_data: np.ndarray
+        green_palette_color_lut_data: numpy.ndarray
             Array of values for the green color lookup table data. Otherwise as
             described for ``red_palette_color_lut_data``.
-        blue_palette_color_lut_data: np.ndarray
+        blue_palette_color_lut_data: numpy.ndarray
             Array of values for the blue color lookup table data. Otherwise as
             described for ``red_palette_color_lut_data``.
         red_first_mapped_value: int
