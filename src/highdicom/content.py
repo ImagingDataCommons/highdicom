@@ -34,7 +34,7 @@ from highdicom.valuerep import (
 )
 from highdicom._module_utils import (
     check_required_attributes,
-    iod_has_pixel_data
+    does_iod_have_pixel_data
 )
 
 
@@ -1177,7 +1177,7 @@ class ReferencedImageSequence(DataElementSequence):
                             'the referenced segments.'
                         )
         for im in referenced_images:
-            if not iod_has_pixel_data(im.SOPClassUID):
+            if not does_iod_have_pixel_data(im.SOPClassUID):
                 raise ValueError(
                     'Dataset provided in "referenced_images" does not '
                     'represent an image.'

@@ -205,7 +205,7 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
     return False
 
 
-def iod_has_pixel_data(sop_class_uid: str) -> bool:
+def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
     """Check whether any pixel data attribute is present within an IOD.
 
     This may be used to determine whether a particular SOP class represents an
