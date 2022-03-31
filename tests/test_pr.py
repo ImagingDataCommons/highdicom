@@ -783,7 +783,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         )
 
         self._modality_lut = ModalityLUT(
-            modality_lut_type=RescaleTypeValues.HU,
+            lut_type=RescaleTypeValues.HU,
             first_mapped_value=0,
             lut_data=np.arange(256, dtype=np.uint8)
         )

@@ -158,7 +158,7 @@ class TestModalityLUT(TestCase):
     def test_construction(self):
         first_value = 0
         lut = ModalityLUT(
-            modality_lut_type=RescaleTypeValues.HU,
+            lut_type=RescaleTypeValues.HU,
             first_mapped_value=first_value,
             lut_data=self._lut_data,
         )
@@ -172,7 +172,7 @@ class TestModalityLUT(TestCase):
     def test_construction_16bit(self):
         first_value = 0
         lut = ModalityLUT(
-            modality_lut_type=RescaleTypeValues.HU,
+            lut_type=RescaleTypeValues.HU,
             first_mapped_value=first_value,
             lut_data=self._lut_data_16
         )
@@ -187,7 +187,7 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut_type = 'MY_MAPPING'
         lut = ModalityLUT(
-            modality_lut_type=lut_type,
+            lut_type=lut_type,
             first_mapped_value=first_value,
             lut_data=self._lut_data
         )
@@ -199,7 +199,7 @@ class TestModalityLUT(TestCase):
     def test_construction_with_exp(self):
         first_value = 0
         lut = ModalityLUT(
-            modality_lut_type=RescaleTypeValues.HU,
+            lut_type=RescaleTypeValues.HU,
             first_mapped_value=first_value,
             lut_data=self._lut_data,
             lut_explanation=self._explanation
@@ -212,7 +212,7 @@ class TestModalityLUT(TestCase):
     def test_construction_empty_data(self):
         with pytest.raises(ValueError):
             ModalityLUT(
-                modality_lut_type=RescaleTypeValues.HU,
+                lut_type=RescaleTypeValues.HU,
                 first_mapped_value=0,
                 lut_data=np.array([]),  # empty data
             )
@@ -220,7 +220,7 @@ class TestModalityLUT(TestCase):
     def test_construction_negative_first_value(self):
         with pytest.raises(ValueError):
             ModalityLUT(
-                modality_lut_type=RescaleTypeValues.HU,
+                lut_type=RescaleTypeValues.HU,
                 first_mapped_value=-1,  # invalid
                 lut_data=self._lut_data,
             )
@@ -228,7 +228,7 @@ class TestModalityLUT(TestCase):
     def test_construction_wrong_dtype(self):
         with pytest.raises(ValueError):
             ModalityLUT(
-                modality_lut_type=RescaleTypeValues.HU,
+                lut_type=RescaleTypeValues.HU,
                 first_mapped_value=0,  # invalid
                 lut_data=np.array([0, 1, 2], dtype=np.int16),
             )

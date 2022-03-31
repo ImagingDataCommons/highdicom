@@ -1298,7 +1298,7 @@ class ModalityLUT(LUT):
 
     def __init__(
         self,
-        modality_lut_type: Union[RescaleTypeValues, str],
+        lut_type: Union[RescaleTypeValues, str],
         first_mapped_value: int,
         lut_data: np.ndarray,
         lut_explanation: Optional[str] = None
@@ -1307,10 +1307,10 @@ class ModalityLUT(LUT):
 
         Parameters
         ----------
-         modality_lut_type: Union[highdicom.RescaleTypeValues, str]
+        lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
             the LUT operation.
-          first_mapped_value: int
+        first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: np.ndarray
@@ -1331,11 +1331,11 @@ class ModalityLUT(LUT):
             lut_data=lut_data,
             lut_explanation=lut_explanation
         )
-        if isinstance(modality_lut_type, RescaleTypeValues):
-            self.ModalityLUTType = modality_lut_type.value
+        if isinstance(lut_type, RescaleTypeValues):
+            self.ModalityLUTType = lut_type.value
         else:
-            _check_long_string(modality_lut_type)
-            self.ModalityLUTType = modality_lut_type
+            _check_long_string(lut_type)
+            self.ModalityLUTType = lut_type
 
 
 class VOILUT(Dataset):
