@@ -1318,13 +1318,6 @@ class ModalityLUT(LUT):
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
-        Note
-        ----
-        After the LUT is applied, a pixel in the image with value equal to
-        ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
-        an input value of ``first_mapped_value + 1`` is mapped to
-        ``lut_data[1]``, and so on.
-
         """
         super().__init__(
             first_mapped_value=first_mapped_value,
