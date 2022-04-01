@@ -15,6 +15,7 @@ from pydicom.uid import (
 )
 
 from highdicom import (
+    LUT,
     PaletteColorLookupTable,
     PlanePositionSequence,
     PixelMeasuresSequence,
@@ -440,13 +441,13 @@ class TestParametricMap(unittest.TestCase):
         g_first_mapped_value = 42
         b_first_mapped_value = 52
         lut_uid = UID()
+        r_lut = LUT(r_first_mapped_value, r_lut_data)
+        g_lut = LUT(g_first_mapped_value, g_lut_data)
+        b_lut = LUT(b_first_mapped_value, b_lut_data)
         lut = PaletteColorLookupTable(
-            red_palette_color_lut_data=r_lut_data,
-            green_palette_color_lut_data=g_lut_data,
-            blue_palette_color_lut_data=b_lut_data,
-            red_first_mapped_value=r_first_mapped_value,
-            green_first_mapped_value=g_first_mapped_value,
-            blue_first_mapped_value=b_first_mapped_value,
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
             palette_color_lut_uid=lut_uid,
         )
         instance = ParametricMap(
