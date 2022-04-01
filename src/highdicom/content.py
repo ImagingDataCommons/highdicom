@@ -1494,14 +1494,11 @@ class PaletteColorLookupTable(Dataset):
         Parameters
         ----------
         red_lut: highdicom.LUT
-            Lookup table for the red output color channel. Must have 16 bits
-            allocated per entry.
+            Lookup table for the red output color channel.
         green: highdicom.LUT
-            Lookup table for the green output color channel. Must have 16 bits
-            allocated per entry.
+            Lookup table for the green output color channel.
         blue_lut: highdicom.LUT
-            Lookup table for the blue output color channel. Must have 16 bits
-            allocated per entry.
+            Lookup table for the blue output color channel.
         palette_color_lut_uid: Union[UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
@@ -1521,14 +1518,14 @@ class PaletteColorLookupTable(Dataset):
         blue_length = blue_lut.LUTDescriptor[0]
         if green_length != red_length or blue_length != red_length:
             raise ValueError('All three LUTs must be of the same length.')
+        bits = red_lut.bits_allocated
+        if green_lut.bits_allocated != bits or blue_lut.bits_allocated != bits:
+            raise ValueError(
+                'All three LUTs must have the same number of bits per entry.'
+            )
 
         colors = ['Red', 'Green', 'Blue']
         for color, lut in zip(colors, all_luts):
-            if lut.bits_allocated != 16:
-                raise ValueError(
-                    f'{color}_lut must have 16 bits allocated per entry.'
-                )
-
             if hasattr(lut, 'LUTExplanation'):
                 warnings.warn(
                     '"LUTExplanation" attributes of LUTs passed to '
