@@ -647,11 +647,24 @@ class DimensionIndexSequence(DataElementSequence):
 
         Examples
         --------
-        >>> dimension_index = DimensionIndexSequence("SLIDE")
-        >>> values = dimension_index.get_index_values(...)
+        >>> dimension_index = DimensionIndexSequence('SLIDE')
+        >>> plane_positions = [
+        ...     PlanePositionSequence('SLIDE', [10.0, 0.0, 0.0], [1, 1]),
+        ...     PlanePositionSequence('SLIDE', [30.0, 0.0, 0.0], [1, 2]),
+        ...     PlanePositionSequence('SLIDE', [50.0, 0.0, 0.0], [1, 3])
+        ... ]
+        >>> values, indices = dimension_index.get_index_values(plane_positions)
         >>> names = dimension_index.get_index_keywords()
+        >>> for name in names:
+        ...     print(name)
+        ColumnPositionInTotalImagePixelMatrix
+        RowPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
         >>> index = names.index("XOffsetInSlideCoordinateSystem")
         >>> print(values[:, index])
+        [10.0. 30.0, 50.0]
 
         """
         return [
