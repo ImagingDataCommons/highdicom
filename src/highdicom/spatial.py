@@ -217,16 +217,21 @@ class PixelToReferenceTransformer(object):
     Examples
     --------
 
-    >>> transformer = hd.spatial.PixelToReferenceTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
+    >>> import numpy as np
+    >>>
+    >>> # Create a transformer by specifying the reference space of
+    >>> # an image
+    >>> transformer = PixelToReferenceTransformer(
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5])
+    >>>
+    >>> # Use the transformer to convert coordinates
     >>> pixel_indices = np.array([[0, 10], [5, 5]])
-    >>> ref_coords = transformer(image_coords)
+    >>> ref_coords = transformer(pixel_indices)
     >>> print(ref_coords)
-    >>> # [[56.  39.2  1. ]
-    >>> #  [58.5 36.7  1. ]]
+    [[56.  39.2  1. ]
+     [58.5 36.7  1. ]]
 
     Warning
     -------
@@ -352,16 +357,17 @@ class ReferenceToPixelTransformer(object):
     Examples
     --------
 
-    >>> transformer = hd.spatial.ReferenceToPixelTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
+    >>> transformer = ReferenceToPixelTransformer(
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5]
+    ... )
+    >>>
     >>> ref_coords = np.array([[56., 39.2,  1. ], [58.5, 36.7, 1.]])
     >>> pixel_indices = transformer(ref_coords)
     >>> print(pixel_indices)
-    >>> # [[ 0 10  0]
-    >>> #  [ 5  5  0]]
+    [[ 0 10  0]
+     [ 5  5  0]]
 
     Warning
     -------
@@ -497,16 +503,17 @@ class ImageToReferenceTransformer(object):
     Examples
     --------
 
-    >>> transformer = hd.spatial.ImageToReferenceTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
+    >>> transformer = ImageToReferenceTransformer(
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5]
+    ... )
+    >>>
     >>> image_coords = np.array([[0.0, 10.0], [5.0, 5.0]])
     >>> ref_coords = transformer(image_coords)
     >>> print(ref_coords)
-    >>> # [[55.75 38.95  1. ]
-    >>> #  [58.25 36.45  1. ]]
+    [[55.75 38.95  1.  ]
+     [58.25 36.45  1.  ]]
 
     Warning
     -------
@@ -634,16 +641,20 @@ class ReferenceToImageTransformer(object):
     Examples
     --------
 
-    >>> transformer = hd.spatial.ReferenceToImageTransformer(
-    >>>     image_position=[56.0, 34.2, 1.0],
-    >>>     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    >>>     pixel_spacing=[0.5, 0.5]
-    >>> )
+    >>> # Create a transformer by specifying the reference space of
+    >>> # an image
+    >>> transformer = ReferenceToImageTransformer(
+    ...     image_position=[56.0, 34.2, 1.0],
+    ...     image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing=[0.5, 0.5]
+    ... )
+    >>>
+    >>> # Use the transformer to convert coordinates
     >>> ref_coords = np.array([[56., 39.2,  1. ], [58.5, 36.7, 1.]])
     >>> image_coords = transformer(ref_coords)
     >>> print(image_coords)
-    >>> # [[0.5  10.5  0. ]
-    >>> #  [5.5   5.5  0. ]]
+    [[ 0.5 10.5  0. ]
+     [ 5.5  5.5  0. ]]
 
     Warning
     -------
