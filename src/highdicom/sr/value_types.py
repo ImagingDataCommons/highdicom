@@ -648,7 +648,7 @@ class ContentSequence(DataElementSequence):
             )
         if not hasattr(dataset, 'RelationshipType') and not is_root and is_sr:
             raise AttributeError(
-                'Item #{index} of sequence is not a value SR Content Item '
+                f'Item #{index} of sequence is not a value SR Content Item '
                 'because it is not a root item and lacks the otherwise '
                 f'required attribute "RelationshipType":\n{dataset}'
             )
