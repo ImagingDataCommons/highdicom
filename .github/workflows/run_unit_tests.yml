@@ -34,4 +34,7 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=highdicom --cov-fail-under=80 tests
+    - name: Test documentation examples with doctest
+      run: |
+        pytest --doctest-modules
 
