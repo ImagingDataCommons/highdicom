@@ -224,15 +224,18 @@ class ImageFileReader(object):
 
     Examples
     --------
-    >>> from highdicom.io import ImageFileReader
-    >>> with ImageFileReader('data/test_files/ct_image.dcm') as image:
-    ...     print(image.metadata)
+    >>> from pydicom.data import get_testdata_file
+    >>> test_filepath = get_testdata_file('eCT_Supplemental.dcm')
+    >>>
+    >>> with ImageFileReader(test_filepath) as image:
+    ...     print(image.metadata.SOPInstanceUID)
     ...     for i in range(image.number_of_frames):
     ...         frame = image.read_frame(i)
     ...         print(frame.shape)
-    Dataset.file_meta -------------------------------
-    (0002, 0000) File Meta Information Group Length  UL: 192
-    ...
+    1.3.6.1.4.1.5962.1.1.10.3.1.1166562673.14401
+    (512, 512)
+    (512, 512)
+
     """
 
     def __init__(self, filename: str):

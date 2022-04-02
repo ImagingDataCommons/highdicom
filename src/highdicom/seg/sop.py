@@ -1524,31 +1524,31 @@ class Segmentation(SOPClass):
         >>> from pydicom.sr.codedict import codes
         >>> from highdicom.seg import SegmentAlgorithmTypeValues, Segmentation
         >>> from pydicom import dcmread
-        >>> ds = dcmread('data/test_files/seg_image_ct_true_fractional.dcm')
+        >>> ds = dcmread('data/test_files/seg_image_sm_control.dcm')
         >>> seg = Segmentation.from_dataset(ds)
         >>> segment_numbers = seg.get_segment_numbers(
-        ...     segmented_property_type=codes.SCT.Tumor,
+        ...     segmented_property_type=codes.SCT.ConnectiveTissue,
         ...     algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC
         ... )
         >>> segment_numbers
-        []
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
         Get segment numbers of all segments identified by a given
         institution-specific tracking ID:
 
         >>> segment_numbers = seg.get_segment_numbers(
-        ...     tracking_id='Tumor #1234567'
+        ...     tracking_id='Segment #4'
         ... )
         >>> segment_numbers
-        []
+        [4]
 
         Get segment numbers of all segments identified a globally unique
         tracking UID:
 
-        >>> uid = '1.2.826.0.1.3680043.10.511.3.73025483745501512180439199223117347'
+        >>> uid = '1.2.826.0.1.3680043.8.498.42540123542017542395135803252098380233'
         >>> segment_numbers = seg.get_segment_numbers(tracking_uid=uid)
         >>> segment_numbers
-        []
+        [13]
 
         """  # noqa: E501
         filter_funcs = []
