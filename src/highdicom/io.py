@@ -67,7 +67,7 @@ def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     tag = TupleTag(fp.read_tag())
     if int(tag) != ItemTag:
         raise ValueError(
-            # 'Reading of Basic Offset Table failed. '
+            'Reading of Basic Offset Table failed. '
             f'Encountered unexpected Tag "{tag}".'
         )
     fp.seek(first_frame_offset, 0)
