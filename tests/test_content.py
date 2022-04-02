@@ -182,6 +182,10 @@ class TestSpecimenStaining(TestCase):
         assert eosin_item.value == substances[1]
         assert eosin_item.relationship_type is None
 
+    def test_construction_missing_substances(self):
+        with pytest.raises(ValueError):
+            SpecimenStaining(substances=[])
+
 
 class TestSpecimenPreparationStep(TestCase):
 

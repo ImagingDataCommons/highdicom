@@ -698,6 +698,10 @@ class SpecimenStaining(ContentSequence):
 
         """  # noqa: E501
         super().__init__(is_root=False, is_sr=False)
+        if len(substances) == 0:
+            raise ValueError(
+                'Argument "substances" must contain at least one item.'
+            )
         # CID 8112
         for s in substances:
             if isinstance(s, (Code, CodedConcept)):
