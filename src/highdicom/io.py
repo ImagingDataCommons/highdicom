@@ -347,10 +347,6 @@ class ImageFileReader(object):
             If the file object does not represent a DICOM Part 10 file
 
         """
-        # pos = fp.tell()
-        # read_preamble(fp, False)
-        # file_meta = _read_file_meta_info(fp)
-        # fp.seek(pos)
         file_meta = read_file_meta_info(str(self._filename))
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         return (
@@ -402,10 +398,7 @@ class ImageFileReader(object):
         self._fp.seek(self._pixel_data_offset, 0)
 
         logger.debug('build Basic Offset Table')
-        try:
-            number_of_frames = int(self._metadata.NumberOfFrames)
-        except AttributeError:
-            number_of_frames = 1
+        number_of_frames = int(getattr(self._metadata, 'NumberOfFrames', 1))
         if self._transfer_syntax_uid.is_encapsulated:
             try:
                 self._basic_offset_table = _get_bot(self._fp, number_of_frames)

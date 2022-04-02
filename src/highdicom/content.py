@@ -970,7 +970,7 @@ class SpecimenPreparationStep(Dataset):
             is_sr=False
         )
         instance.SpecimenPreparationStepContentItemSequence = sequence
-        instance.__class__ = SpecimenPreparationStep
+        instance.__class__ = cls
         # Order of template TID 8001 "Specimen Preparation" is significant
         specimen_identifier_items = sequence.find(codes.DCM.SpecimenIdentifier)
         if len(specimen_identifier_items) != 1:
