@@ -215,11 +215,6 @@ class ImageFileReader(object):
     It provides efficient access to individual Frame items contained in the
     Pixel Data element without loading the entire element into memory.
 
-    Attributes
-    ----------
-    filename: str
-        Path to the DICOM Part10 file on disk
-
     Examples
     --------
     >>> from highdicom.io import ImageFileReader
@@ -231,15 +226,16 @@ class ImageFileReader(object):
 
     """
 
-    def __init__(self, fp: Union[str, Path, DicomFileLike]):
+    def __init__(self, filename: Union[str, Path, DicomFileLike]):
         """
         Parameters
         ----------
-        fp: Union[str, pathlib.Path, pydicom.filebase.DicomfileLike]
+        filename: Union[str, pathlib.Path, pydicom.filebase.DicomfileLike]
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(fp, DicomFileLike):
+        if isinstance(filename, DicomFileLike):
+            fp = filename
             is_little_endian, is_implicit_VR = self._check_file_format(fp)
             try:
                 if fp.is_little_endian != is_little_endian:
@@ -264,9 +260,9 @@ class ImageFileReader(object):
                     'attribute "is_implicit_VR".'
                 )
             self._fp = fp
-            self._filename = None
-        elif isinstance(fp, (str, Path)):
-            self._filename = Path(fp)
+            self._filename = Path(fp.name)
+        elif isinstance(filename, (str, Path)):
+            self._filename = Path(filename)
             self._fp = None
         else:
             raise TypeError(
@@ -274,6 +270,11 @@ class ImageFileReader(object):
                 'the path to a DICOM file stored on disk.'
             )
         self._metadata = None
+
+    @property
+    def filename(self) -> str:
+        """str: Path to the image file"""
+        return str(self._filename)
 
     def __enter__(self) -> 'ImageFileReader':
         self.open()
