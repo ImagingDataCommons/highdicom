@@ -2363,7 +2363,7 @@ class Segmentation(SOPClass):
         List the source image SOP instance UID for this segmentation:
 
         >>> sop_uid = seg.get_source_image_uids()[0][2]
-        >>> sop_uid 
+        >>> sop_uid
         '1.2.826.0.1.3680043.9.7433.3.12857516184849951143044513877282227'
 
         Get the segmentation array for 3 of the frames in the multiframe source
