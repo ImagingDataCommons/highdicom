@@ -664,7 +664,7 @@ class DimensionIndexSequence(DataElementSequence):
         ZOffsetInSlideCoordinateSystem
         >>> index = names.index("XOffsetInSlideCoordinateSystem")
         >>> print(values[:, index])
-        [10.0. 30.0, 50.0]
+        [10. 30. 50.]
 
         """
         return [
