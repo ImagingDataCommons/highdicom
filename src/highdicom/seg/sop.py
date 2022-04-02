@@ -27,6 +27,7 @@ from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
+from highdicom._module_utils import ModuleUsageValues, get_module_usage
 from highdicom.base import SOPClass
 from highdicom.content import (
     PlaneOrientationSequence,
@@ -272,6 +273,7 @@ class Segmentation(SOPClass):
                 image.SeriesInstanceUID,
                 image.Rows,
                 image.Columns,
+                getattr(image, 'FrameOfReferenceUID', None),
             )
             for image in source_images
         )
@@ -328,21 +330,33 @@ class Segmentation(SOPClass):
             **kwargs
         )
 
-        # Using Container Type Code Sequence attribute would be more elegant,
-        # but unfortunately it is a type 2 attribute.
-        if (hasattr(src_img, 'ImageOrientationSlide') or
-                hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
-            self._coordinate_system = CoordinateSystemNames.SLIDE
-        else:
-            self._coordinate_system = CoordinateSystemNames.PATIENT
-
         # Frame of Reference
-        self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
-        self.PositionReferenceIndicator = getattr(
-            src_img,
-            'PositionReferenceIndicator',
-            None
-        )
+        has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
+        if has_ref_frame_uid:
+            self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
+            self.PositionReferenceIndicator = getattr(
+                src_img,
+                'PositionReferenceIndicator',
+                None
+            )
+            # Using Container Type Code Sequence attribute would be more elegant,
+            # but unfortunately it is a type 2 attribute.
+            if (hasattr(src_img, 'ImageOrientationSlide') or
+                    hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
+                self._coordinate_system: Optional[CoordinateSystemNames] = \
+                    CoordinateSystemNames.SLIDE
+            else:
+                self._coordinate_system = CoordinateSystemNames.PATIENT
+        else:
+            # Only allow missing FrameOfReferenceUID if it is not required
+            # for this IOD
+            usage = get_module_usage('frame-of-reference', src_img.SOPClassUID)
+            if usage == ModuleUsageValues.MANDATORY:
+                raise ValueError(
+                    "Source images have no Frame Of Reference UID, but it is "
+                    "required by the IOD."
+                )
+            self._coordinate_system = None
 
         # (Enhanced) General Equipment
         self.DeviceSerialNumber = device_serial_number
@@ -436,34 +450,52 @@ class Segmentation(SOPClass):
                 src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
                 pixel_measures = src_shared_fg.PixelMeasuresSequence
             else:
-                pixel_measures = PixelMeasuresSequence(
-                    pixel_spacing=src_img.PixelSpacing,
-                    slice_thickness=src_img.SliceThickness,
-                    spacing_between_slices=src_img.get(
-                        'SpacingBetweenSlices',
-                        None
+                if has_ref_frame_uid:
+                    pixel_measures = PixelMeasuresSequence(
+                        pixel_spacing=src_img.PixelSpacing,
+                        slice_thickness=src_img.SliceThickness,
+                        spacing_between_slices=src_img.get(
+                            'SpacingBetweenSlices',
+                            None
+                        )
                     )
-                )
+                else:
+                    pixel_spacing = getattr(src_img, 'PixelSpacing', None)
+                    if pixel_spacing is not None:
+                        pixel_measures = PixelMeasuresSequence(
+                            pixel_spacing=pixel_spacing,
+                            slice_thickness=src_img.get(
+                                'SliceThickness',
+                                None
+                            ),
+                            spacing_between_slices=src_img.get(
+                                'SpacingBetweenSlices',
+                                None
+                            )
+                        )
+                    else:
+                        pixel_measures = None
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=self._coordinate_system,
-                image_orientation=src_img.ImageOrientationSlide
-            )
-        else:
-            if is_multiframe:
-                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = deepcopy(
-                    src_sfg.PlaneOrientationSequence
-                )
-            else:
+        if has_ref_frame_uid:
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationPatient
+                    image_orientation=src_img.ImageOrientationSlide
                 )
+            else:
+                if is_multiframe:
+                    src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+                    source_plane_orientation = deepcopy(
+                        src_sfg.PlaneOrientationSequence
+                    )
+                else:
+                    source_plane_orientation = PlaneOrientationSequence(
+                        coordinate_system=self._coordinate_system,
+                        image_orientation=src_img.ImageOrientationPatient
+                    )
 
-        if plane_orientation is None:
-            plane_orientation = source_plane_orientation
+            if plane_orientation is None:
+                plane_orientation = source_plane_orientation
 
         self.DimensionIndexSequence = DimensionIndexSequence(
             coordinate_system=self._coordinate_system
@@ -484,8 +516,10 @@ class Segmentation(SOPClass):
                     source_images
                 )
 
-        sffg_item.PixelMeasuresSequence = pixel_measures
-        sffg_item.PlaneOrientationSequence = plane_orientation
+        if pixel_measures is not None:
+            sffg_item.PixelMeasuresSequence = pixel_measures
+        if plane_orientation is not None:
+            sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
         # Information about individual frames will be updated below

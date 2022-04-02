@@ -629,6 +629,16 @@ class TestSegmentation(unittest.TestCase):
         )
         self._ct_pixel_array[1:5, 10:15] = True
 
+        # A single CR image
+        self._cr_image = dcmread(
+            get_testdata_file('dicomdirtests/77654033/CR1/6154')
+        )
+        self._cr_pixel_array = np.zeros(
+            self._cr_image.pixel_array.shape,
+            dtype=bool
+        )
+        self._cr_pixel_array[1:5, 10:15] = True
+
         # A microscopy image
         self._sm_image = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
@@ -1173,6 +1183,106 @@ class TestSegmentation(unittest.TestCase):
             if dcm.SOPInstanceUID in uid_to_plane_position
         }
         assert source_uid_to_plane_position == uid_to_plane_position
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
+        with pytest.raises(AttributeError):
+            frame_item.PlanePositionSlideSequence
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_6(self):
+        # A chest X-ray with no frame of reference
+        instance = Segmentation(
+            [self._cr_image],
+            self._cr_pixel_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert instance.SeriesInstanceUID == self._series_instance_uid
+        assert instance.SeriesNumber == self._series_number
+        assert instance.SOPInstanceUID == self._sop_instance_uid
+        assert instance.InstanceNumber == self._instance_number
+        assert instance.Manufacturer == self._manufacturer
+        assert instance.ManufacturerModelName == self._manufacturer_model_name
+        assert instance.SoftwareVersions == self._software_versions
+        assert instance.DeviceSerialNumber == self._device_serial_number
+        assert instance.Modality == 'SEG'
+        assert instance.file_meta.TransferSyntaxUID == '1.2.840.10008.1.2.1'
+        assert instance.PatientID == self._cr_image.PatientID
+        assert instance.AccessionNumber == self._cr_image.AccessionNumber
+        assert instance.LossyImageCompression == '00'
+        assert instance.BitsAllocated == 8
+        assert instance.HighBit == 7
+        assert instance.BitsStored == 8
+        assert instance.ImageType == ['DERIVED', 'PRIMARY']
+        assert instance.SamplesPerPixel == 1
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        assert instance.PixelRepresentation == 0
+        assert instance.SegmentationType == 'FRACTIONAL'
+        assert instance.SegmentationFractionalType == 'PROBABILITY'
+        assert instance.MaximumFractionalValue == 255
+        assert instance.ContentLabel == self._content_label
+        assert instance.ContentDescription is None
+        assert instance.ContentCreatorName is None
+        with pytest.raises(AttributeError):
+            instance.LossyImageCompressionRatio
+        with pytest.raises(AttributeError):
+            instance.LossyImageCompressionMethod
+        with pytest.raises(AttributeError):
+            instance.ImageOrientationSlide
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixOriginSequence
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixRows
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixColumns
+        assert len(instance.SegmentSequence) == 1
+        assert instance.SegmentSequence[0].SegmentNumber == 1
+        assert len(instance.SourceImageSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
+        ref_item = instance.SourceImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == \
+            self._cr_image.SOPInstanceUID
+        assert instance.Rows == self._cr_image.pixel_array.shape[0]
+        assert instance.Columns == self._cr_image.pixel_array.shape[1]
+        assert len(instance.SharedFunctionalGroupsSequence) == 1
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._cr_image.PixelSpacing
+        assert pm_item.SliceThickness == self._cr_image.SliceThickness
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._cr_image.ImageOrientationPatient
+        assert len(instance.DimensionOrganizationSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 2
+        assert instance.NumberOfFrames == 1
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 1
+        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert len(frame_item.FrameContentSequence) == 1
+        assert len(frame_item.DerivationImageSequence) == 1
+        assert len(frame_item.PlanePositionSequence) == 1
+        frame_content_item = frame_item.FrameContentSequence[0]
+        assert len(frame_content_item.DimensionIndexValues) == 2
+        for i, frame_item in enumerate(
+            instance.PerFrameFunctionalGroupsSequence, 1
+        ):
+            frame_content_item = frame_item.FrameContentSequence[0]
+            # The slice location index values should be consecutive, starting
+            # at 1
+            assert frame_content_item.DimensionIndexValues[1] == i
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):

@@ -166,7 +166,7 @@ class PixelMeasuresSequence(DataElementSequence):
     def __init__(
         self,
         pixel_spacing: Sequence[float],
-        slice_thickness: float,
+        slice_thickness: Optional[float],
         spacing_between_slices: Optional[float] = None,
     ) -> None:
         """
@@ -177,9 +177,9 @@ class PixelMeasuresSequence(DataElementSequence):
             millimeters along the row and column dimension of the image. First
             value represents the spacing between rows (vertical) and second
             value represents the spacing between columns (horizontal).
-        slice_thickness: float
-            Depth of physical space volume the image represents in millimeter
-        spacing_between_slices: float, optional
+        slice_thickness: Union[float, None]
+            Depth of physical space volume the image represents in millimeter.
+        spacing_between_slices: Union[float, None], optional
             Distance in physical space between two consecutive images in
             millimeters. Only required for certain modalities, such as MR.
 
@@ -187,7 +187,8 @@ class PixelMeasuresSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         item.PixelSpacing = [DS(ps, auto_format=True) for ps in pixel_spacing]
-        item.SliceThickness = slice_thickness
+        if slice_thickness is not None:
+            item.SliceThickness = DS(slice_thickness, auto_format=True)
         if spacing_between_slices is not None:
             item.SpacingBetweenSlices = spacing_between_slices
         self.append(item)
