@@ -3,7 +3,6 @@ from pathlib import Path
 from random import shuffle
 
 import numpy as np
-import pytest
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
 
