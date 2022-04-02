@@ -164,8 +164,8 @@ class KeyObjectSelectionDocument(SOPClass):
     def resolve_reference(self, sop_instance_uid: str) -> Tuple[str, str, str]:
         """Resolve reference for an object included in the document content.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         sop_instance_uid: str
             SOP Instance UID of a referenced object
 
