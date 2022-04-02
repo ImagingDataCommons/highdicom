@@ -277,6 +277,14 @@ class ContentSequence(DataElementSequence):
         self._is_root = is_root
         self._is_sr = is_sr
 
+        if is_root and not is_sr:
+            raise ValueError(
+                'Argument "is_root" is True but "is_sr" is False. '
+                'SR content items that are intended to be included at the '
+                'root of a document content tree must also be intended to be '
+                'added to a SR document.'
+            )
+
         # The implementation of this class is quite a hack. It is derived from
         # "pydicom.sequence.Sequence", because this is the only type that is
         # accepted for Data Elements with Value Representation "SQ"
