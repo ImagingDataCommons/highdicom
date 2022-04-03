@@ -63,7 +63,7 @@ class _SoftcopyPresentationState(SOPClass):
         graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name_code: Union[Code, CodedConcept, None] = None,
+        concept_name: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
@@ -119,7 +119,7 @@ class _SoftcopyPresentationState(SOPClass):
             layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+        concept_name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -232,19 +232,19 @@ class _SoftcopyPresentationState(SOPClass):
         self.ContentDate = DA(now.date())
         self.ContentTime = TM(now.time())
 
-        if concept_name_code is not None:
-            if not isinstance(concept_name_code, (Code, CodedConcept)):
+        if concept_name is not None:
+            if not isinstance(concept_name, (Code, CodedConcept)):
                 raise TypeError(
-                    'Argument "concept_name_code" should be of type '
+                    'Argument "concept_name" should be of type '
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
             self.ConceptNameCodeSequence = [
                 CodedConcept(
-                    concept_name_code.value,
-                    concept_name_code.scheme_designator,
-                    concept_name_code.meaning,
-                    concept_name_code.scheme_version
+                    concept_name.value,
+                    concept_name.scheme_designator,
+                    concept_name.meaning,
+                    concept_name.scheme_version
                 )
             ]
 
@@ -925,7 +925,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
         graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name_code: Union[Code, CodedConcept, None] = None,
+        concept_name: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
@@ -984,7 +984,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+        concept_name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -1062,7 +1062,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             graphic_annotations=graphic_annotations,
             graphic_layers=graphic_layers,
             graphic_groups=graphic_groups,
-            concept_name_code=concept_name_code,
+            concept_name=concept_name,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
             content_creator_name=content_creator_name,
@@ -1133,7 +1133,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name_code: Union[Code, CodedConcept, None] = None,
+        concept_name: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
@@ -1189,7 +1189,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+        concept_name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -1256,7 +1256,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             graphic_annotations=graphic_annotations,
             graphic_layers=graphic_layers,
             graphic_groups=graphic_groups,
-            concept_name_code=concept_name_code,
+            concept_name=concept_name,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
             content_creator_name=content_creator_name,
@@ -1334,7 +1334,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
         graphic_layers: Optional[Sequence[GraphicLayer]] = None,
         graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name_code: Union[Code, CodedConcept, None] = None,
+        concept_name: Union[Code, CodedConcept, None] = None,
         institution_name: Optional[str] = None,
         institutional_department_name: Optional[str] = None,
         content_creator_name: Optional[Union[str, PersonName]] = None,
@@ -1381,7 +1381,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             layers referenced in "graphic_annotations" must be included.
         graphic_groups: Optional[Sequence[highdicom.pr.GraphicGroup]], optional
             Description of graphic groups used in this presentation state.
-        concept_name_code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+        concept_name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             A coded description of the content of this presentation state.
         institution_name: Union[str, None], optional
             Name of the institution of the person or device that creates the
@@ -1441,7 +1441,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             graphic_annotations=graphic_annotations,
             graphic_layers=graphic_layers,
             graphic_groups=graphic_groups,
-            concept_name_code=concept_name_code,
+            concept_name=concept_name,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
             content_creator_name=content_creator_name,
