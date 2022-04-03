@@ -575,7 +575,7 @@ class TestVOILUT(TestCase):
         assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
 
     def test_construction_luts(self):
-        lut = VOILUT(voi_luts=[self._lut])
+        lut = VOILUT(luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
@@ -584,7 +584,7 @@ class TestVOILUT(TestCase):
         lut = VOILUT(
             window_center=40.0,
             window_width=400.0,
-            voi_luts=[self._lut]
+            luts=[self._lut]
         )
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0

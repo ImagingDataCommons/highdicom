@@ -132,7 +132,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
 
     def test_construction_luts(self):
-        lut = SoftcopyVOILUT(voi_luts=[self._lut])
+        lut = SoftcopyVOILUT(luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
@@ -141,7 +141,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         lut = SoftcopyVOILUT(
             window_center=40.0,
             window_width=400.0,
-            voi_luts=[self._lut]
+            luts=[self._lut]
         )
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0

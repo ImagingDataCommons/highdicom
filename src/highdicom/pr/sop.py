@@ -853,7 +853,7 @@ class _SoftcopyPresentationState(SOPClass):
                 softcopy_voi_luts.append(
                     SoftcopyVOILUT(
                         referenced_images=refs_to_include,
-                        voi_luts=luts
+                        luts=luts
                     )
                 )
 

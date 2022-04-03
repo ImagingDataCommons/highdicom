@@ -1349,7 +1349,7 @@ class VOILUT(Dataset):
         window_width: Union[float, Sequence[float], None] = None,
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        voi_luts: Optional[Sequence[LUT]] = None,
+        luts: Optional[Sequence[LUT]] = None,
     ):
         """
 
@@ -1364,13 +1364,13 @@ class VOILUT(Dataset):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        voi_luts: Union[Sequence[highdicom.LUT], None], optional
+        luts: Union[Sequence[highdicom.LUT], None], optional
             Intensity lookup tables used for display.
 
         Note
         ----
         Either ``window_center`` and ``window_width`` should be provided or
-        ``voi_luts`` should be provided, or both. ``window_explanation`` should
+        ``luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
@@ -1461,19 +1461,19 @@ class VOILUT(Dataset):
                 )
             self.VOILUTFunction = VOILUTFunctionValues(voi_lut_function).value
 
-        if voi_luts is not None:
-            if len(voi_luts) == 0:
-                raise ValueError('"voi_luts" should not be empty.')
-            for lut in voi_luts:
+        if luts is not None:
+            if len(luts) == 0:
+                raise ValueError('"luts" should not be empty.')
+            for lut in luts:
                 if not isinstance(lut, LUT):
                     raise TypeError(
-                        'Items of "voi_luts" should be of type highdicom.LUT.'
+                        'Items of "luts" should be of type highdicom.LUT.'
                     )
-            self.VOILUTSequence = list(voi_luts)
+            self.VOILUTSequence = list(luts)
         else:
             if window_center is None:
                 raise TypeError(
-                    'At least one of "window_center" or "voi_luts" should be '
+                    'At least one of "window_center" or "luts" should be '
                     'provided.'
                 )
 

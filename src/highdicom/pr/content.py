@@ -587,7 +587,7 @@ class SoftcopyVOILUT(VOILUT):
         window_width: Union[float, Sequence[float], None] = None,
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        voi_luts: Optional[Sequence[LUT]] = None,
+        luts: Optional[Sequence[LUT]] = None,
         referenced_images: Optional[ReferencedImageSequence] = None,
     ):
         """
@@ -603,7 +603,7 @@ class SoftcopyVOILUT(VOILUT):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        voi_luts: Union[Sequence[highdicom.LUT], None], optional
+        luts: Union[Sequence[highdicom.LUT], None], optional
             Intensity lookup tables used for display.
         referenced_images: Union[highdicom.ReferencedImageSequence, None], optional
             Images to which the VOI LUT described in this dataset applies. Note
@@ -613,7 +613,7 @@ class SoftcopyVOILUT(VOILUT):
         Note
         ----
         Either ``window_center`` and ``window_width`` should be provided or
-        ``voi_luts`` should be provided, or both. ``window_explanation`` should
+        ``luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
@@ -622,7 +622,7 @@ class SoftcopyVOILUT(VOILUT):
             window_width=window_width,
             window_explanation=window_explanation,
             voi_lut_function=voi_lut_function,
-            voi_luts=voi_luts,
+            luts=luts,
         )
 
         if referenced_images is not None:
