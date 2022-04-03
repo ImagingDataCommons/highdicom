@@ -906,8 +906,8 @@ class _SoftcopyPresentationState(SOPClass):
                 pcs = reconstructed_profile.profile.connection_space
                 if pcs not in ('Lab', 'XYZ'):
                     raise ValueError(
-                        'The color space of the ICC Profile must be "Lab" or '
-                        f'"XYZ", got "{pcs}".'
+                        'The profile connection space of the ICC Profile must be '
+                        f'"Lab" or '"XYZ", got "{pcs}".'
                     )
 
             self.ICCProfile = icc_profile
