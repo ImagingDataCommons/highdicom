@@ -760,6 +760,7 @@ class TestGraphicAnnotation(unittest.TestCase):
                 graphic_objects=[go]
             )
 
+
 class TestXSoftcopyPresentationState(unittest.TestCase):
 
     def setUp(self):
