@@ -525,6 +525,8 @@ class GraphicAnnotation(Dataset):
         if len(referenced_images) == 0:
             raise ValueError('List of referenced images must not be empty.')
         referenced_series_uid = referenced_images[0].SeriesInstanceUID
+        rows = referenced_images[0].Rows
+        columns = referenced_images[0].Columns
         if not isinstance(graphic_layer, GraphicLayer):
             raise TypeError(
                 'Argument "graphic_layer" should be of type '
@@ -551,6 +553,11 @@ class GraphicAnnotation(Dataset):
             if ref_im.SeriesInstanceUID != referenced_series_uid:
                 raise ValueError(
                     'All referenced images must belong to the same series.'
+                )
+            if ref_im.Columns != columns or ref_im.Rows != rows:
+                raise ValueError(
+                    'All referenced images must have the same number of rows '
+                    'and columns.'
                 )
         self.ReferencedImageSequence = ReferencedImageSequence(
             referenced_images=referenced_images,
@@ -619,7 +626,7 @@ class GraphicAnnotation(Dataset):
         referenced_image: Dataset,
         units: AnnotationUnitsValues,
     ) -> None:
-        """Check whether pixel data is valid for an image.
+        """Check whether graphic data is valid for an image.
 
         Parameters
         ----------
