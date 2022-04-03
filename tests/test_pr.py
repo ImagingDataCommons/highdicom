@@ -191,6 +191,7 @@ class TestGraphicObject(unittest.TestCase):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
         )
         assert ann.graphic_type == GraphicTypeValues.CIRCLE
         assert np.array_equal(ann.graphic_data, self._circle)
@@ -201,13 +202,15 @@ class TestGraphicObject(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicObject(
                 graphic_type=GraphicTypeValues.CIRCLE,
-                graphic_data=self._point
+                graphic_data=self._point,
+                units=AnnotationUnitsValues.PIXEL,
             )
 
     def test_ellipse(self):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.ELLIPSE,
             graphic_data=self._ellipse,
+            units=AnnotationUnitsValues.PIXEL,
         )
         assert ann.graphic_type == GraphicTypeValues.ELLIPSE
         assert np.array_equal(ann.graphic_data, self._ellipse)
@@ -217,13 +220,15 @@ class TestGraphicObject(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicObject(
                 graphic_type=GraphicTypeValues.ELLIPSE,
-                graphic_data=self._circle
+                graphic_data=self._circle,
+                units=AnnotationUnitsValues.PIXEL,
             )
 
     def test_point(self):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.POINT,
             graphic_data=self._point,
+            units=AnnotationUnitsValues.PIXEL,
         )
         assert ann.graphic_type == GraphicTypeValues.POINT
         assert np.array_equal(ann.graphic_data, self._point)
@@ -233,13 +238,15 @@ class TestGraphicObject(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicObject(
                 graphic_type=GraphicTypeValues.POINT,
-                graphic_data=self._circle
+                graphic_data=self._circle,
+                units=AnnotationUnitsValues.PIXEL,
             )
 
     def test_polyline(self):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.POLYLINE,
             graphic_data=self._polyline,
+            units=AnnotationUnitsValues.PIXEL,
         )
         assert ann.graphic_type == GraphicTypeValues.POLYLINE
         assert np.array_equal(ann.graphic_data, self._polyline)
@@ -249,13 +256,15 @@ class TestGraphicObject(unittest.TestCase):
         with pytest.raises(ValueError):
             GraphicObject(
                 graphic_type=GraphicTypeValues.POLYLINE,
-                graphic_data=self._point
+                graphic_data=self._point,
+                units=AnnotationUnitsValues.PIXEL,
             )
 
     def test_interpolated(self):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.INTERPOLATED,
             graphic_data=self._polyline,
+            units=AnnotationUnitsValues.PIXEL,
         )
         assert ann.graphic_type == GraphicTypeValues.INTERPOLATED
         assert np.array_equal(ann.graphic_data, self._polyline)
@@ -266,6 +275,7 @@ class TestGraphicObject(unittest.TestCase):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
             tracking_id=label,
             tracking_uid=uid
         )
@@ -279,6 +289,7 @@ class TestGraphicObject(unittest.TestCase):
             GraphicObject(
                 graphic_type=GraphicTypeValues.CIRCLE,
                 graphic_data=self._circle,
+                units=AnnotationUnitsValues.PIXEL,
                 tracking_uid=uid
             )
 
@@ -291,6 +302,7 @@ class TestGraphicObject(unittest.TestCase):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
             graphic_group=group
         )
         assert int(ann.GraphicGroupID) == 7
@@ -316,6 +328,7 @@ class TestGraphicObject(unittest.TestCase):
         ann = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
             is_filled=True
         )
         assert ann.GraphicFilled == 'Y'
@@ -326,6 +339,7 @@ class TestGraphicObject(unittest.TestCase):
             GraphicObject(
                 graphic_type=GraphicTypeValues.POLYLINE,
                 graphic_data=self._polyline,
+                units=AnnotationUnitsValues.PIXEL,
                 is_filled=True
             )
 
@@ -343,6 +357,7 @@ class TestTextObject(unittest.TestCase):
     def test_bounding_box(self):
         text_obj = TextObject(
             text_value=self._text,
+            units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box
         )
         assert text_obj.text_value == self._text
@@ -354,6 +369,7 @@ class TestTextObject(unittest.TestCase):
     def test_anchor_point(self):
         text_obj = TextObject(
             text_value=self._text,
+            units=AnnotationUnitsValues.PIXEL,
             anchor_point=self._anchor_point
         )
         assert text_obj.text_value == self._text
@@ -367,6 +383,7 @@ class TestTextObject(unittest.TestCase):
         with pytest.raises(ValueError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
                 bounding_box=self._anchor_point  # wrong number of elements
             )
 
@@ -374,12 +391,14 @@ class TestTextObject(unittest.TestCase):
         with pytest.raises(ValueError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
                 anchor_point=self._bounding_box  # wrong number of elements
             )
 
     def test_tracking_uids(self):
         text_obj = TextObject(
             text_value=self._text,
+            units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box,
             tracking_id=self._tracking_id,
             tracking_uid=self._tracking_uid,
@@ -394,6 +413,7 @@ class TestTextObject(unittest.TestCase):
         with pytest.raises(TypeError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
                 bounding_box=self._bounding_box,
                 tracking_id=self._tracking_id,
             )
@@ -402,6 +422,7 @@ class TestTextObject(unittest.TestCase):
         with pytest.raises(ValueError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
                 bounding_box=(-1.0, 3.0, 7.8, 9.0),
             )
 
@@ -409,14 +430,15 @@ class TestTextObject(unittest.TestCase):
         with pytest.raises(ValueError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.DISPLAY,
                 bounding_box=(1.0, 3.0, 7.8, 9.0),
-                units=AnnotationUnitsValues.DISPLAY
             )
 
     def test_anchor_point_invalid_values(self):
         with pytest.raises(ValueError):
             TextObject(
                 text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
                 anchor_point=(-1.0, 3.0),
             )
 
@@ -450,6 +472,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         self._bounding_box = (10, 30, 40, 60)
         self._text_object = TextObject(
             text_value=self._text_value,
+            units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box
         )
         self._circle = np.array([
@@ -469,6 +492,7 @@ class TestGraphicAnnotation(unittest.TestCase):
         self._graphic_object = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
         )
 
     def test_construction_text(self):
@@ -717,6 +741,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         )
         self._text_object = TextObject(
             text_value=self._text_value,
+            units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box
         )
         self._circle = np.array([
@@ -726,6 +751,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         self._graphic_object = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
         )
         self._display_color = CIELabColor(0.0, 127.0, 127.0)
         self._layer = GraphicLayer(
@@ -756,12 +782,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         # Same thing, but with object belonging to groups
         self._text_object_grp = TextObject(
             text_value=self._text_value,
+            units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box,
             graphic_group=self._group,
         )
         self._graphic_object_grp = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
             graphic_data=self._circle,
+            units=AnnotationUnitsValues.PIXEL,
             graphic_group=self._group,
         )
         self._layer_grp = GraphicLayer(

@@ -137,7 +137,7 @@ class GraphicObject(Dataset):
         self,
         graphic_type: Union[GraphicTypeValues, str],
         graphic_data: np.ndarray,
-        units: Union[AnnotationUnitsValues, str] = AnnotationUnitsValues.PIXEL,
+        units: Union[AnnotationUnitsValues, str],
         is_filled: bool = False,
         tracking_id: Optional[str] = None,
         tracking_uid: Optional[str] = None,
@@ -158,7 +158,7 @@ class GraphicObject(Dataset):
             :class:`highdicom.pr.enum.GraphicTypeValues` for details.
         units: Union[highdicom.pr.AnnotationUnitsValues, str]
             The units in which each point in graphic data is expressed.
-        is_filled: bool
+        is_filled: bool, optional
             Whether the graphic object should be rendered as a solid shape
             (``True``), or just an outline (``False``). Using ``True`` is only
             valid when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or
@@ -305,9 +305,9 @@ class TextObject(Dataset):
     def __init__(
         self,
         text_value: str,
+        units: Union[AnnotationUnitsValues, str],
         bounding_box: Optional[Tuple[float, float, float, float]] = None,
         anchor_point: Optional[Tuple[float, float]] = None,
-        units: Union[AnnotationUnitsValues, str] = AnnotationUnitsValues.PIXEL,
         text_justification: Union[
             TextJustificationValues, str
         ] = TextJustificationValues.CENTER,
@@ -322,6 +322,9 @@ class TextObject(Dataset):
         ----------
         text_value: str
             The unformatted text value.
+        units: Union[highdicom.pr.AnnotationUnitsValues, str]
+            The units in which the coordinates of the bounding box and/or
+            anchor point are expressed.
         bounding_box: Union[Tuple[float, float, float, float], None], optional
             Coordinates of the bounding box in which the text should be
             displayed, given in the following order [left, top, right, bottom],
@@ -331,9 +334,6 @@ class TextObject(Dataset):
         anchor_point: Union[Tuple[float, float], None], optional
             Location of a point in the image to which the text value is related,
             given as a (Column, Row) pair.
-        units: Union[highdicom.pr.AnnotationUnitsValues, str], optional
-            The units in which the coordinates of the bounding box and/or
-            anchor point are expressed.
         anchor_point_visible: bool, optional
             Whether the relationship between the anchor point and the text
             should be displayed in the image, for example via a line or arrow.

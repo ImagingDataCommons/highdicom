@@ -537,6 +537,7 @@ preferred for storing annotations for clinical or research purposes.
             [20.0, 20.0],
             [10.0, 20.0]]
         ),  # coordinates of polyline vertices
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for graphic data
         tracking_id='Finding1',  # site-specific ID
         tracking_uid=hd.UID()  # highdicom will generate a unique ID
     )
@@ -547,6 +548,7 @@ preferred for storing annotations for clinical or research purposes.
         bounding_box=np.array(
             [30.0, 30.0, 40.0, 40.0]  # left, top, right, bottom
         ),
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for bounding box
         tracking_id='Finding1Text',  # site-specific ID
         tracking_uid=hd.UID()  # highdicom will generate a unique ID
     )
