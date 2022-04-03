@@ -588,7 +588,7 @@ class GraphicAnnotation(Dataset):
 
     @staticmethod
     def _check_coords(
-        graphic_data: np.ndarry,
+        graphic_data: np.ndarray,
         referenced_image: Dataset,
         units: AnnotationUnitsValues,
     ) -> None:
@@ -597,6 +597,7 @@ class GraphicAnnotation(Dataset):
         Raises an exception if any value is invalid.
 
         """
+        pass
 
 
 class SoftcopyVOILUT(VOILUT):

@@ -1602,8 +1602,8 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         r_first_mapped_value = 32
-        g_first_mapped_value = 42
-        b_first_mapped_value = 52
+        g_first_mapped_value = 32
+        b_first_mapped_value = 32
         r_lut = LUT(r_first_mapped_value, r_lut_data)
         g_lut = LUT(g_first_mapped_value, g_lut_data)
         b_lut = LUT(b_first_mapped_value, b_lut_data)
