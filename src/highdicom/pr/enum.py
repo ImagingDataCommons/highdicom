@@ -18,8 +18,8 @@ class AnnotationUnitsValues(Enum):
     Image coordinates in pixel unit specified with sub-pixel resolution such
     that the origin, which is at the Top Left Hand Corner (TLHC) of the TLHC
     pixel is (0.0, 0.0), the Bottom Right Hand Corner (BRHC) of the TLHC pixel
-    is (1.0, 1.0), and the BRHC of the BRHC pixel is Columns, Rows.  The values
-    must be within the range 0, 0 to (Columns, Rows).
+    is (1.0, 1.0), and the BRHC of the BRHC pixel is (Columns, Rows).  The
+    values must be within the range (0, 0) to (Columns, Rows).
 
     """
 

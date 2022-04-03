@@ -381,6 +381,14 @@ class TextObject(Dataset):
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
                 )
+            if (
+                bounding_box[0] >= bounding_box[2] or
+                bounding_box[1] >= bounding_box[3]
+            ):
+                raise ValueError(
+                    'The bottom right hand corner of the bounding box must be '
+                    'below and to the right of the top left hand corner.'
+                )
             self.BoundingBoxTopLeftHandCorner = list(bounding_box[:2])
             self.BoundingBoxBottomRightHandCorner = list(bounding_box[2:])
             text_justification = TextJustificationValues(text_justification)
@@ -570,6 +578,11 @@ class GraphicAnnotation(Dataset):
                             'Graphic Objects may only use MATRIX units if the '
                             'referenced images are tiled images. '
                         )
+                self._check_coords(
+                    go.graphic_data,
+                    referenced_images[0],
+                    go.units,
+                )
             self.GraphicObjectSequence = graphic_objects
         if have_text:
             for to in text_objects:
@@ -584,6 +597,20 @@ class GraphicAnnotation(Dataset):
                             'Text Objects may only use MATRIX units if the '
                             'referenced images are tiled images. '
                         )
+                if to.bounding_box is not None:
+                    graphic_data = np.array(to.bounding_box).reshape((2, 2))
+                    self._check_coords(
+                        graphic_data,
+                        referenced_images[0],
+                        to.units,
+                    )
+                if to.anchor_point is not None:
+                    graphic_data = np.array(to.anchor_point).reshape((1, 2))
+                    self._check_coords(
+                        graphic_data,
+                        referenced_images[0],
+                        to.units,
+                    )
             self.TextObjectSequence = text_objects
 
     @staticmethod
@@ -592,12 +619,59 @@ class GraphicAnnotation(Dataset):
         referenced_image: Dataset,
         units: AnnotationUnitsValues,
     ) -> None:
-        """Check whether pixel data in PIXEL units is valid for an image.
+        """Check whether pixel data is valid for an image.
 
-        Raises an exception if any value is invalid.
+        Parameters
+        ----------
+        graphic_data: np.ndarray
+            Graphic data as stored within a GraphicObject.
+        referenced_image: pydicom.Dataset
+            Image to which the graphic data refers.
+        units: highdicom.pr.AnnotationUnitsValues
+            Units in which the graphic data are expressed.
+
+        Raises
+        ------
+        ValueError:
+            Raises an exception if any value in graphic_data is outside the
+            valid range of coordinates for referenced_image when using the
+            units specified by the units parameter.
 
         """
-        pass
+        min_col = graphic_data[0, :].min()
+        max_col = graphic_data[0, :].max()
+        min_row = graphic_data[1, :].min()
+        max_row = graphic_data[1, :].max()
+
+        if units == AnnotationUnitsValues.DISPLAY:
+            col_limit = 1.0
+            row_limit = 1.0
+            col_limit_msg = '1.0'
+            row_limit_msg = '1.0'
+        elif units == AnnotationUnitsValues.PIXEL:
+            col_limit = float(referenced_image.Columns)
+            row_limit = float(referenced_image.Rows)
+            col_limit_msg = 'Columns'
+            row_limit_msg = 'Rows'
+        elif units == AnnotationUnitsValues.MATRIX:
+            col_limit = float(referenced_image.TotalPixelMatrixColumns)
+            row_limit = float(referenced_image.TotalPixelMatrixRows)
+            col_limit_msg = 'TotalPixelMatrixColumns'
+            row_limit_msg = 'TotalPixelMatrixRows'
+
+        if (
+            min_col < 0.0 or
+            min_row < 0.0 or
+            max_col > col_limit or
+            max_row > row_limit
+        ):
+            raise ValueError(
+                'Found graphic data outside the valid range within one or '
+                'more GraphicObjects or TextObjects. When using units '
+                f'of type {units.value}, all column coordinates must lie in '
+                f'the range 0.0 to {col_limit_msg} and all row coordinates '
+                f'must lie in the range 0.0 to {row_limit_msg}.'
+            )
 
 
 class SoftcopyVOILUT(VOILUT):

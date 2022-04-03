@@ -349,7 +349,7 @@ class TestTextObject(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._text = 'Look Here!'
-        self._bounding_box = (10, 30, 40, 60)
+        self._bounding_box = (5, 6, 7, 8)
         self._anchor_point = (100, 110)
         self._tracking_id = 'tracking_id_1'
         self._tracking_uid = UID()
@@ -434,6 +434,15 @@ class TestTextObject(unittest.TestCase):
                 bounding_box=(1.0, 3.0, 7.8, 9.0),
             )
 
+    def test_bounding_box_br_invalid_for_tl(self):
+        # The BR pixel is not below and to the right of the TL pixel
+        with pytest.raises(ValueError):
+            TextObject(
+                text_value=self._text,
+                units=AnnotationUnitsValues.PIXEL,
+                bounding_box=(5.0, 5.0, 4.0, 4.0),
+            )
+
     def test_anchor_point_invalid_values(self):
         with pytest.raises(ValueError):
             TextObject(
@@ -469,15 +478,15 @@ class TestGraphicAnnotation(unittest.TestCase):
         self._segment_number = 5
         self._segment_numbers = [7, 12]
         self._text_value = 'Look Here!'
-        self._bounding_box = (10, 30, 40, 60)
+        self._bounding_box = (5, 6, 7, 8)
         self._text_object = TextObject(
             text_value=self._text_value,
             units=AnnotationUnitsValues.PIXEL,
             bounding_box=self._bounding_box
         )
         self._circle = np.array([
-            [10.0, 10.0],
-            [11.0, 10.0]
+            [8.0, 8.0],
+            [9.0, 8.0]
         ])
         self._graphic_layer = GraphicLayer(
             layer_name='LAYER1',
@@ -728,7 +737,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
         self._sm_image = dcmread(self._test_dir / 'sm_image_dots.dcm')
         self._text_value = 'Look Here!'
-        self._bounding_box = (10.0, 30.0, 40.0, 60.0)
+        self._bounding_box = (5, 6, 7, 8)
         self._group = GraphicGroup(
             1,
             'Group1',
@@ -745,8 +754,8 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             bounding_box=self._bounding_box
         )
         self._circle = np.array([
-            [10.0, 10.0],
-            [11.0, 10.0]
+            [8.0, 8.0],
+            [9.0, 8.0]
         ])
         self._graphic_object = GraphicObject(
             graphic_type=GraphicTypeValues.CIRCLE,
