@@ -497,7 +497,7 @@ class GraphicAnnotation(Dataset):
         Parameters
         ----------
         referenced_images: Sequence[pydicom.dataset.Dataset]
-            Sequenced of referenced datasets. Graphic and text objects shall be
+            Sequence of referenced datasets. Graphic and text objects shall be
             rendered on all images in this list.
         graphic_layer: highdicom.pr.GraphicLayer
             Graphic layer to which this annotation should belong.
@@ -585,6 +585,18 @@ class GraphicAnnotation(Dataset):
                             'referenced images are tiled images. '
                         )
             self.TextObjectSequence = text_objects
+
+    @staticmethod
+    def _check_coords(
+        graphic_data: np.ndarry,
+        referenced_image: Dataset,
+        units: AnnotationUnitsValues,
+    ) -> None:
+        """Check whether pixel data in PIXEL units is valid for an image.
+
+        Raises an exception if any value is invalid.
+
+        """
 
 
 class SoftcopyVOILUT(VOILUT):

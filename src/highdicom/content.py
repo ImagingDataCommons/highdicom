@@ -1523,6 +1523,13 @@ class PaletteColorLookupTable(Dataset):
             raise ValueError(
                 'All three LUTs must have the same number of bits per entry.'
             )
+        red_fmv = red_lut.first_mapped_value
+        green_fmv = green_lut.first_mapped_value
+        blue_fmv = blue_lut.first_mapped_value
+        if green_fmv != red_fmv or blue_fmv != red_fmv:
+            raise ValueError(
+                'All three LUTs must have the same first mapped value.'
+            )
 
         colors = ['Red', 'Green', 'Blue']
         for color, lut in zip(colors, all_luts):
