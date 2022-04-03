@@ -1553,3 +1553,58 @@ class PaletteColorLookupTable(Dataset):
 
         if palette_color_lut_uid is not None:
             self.PaletteColorLookupTableUID = palette_color_lut_uid
+
+    def get_lut(self) -> np.ndarray:
+        """Get the lookup table data as a numpy.ndarray.
+
+        Returns
+        -------
+        np.ndarray:
+            Numpy array of shape n x 3 where each row gives the three output
+            values (R, G, B) for each valid input value. Datatype of the array
+            will be uint8 or unit16 depending on the data type of the underlying
+            stored values.
+
+        """
+        if self.bits_allocated == 8:
+            np_dtype = np.uint8
+        elif self.bits_allocated == 16:
+            np_dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
+        lut_length = self.RedPaletteColorLookupTableDescriptor[0]
+        r_data = np.frombuffer(self.RedPaletteColorLookupTableData, np_dtype)
+        g_data = np.frombuffer(self.GreenPaletteColorLookupTableData, np_dtype)
+        b_data = np.frombuffer(self.BluePaletteColorLookupTableData, np_dtype)
+
+        for color, data in zip(
+            ['red', 'green', 'blue'],
+            [r_data, g_data, b_data]
+        ):
+            if len(data) != lut_length:
+                raise RuntimeError(
+                    'Length of LUT data does not match the value expected from '
+                    f'the descriptor for the {color} channel. Expected '
+                    f'{lut_length}, found {len(data)}.'
+                )
+
+        # Combine the three channels
+        data = np.stack([r_data, g_data, b_data]).T
+
+        return data
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        LUT.
+        """
+        # All descriptors should match by construction and according to the
+        # standard
+        return int(self.RedPaletteColorLookupTableDescriptor[1])
+
+    @property
+    def bits_allocated(self) -> int:
+        """int: Bits allocated for the LUT data. 8 or 16."""
+        # All descriptors should match by construction and according to the
+        # standard
+        return int(self.RedPaletteColorLookupTableDescriptor[2])

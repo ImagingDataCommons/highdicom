@@ -744,16 +744,15 @@ class TestPaletteColorLookupTable(TestCase):
         super().setUp()
 
     def test_construction(self):
-        r_lut_data = np.arange(10, 120, dtype=np.uint16)
-        g_lut_data = np.arange(20, 130, dtype=np.uint16)
-        b_lut_data = np.arange(30, 140, dtype=np.uint16)
-        r_first_mapped_value = 32
-        g_first_mapped_value = 32
-        b_first_mapped_value = 32
+        dtype = np.uint16
+        r_lut_data = np.arange(10, 120, dtype=dtype)
+        g_lut_data = np.arange(20, 130, dtype=dtype)
+        b_lut_data = np.arange(30, 140, dtype=dtype)
+        first_mapped_value = 32
         lut_uid = UID()
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        r_lut = LUT(first_mapped_value, r_lut_data)
+        g_lut = LUT(first_mapped_value, g_lut_data)
+        b_lut = LUT(first_mapped_value, b_lut_data)
         instance = PaletteColorLookupTable(
             red_lut=r_lut,
             green_lut=g_lut,
@@ -761,21 +760,21 @@ class TestPaletteColorLookupTable(TestCase):
             palette_color_lut_uid=lut_uid,
         )
         assert instance.PaletteColorLookupTableUID == lut_uid
-        red_desc = [len(r_lut_data), r_first_mapped_value, 16]
+        red_desc = [len(r_lut_data), first_mapped_value, 16]
         r_lut_data_retrieved = np.frombuffer(
             instance.RedPaletteColorLookupTableData,
             dtype=np.uint16
         )
         assert np.array_equal(r_lut_data, r_lut_data_retrieved)
         assert instance.RedPaletteColorLookupTableDescriptor == red_desc
-        green_desc = [len(g_lut_data), g_first_mapped_value, 16]
+        green_desc = [len(g_lut_data), first_mapped_value, 16]
         g_lut_data_retrieved = np.frombuffer(
             instance.GreenPaletteColorLookupTableData,
             dtype=np.uint16
         )
         assert np.array_equal(g_lut_data, g_lut_data_retrieved)
         assert instance.GreenPaletteColorLookupTableDescriptor == green_desc
-        blue_desc = [len(b_lut_data), b_first_mapped_value, 16]
+        blue_desc = [len(b_lut_data), first_mapped_value, 16]
         b_lut_data_retrieved = np.frombuffer(
             instance.BluePaletteColorLookupTableData,
             dtype=np.uint16
@@ -783,16 +782,18 @@ class TestPaletteColorLookupTable(TestCase):
         assert np.array_equal(b_lut_data, b_lut_data_retrieved)
         assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
 
+        data = instance.get_lut()
+        expected_data = np.stack([r_lut_data, g_lut_data, b_lut_data]).T
+        assert np.array_equal(data, expected_data)
+
     def test_construction_no_uid(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
-        r_first_mapped_value = 32
-        g_first_mapped_value = 32
-        b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        first_mapped_value = 32
+        r_lut = LUT(first_mapped_value, r_lut_data)
+        g_lut = LUT(first_mapped_value, g_lut_data)
+        b_lut = LUT(first_mapped_value, b_lut_data)
         instance = PaletteColorLookupTable(
             red_lut=r_lut,
             green_lut=g_lut,
@@ -804,12 +805,10 @@ class TestPaletteColorLookupTable(TestCase):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 120, dtype=np.uint16)
         b_lut_data = np.arange(30, 120, dtype=np.uint16)
-        r_first_mapped_value = 32
-        g_first_mapped_value = 32
-        b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        first_mapped_value = 32
+        r_lut = LUT(first_mapped_value, r_lut_data)
+        g_lut = LUT(first_mapped_value, g_lut_data)
+        b_lut = LUT(first_mapped_value, b_lut_data)
         with pytest.raises(ValueError):
             PaletteColorLookupTable(
                 red_lut=r_lut,
@@ -821,12 +820,10 @@ class TestPaletteColorLookupTable(TestCase):
         r_lut_data = np.arange(10, 120, dtype=np.uint8)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
-        r_first_mapped_value = 32
-        g_first_mapped_value = 32
-        b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        first_mapped_value = 32
+        r_lut = LUT(first_mapped_value, r_lut_data)
+        g_lut = LUT(first_mapped_value, g_lut_data)
+        b_lut = LUT(first_mapped_value, b_lut_data)
         with pytest.raises(ValueError):
             PaletteColorLookupTable(
                 red_lut=r_lut,
