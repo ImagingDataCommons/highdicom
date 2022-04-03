@@ -158,6 +158,8 @@ class _SoftcopyPresentationState(SOPClass):
         icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
+            The profile must follow the constraints listed in
+            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -872,6 +874,8 @@ class _SoftcopyPresentationState(SOPClass):
         icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
+            The profile must follow the constraints listed in
+            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
 
         """
         if self.SOPClassUID in (
@@ -888,6 +892,23 @@ class _SoftcopyPresentationState(SOPClass):
             else:
                 # Check that the bytes represent a valid profile
                 reconstructed_profile = ImageCmsProfile(BytesIO(icc_profile))
+
+                if reconstructed_profile.profile.device_class != 'scnr':
+                    raise ValueError(
+                        'The device class of the ICC Profile must be "scnr", '
+                        f'got "{reconstructed_profile.profile.device_class}".'
+                    )
+                if reconstructed_profile.profile.xcolor_space != 'RGB':
+                    raise ValueError(
+                        'The color space of the ICC Profile must be "RGB", '
+                        f'got "{reconstructed_profile.profile.xcolor_space}".'
+                    )
+                pcs = reconstructed_profile.profile.connection_space
+                if pcs not in ('Lab', 'XYZ'):
+                    raise ValueError(
+                        'The color space of the ICC Profile must be "Lab" or '
+                        f'"XYZ", got "{pcs}".'
+                    )
 
             self.ICCProfile = icc_profile
         else:
@@ -1225,6 +1246,8 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
+            The profile must follow the constraints listed in
+            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -1396,6 +1419,8 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
+            The profile must follow the constraints listed in
+            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
