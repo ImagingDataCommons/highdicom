@@ -579,7 +579,7 @@ class GraphicAnnotation(Dataset):
 
 class SoftcopyVOILUT(VOILUT):
 
-    """Dataset describing a value-of-interest lookup table."""
+    """Dataset describing an item of the Softcopy VOI LUT Sequence."""
 
     def __init__(
         self,
