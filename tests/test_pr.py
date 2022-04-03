@@ -471,6 +471,7 @@ class TestGraphicAnnotation(unittest.TestCase):
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._sm_image = dcmread(data_dir / 'test_files/sm_image_dots.dcm')
         seg_path = data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm')
         self._segmentation = dcmread(seg_path)
         self._frame_number = 2
@@ -718,6 +719,46 @@ class TestGraphicAnnotation(unittest.TestCase):
                 ]
             )
 
+    def test_construction_invalid_use_of_matrix(self):
+        go = GraphicObject(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=np.array([[1.0, 1.0]]),
+            units=AnnotationUnitsValues.MATRIX,
+        )
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                referenced_images=self._ct_series,
+                graphic_layer=self._graphic_layer,
+                graphic_objects=[go]
+            )
+
+    def test_construction_out_of_bounds_pixel(self):
+        cols = self._ct_series[0].Columns
+        go = GraphicObject(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=np.array([[cols + 1.0, 1.0]]),
+            units=AnnotationUnitsValues.PIXEL,
+        )
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                referenced_images=self._ct_series,
+                graphic_layer=self._graphic_layer,
+                graphic_objects=[go]
+            )
+
+    def test_construction_out_of_bounds_matrix(self):
+        cols = self._sm_image.TotalPixelMatrixColumns
+        go = GraphicObject(
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=np.array([[cols + 1.0, 1.0]]),
+            units=AnnotationUnitsValues.MATRIX,
+        )
+        with pytest.raises(ValueError):
+            GraphicAnnotation(
+                referenced_images=[self._sm_image],
+                graphic_layer=self._graphic_layer,
+                graphic_objects=[go]
+            )
 
 class TestXSoftcopyPresentationState(unittest.TestCase):
 

@@ -638,10 +638,10 @@ class GraphicAnnotation(Dataset):
             units specified by the units parameter.
 
         """
-        min_col = graphic_data[0, :].min()
-        max_col = graphic_data[0, :].max()
-        min_row = graphic_data[1, :].min()
-        max_row = graphic_data[1, :].max()
+        min_col = graphic_data[:, 1].min()
+        max_col = graphic_data[:, 0].max()
+        min_row = graphic_data[:, 1].min()
+        max_row = graphic_data[:, 1].max()
 
         if units == AnnotationUnitsValues.DISPLAY:
             col_limit = 1.0
