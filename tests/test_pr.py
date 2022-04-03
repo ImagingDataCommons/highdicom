@@ -1366,6 +1366,18 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(pr, 'RescaleIntercept')
         assert not hasattr(pr, 'RescaleType')
 
+        # Write out dataset and test icc profile works as expected
+        with BytesIO() as buf:
+            pr.save_as(buf)
+            buf.seek(0)
+            reread = dcmread(buf)
+
+        # A basic check that the profile was read correctly
+        image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
+        assert (
+            image_profile.profile.profile_description == 'sRGB built-in'
+        )
+
     def test_construction_gray_with_color_images(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(
@@ -1409,7 +1421,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             )
 
     def test_construction_icc_profile(self):
-        profile = ImageCmsProfile(createProfile('LAB'))
+        profile = ImageCmsProfile(createProfile('LAB')).tobytes()
 
         pr = ColorSoftcopyPresentationState(
             referenced_images=[self._sm_image],

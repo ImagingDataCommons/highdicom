@@ -1,6 +1,7 @@
 """Module for SOP Classes of Presentation State (PR) IODs."""
 from collections import defaultdict
 import datetime
+from io import BytesIO
 from typing import Sequence, Optional, Tuple, Union
 
 from PIL.ImageCms import ImageCmsProfile, createProfile
@@ -76,7 +77,7 @@ class _SoftcopyPresentationState(SOPClass):
         modality_lut: Optional[ModalityLUT] = None,
         copy_modality_lut: bool = False,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
-        icc_profile: Optional[ImageCmsProfile] = None,
+        icc_profile: Optional[bytes] = None,
         copy_voi_lut: bool = False,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
@@ -154,7 +155,7 @@ class _SoftcopyPresentationState(SOPClass):
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
             presentation state with values copied from the source images.
-        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+        icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
@@ -862,13 +863,13 @@ class _SoftcopyPresentationState(SOPClass):
 
     def _add_icc_profile(
         self,
-        icc_profile: Optional[ImageCmsProfile] = None
+        icc_profile: Optional[bytes] = None
     ) -> None:
         """Add elements of ICC Profile module to the dataset.
 
         Parameters
         ----------
-        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+        icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
 
@@ -879,19 +880,16 @@ class _SoftcopyPresentationState(SOPClass):
         ):
             if icc_profile is None:
                 # Use sRGB as the default profile if none was provided
-                icc_profile = ImageCmsProfile(createProfile('sRGB'))
+                icc_profile = ImageCmsProfile(createProfile('sRGB')).tobytes()
 
                 # Populate this optional tag because this is known to be a
                 # "well-known" color space
                 self.ColorSpace = 'SRGB'
             else:
-                if not isinstance(icc_profile, ImageCmsProfile):
-                    raise TypeError(
-                        'Argument "icc_profile" must be of type '
-                        'PIL.ImageCms.ImageCmsProfile, or None.'
-                    )
+                # Check that the bytes represent a valid profile
+                reconstructed_profile = ImageCmsProfile(BytesIO(icc_profile))
 
-            self.ICCProfile = icc_profile.tobytes()
+            self.ICCProfile = icc_profile
         else:
             if icc_profile is not None:
                 raise TypeError(
@@ -1147,7 +1145,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         copy_modality_lut: bool = False,
         softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
         copy_voi_lut: bool = False,
-        icc_profile: Optional[ImageCmsProfile] = None,
+        icc_profile: Optional[bytes] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -1224,7 +1222,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
             presentation state with values copied from the source images.
-        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+        icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
@@ -1341,7 +1339,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
-        icc_profile: Optional[ImageCmsProfile] = None,
+        icc_profile: Optional[bytes] = None,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         **kwargs
     ):
@@ -1395,7 +1393,7 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this presentation state.
-        icc_profile: Union[PIL.ImageCms.ImageCmsProfile, None], optional
+        icc_profile: Union[bytes, None], optional
             ICC color profile object to include in the presentation state. If
             none is provided, a standard RGB ("sRGB") profile will be assumed.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
