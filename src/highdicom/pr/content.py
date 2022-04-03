@@ -565,7 +565,7 @@ class GraphicAnnotation(Dataset):
                         'highdicom.pr.GraphicObject'
                     )
                 if go.units == AnnotationUnitsValues.MATRIX:
-                    if not is_tiled_image(referenced_images)[0]:
+                    if not is_tiled_image(referenced_images[0]):
                         raise ValueError(
                             'Graphic Objects may only use MATRIX units if the '
                             'referenced images are tiled images. '
@@ -579,7 +579,7 @@ class GraphicAnnotation(Dataset):
                         'highdicom.pr.TextObject'
                     )
                 if to.units == AnnotationUnitsValues.MATRIX:
-                    if not is_tiled_image(referenced_images)[0]:
+                    if not is_tiled_image(referenced_images[0]):
                         raise ValueError(
                             'Text Objects may only use MATRIX units if the '
                             'referenced images are tiled images. '
