@@ -1499,7 +1499,7 @@ class PaletteColorLookupTable(Dataset):
             Lookup table for the green output color channel.
         blue_lut: highdicom.LUT
             Lookup table for the blue output color channel.
-        palette_color_lut_uid: Union[UID, str, None], optional
+        palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
         """

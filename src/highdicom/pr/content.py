@@ -149,7 +149,7 @@ class GraphicObject(Dataset):
         ----------
         graphic_type: Union[highdicom.pr.GraphicTypeValues, str]
             Type of the graphic data.
-        graphic_data: np.ndarray
+        graphic_data: numpy.ndarray
             Graphic data contained in a 2D NumPy array. The shape of the array
             should be (N, 2), where N is the number of 2D points in this
             graphic object.  Each row of the array therefore describes a
@@ -322,18 +322,18 @@ class TextObject(Dataset):
         ----------
         text_value: str
             The unformatted text value.
-        bounding_box: Optional[Tuple[float, float, float, float]], optional
+        bounding_box: Union[Tuple[float, float, float, float], None], optional
             Coordinates of the bounding box in which the text should be
             displayed, given in the following order [left, top, right, bottom],
             where 'left' and 'right' are the horizontal offsets of the left and
             right sides of the box, respectively, and 'top' and 'bottom' are
             the vertical offsets of the upper and lower sides of the box.
-        anchor_point: Optional[Tuple[float, float]], optional
+        anchor_point: Union[Tuple[float, float], None], optional
             Location of a point in the image to which the text value is related,
             given as a (Column, Row) pair.
         units: Union[highdicom.pr.AnnotationUnitsValues, str], optional
             The units in which the coordinates of the bounding box and/or
-            anchor point are is expressed.
+            anchor point are expressed.
         anchor_point_visible: bool, optional
             Whether the relationship between the anchor point and the text
             should be displayed in the image, for example via a line or arrow.
@@ -486,7 +486,7 @@ class GraphicAnnotation(Dataset):
         """
         Parameters
         ----------
-        referenced_images: Sequence[Dataset]
+        referenced_images: Sequence[pydicom.dataset.Dataset]
             Sequenced of referenced datasets. Graphic and text objects shall be
             rendered on all images in this list.
         graphic_layer: highdicom.pr.GraphicLayer
