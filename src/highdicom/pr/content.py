@@ -77,16 +77,26 @@ class GraphicGroup(Dataset):
 
     Note
     ----
-    Graphic Groups are an independent concept from Graphic Layers. Where a
-    Graphic Layer (:class:`highdicom.pr.GraphicLayer`) specifies which
-    annotations are rendered first, a Graphic Group specifies which annotations
-    belong together and shall be handled together (e.g., rotate, move)
-    independent of the Graphic Layer to which they are assigned.
+    ``GraphicGroup`` s represent an independent concept from ``GraphicLayer``
+    s. Where a ``GraphicLayer`` (:class:`highdicom.pr.GraphicLayer`) specifies
+    which annotations are rendered first, a ``GraphicGroup`` specifies which
+    annotations belong together and shall be handled together (e.g., rotate,
+    move) independent of the ``GraphicLayer`` to which they are assigned.
 
     Each annotation (:class:`highdicom.pr.GraphicObject` or
-    :class:`highdicom.pr.TextObject`) may optionally be assigned to a
-    GraphicGroup upon construction (whereas assignment to a
-    :class:`highdicom.pr.GraphicLayer` is required.)
+    :class:`highdicom.pr.TextObject`) may optionally be assigned to a single
+    ``GraphicGroup`` upon construction, whereas assignment to a
+    :class:`highdicom.pr.GraphicLayer` is required.
+
+    For example, suppose a presentation state is to include two
+    ``GraphicObject`` s, each accompanied by a corresponding ``TextObject`` that
+    indicates the meaning of the graphic and should be rendered above the
+    ``GraphicObject`` if they overlap. In this situation, it may be useful to
+    group each ``TextObject`` with the corresponding ``GraphicObject`` as a
+    distinct ``GraphicGroup`` (giving two ``GraphicGroup`` s each containing one
+    ``TextObject`` and one ``GraphicObject``) and also place both
+    ``GraphicObject`` s in one ``GraphicLayer`` and both ``TextObject`` s in a
+    second ``GraphicLayer`` with a higher ``order`` to control rendering.
 
     """
     def __init__(
