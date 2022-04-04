@@ -257,7 +257,6 @@ class TestVolumeSurface(unittest.TestCase):
         )
         assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
         graphic_data = surface.graphic_data
-        print(graphic_data)
         assert np.array_equal(graphic_data, self._ellipsoid)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid

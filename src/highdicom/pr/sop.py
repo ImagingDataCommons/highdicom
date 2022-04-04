@@ -4,7 +4,7 @@ import datetime
 from io import BytesIO
 from typing import Sequence, Optional, Tuple, Union
 
-from PIL.ImageCms import ImageCmsProfile, createProfile
+from PIL.ImageCms import ImageCmsProfile
 
 from pydicom import Dataset
 from pydicom.sr.coding import Code
@@ -156,10 +156,10 @@ class _SoftcopyPresentationState(SOPClass):
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
             presentation state with values copied from the source images.
         icc_profile: Union[bytes, None], optional
-            ICC color profile object to include in the presentation state. If
-            none is provided, a standard RGB ("sRGB") profile will be assumed.
-            The profile must follow the constraints listed in
-            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
+            ICC color profile to include in the presentation state. If none is
+            provided, the profile will be copied from the referenced images.
+            The profile must follow the constraints listed in :dcm:`C.11.15
+            <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -439,7 +439,7 @@ class _SoftcopyPresentationState(SOPClass):
             self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
         # ICC Profile
-        self._add_icc_profile(icc_profile)
+        self._add_icc_profile(referenced_images, icc_profile)
 
     def _add_modality_lut(
         self,
@@ -863,19 +863,59 @@ class _SoftcopyPresentationState(SOPClass):
             if len(softcopy_voi_luts) > 0:
                 self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
+    @staticmethod
+    def _get_icc_profile(ref_im: Dataset) -> Union[bytes, None]:
+        """Get a single ICC profile from a dataset, if one exists.
+
+        Parameters
+        ----------
+        ref_im: pydicom.Dataset
+            Image dataset from which to extract an ICC profile.
+
+        Returns
+        -------
+        Union[bytes, None]:
+            An ICC profile as bytes, if one is found in the image, or None if
+            none can be found.
+
+        Raises
+        ------
+        ValueError:
+            If multiple, non-matching ICC profiles are found in the image.
+
+        """
+        if hasattr(ref_im, 'ICCProfile'):
+            return ref_im.ICCProfile
+        elif hasattr(ref_im, 'OpticalPathSequence'):
+            icc_profile = ref_im.OpticalPathSequence[0].ICCProfile
+            if len(ref_im.OpticalPathSequence) > 1:
+                for path_item in ref_im.OpticalPathSequence[1:]:
+                    if path_item.ICCProfile != icc_profile:
+                        raise ValueError(
+                            'Non-matching ICC profiles were found in the '
+                            'image. In this case, a profile must be manually '
+                            'specified via the "icc_profile" argument.'
+                        )
+            return icc_profile
+        else:
+            return None
+
     def _add_icc_profile(
         self,
-        icc_profile: Optional[bytes] = None
+        referenced_images: Sequence[Dataset],
+        icc_profile: Optional[bytes] = None,
     ) -> None:
         """Add elements of ICC Profile module to the dataset.
 
         Parameters
         ----------
+        referenced_images: Sequence[pydicom.Dataset]
+            Images referenced in the presentation state.
         icc_profile: Union[bytes, None], optional
-            ICC color profile object to include in the presentation state. If
-            none is provided, a standard RGB ("sRGB") profile will be assumed.
-            The profile must follow the constraints listed in
-            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
+            ICC color profile to include in the presentation state. If none is
+            provided, the profile will be copied from the referenced images.
+            The profile must follow the constraints listed in :dcm:`C.11.15
+            <part03/sect_C.11.15.html>`.
 
         """
         if self.SOPClassUID in (
@@ -883,12 +923,21 @@ class _SoftcopyPresentationState(SOPClass):
             PseudoColorSoftcopyPresentationStateStorage
         ):
             if icc_profile is None:
-                # Use sRGB as the default profile if none was provided
-                icc_profile = ImageCmsProfile(createProfile('sRGB')).tobytes()
+                # Copy profile from referenced images if none was provided
+                icc_profile = self._get_icc_profile(referenced_images[0])
 
-                # Populate this optional tag because this is known to be a
-                # "well-known" color space
-                self.ColorSpace = 'SRGB'
+                # Ensure that there are no different profiles found in other
+                # referenced_images
+                if len(referenced_images) > 1:
+                    for ref_im in referenced_images[1:]:
+                        new_profile = self._get_icc_profile(ref_im)
+                        if new_profile != icc_profile:
+                            raise ValueError(
+                                'Non-matching ICC profiles were found in the '
+                                'referenced images. In this case, a profile '
+                                'must be manually specified via the '
+                                '"icc_profile" argument.'
+                            )
             else:
                 # Check that the bytes represent a valid profile
                 reconstructed_profile = ImageCmsProfile(BytesIO(icc_profile))
@@ -906,8 +955,8 @@ class _SoftcopyPresentationState(SOPClass):
                 pcs = reconstructed_profile.profile.connection_space
                 if pcs not in ('Lab', 'XYZ'):
                     raise ValueError(
-                        'The profile connection space of the ICC Profile must be '
-                        f'"Lab" or '"XYZ", got "{pcs}".'
+                        'The profile connection space of the ICC Profile must '
+                        f'be "Lab" or "XYZ", got "{pcs}".'
                     )
 
             self.ICCProfile = icc_profile
@@ -1244,10 +1293,10 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
             presentation state with values copied from the source images.
         icc_profile: Union[bytes, None], optional
-            ICC color profile object to include in the presentation state. If
-            none is provided, a standard RGB ("sRGB") profile will be assumed.
-            The profile must follow the constraints listed in
-            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
+            ICC color profile to include in the presentation state. If none is
+            provided, the profile will be copied from the referenced images.
+            The profile must follow the constraints listed in :dcm:`C.11.15
+            <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
@@ -1417,10 +1466,10 @@ class ColorSoftcopyPresentationState(_SoftcopyPresentationState):
             Identifying information for the person who created the content of
             this presentation state.
         icc_profile: Union[bytes, None], optional
-            ICC color profile object to include in the presentation state. If
-            none is provided, a standard RGB ("sRGB") profile will be assumed.
-            The profile must follow the constraints listed in
-            :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
+            ICC color profile to include in the presentation state. If none is
+            provided, the profile will be copied from the referenced images.
+            The profile must follow the constraints listed in :dcm:`C.11.15
+            <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
