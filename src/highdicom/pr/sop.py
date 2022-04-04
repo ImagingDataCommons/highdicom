@@ -176,11 +176,11 @@ class _SoftcopyPresentationState(SOPClass):
             series_uid = ref_im.SeriesInstanceUID
             if series_uid != ref_series_uid:
                 raise ValueError(
-                    'Images belonging to different series are not supported.'
+                    'All referenced images must belong to the same series.'
                 )
             if ref_im.Rows != ref_im_rows or ref_im.Columns != ref_im_columns:
                 raise ValueError(
-                    'Images with different sizes are not supported.'
+                    'All referenced images must have the same dimensions.'
                 )
 
         super().__init__(
@@ -1019,7 +1019,7 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
         """
         Parameters
         ----------
-        referenced_images: Sequence[Dataset]
+        referenced_images: Sequence[pydicom.Dataset]
             List of images referenced in the GSPS.
         series_instance_uid: str
             UID of the series
@@ -1222,7 +1222,7 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
         """
         Parameters
         ----------
-        referenced_images: Sequence[Dataset]
+        referenced_images: Sequence[pydicom.Dataset]
             List of images referenced in the GSPS.
         series_instance_uid: str
             UID of the series
