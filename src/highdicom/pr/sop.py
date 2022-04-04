@@ -36,6 +36,7 @@ from highdicom.pr.enum import PresentationLUTShapeValues
 from highdicom.enum import RescaleTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.utils import is_tiled_image
 from highdicom.valuerep import (
     check_person_name,
     _check_code_string,
@@ -173,16 +174,25 @@ class _SoftcopyPresentationState(SOPClass):
         ref_series_uid = ref_im.SeriesInstanceUID
         ref_im_rows = ref_im.Rows
         ref_im_columns = ref_im.Columns
-        for ref_im in referenced_images:
-            series_uid = ref_im.SeriesInstanceUID
+        for im in referenced_images:
+            series_uid = im.SeriesInstanceUID
             if series_uid != ref_series_uid:
                 raise ValueError(
                     'All referenced images must belong to the same series.'
                 )
-            if ref_im.Rows != ref_im_rows or ref_im.Columns != ref_im_columns:
+            if im.Rows != ref_im_rows or im.Columns != ref_im_columns:
                 raise ValueError(
                     'All referenced images must have the same dimensions.'
                 )
+            if is_tiled_image(ref_im):
+                if (
+                    im.TotalPixelMatrixRows != ref_im.TotalPixelMatrixRows or
+                    im.TotalPixelMatrixColumns != ref_im.TotalPixelMatrixColumns
+                ):
+                    raise ValueError(
+                        'All referenced images must have the same total pixel '
+                        'matrix dimensions.'
+                    )
 
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
