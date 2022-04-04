@@ -169,9 +169,10 @@ class _SoftcopyPresentationState(SOPClass):
         """  # noqa: E501
         # Check referenced images are from the same series and have the same
         # size
-        ref_series_uid = referenced_images[0].SeriesInstanceUID
-        ref_im_rows = referenced_images[0].Rows
-        ref_im_columns = referenced_images[0].Columns
+        ref_im = referenced_images[0]
+        ref_series_uid = ref_im.SeriesInstanceUID
+        ref_im_rows = ref_im.Rows
+        ref_im_columns = ref_im.Columns
         for ref_im in referenced_images:
             series_uid = ref_im.SeriesInstanceUID
             if series_uid != ref_series_uid:
@@ -184,7 +185,7 @@ class _SoftcopyPresentationState(SOPClass):
                 )
 
         super().__init__(
-            study_instance_uid=referenced_images[0].StudyInstanceUID,
+            study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
@@ -192,22 +193,22 @@ class _SoftcopyPresentationState(SOPClass):
             instance_number=instance_number,
             manufacturer=manufacturer,
             modality='PR',
-            patient_id=referenced_images[0].PatientID,
+            patient_id=ref_im.PatientID,
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_name=referenced_images[0].PatientName,
-            patient_birth_date=referenced_images[0].PatientBirthDate,
-            patient_sex=referenced_images[0].PatientSex,
-            accession_number=referenced_images[0].AccessionNumber,
-            study_id=referenced_images[0].StudyID,
-            study_date=referenced_images[0].StudyDate,
-            study_time=referenced_images[0].StudyTime,
+            patient_name=ref_im.PatientName,
+            patient_birth_date=ref_im.PatientBirthDate,
+            patient_sex=ref_im.PatientSex,
+            accession_number=ref_im.AccessionNumber,
+            study_id=ref_im.StudyID,
+            study_date=ref_im.StudyDate,
+            study_time=ref_im.StudyTime,
             referring_physician_name=getattr(
-                referenced_images[0], 'ReferringPhysicianName', None
+                ref_im, 'ReferringPhysicianName', None
             ),
             **kwargs
         )
-        self.copy_patient_and_study_information(referenced_images[0])
-        self.copy_specimen_information(referenced_images[0])
+        self.copy_patient_and_study_information(ref_im)
+        self.copy_specimen_information(ref_im)
 
         # General Equipment
         self.Manufacturer = manufacturer
