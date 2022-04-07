@@ -711,8 +711,9 @@ class SoftcopyVOILUT(VOILUT):
             Intensity lookup tables used for display.
         referenced_images: Union[highdicom.ReferencedImageSequence, None], optional
             Images to which the VOI LUT described in this dataset applies. Note
-            that if unspecified, the VOI LUT applies to every image referenced
-            in the presentation state object that this dataset is included in.
+            that if unspecified, the VOI LUT applies to every frame of every
+            image referenced in the presentation state object that this dataset
+            is included in.
 
         Note
         ----

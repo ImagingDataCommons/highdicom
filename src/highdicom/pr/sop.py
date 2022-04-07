@@ -151,7 +151,9 @@ class _SoftcopyPresentationState(SOPClass):
             in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
             One or more pixel value-of-interest operations to be applied after
-            the modality LUT and/or rescale operation.
+            the modality LUT and/or rescale operation. Note that multiple
+            items should only be provided if no image, or frame within a
+            multi-frame image, is referenced by more than one item.
         copy_voi_lut: bool, optional
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
@@ -311,8 +313,8 @@ class _SoftcopyPresentationState(SOPClass):
             described_groups_ids = set()
 
         # Graphic Annotation and Graphic Layer
-        ref_uids = {
-            (ds.ReferencedSOPClassUID, ds.ReferencedSOPInstanceUID)
+        ref_images_by_uids = {
+            (ds.ReferencedSOPClassUID, ds.ReferencedSOPInstanceUID): ds
             for ds in ref_im_seq
         }
         if graphic_layers is not None:
@@ -342,7 +344,7 @@ class _SoftcopyPresentationState(SOPClass):
                         item.ReferencedSOPClassUID,
                         item.ReferencedSOPInstanceUID
                     )
-                    if uids not in ref_uids:
+                    if uids not in ref_images_by_uids:
                         raise ValueError(
                             f'Instance with SOP Instance UID {uids[1]} and '
                             f'SOP Class UID {uids[0]} is referenced in '
@@ -431,6 +433,19 @@ class _SoftcopyPresentationState(SOPClass):
                         'highdicom.pr.SoftcopyVOILUT.'
                     )
 
+            if len(softcopy_voi_luts) > 1:
+                if not all(
+                    hasattr(v, 'ReferencedImageSequence')
+                    for v in softcopy_voi_luts
+                ):
+                    raise ValueError(
+                        'If multiple items are passed in "softcopy_voi_luts", '
+                        'each must specify the images that it applies to.'
+                    )
+
+            prev_ref_frames = defaultdict(list)
+            prev_ref_segs = defaultdict(list)
+            for v in softcopy_voi_luts:
                 # If the softcopy VOI LUT references specific images,
                 # check that the references are valid
                 if hasattr(v, 'ReferencedImageSequence'):
@@ -439,13 +454,88 @@ class _SoftcopyPresentationState(SOPClass):
                             item.ReferencedSOPClassUID,
                             item.ReferencedSOPInstanceUID
                         )
-                        if uids not in ref_uids:
+                        if uids not in ref_images_by_uids:
                             raise ValueError(
                                 f'Instance with SOP Instance UID {uids[1]} and '
                                 f'SOP Class UID {uids[0]} is referenced in '
                                 'items of "softcopy_voi_luts", but not '
                                 'included in "referenced_images".'
                             )
+                        ref_im = ref_images_by_uids[uids]
+                        is_multiframe = hasattr(
+                            ref_im,
+                            'NumberOfFrames',
+                        )
+                        if uids in prev_ref_frames and not is_multiframe:
+                            raise ValueError(
+                                f'Instance with SOP Instance UID {uids[1]} '
+                                'is referenced in more than one item of the '
+                                '"softcopy_voi_luts".'
+                            )
+                        nframes = getattr(ref_im, 'NumberOfFrames', 1)
+                        if hasattr(item, 'ReferencedFrameNumber'):
+                            ref_frames = item.ReferencedFrameNumber
+                            if not isinstance(ref_frames, list):
+                                ref_frames = [ref_frames]
+                            for f in ref_frames:
+                                if f > nframes:
+                                    raise ValueError(
+                                        f'Frame {f} in image with SOP Instance '
+                                        f'UID {uids[1]} is referenced in an '
+                                        'item of the "softcopy_voi_luts" but '
+                                        'is not a valid frame number in that '
+                                        'image.'
+                                    )
+                        else:
+                            # If ReferencedFrameNumber is not present, the
+                            # reference refers to all frames
+                            ref_frames = list(range(1, nframes))
+
+                        for f in ref_frames:
+                            if f in prev_ref_frames[uids]:
+                                raise ValueError(
+                                    f'Frame {f} in image with SOP Instance '
+                                    f'UID {uids[1]} is referenced in more '
+                                    'than one item of the '
+                                    '"softcopy_voi_luts".'
+                                )
+                            prev_ref_frames[uids].append(f)
+
+                        if hasattr(item, 'ReferencedSegmentNumber'):
+                            try:
+                                nsegments = ref_im.NumberOfSegments
+                            except AttributeError:
+                                raise ValueError(
+                                    'An item of "softcopy_voi_luts" references '
+                                    'segments of the image with SOP Instance '
+                                    f'UID {uids[1]}, but this image does not '
+                                    'contain segments.'
+                                )
+
+                            ref_segs = item.ReferencedSegmentNumber
+                            if not isinstance(ref_segs, list):
+                                ref_segs = [ref_segs]
+                            for s in ref_segs:
+                                if s > nsegments:
+                                    raise ValueError(
+                                        f'Segment {s} in image with SOP '
+                                        f'Instance UID {uids[1]} is referenced '
+                                        'in an item of the "softcopy_voi_luts" '
+                                        'but is not a valid segment number in '
+                                        'that image.'
+                                    )
+
+                        if hasattr(ref_im, 'NumberOfSegments'):
+                            if not hasattr(item, 'ReferencedSegmentNumber'):
+                                ref_segs = list(range(1, nsegments))
+                            if s in prev_ref_segs[uids]:
+                                raise ValueError(
+                                    f'Segment {s} in image with SOP '
+                                    f'Instance  UID {uids[1]} is '
+                                    'referenced in more than one item of '
+                                    'the "softcopy_voi_luts".'
+                                )
+                            prev_ref_segs[uids].append(s)
 
             self.SoftcopyVOILUTSequence = softcopy_voi_luts
 
@@ -1092,8 +1182,10 @@ class GrayscaleSoftcopyPresentationState(_SoftcopyPresentationState):
             RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
             in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
-            One or more pixel value-of-interest operations to applied after the
-            modality LUT and/or rescale operation.
+            One or more pixel value-of-interest operations to be applied after
+            the modality LUT and/or rescale operation. Note that multiple
+            items should only be provided if no image, or frame within a
+            multi-frame image, is referenced by more than one item.
         copy_voi_lut: bool, optional
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
@@ -1297,8 +1389,10 @@ class PseudoColorSoftcopyPresentationState(_SoftcopyPresentationState):
             RescaleIntercept, RescaleSlope and ModalityLUTSequence), if any,
             in the presentation state with values copied from the source images.
         softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
-            One or more pixel value-of-interest operations to applied after the
-            modality LUT and/or rescale operation.
+            One or more pixel value-of-interest operations to be applied after
+            the modality LUT and/or rescale operation. Note that multiple
+            items should only be provided if no image, or frame within a
+            multi-frame image, is referenced by more than one item.
         copy_voi_lut: bool, optional
             Include elements of the Softcopy VOI LUT module (including
             WindowWidth, WindowCenter, and VOILUTSequence), if any, in the
