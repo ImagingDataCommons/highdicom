@@ -920,9 +920,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert pr.ContentCreatorName == 'Doe^John'
         assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
         assert not hasattr(pr, 'ModalityLUTSequence')
-        assert not hasattr(pr, 'RescaleSlope')
-        assert not hasattr(pr, 'RescaleIntercept')
-        assert not hasattr(pr, 'RescaleType')
+        assert hasattr(pr, 'RescaleSlope')
+        assert hasattr(pr, 'RescaleIntercept')
+        assert hasattr(pr, 'RescaleType')
+        assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
+        assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1023,8 +1025,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_modality_lut=True,
+            content_creator_name='Doe^John'
         )
         assert gsps.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert gsps.RescaleSlope == self._ct_series[0].RescaleSlope
@@ -1045,8 +1046,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_modality_lut=True,
+            content_creator_name='Doe^John'
         )
         shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
         trans_seq = shared_grp.PixelValueTransformationSequence[0]
@@ -1095,8 +1095,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         expected_width = self._ct_series[0].WindowWidth
@@ -1129,8 +1128,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 2
         ref_ims_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
@@ -1169,8 +1167,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert not hasattr(gsps, 'SoftcopyVOILUTSequence')
 
@@ -1199,8 +1196,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert len(gsps.SoftcopyVOILUTSequence[0].VOILUTSequence) == 2
@@ -1220,8 +1216,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True,
+            content_creator_name='Doe^John'
         )
         shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
         voi_seq = shared_grp.FrameVOILUTSequence[0]
@@ -1269,8 +1264,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True,
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 2
 
@@ -1699,9 +1693,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert pr.ContentCreatorName == 'Doe^John'
         assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
         assert not hasattr(pr, 'ModalityLUTSequence')
-        assert not hasattr(pr, 'RescaleSlope')
-        assert not hasattr(pr, 'RescaleIntercept')
-        assert not hasattr(pr, 'RescaleType')
+        assert hasattr(pr, 'RescaleSlope')
+        assert hasattr(pr, 'RescaleIntercept')
+        assert hasattr(pr, 'RescaleType')
+        assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
         red_descriptor = [len(r_lut_data), r_first_mapped_value, 16]
         r_lut_data_retrieved = np.frombuffer(
             pr.RedPaletteColorLookupTableData,
