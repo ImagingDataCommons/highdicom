@@ -2,6 +2,7 @@
 from collections import defaultdict
 import datetime
 import logging
+import pkgutil
 from io import BytesIO
 from typing import Optional, Sequence, Tuple, Union
 
@@ -991,12 +992,14 @@ def _add_icc_profile_attributes(
         <part03/sect_C.11.15.html>`.
 
     """
-    cms_profile = ImageCmsProfile(BytesIO(icc_profile))
+    if icc_profile is None:
+        raise TypeError('Argument "icc_profile" is required.')
 
+    cms_profile = ImageCmsProfile(BytesIO(icc_profile))
     device_class = cms_profile.profile.device_class.strip()
-    if device_class != 'scnr':
+    if device_class not in ('scnr', 'spac'):
         raise ValueError(
-            'The device class of the ICC Profile must be "scnr", '
+            'The device class of the ICC Profile must be "scnr" or "spac", '
             f'got "{device_class}".'
         )
     color_space = cms_profile.profile.xcolor_space.strip()
@@ -1656,6 +1659,18 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         _add_palette_color_lookup_table_attributes(
             self,
             palette_color_lut=palette_color_lut
+        )
+
+        # ICC Profile
+        if icc_profile is None:
+            # Use default sRGB profile
+            icc_profile = pkgutil.get_data(
+                'highdicom',
+                '_icc_profiles/sRGB_v4_ICC_preference.icc'
+            )
+        _add_icc_profile_attributes(
+            self,
+            icc_profile=icc_profile
         )
 
 
