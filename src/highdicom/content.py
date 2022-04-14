@@ -1314,14 +1314,16 @@ class LUT(Dataset):
         return int(self.LUTDescriptor[2])
 
 
-class ModalityLUT(Dataset):
+class ModalityLUT(LUT):
 
     """Dataset describing an item of the Modality LUT Sequence."""
 
     def __init__(
         self,
         lut_type: Union[RescaleTypeValues, str],
-        lut: LUT,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
     ):
         """
 
@@ -1330,61 +1332,24 @@ class ModalityLUT(Dataset):
         lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
             the LUT operation.
-        lut: highdicom.LUT
-            Lookup table
 
         """
-        super().__init__()
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
         if isinstance(lut_type, RescaleTypeValues):
             self.ModalityLUTType = lut_type.value
         else:
             _check_long_string(lut_type)
             self.ModalityLUTType = lut_type
-        self.LUTData = lut.LUTData
-        self.LUTDescriptor = lut.LUTDescriptor
-        if hasattr(lut, 'LUTExplanation'):
-            self.LUTExplanation = lut.LUTExplanation
-
-    @property
-    def lut_data(self) -> np.ndarray:
-        """numpy.ndarray: LUT data"""
-        if self.bits_per_entry == 8:
-            dtype = np.uint8
-        elif self.bits_per_entry == 16:
-            dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
-        length = self.LUTDescriptor[0]
-        data = self.LUTData
-        array = np.frombuffer(data, dtype)
-        if len(array) != length:
-            raise RuntimeError(
-                'Length of LUTData does not match the value expected from the '
-                f'LUTDescriptor. Expected {length}, found {len(array)}.'
-            )
-        return array
-
-    @property
-    def number_of_entries(self) -> int:
-        """int: Number of entries in the lookup table."""
-        return int(self.LUTDescriptor[0])
-
-    @property
-    def first_mapped_value(self) -> int:
-        """int: Pixel value that will be mapped to the first value in the
-        lookup table.
-        """
-        return int(self.LUTDescriptor[1])
-
-    @property
-    def bits_per_entry(self) -> int:
-        """int: Bits allocated for the lookup table data. 8 or 16."""
-        return int(self.LUTDescriptor[2])
 
 
 class VOILUT(Dataset):
 
     """Dataset describing an item of the VOI LUT Sequence attribute."""
+
     def __init__(
         self,
         window_center: Union[float, Sequence[float], None] = None,
@@ -1414,6 +1379,19 @@ class VOILUT(Dataset):
         Either ``window_center`` and ``window_width`` should be provided or
         ``luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
+
+        Note
+        ----
+        Despite their similar name and function, :class:`highdicom.ModalityLUT`
+        and :class:`highdicom.VOILUT` are structured differently and expose
+        a different interface.
+        While instances of :class:`highdicom.ModalityLUT` are derived from
+        :class:`highdicom.LUT`, instances of :class:`highdicom.VOILUT` may be
+        composed of one or more instances of :class:`highdicom.LUT`.
+        Furthermore, instances of :class:`highdicom.VOILUT` may describe the
+        transformation of modality pixel values into pixel values of interest
+        (VOI) for display via a continous function rather than a lookup table.
+        The name "LUT" may thus be misleading.
 
         """  # noqa: E501
         super().__init__()

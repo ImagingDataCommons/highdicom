@@ -162,10 +162,8 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            lut=LUT(
-                first_mapped_value=first_value,
-                lut_data=self._lut_data,
-            )
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
@@ -178,10 +176,8 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            lut=LUT(
-                first_mapped_value=first_value,
-                lut_data=self._lut_data_16
-            )
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
@@ -195,10 +191,8 @@ class TestModalityLUT(TestCase):
         lut_type = 'MY_MAPPING'
         lut = ModalityLUT(
             lut_type=lut_type,
-            lut=LUT(
-                first_mapped_value=first_value,
-                lut_data=self._lut_data
-            )
+            first_mapped_value=first_value,
+            lut_data=self._lut_data
         )
         assert lut.ModalityLUTType == lut_type
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
@@ -209,11 +203,9 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            lut=LUT(
-                first_mapped_value=first_value,
-                lut_data=self._lut_data,
-                lut_explanation=self._explanation
-            )
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+            lut_explanation=self._explanation
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
@@ -224,30 +216,24 @@ class TestModalityLUT(TestCase):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                lut=LUT(
-                    first_mapped_value=0,
-                    lut_data=np.array([]),  # empty data
-                )
+                first_mapped_value=0,
+                lut_data=np.array([]),  # empty data
             )
 
     def test_construction_negative_first_value(self):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                lut=LUT(
-                    first_mapped_value=-1,  # invalid
-                    lut_data=self._lut_data,
-                )
+                first_mapped_value=-1,  # invalid
+                lut_data=self._lut_data,
             )
 
     def test_construction_wrong_dtype(self):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                lut=LUT(
-                    first_mapped_value=0,  # invalid
-                    lut_data=np.array([0, 1, 2], dtype=np.int16),
-                )
+                first_mapped_value=0,  # invalid
+                lut_data=np.array([0, 1, 2], dtype=np.int16),
             )
 
 
