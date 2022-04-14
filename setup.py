@@ -10,13 +10,17 @@ root_directory = Path(__file__).parent
 readme_filepath = root_directory.joinpath('README.md')
 long_description = readme_filepath.read_text()
 
-with io.open('src/highdicom/version.py', 'rt', encoding='utf8') as f:
-    version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
+
+def get_version():
+    version_filepath = Path('src', 'highdicom', 'version.py')
+    with io.open(version_filepath, 'rt', encoding='utf8') as f:
+        version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
+    return version
 
 
 setuptools.setup(
     name='highdicom',
-    version=version,
+    version=get_version(),
     description='High-level DICOM abstractions.',
     long_description=long_description,
     long_description_content_type='text/markdown',

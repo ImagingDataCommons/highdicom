@@ -10,6 +10,7 @@ from highdicom import sr
 from highdicom.base import SOPClass
 from highdicom.content import (
     AlgorithmIdentificationSequence,
+    ColorLUT,
     ContentCreatorIdentificationCodeSequence,
     IssuerOfIdentifier,
     LUT,
@@ -19,6 +20,7 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
     ReferencedImageSequence,
+    SegmentedColorLUT,
     SpecimenCollection,
     SpecimenDescription,
     SpecimenPreparationStep,
@@ -52,6 +54,7 @@ from highdicom.version import __version__
 __all__ = [
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
+    'ColorLUT',
     'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
     'CoordinateSystemNames',
@@ -72,6 +75,7 @@ __all__ = [
     'PlanePositionSequence',
     'ReferencedImageSequence',
     'RescaleTypeValues',
+    'SegmentedColorLUT',
     'SpecimenCollection',
     'SpecimenDescription',
     'SpecimenPreparationStep',

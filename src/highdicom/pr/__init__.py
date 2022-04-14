@@ -12,6 +12,8 @@ from highdicom.pr.enum import (
     TextJustificationValues,
 )
 from highdicom.pr.content import (
+    AdvancedBlending,
+    BlendingDisplay,
     GraphicAnnotation,
     GraphicGroup,
     GraphicLayer,
@@ -29,7 +31,9 @@ SOP_CLASS_UIDS = {
 
 
 __all__ = [
+    'AdvancedBlending',
     'AnnotationUnitsValues',
+    'BlendingDisplay',
     'ColorSoftcopyPresentationState',
     'GraphicAnnotation',
     'GraphicGroup',

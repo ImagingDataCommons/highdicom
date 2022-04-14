@@ -1,30 +1,33 @@
+import pkgutil
+import unittest
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
-import unittest
+
 
 import numpy as np
-
-# from PIL.ImageCms import ImageCmsProfile, createProfile
-
 import pytest
-
+from PIL.ImageCms import ImageCmsProfile
 from pydicom import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
+from pydicom.dataset import Dataset
 
 from highdicom import (
+    ColorLUT,
     ContentCreatorIdentificationCodeSequence,
     LUT,
     ModalityLUT,
     PaletteColorLookupTable,
     RescaleTypeValues,
     ReferencedImageSequence,
+    SegmentedColorLUT,
     UID,
     VOILUTFunctionValues,
 )
 from highdicom.color import CIELabColor
 from highdicom.pr import (
+    AdvancedBlending,
     AnnotationUnitsValues,
     ColorSoftcopyPresentationState,
     GraphicAnnotation,
@@ -761,6 +764,96 @@ class TestGraphicAnnotation(unittest.TestCase):
             )
 
 
+class TestAdvancedBlending(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._sm_image_1 = dcmread(
+            data_dir / 'test_files/sm_image_grayscale.dcm'
+        )
+        self._sm_image_2 = dcmread(
+            data_dir / 'test_files/sm_image_grayscale_reversed.dcm'
+        )
+
+    def test_construction_sm_image(self):
+        ds = AdvancedBlending(
+            referenced_images=[self._sm_image_1],
+            blending_input_number=1,
+            softcopy_voi_luts=[
+                SoftcopyVOILUT(
+                    window_center=12.,
+                    window_width=24.
+                )
+            ],
+            palette_color_lut=PaletteColorLookupTable(
+                red_lut=SegmentedColorLUT(
+                    first_mapped_value=0,
+                    number_of_entries=256,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 0, 1,
+                            0, 0, 0,
+                            1, 0, 255,
+                            0, 0, 0,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='red'
+                ),
+                green_lut=SegmentedColorLUT(
+                    first_mapped_value=0,
+                    number_of_entries=256,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 0, 1,
+                            0, 0, 0,
+                            1, 0, 255,
+                            0, 0, 0,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='green'
+                ),
+                blue_lut=SegmentedColorLUT(
+                    first_mapped_value=0,
+                    number_of_entries=256,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 0, 1,
+                            0, 0, 0,
+                            1, 0, 255,
+                            0, 255, 0,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='blue'
+                )
+            )
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.StudyInstanceUID == self._sm_image_1.StudyInstanceUID
+        assert len(ds.ReferencedImageSequence) == 1
+        assert ds.BlendingInputNumber == 1
+        assert len(ds.SoftcopyVOILUTSequence) == 1
+        assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
+        assert len(ds.GreenPaletteColorLookupTableDescriptor) == 3
+        assert len(ds.BluePaletteColorLookupTableDescriptor) == 3
+        assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
+        assert not hasattr(ds, 'ThresholdSequence')
+        assert not hasattr(ds, 'RescaleSlope')
+        assert not hasattr(ds, 'RescaleIntercept')
+        assert not hasattr(ds, 'ModalityLUTSequence')
+
+
 class TestXSoftcopyPresentationState(unittest.TestCase):
 
     def setUp(self):
@@ -863,8 +956,10 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
 
         self._modality_lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            first_mapped_value=0,
-            lut_data=np.arange(256, dtype=np.uint8)
+            lut=LUT(
+                first_mapped_value=0,
+                lut_data=np.arange(256, dtype=np.uint8)
+            )
         )
 
         self._softcopy_voi_lut = SoftcopyVOILUT(
@@ -1463,43 +1558,45 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
             )
 
-    # TODO find a profile that will make this test work
-    # def test_construction_icc_profile(self):
-    #     profile = ImageCmsProfile(createProfile('LAB')).tobytes()
+    def test_construction_icc_profile(self):
+        icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
 
-    #     pr = ColorSoftcopyPresentationState(
-    #         referenced_images=[self._sm_image],
-    #         series_instance_uid=self._series_uid,
-    #         series_number=123,
-    #         sop_instance_uid=self._sop_uid,
-    #         instance_number=456,
-    #         manufacturer='Foo Corp.',
-    #         manufacturer_model_name='Bar, Mark 2',
-    #         software_versions='0.0.1',
-    #         device_serial_number='12345',
-    #         content_label='DOODLE',
-    #         graphic_layers=[self._layer],
-    #         graphic_annotations=[self._ann_sm],
-    #         concept_name=codes.DCM.PresentationState,
-    #         institution_name='MGH',
-    #         institutional_department_name='Radiology',
-    #         content_creator_name='Doe^John',
-    #         icc_profile=profile
-    #     )
-    #     assert hasattr(pr, 'ICCProfile')
+        pr = ColorSoftcopyPresentationState(
+            referenced_images=[self._sm_image],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_sm],
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            icc_profile=icc_profile
+        )
+        assert hasattr(pr, 'ICCProfile')
 
-    #     # Write out dataset and test it works as expected
-    #     with BytesIO() as buf:
-    #         pr.save_as(buf)
-    #         buf.seek(0)
-    #         reread = dcmread(buf)
+        # Write out dataset and test it works as expected
+        with BytesIO() as buf:
+            pr.save_as(buf)
+            buf.seek(0)
+            reread = dcmread(buf)
 
-    #     # A basic check that the profile was read correctly
-    #     image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
-    #     assert (
-    #         image_profile.profile.profile_description ==
-    #         'Lab identity built-in'
-    #     )
+        # A basic check that the profile was read correctly
+        image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
+        assert (
+            image_profile.profile.profile_description ==
+            'sRGB v4 ICC preference perceptual intent beta'
+        )
 
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1649,9 +1746,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         r_first_mapped_value = 32
         g_first_mapped_value = 32
         b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(b_first_mapped_value, b_lut_data, color='blue')
         lut = PaletteColorLookupTable(
             red_lut=r_lut,
             green_lut=g_lut,
