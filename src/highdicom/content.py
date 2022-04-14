@@ -1294,7 +1294,7 @@ class LUT(Dataset):
                 'Length of LUTData does not match the value expected from the '
                 f'LUTDescriptor. Expected {length}, found {len(array)}.'
             )
-        return data
+        return array
 
     @property
     def number_of_entries(self) -> int:
@@ -1344,6 +1344,42 @@ class ModalityLUT(Dataset):
         self.LUTDescriptor = lut.LUTDescriptor
         if hasattr(lut, 'LUTExplanation'):
             self.LUTExplanation = lut.LUTExplanation
+
+    @property
+    def lut_data(self) -> np.ndarray:
+        """numpy.ndarray: LUT data"""
+        if self.bits_per_entry == 8:
+            dtype = np.uint8
+        elif self.bits_per_entry == 16:
+            dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
+        length = self.LUTDescriptor[0]
+        data = self.LUTData
+        array = np.frombuffer(data, dtype)
+        if len(array) != length:
+            raise RuntimeError(
+                'Length of LUTData does not match the value expected from the '
+                f'LUTDescriptor. Expected {length}, found {len(array)}.'
+            )
+        return array
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        return int(self.LUTDescriptor[0])
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        lookup table.
+        """
+        return int(self.LUTDescriptor[1])
+
+    @property
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
+        return int(self.LUTDescriptor[2])
 
 
 class VOILUT(Dataset):

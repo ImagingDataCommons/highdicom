@@ -9,6 +9,7 @@ import numpy as np
 
 from highdicom.sr import CodedConcept
 from highdicom import (
+    ColorLUT,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUT,
     LUT,
@@ -118,7 +119,7 @@ class TestLUT(TestCase):
             lut_data=self._lut_data,
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
@@ -130,7 +131,7 @@ class TestLUT(TestCase):
             lut_data=self._lut_data_16
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
-        assert lut.bits_allocated == 16
+        assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
@@ -143,7 +144,7 @@ class TestLUT(TestCase):
             lut_explanation=self._explanation
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert lut.LUTExplanation == self._explanation
@@ -161,12 +162,14 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            first_mapped_value=first_value,
-            lut_data=self._lut_data,
+            lut=LUT(
+                first_mapped_value=first_value,
+                lut_data=self._lut_data,
+            )
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
@@ -175,12 +178,14 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            first_mapped_value=first_value,
-            lut_data=self._lut_data_16
+            lut=LUT(
+                first_mapped_value=first_value,
+                lut_data=self._lut_data_16
+            )
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
-        assert lut.bits_allocated == 16
+        assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
@@ -190,8 +195,10 @@ class TestModalityLUT(TestCase):
         lut_type = 'MY_MAPPING'
         lut = ModalityLUT(
             lut_type=lut_type,
-            first_mapped_value=first_value,
-            lut_data=self._lut_data
+            lut=LUT(
+                first_mapped_value=first_value,
+                lut_data=self._lut_data
+            )
         )
         assert lut.ModalityLUTType == lut_type
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
@@ -202,9 +209,11 @@ class TestModalityLUT(TestCase):
         first_value = 0
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
-            first_mapped_value=first_value,
-            lut_data=self._lut_data,
-            lut_explanation=self._explanation
+            lut=LUT(
+                first_mapped_value=first_value,
+                lut_data=self._lut_data,
+                lut_explanation=self._explanation
+            )
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
@@ -215,24 +224,30 @@ class TestModalityLUT(TestCase):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                first_mapped_value=0,
-                lut_data=np.array([]),  # empty data
+                lut=LUT(
+                    first_mapped_value=0,
+                    lut_data=np.array([]),  # empty data
+                )
             )
 
     def test_construction_negative_first_value(self):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                first_mapped_value=-1,  # invalid
-                lut_data=self._lut_data,
+                lut=LUT(
+                    first_mapped_value=-1,  # invalid
+                    lut_data=self._lut_data,
+                )
             )
 
     def test_construction_wrong_dtype(self):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                first_mapped_value=0,  # invalid
-                lut_data=np.array([0, 1, 2], dtype=np.int16),
+                lut=LUT(
+                    first_mapped_value=0,  # invalid
+                    lut_data=np.array([0, 1, 2], dtype=np.int16),
+                )
             )
 
 
@@ -750,9 +765,9 @@ class TestPaletteColorLookupTable(TestCase):
         b_lut_data = np.arange(30, 140, dtype=dtype)
         first_mapped_value = 32
         lut_uid = UID()
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(first_mapped_value, b_lut_data, color='blue')
         instance = PaletteColorLookupTable(
             red_lut=r_lut,
             green_lut=g_lut,
@@ -782,7 +797,7 @@ class TestPaletteColorLookupTable(TestCase):
         assert np.array_equal(b_lut_data, b_lut_data_retrieved)
         assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
 
-        data = instance.get_lut()
+        data = instance.lut_data
         expected_data = np.stack([r_lut_data, g_lut_data, b_lut_data]).T
         assert np.array_equal(data, expected_data)
 
@@ -791,9 +806,9 @@ class TestPaletteColorLookupTable(TestCase):
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(first_mapped_value, b_lut_data, color='blue')
         instance = PaletteColorLookupTable(
             red_lut=r_lut,
             green_lut=g_lut,
@@ -806,9 +821,9 @@ class TestPaletteColorLookupTable(TestCase):
         g_lut_data = np.arange(20, 120, dtype=np.uint16)
         b_lut_data = np.arange(30, 120, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
             PaletteColorLookupTable(
                 red_lut=r_lut,
@@ -821,9 +836,9 @@ class TestPaletteColorLookupTable(TestCase):
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
             PaletteColorLookupTable(
                 red_lut=r_lut,
@@ -838,9 +853,9 @@ class TestPaletteColorLookupTable(TestCase):
         r_first_mapped_value = 32
         g_first_mapped_value = 24
         b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        r_lut = ColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = ColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = ColorLUT(b_first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
             PaletteColorLookupTable(
                 red_lut=r_lut,
