@@ -29,6 +29,9 @@ from highdicom.color import CIELabColor
 from highdicom.pr import (
     AdvancedBlending,
     AnnotationUnitsValues,
+    BlendingDisplay,
+    BlendingDisplayInput,
+    BlendingModeValues,
     ColorSoftcopyPresentationState,
     GraphicAnnotation,
     GraphicGroup,
@@ -770,21 +773,13 @@ class TestAdvancedBlending(unittest.TestCase):
         super().setUp()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
-        self._ct_series = [
-            dcmread(f)
-            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
-        ]
-        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-        self._sm_image_1 = dcmread(
+        self._sm_image = dcmread(
             data_dir / 'test_files/sm_image_grayscale.dcm'
         )
-        self._sm_image_2 = dcmread(
-            data_dir / 'test_files/sm_image_grayscale_reversed.dcm'
-        )
 
-    def test_construction_sm_image(self):
+    def test_construction(self):
         ds = AdvancedBlending(
-            referenced_images=[self._sm_image_1],
+            referenced_images=[self._sm_image],
             blending_input_number=1,
             softcopy_voi_luts=[
                 SoftcopyVOILUT(
@@ -838,7 +833,7 @@ class TestAdvancedBlending(unittest.TestCase):
             )
         )
         assert isinstance(ds, Dataset)
-        assert ds.StudyInstanceUID == self._sm_image_1.StudyInstanceUID
+        assert ds.StudyInstanceUID == self._sm_image.StudyInstanceUID
         assert len(ds.ReferencedImageSequence) == 1
         assert ds.BlendingInputNumber == 1
         assert len(ds.SoftcopyVOILUTSequence) == 1
@@ -852,6 +847,91 @@ class TestAdvancedBlending(unittest.TestCase):
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')
         assert not hasattr(ds, 'ModalityLUTSequence')
+
+
+class TestBlendingDisplay(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            data_dir / 'test_files/sm_image_grayscale.dcm'
+        )
+
+    def test_construction_equal(self):
+        ds = BlendingDisplay(
+            blending_mode=BlendingModeValues.EQUAL,
+            blending_display_input=[
+                BlendingDisplayInput(
+                    blending_input_number=1
+                )
+            ]
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.BlendingMode == 'EQUAL'
+        assert not hasattr(ds, 'RelativeOpacity')
+        assert len(ds.BlendingDisplayInputSequence) == 1
+
+    def test_construction_forebround(self):
+        ds = BlendingDisplay(
+            blending_mode=BlendingModeValues.FOREGROUND,
+            blending_display_input=[
+                BlendingDisplayInput(
+                    blending_input_number=1
+                ),
+                BlendingDisplayInput(
+                    blending_input_number=2
+                )
+            ],
+            relative_opacity=0.5
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.BlendingMode == 'FOREGROUND'
+        assert ds.RelativeOpacity == 0.5
+        assert len(ds.BlendingDisplayInputSequence) == 2
+
+    def test_construction_equal_wrong_blending_display_input_type(self):
+        with pytest.raises(TypeError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.EQUAL,
+                blending_display_input=BlendingDisplayInput(
+                    blending_input_number=1
+                )
+            )
+
+    def test_construction_equal_wrong_blending_display_input_value(self):
+        with pytest.raises(ValueError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.EQUAL,
+                blending_display_input=[]
+            )
+
+    def test_construction_foreground_wrong_relative_opacity_type(self):
+        with pytest.raises(TypeError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.FOREGROUND,
+                blending_display_input=[
+                    BlendingDisplayInput(
+                        blending_input_number=1
+                    ),
+                    BlendingDisplayInput(
+                        blending_input_number=2
+                    )
+                ]
+            )
+
+    def test_construction_foreground_wrong_blending_display_input_value(self):
+        with pytest.raises(ValueError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.FOREGROUND,
+                blending_display_input=[
+                    BlendingDisplayInput(
+                        blending_input_number=1
+                    )
+                ],
+                relative_opacity=1.
+            )
 
 
 class TestXSoftcopyPresentationState(unittest.TestCase):

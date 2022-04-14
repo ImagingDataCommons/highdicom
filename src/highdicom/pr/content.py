@@ -2019,6 +2019,11 @@ class BlendingDisplay(Dataset):
         blending_mode = BlendingModeValues(blending_mode)
         self.BlendingMode = blending_mode.value
 
+        if not isinstance(blending_display_input, Sequence):
+            raise TypeError(
+                'Argument "blending_display_input" must be a sequence.'
+            )
+
         if blending_mode == BlendingModeValues.FOREGROUND:
             if len(blending_display_input) != 2:
                 raise ValueError(
@@ -2032,7 +2037,7 @@ class BlendingDisplay(Dataset):
                 )
             self.RelativeOpacity = float(relative_opacity)
         elif blending_mode == BlendingModeValues.EQUAL:
-            if len(blending_display_input) != 2:
+            if len(blending_display_input) == 0:
                 raise ValueError(
                     'Argument "blending_display_input" must contain one or '
                     'more items if blending mode is "EQUAL".'
