@@ -3,7 +3,6 @@ from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
-import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -1348,7 +1347,13 @@ class ModalityLUT(LUT):
 
 class VOILUT(Dataset):
 
-    """Dataset describing an item of the VOI LUT Sequence attribute."""
+    """Class implementating the VOI LUT Macro.
+
+    Warning
+    -------
+    This class does **not** implement an item of the VOI LUT Sequence.
+
+    """
 
     def __init__(
         self,
