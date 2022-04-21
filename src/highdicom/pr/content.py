@@ -758,6 +758,7 @@ class SoftcopyVOILUT(VOILUT):
                 )
             self.ReferencedImageSequence = referenced_images
 
+
 def _add_equipment_attributes(
     dataset: Dataset,
     manufacturer: str,
@@ -799,11 +800,6 @@ def _add_equipment_attributes(
     dataset.DeviceSerialNumber = device_serial_number
     dataset.ManufacturerModelName = manufacturer_model_name
     dataset.SoftwareVersions = software_versions
-
-    # Not technically part of PR IODs, but we include anyway
-    now = datetime.datetime.now()
-    dataset.ContentDate = DA(now.date())
-    dataset.ContentTime = TM(now.time())
 
 
 def _add_presentation_state_identification_attributes(
@@ -880,6 +876,11 @@ def _add_presentation_state_identification_attributes(
             )
         dataset.ContentCreatorIdentificationCodeSequence = \
             content_creator_identification
+
+    # Not technically part of PR IODs, but we include anyway
+    now = datetime.datetime.now()
+    dataset.ContentDate = DA(now.date())
+    dataset.ContentTime = TM(now.time())
 
 
 def _add_presentation_state_relationship_attributes(
