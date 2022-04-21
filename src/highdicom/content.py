@@ -1523,7 +1523,7 @@ class ColorLUT(Dataset):
         lut_data: numpy.ndarray
             Lookup table data. Must be of type uint8 or uint16.
         color: str
-            Free-form text explanation of the color (``red``, ``green``, or
+            Text representing the color (``red``, ``green``, or
             ``blue``).
 
         Note
@@ -1841,7 +1841,6 @@ class PaletteColorLookupTable(Dataset):
         }
         for lut in self._color_luts.values():
             if not isinstance(lut, (ColorLUT, SegmentedColorLUT)):
-                print(lut)
                 raise TypeError(
                     'Arguments "red_lut", "green_lut", and "blue_lut" must be '
                     'of type ColorLUT or SegmentedColorLUT.'
@@ -1864,7 +1863,7 @@ class PaletteColorLookupTable(Dataset):
         blue_length = blue_lut.number_of_entries
         if len(set([red_length, green_length, blue_length])) != 1:
             raise ValueError(
-                'All three palette color LUTs must be of the same number of '
+                'All three palette color LUTs must have the same number of '
                 'entries.'
             )
         red_bits = red_lut.bits_per_entry

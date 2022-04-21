@@ -889,6 +889,8 @@ def _add_presentation_state_relationship_attributes(
 ) -> None:
     """Add attributes of module Presentation State Relationship.
 
+Also perform checks that the referenced images are suitable.
+
     Parameters
     ----------
     dataset: pydicom.Dataset
@@ -1452,7 +1454,7 @@ def _extract_softcopy_voi_lut_attributes(
 
     Any Window Center, Window Width, Window Explanation, VOI LUT Function,
     or VOI LUT Sequence attributes the referenced images are copied to the
-    presentation state dataset.  Missing values will cause no errors, and
+    new dataset.  Missing values will cause no errors, and
     will result in the relevant (optional) attributes being omitted from
     the presentation state object.  Inconsistent values between
     referenced images will result in multiple different items of the
@@ -2034,7 +2036,7 @@ class BlendingDisplay(Dataset):
             if relative_opacity is None:
                 raise TypeError(
                     'Argument "relative_opacity" is required if blending mode '
-                    'if "FOREGROUND".'
+                    'is "FOREGROUND".'
                 )
             self.RelativeOpacity = float(relative_opacity)
         elif blending_mode == BlendingModeValues.EQUAL:
