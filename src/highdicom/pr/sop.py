@@ -762,18 +762,6 @@ class ColorSoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
-        for kw in [
-            'rescale_intercept',
-            'rescale_slope',
-            'rescale_type',
-            'modality_lut',
-            'softcopy_voi_luts',
-        ]:
-            if kw in kwargs:
-                raise TypeError(
-                    'ColorSoftcopyPresentationState() got an unexpected '
-                    f'keyword argument "{kw}".'
-                )
         for ref_im in referenced_images:
             if ref_im.SamplesPerPixel != 3:
                 raise ValueError(
