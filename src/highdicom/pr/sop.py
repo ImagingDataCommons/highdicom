@@ -175,14 +175,6 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
-        for kw in [
-            'icc_profile',
-        ]:
-            if kw in kwargs:
-                raise TypeError(
-                    'GrayscaleSoftcopyPresentationState() got an unexpected '
-                    f'keyword argument "{kw}".'
-                )
         for ref_im in referenced_images:
             if ref_im.SamplesPerPixel != 1:
                 raise ValueError(
