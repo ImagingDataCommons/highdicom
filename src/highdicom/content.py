@@ -1059,7 +1059,8 @@ class SpecimenPreparationStep(Dataset):
         ]:
         """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
         highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
-            Procedure used during processing
+
+        Procedure used during processing
 
         """  # noqa: E501
         return self._processing_procedure
@@ -2194,6 +2195,10 @@ class SegmentedPaletteColorLUT(Dataset):
         ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
         an input value of ``first_mapped_value + 1`` is mapped to
         ``lut_data[1]``, and so on.
+
+        See :dcm:`here <part03/sect_C.7.9.2.html>` for details of how the
+        segmented LUT data is encoded. Highdicom may provide utilities to
+        assist in creating these arrays in a future release.
 
         """
         super().__init__()
