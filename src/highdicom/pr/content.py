@@ -1115,7 +1115,7 @@ def _get_modality_lut_transformation(
 
     Returns
     -------
-    Union[ModalityLUTTransformation, None]
+    Union[highdicom.ModalityLUTTransformation, None]
         Description of the Modality LUT Transformation for tranforming modality
         dependent into modality independent pixel values. None if no such
         attributes are found in the referenced images.
@@ -1247,12 +1247,12 @@ def _get_modality_lut_transformation(
 
     if intercept is None:
         return None
-    else:
-        return ModalityLUTTransformation(
-            rescale_intercept=intercept,
-            rescale_slope=slope,
-            rescale_type=rescale_type
-        )
+
+    return ModalityLUTTransformation(
+        rescale_intercept=intercept,
+        rescale_slope=slope,
+        rescale_type=rescale_type
+    )
 
 
 def _add_softcopy_voi_lut_attributes(
