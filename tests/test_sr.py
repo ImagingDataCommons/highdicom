@@ -1189,6 +1189,10 @@ class TestContentSequence(unittest.TestCase):
     def test_construct_root_item(self):
         ContentSequence([self._root_item], is_root=True)
 
+    def test_construct_root_item_not_sr_iod(self):
+        with pytest.raises(ValueError):
+            ContentSequence([self._root_item], is_root=True, is_sr=False)
+
     def test_append_root_item_with_relationship(self):
         seq = ContentSequence([], is_root=True)
         with pytest.raises(AttributeError):

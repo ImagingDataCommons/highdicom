@@ -1,5 +1,4 @@
 from collections import defaultdict
-from io import BytesIO
 import unittest
 from pathlib import Path
 
@@ -38,6 +37,8 @@ from highdicom.seg import (
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+
+from .utils import write_and_read_dataset
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -693,11 +694,7 @@ class TestSegmentation(unittest.TestCase):
     @staticmethod
     def get_array_after_writing(instance):
         # Write DICOM object to buffer, read it again and reconstruct the mask
-        with BytesIO() as fp:
-            instance.save_as(fp)
-            fp.seek(0)
-            instance_reread = dcmread(fp)
-
+        instance_reread = write_and_read_dataset(instance)
         return instance_reread.pixel_array
 
     @staticmethod
