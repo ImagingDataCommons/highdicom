@@ -1115,7 +1115,7 @@ def _get_modality_lut_transformation(
 
     Returns
     -------
-    Union[ModalityLUTTransformation, None]
+    Union[highdicom.ModalityLUTTransformation, None]
         Description of the Modality LUT Transformation for tranforming modality
         dependent into modality independent pixel values. None if no such
         attributes are found in the referenced images.
