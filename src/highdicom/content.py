@@ -101,12 +101,12 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Data element sequence representing the
-            AlgorithmIdentificationSequence Sequence.
+            Algorithm Identification Sequence
 
         Returns
         -------
         highdicom.seg.content.AlgorithmIdentificationSequence
-            Algorithm identification sequence.
+            Algorithm Identification Sequence
 
         """
         if not isinstance(sequence, DataElementSequence):
@@ -342,7 +342,7 @@ class PixelMeasuresSequence(DataElementSequence):
         Returns
         -------
         highdicom.PixelMeasuresSequence
-            Plane position sequence.
+            Plane Measures Sequence.
 
         Raises
         ------
@@ -493,7 +493,7 @@ class PlanePositionSequence(DataElementSequence):
         Returns
         -------
         highdicom.PlanePositionSequence:
-            Plane position sequence.
+            Plane Position Sequence.
 
         Raises
         ------
@@ -625,7 +625,7 @@ class PlaneOrientationSequence(DataElementSequence):
         Returns
         -------
         highdicom.PlaneOrientationSequence:
-            Plane orientation sequence.
+            Plane Orientation Sequence.
 
         Raises
         ------
@@ -701,15 +701,25 @@ class SpecimenCollection(ContentSequence):
         Parameters
         ----------
         procedure: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Procedure used to collect the examined specimen
+            Surgical procedure used to collect the examined specimen
 
         """  # noqa: E501
-        super().__init__(is_root=True)
+        super().__init__(is_root=False, is_sr=False)
         item = CodeContentItem(
             name=codes.SCT.SpecimenCollection,
             value=procedure
         )
         self.append(item)
+
+    @property
+    def procedure(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: Surgical procedure"""
+        items = self.find(codes.SCT.SpecimenCollection)
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Specimen Collection".'
+            )
+        return items[0].value
 
 
 class SpecimenSampling(ContentSequence):
@@ -741,7 +751,7 @@ class SpecimenSampling(ContentSequence):
             Issuer who created the parent specimen
 
         """  # noqa: E501
-        super().__init__(is_root=True)
+        super().__init__(is_root=False, is_sr=False)
         # CID 8110
         method_item = CodeContentItem(
             name=codes.DCM.SamplingMethod,
@@ -770,6 +780,36 @@ class SpecimenSampling(ContentSequence):
         )
         self.append(parent_specimen_type_item)
 
+    @property
+    def method(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: Sampling method"""
+        items = self.find(codes.DCM.SamplingMethod)
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Sampling Method".'
+            )
+        return items[0].value
+
+    @property
+    def parent_specimen_id(self) -> str:
+        """str: Parent specimen identifier"""
+        items = self.find(codes.DCM.ParentSpecimenIdentifier)
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Parent Specimen Identifier".'
+            )
+        return items[0].value
+
+    @property
+    def parent_specimen_type(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: Parent specimen type"""
+        items = self.find(codes.DCM.ParentSpecimenType)
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Parent Specimen Type".'
+            )
+        return items[0].value
+
 
 class SpecimenStaining(ContentSequence):
 
@@ -791,7 +831,11 @@ class SpecimenStaining(ContentSequence):
             Substances used to stain examined specimen(s)
 
         """  # noqa: E501
-        super().__init__(is_root=True)
+        super().__init__(is_root=False, is_sr=False)
+        if len(substances) == 0:
+            raise ValueError(
+                'Argument "substances" must contain at least one item.'
+            )
         # CID 8112
         for s in substances:
             if isinstance(s, (Code, CodedConcept)):
@@ -811,6 +855,12 @@ class SpecimenStaining(ContentSequence):
                 )
             self.append(item)
 
+    @property
+    def substances(self) -> List[CodedConcept]:
+        """List[highdicom.sr.CodedConcept]: Substances used for staining"""
+        items = self.find(codes.SCT.UsingSubstance)
+        return [item.value for item in items]
+
 
 class SpecimenProcessing(ContentSequence):
 
@@ -820,25 +870,41 @@ class SpecimenProcessing(ContentSequence):
 
     def __init__(
         self,
-        description: Union[Code, CodedConcept]
+        description: Union[Code, CodedConcept, str]
     ):
         """
         Parameters
         ----------
-        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        description: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, str]
             Description of the processing
 
         """  # noqa: E501
-        super().__init__(is_root=True)
+        super().__init__(is_root=False, is_sr=False)
         # CID 8112
-        item = CodeContentItem(
-            name=codes.DCM.ProcessingStepDescription,
-            value=description
-        )
+        if isinstance(description, str):
+            item = TextContentItem(
+                name=codes.DCM.ProcessingStepDescription,
+                value=description
+            )
+        else:
+            item = CodeContentItem(
+                name=codes.DCM.ProcessingStepDescription,
+                value=description
+            )
         self.append(item)
 
+    @property
+    def description(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: Processing step description"""
+        items = self.find(codes.DCM.ProcessingStepDescription)
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Processing Step Description".'
+            )
+        return items[0].value
 
-class SpecimenPreparationStep(ContentSequence):
+
+class SpecimenPreparationStep(Dataset):
 
     """Dataset describing a specimen preparation step according to structured
     reporting template
@@ -868,7 +934,7 @@ class SpecimenPreparationStep(ContentSequence):
         ----------
         specimen_id: str
             Identifier of the processed specimen
-        processing_procedure: Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling, highdicom.SpecimenStaining]
+        processing_procedure: Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling, highdicom.SpecimenStaining, highdicom.SpecimenProcessing]
             Procedure used during processing
         processing_datetime: datetime.datetime, optional
             Datetime of processing
@@ -881,12 +947,13 @@ class SpecimenPreparationStep(ContentSequence):
             Embedding medium used during processing
 
         """  # noqa: E501
-        super().__init__(is_root=True)
+        super().__init__()
+        sequence = ContentSequence(is_root=False, is_sr=False)
         specimen_identifier_item = TextContentItem(
             name=codes.DCM.SpecimenIdentifier,
             value=specimen_id
         )
-        self.append(specimen_identifier_item)
+        sequence.append(specimen_identifier_item)
         if issuer_of_specimen_id is not None:
             try:
                 entity_id = issuer_of_specimen_id.UniversalEntityID
@@ -896,7 +963,7 @@ class SpecimenPreparationStep(ContentSequence):
                 name=codes.DCM.IssuerOfSpecimenIdentifier,
                 value=entity_id
             )
-            self.append(issuer_of_specimen_id_item)
+            sequence.append(issuer_of_specimen_id_item)
 
         if isinstance(processing_procedure, SpecimenCollection):
             processing_type = codes.SCT.SpecimenCollection
@@ -918,14 +985,14 @@ class SpecimenPreparationStep(ContentSequence):
             name=codes.DCM.ProcessingType,
             value=processing_type
         )
-        self.append(processing_type_item)
+        sequence.append(processing_type_item)
 
         if processing_datetime is not None:
             processing_datetime_item = DateTimeContentItem(
                 name=codes.DCM.DateTimeOfProcessing,
                 value=processing_datetime
             )
-            self.append(processing_datetime_item)
+            sequence.append(processing_datetime_item)
         if processing_description is not None:
             processing_description_item: Union[
                 TextContentItem,
@@ -941,21 +1008,216 @@ class SpecimenPreparationStep(ContentSequence):
                     name=codes.DCM.ProcessingStepDescription,
                     value=processing_description
                 )
-            self.append(processing_description_item)
+            sequence.append(processing_description_item)
 
-        self.extend(processing_procedure)
+        self._processing_procedure = processing_procedure
+        sequence.extend(processing_procedure)
         if fixative is not None:
             tissue_fixative_item = CodeContentItem(
                 name=codes.SCT.TissueFixative,
                 value=fixative
             )
-            self.append(tissue_fixative_item)
+            sequence.append(tissue_fixative_item)
         if embedding_medium is not None:
             embedding_medium_item = CodeContentItem(
                 name=codes.SCT.TissueEmbeddingMedium,
                 value=embedding_medium
             )
-            self.append(embedding_medium_item)
+            sequence.append(embedding_medium_item)
+        self.SpecimenPreparationStepContentItemSequence = sequence
+
+    @property
+    def specimen_id(self) -> str:
+        """str: Specimen identifier"""
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.DCM.SpecimenIdentifier
+        )
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Specimen Identifier".'
+            )
+        return items[0].value
+
+    @property
+    def processing_type(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: Processing type"""
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.DCM.ProcessingType
+        )
+        if len(items) == 0:
+            raise AttributeError(
+                'Could not find content item "Processing Type".'
+            )
+        return items[0].value
+
+    @property
+    def processing_procedure(self) -> Union[
+            SpecimenCollection,
+            SpecimenSampling,
+            SpecimenStaining,
+            SpecimenProcessing,
+        ]:
+        """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
+        highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
+            Procedure used during processing
+
+        """  # noqa: E501
+        return self._processing_procedure
+
+    @property
+    def fixative(self) -> Union[CodedConcept, None]:
+        """highdicom.sr.CodedConcept: Tissue fixative"""
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.SCT.TissueFixative
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @property
+    def embedding_medium(self) -> Union[CodedConcept, None]:
+        """highdicom.sr.CodedConcept: Tissue embedding medium"""
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.SCT.TissueEmbeddingMedium
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+    ) -> 'SpecimenPreparationStep':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset
+
+        Returns
+        -------
+        highdicom.SpecimenPreparationStep
+            Specimen Preparation Step
+
+        """
+        instance = deepcopy(dataset)
+        sequence = ContentSequence.from_sequence(
+            dataset.SpecimenPreparationStepContentItemSequence,
+            is_root=False,
+            is_sr=False
+        )
+        instance.SpecimenPreparationStepContentItemSequence = sequence
+        instance.__class__ = cls
+        # Order of template TID 8001 "Specimen Preparation" is significant
+        specimen_identifier_items = sequence.find(codes.DCM.SpecimenIdentifier)
+        if len(specimen_identifier_items) != 1:
+            raise ValueError(
+                'Specimen Preparation Step Content Item Sequence must contain '
+                'exactly one content item "Specimen Identifier".'
+            )
+        processing_type_items = sequence.find(codes.DCM.ProcessingType)
+        if len(processing_type_items) != 1:
+            raise ValueError(
+                'Specimen Preparation Step Content Item Sequence must contain '
+                'exactly one content item "Processing Type".'
+            )
+        processing_type = processing_type_items[0].value
+
+        instance._processing_procedure: Union[
+            SpecimenCollection,
+            SpecimenSampling,
+            SpecimenStaining,
+            SpecimenProcessing,
+        ]
+        if processing_type == codes.SCT.SpecimenCollection:
+            collection_items = sequence.find(codes.SCT.SpecimenCollection)
+            if len(collection_items) != 1:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain exactly one content item "Specimen Collection" '
+                    'when processing type is "Specimen Collection".'
+                )
+            instance._processing_procedure = SpecimenCollection(
+                procedure=collection_items[0].value
+            )
+        elif processing_type == codes.SCT.SpecimenProcessing:
+            description_items = sequence.find(
+                codes.DCM.ProcessingStepDescription
+            )
+            if len(description_items) != 1:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain exactly one content item "Processing Step '
+                    'Description" when processing type is "Specimen .'
+                    'Processing".'
+                )
+            instance._processing_procedure = SpecimenProcessing(
+                description=description_items[0].value
+            )
+        elif processing_type == codes.SCT.Staining:
+            substance_items = sequence.find(codes.SCT.UsingSubstance)
+            if len(substance_items) == 0:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain one or more content item "Using Substance" '
+                    'when processing type is "Staining".'
+                )
+            instance._processing_procedure = SpecimenStaining(
+                substances=[item.value for item in substance_items]
+            )
+        elif processing_type == codes.SCT.SamplingOfTissueSpecimen:
+            sampling_method_items = sequence.find(codes.DCM.SamplingMethod)
+            if len(sampling_method_items) != 1:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain exactly one content item "Sampling Method" '
+                    'when processing type is "Sampling of Tissue Specimen".'
+                )
+            parent_specimen_id_items = sequence.find(
+                codes.DCM.ParentSpecimenIdentifier
+            )
+            if len(parent_specimen_id_items) != 1:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain exactly one content item "Parent Specimen '
+                    'Identifier" when processing type is "Sampling of Tissue '
+                    'Specimen".'
+                )
+            parent_specimen_type_items = sequence.find(
+                codes.DCM.ParentSpecimenType
+            )
+            if len(parent_specimen_type_items) != 1:
+                raise ValueError(
+                    'Specimen Preparation Step Content Item Sequence must '
+                    'contain exactly one content item "Parent Specimen '
+                    'Type" when processing type is "Sampling of Tissue '
+                    'Specimen".'
+                )
+            issuer_of_parent_specimen_type_items = sequence.find(
+                codes.DCM.IssuerOfParentSpecimenIdentifier
+            )
+            if len(issuer_of_parent_specimen_type_items) > 0:
+                issuer = issuer_of_parent_specimen_type_items[0].value
+            else:
+                issuer = None
+            instance._processing_procedure = SpecimenSampling(
+                method=sampling_method_items[0].value,
+                parent_specimen_id=parent_specimen_id_items[0].value,
+                parent_specimen_type=parent_specimen_type_items[0].value,
+                issuer_of_parent_specimen_id=issuer
+            )
+        else:
+            raise ValueError(
+                'Specimen Preparation Step Content Item Sequence must contain '
+                'a content item "Processing Type" with one of the following '
+                'values: "Specimen Collection", "Specimen Processing", '
+                '"Staining", or "Sampling of Tissue Specimen".'
+            )
+
+        cast(SpecimenPreparationStep, instance)
+        return instance
 
 
 class SpecimenDescription(Dataset):
@@ -1004,14 +1266,12 @@ class SpecimenDescription(Dataset):
         self.SpecimenUID = specimen_uid
         self.SpecimenPreparationSequence: List[Dataset] = []
         if specimen_preparation_steps is not None:
-            for step in specimen_preparation_steps:
-                if not isinstance(step, ContentSequence):
+            for step_item in specimen_preparation_steps:
+                if not isinstance(step_item, SpecimenPreparationStep):
                     raise TypeError(
-                        'Each specimen preparation step must be provided as '
-                        'a sequence of content items.'
+                        'Items of "specimen_preparation_steps" must have '
+                        'type SpecimenPreparationStep.'
                     )
-                step_item = Dataset()
-                step_item.SpecimenPreparationStepContentItemSequence = step
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
             loc_item: Union[TextContentItem, NumContentItem]
@@ -1073,6 +1333,66 @@ class SpecimenDescription(Dataset):
                         'must have type Code or CodedConcept.'
                     )
 
+    @property
+    def specimen_id(self) -> str:
+        """str: Specimen identifier"""
+        return str(self.SpecimenIdentifier)
+
+    @property
+    def specimen_uid(self) -> UID:
+        """highdicom.UID: Unique specimen identifier"""
+        return UID(self.SpecimenUID)
+
+    @property
+    def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
+        """highdicom.SpecimenPreparationStep: Specimen preparation steps"""
+        return list(self.SpecimenPreparationSequence)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SpecimenDescription':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an item of Specimen Description Sequence
+
+        Returns
+        -------
+        highdicom.SpecimenDescription
+            Constructed object
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
+        check_required_attributes(
+            dataset,
+            module='specimen',
+            base_path=['SpecimenDescriptionSequence'],
+            check_optional_sequences=True
+        )
+        desc = deepcopy(dataset)
+        desc.__class__ = cls
+
+        # Convert sub sequences to highdicom types
+        desc.SpecimenPreparationSequence = [
+            SpecimenPreparationStep.from_dataset(step)
+            for step in desc.SpecimenPreparationSequence
+        ]
+        if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
+            desc.PrimaryAnatomicStructureSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.PrimaryAnatomicStructureSequence
+            ]
+        if hasattr(desc, 'SpecimenTypeCodeSequence'):
+            desc.SpecimenTypeCodeSequence = [
+                CodedConcept.from_dataset(ds)
+                for ds in desc.SpecimenTypeCodeSequence
+            ]
+
+        return desc
 
 class ReferencedImageSequence(DataElementSequence):
 
