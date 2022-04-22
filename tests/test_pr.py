@@ -950,6 +950,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._seg = dcmread(
+            'data/test_files/seg_image_ct_binary_overlap.dcm'
+        )
         self._sm_image = dcmread(self._test_dir / 'sm_image_dots.dcm')
         self._text_value = 'Look Here!'
         self._bounding_box = (5, 6, 7, 8)
@@ -1474,6 +1477,338 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
                 softcopy_voi_luts=[self._softcopy_voi_lut_partial],
                 # references missing images ^
+            )
+
+    def test_construction_with_voi_lut_with_ref_ims(self):
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ReferencedImageSequence(self._ct_series[:1])
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ReferencedImageSequence(self._ct_series[1:])
+        )
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 2
+        assert hasattr(
+            gsps.SoftcopyVOILUTSequence[0],
+            'ReferencedImageSequence'
+        )
+
+    def test_construction_with_voi_lut_two_vois_for_image(self):
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ReferencedImageSequence(self._ct_series)
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ReferencedImageSequence(self._ct_series[2:3])
+        )  # overlap with images in previous VOILUT
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer],
+                graphic_annotations=[self._ann_ct],
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            )
+
+    def test_construction_with_multiple_voi_luts_with_no_ref_ims(self):
+        # Two VOI LUT sequences, one of which does not specify images
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ReferencedImageSequence(self._ct_series[2:3])
+        )
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=self._ct_series,
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                graphic_layers=[self._layer],
+                graphic_annotations=[self._ann_ct],
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            )
+
+    def test_construction_with_softcopy_voi_lut_with_ref_frames(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1]
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[2]
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[self._ct_multiframe],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+        )
+        ref_im_seq_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
+        assert ref_im_seq_0[0].ReferencedFrameNumber == 1
+        ref_im_seq_1 = gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence
+        assert ref_im_seq_1[0].ReferencedFrameNumber == 2
+
+    def test_construction_with_softcopy_voi_lut_with_duplicate_frames(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1]
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1, 2]  # overlap with previous frames
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=[self._ct_multiframe],
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            )
+
+    def test_construction_with_softcopy_voi_lut_with_duplicate_frames_2(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],  # applies to all frames
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1, 2]  # overlap with previous frames
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=[self._ct_multiframe],
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            )
+
+    def test_construction_with_softcopy_voi_lut_with_ref_segments(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1]
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[2]
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[self._seg],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+        )
+        ref_im_seq_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
+        assert ref_im_seq_0[0].ReferencedSegmentNumber == 1
+        ref_im_seq_1 = gsps.SoftcopyVOILUTSequence[1].ReferencedImageSequence
+        assert ref_im_seq_1[0].ReferencedSegmentNumber == 2
+
+    def test_construction_with_softcopy_voi_lut_with_duplicate_segments(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1]
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1, 2]  # overlap with previous
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=[self._seg],
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            )
+
+    def test_construction_with_softcopy_voi_lut_with_duplicate_segments_2(self):
+        ref_ims_0 = ReferencedImageSequence(
+            referenced_images=[self._seg],  # applies to all segments
+        )
+        voi_lut_0 = SoftcopyVOILUT(
+            window_center=1600.0,
+            window_width=2000.0,
+            referenced_images=ref_ims_0,
+        )
+        ref_ims_1 = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1, 2]  # overlap with previous
+        )
+        voi_lut_1 = SoftcopyVOILUT(
+            window_center=40.0,
+            window_width=400.0,
+            referenced_images=ref_ims_1,
+        )
+        with pytest.raises(ValueError):
+            GrayscaleSoftcopyPresentationState(
+                referenced_images=[self._seg],
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+                concept_name=codes.DCM.PresentationState,
+                institution_name='MGH',
+                institutional_department_name='Radiology',
+                content_creator_name='Doe^John',
+                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_presentation_lut_shape(self):
