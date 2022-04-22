@@ -9,10 +9,11 @@ import numpy as np
 
 from highdicom.sr import CodedConcept
 from highdicom import (
+    PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUT,
     LUT,
-    PaletteColorLookupTable,
+    PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -24,6 +25,7 @@ from highdicom import (
     UID,
     SpecimenStaining,
     VOILUT,
+    VOILUTTransformation,
     VOILUTFunctionValues,
 )
 
@@ -118,7 +120,7 @@ class TestLUT(TestCase):
             lut_data=self._lut_data,
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
@@ -130,7 +132,7 @@ class TestLUT(TestCase):
             lut_data=self._lut_data_16
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
-        assert lut.bits_allocated == 16
+        assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
@@ -143,7 +145,7 @@ class TestLUT(TestCase):
             lut_explanation=self._explanation
         )
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert lut.LUTExplanation == self._explanation
@@ -166,7 +168,7 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_allocated == 8
+        assert lut.bits_per_entry == 8
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data)
         assert not hasattr(lut, 'LUTExplanation')
@@ -180,7 +182,7 @@ class TestModalityLUT(TestCase):
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
         assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
-        assert lut.bits_allocated == 16
+        assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
@@ -493,17 +495,17 @@ class TestSpecimenPreparationStep(TestCase):
         assert staining_item.relationship_type is None
 
 
-class TestVOILUT(TestCase):
+class TestVOILUTTransformation(TestCase):
 
     def setUp(self):
         super().setUp()
-        self._lut = LUT(
+        self._lut = VOILUT(
             first_mapped_value=0,
             lut_data=np.array([10, 11, 12], np.uint8)
         )
 
     def test_construction_basic(self):
-        lut = VOILUT(
+        lut = VOILUTTransformation(
             window_center=40.0,
             window_width=400.0
         )
@@ -512,7 +514,7 @@ class TestVOILUT(TestCase):
         assert not hasattr(lut, 'VOILUTSequence')
 
     def test_construction_explanation(self):
-        lut = VOILUT(
+        lut = VOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             window_explanation='Soft Tissue Window'
@@ -521,7 +523,7 @@ class TestVOILUT(TestCase):
         assert lut.WindowWidth == 400.0
 
     def test_construction_multiple(self):
-        lut = VOILUT(
+        lut = VOILUTTransformation(
             window_center=[40.0, 600.0],
             window_width=[400.0, 1500.0],
             window_explanation=['Soft Tissue Window', 'Lung Window'],
@@ -531,28 +533,28 @@ class TestVOILUT(TestCase):
 
     def test_construction_multiple_mismatch1(self):
         with pytest.raises(ValueError):
-            VOILUT(
+            VOILUTTransformation(
                 window_center=40.0,
                 window_width=[400.0, 1500.0],
             )
 
     def test_construction_multiple_mismatch2(self):
         with pytest.raises(TypeError):
-            VOILUT(
+            VOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=400.0,
             )
 
     def test_construction_multiple_mismatch3(self):
         with pytest.raises(ValueError):
-            VOILUT(
+            VOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0, -50.0],
             )
 
     def test_construction_explanation_mismatch(self):
         with pytest.raises(TypeError):
-            VOILUT(
+            VOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0],
                 window_explanation='Lung Window',
@@ -560,33 +562,36 @@ class TestVOILUT(TestCase):
 
     def test_construction_explanation_mismatch2(self):
         with pytest.raises(ValueError):
-            VOILUT(
+            VOILUTTransformation(
                 window_center=40.0,
                 window_width=400.0,
                 window_explanation=['Soft Tissue Window', 'Lung Window'],
             )
 
     def test_construction_lut_function(self):
-        lut = VOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            voi_lut_function=VOILUTFunctionValues.SIGMOID,
+        window_center = 40.0
+        window_width = 400.0
+        voi_lut_function = VOILUTFunctionValues.SIGMOID
+        lut = VOILUTTransformation(
+            window_center=window_center,
+            window_width=window_width,
+            voi_lut_function=voi_lut_function,
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
-        assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
+        assert lut.VOILUTFunction == voi_lut_function.value
 
     def test_construction_luts(self):
-        lut = VOILUT(luts=[self._lut])
+        lut = VOILUTTransformation(voi_luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
 
     def test_construction_both(self):
-        lut = VOILUT(
+        lut = VOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
-            luts=[self._lut]
+            voi_luts=[self._lut]
         )
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0
@@ -594,7 +599,7 @@ class TestVOILUT(TestCase):
 
     def test_construction_neither(self):
         with pytest.raises(TypeError):
-            VOILUT()
+            VOILUTTransformation()
 
 
 class TestReferencedImageSequence(TestCase):
@@ -738,7 +743,52 @@ class TestReferencedImageSequence(TestCase):
             )
 
 
-class TestPaletteColorLookupTable(TestCase):
+class TestPaletteColorLUT(TestCase):
+
+    def test_construction_16bit(self):
+        lut_data = np.arange(10, 120, dtype=np.uint16)
+        first_mapped_value = 32
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='red')
+
+        assert len(lut.RedPaletteColorLookupTableDescriptor) == 3
+        assert lut.RedPaletteColorLookupTableDescriptor[0] == 110
+        assert lut.RedPaletteColorLookupTableDescriptor[1] == 32
+        assert lut.RedPaletteColorLookupTableDescriptor[2] == 16
+        assert not hasattr(lut, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.RedPaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert not hasattr(lut, 'BluePaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 16
+        assert lut.lut_data.dtype == np.uint16
+        np.array_equal(lut.lut_data, lut_data)
+
+    def test_construction_8bit(self):
+        lut_data = np.arange(0, 256, dtype=np.uint8)
+        first_mapped_value = 0
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+
+        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.BluePaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 8
+        assert lut.lut_data.dtype == np.uint8
+        np.array_equal(lut.lut_data, lut_data)
+
+
+class TestPaletteColorLUTTransformation(TestCase):
 
     def setUp(self):
         super().setUp()
@@ -750,10 +800,10 @@ class TestPaletteColorLookupTable(TestCase):
         b_lut_data = np.arange(30, 140, dtype=dtype)
         first_mapped_value = 32
         lut_uid = UID()
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
-        instance = PaletteColorLookupTable(
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        instance = PaletteColorLUTTransformation(
             red_lut=r_lut,
             green_lut=g_lut,
             blue_lut=b_lut,
@@ -782,19 +832,19 @@ class TestPaletteColorLookupTable(TestCase):
         assert np.array_equal(b_lut_data, b_lut_data_retrieved)
         assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
 
-        data = instance.get_lut()
-        expected_data = np.stack([r_lut_data, g_lut_data, b_lut_data]).T
-        assert np.array_equal(data, expected_data)
+        assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
+        assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
+        assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
 
     def test_construction_no_uid(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
-        instance = PaletteColorLookupTable(
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        instance = PaletteColorLUTTransformation(
             red_lut=r_lut,
             green_lut=g_lut,
             blue_lut=b_lut,
@@ -806,11 +856,11 @@ class TestPaletteColorLookupTable(TestCase):
         g_lut_data = np.arange(20, 120, dtype=np.uint16)
         b_lut_data = np.arange(30, 120, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
-            PaletteColorLookupTable(
+            PaletteColorLUTTransformation(
                 red_lut=r_lut,
                 green_lut=g_lut,
                 blue_lut=b_lut,
@@ -821,11 +871,11 @@ class TestPaletteColorLookupTable(TestCase):
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         first_mapped_value = 32
-        r_lut = LUT(first_mapped_value, r_lut_data)
-        g_lut = LUT(first_mapped_value, g_lut_data)
-        b_lut = LUT(first_mapped_value, b_lut_data)
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
-            PaletteColorLookupTable(
+            PaletteColorLUTTransformation(
                 red_lut=r_lut,
                 green_lut=g_lut,
                 blue_lut=b_lut,
@@ -838,11 +888,11 @@ class TestPaletteColorLookupTable(TestCase):
         r_first_mapped_value = 32
         g_first_mapped_value = 24
         b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
         with pytest.raises(ValueError):
-            PaletteColorLookupTable(
+            PaletteColorLUTTransformation(
                 red_lut=r_lut,
                 green_lut=g_lut,
                 blue_lut=b_lut,

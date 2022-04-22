@@ -7,16 +7,19 @@ from highdicom.pr.sop import (
 )
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
+    BlendingModeValues,
     GraphicTypeValues,
-    PresentationLUTShapeValues,
     TextJustificationValues,
 )
 from highdicom.pr.content import (
+    AdvancedBlending,
+    BlendingDisplay,
+    BlendingDisplayInput,
     GraphicAnnotation,
     GraphicGroup,
     GraphicLayer,
     GraphicObject,
-    SoftcopyVOILUT,
+    SoftcopyVOILUTTransformation,
     TextObject
 )
 
@@ -29,7 +32,11 @@ SOP_CLASS_UIDS = {
 
 
 __all__ = [
+    'AdvancedBlending',
     'AnnotationUnitsValues',
+    'BlendingModeValues',
+    'BlendingDisplay',
+    'BlendingDisplayInput',
     'ColorSoftcopyPresentationState',
     'GraphicAnnotation',
     'GraphicGroup',
@@ -37,10 +44,8 @@ __all__ = [
     'GraphicObject',
     'GraphicTypeValues',
     'GrayscaleSoftcopyPresentationState',
-    'ModalityLUT',
-    'PresentationLUTShapeValues',
     'PseudoColorSoftcopyPresentationState',
-    'SoftcopyVOILUT',
+    'SoftcopyVOILUTTransformation',
     'TextJustificationValues',
     'TextObject',
 ]

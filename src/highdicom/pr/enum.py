@@ -106,19 +106,34 @@ class GraphicTypeValues(Enum):
     """
 
 
-class PresentationLUTShapeValues(Enum):
+class BlendingModeValues(Enum):
 
-    """Enumerated values for the Presentation LUT Shape attribute."""
+    """Enumerated values for the Blending Mode attribute.
 
-    IDENTITY = 'IDENTITY'
-    """No further translation of values is performed."""
+    Pixel values are additively blended using alpha compositioning with
+    premultiplied alpha. The Blending Mode attribute describes how the
+    premultiplier alpha value is computed for each image.
 
-    INVERSE = 'INVERSE'
     """
 
-    A value of INVERSE shall mean the same as a value of IDENTITY, except that
-    the minimum output value shall convey the meaning of the maximum available
-    luminance, and the maximum value shall convey the minimum available
-    luminance.
+    EQUAL = 'EQUAL'
+    """Additive blending of two or more images with equal alpha premultipliers.
+
+    Pixel values of *n* images are additively blended in an iterative fashion
+    after premultiplying pixel values with a constant alpha value, which is
+    either 0 or 1/n of the value of the Relative Opacity attribute:
+    1/n * Relative Opacity * first value + 1/n * Relative Opacity * second value
+
+    """
+
+    FOREGROUND = 'FOREGROUND'
+    """Additive blending of two images with different alpha premultipliers.
+
+    The first image serves as background and the second image serves as
+    foreground.
+    Pixel values of the two images are additively blended after premultiplying
+    the pixel values of each image with a different alpha value, which is
+    computed from the value of the Relative Opacity attribute:
+    Relative Opacity * first value + (1 - Relative Opacity) * second value
 
     """

@@ -1,31 +1,41 @@
+import pkgutil
+import unittest
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
-import unittest
+
 
 import numpy as np
-
-# from PIL.ImageCms import ImageCmsProfile, createProfile
-
 import pytest
-
+from PIL.ImageCms import ImageCmsProfile
 from pydicom import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
+from pydicom.dataset import Dataset
 
 from highdicom import (
+    PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
-    LUT,
     ModalityLUT,
-    PaletteColorLookupTable,
+    ModalityLUTTransformation,
+    PresentationLUT,
+    PresentationLUTShapeValues,
+    PresentationLUTTransformation,
+    PaletteColorLUTTransformation,
     RescaleTypeValues,
     ReferencedImageSequence,
+    SegmentedPaletteColorLUT,
     UID,
+    VOILUT,
     VOILUTFunctionValues,
 )
 from highdicom.color import CIELabColor
 from highdicom.pr import (
+    AdvancedBlending,
     AnnotationUnitsValues,
+    BlendingDisplay,
+    BlendingDisplayInput,
+    BlendingModeValues,
     ColorSoftcopyPresentationState,
     GraphicAnnotation,
     GraphicGroup,
@@ -33,18 +43,17 @@ from highdicom.pr import (
     GraphicObject,
     GraphicTypeValues,
     GrayscaleSoftcopyPresentationState,
-    PresentationLUTShapeValues,
     PseudoColorSoftcopyPresentationState,
-    SoftcopyVOILUT,
+    SoftcopyVOILUTTransformation,
     TextObject,
 )
 
 
-class TestSoftcopyVOILUT(unittest.TestCase):
+class TestSoftcopyVOILUTTransformation(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._lut = LUT(
+        self._lut = VOILUT(
             first_mapped_value=0,
             lut_data=np.array([10, 11, 12], np.uint8)
         )
@@ -58,7 +67,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         )
 
     def test_construction_basic(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0
         )
@@ -67,7 +76,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert not hasattr(lut, 'VOILUTSequence')
 
     def test_construction_explanation(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             window_explanation='Soft Tissue Window'
@@ -76,7 +85,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert lut.WindowWidth == 400.0
 
     def test_construction_multiple(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=[40.0, 600.0],
             window_width=[400.0, 1500.0],
             window_explanation=['Soft Tissue Window', 'Lung Window'],
@@ -86,28 +95,28 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_multiple_mismatch1(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=40.0,
                 window_width=[400.0, 1500.0],
             )
 
     def test_construction_multiple_mismatch2(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=400.0,
             )
 
     def test_construction_multiple_mismatch3(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0, -50.0],
             )
 
     def test_construction_explanation_mismatch(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0],
                 window_explanation='Lung Window',
@@ -115,14 +124,14 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_explanation_mismatch2(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=40.0,
                 window_width=400.0,
                 window_explanation=['Soft Tissue Window', 'Lung Window'],
             )
 
     def test_construction_lut_function(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             voi_lut_function=VOILUTFunctionValues.SIGMOID,
@@ -132,16 +141,16 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
 
     def test_construction_luts(self):
-        lut = SoftcopyVOILUT(luts=[self._lut])
+        lut = SoftcopyVOILUTTransformation(voi_luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
 
     def test_construction_both(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
-            luts=[self._lut]
+            voi_luts=[self._lut]
         )
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0
@@ -149,10 +158,10 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_neither(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT()
+            SoftcopyVOILUTTransformation()
 
     def test_construction_ref_ims(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ReferencedImageSequence(self._ct_series)
@@ -761,6 +770,173 @@ class TestGraphicAnnotation(unittest.TestCase):
             )
 
 
+class TestAdvancedBlending(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            data_dir / 'test_files/sm_image_grayscale.dcm'
+        )
+
+    def test_construction(self):
+        ds = AdvancedBlending(
+            referenced_images=[self._sm_image],
+            blending_input_number=1,
+            voi_lut_transformations=[
+                SoftcopyVOILUTTransformation(
+                    window_center=12.,
+                    window_width=24.
+                )
+            ],
+            palette_color_lut_transformation=PaletteColorLUTTransformation(
+                red_lut=SegmentedPaletteColorLUT(
+                    first_mapped_value=0,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 1, 0,
+                            1, 255, 0,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='red'
+                ),
+                green_lut=SegmentedPaletteColorLUT(
+                    first_mapped_value=0,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 1, 0,
+                            1, 255, 0,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='green'
+                ),
+                blue_lut=SegmentedPaletteColorLUT(
+                    first_mapped_value=0,
+                    segmented_lut_data=np.array(
+                        [
+                            0, 1, 0,
+                            1, 255, 255,
+                        ],
+                        dtype=np.uint8
+                    ),
+                    color='blue'
+                )
+            )
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.StudyInstanceUID == self._sm_image.StudyInstanceUID
+        assert len(ds.ReferencedImageSequence) == 1
+        assert ds.BlendingInputNumber == 1
+        assert len(ds.SoftcopyVOILUTSequence) == 1
+        assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
+        assert ds.RedPaletteColorLookupTableDescriptor[0] == 256
+        assert ds.RedPaletteColorLookupTableDescriptor[1] == 0
+        assert ds.RedPaletteColorLookupTableDescriptor[2] == 8
+        assert len(ds.GreenPaletteColorLookupTableDescriptor) == 3
+        assert ds.GreenPaletteColorLookupTableDescriptor[0] == 256
+        assert ds.GreenPaletteColorLookupTableDescriptor[1] == 0
+        assert ds.GreenPaletteColorLookupTableDescriptor[2] == 8
+        assert len(ds.BluePaletteColorLookupTableDescriptor) == 3
+        assert ds.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert ds.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert ds.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
+        assert not hasattr(ds, 'ThresholdSequence')
+        assert not hasattr(ds, 'RescaleSlope')
+        assert not hasattr(ds, 'RescaleIntercept')
+        assert not hasattr(ds, 'ModalityLUTSequence')
+
+
+class TestBlendingDisplay(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            data_dir / 'test_files/sm_image_grayscale.dcm'
+        )
+
+    def test_construction_equal(self):
+        ds = BlendingDisplay(
+            blending_mode=BlendingModeValues.EQUAL,
+            blending_display_input=[
+                BlendingDisplayInput(
+                    blending_input_number=1
+                )
+            ]
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.BlendingMode == 'EQUAL'
+        assert not hasattr(ds, 'RelativeOpacity')
+        assert len(ds.BlendingDisplayInputSequence) == 1
+
+    def test_construction_forebround(self):
+        ds = BlendingDisplay(
+            blending_mode=BlendingModeValues.FOREGROUND,
+            blending_display_input=[
+                BlendingDisplayInput(
+                    blending_input_number=1
+                ),
+                BlendingDisplayInput(
+                    blending_input_number=2
+                )
+            ],
+            relative_opacity=0.5
+        )
+        assert isinstance(ds, Dataset)
+        assert ds.BlendingMode == 'FOREGROUND'
+        assert ds.RelativeOpacity == 0.5
+        assert len(ds.BlendingDisplayInputSequence) == 2
+
+    def test_construction_equal_wrong_blending_display_input_type(self):
+        with pytest.raises(TypeError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.EQUAL,
+                blending_display_input=BlendingDisplayInput(
+                    blending_input_number=1
+                )
+            )
+
+    def test_construction_equal_wrong_blending_display_input_value(self):
+        with pytest.raises(ValueError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.EQUAL,
+                blending_display_input=[]
+            )
+
+    def test_construction_foreground_wrong_relative_opacity_type(self):
+        with pytest.raises(TypeError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.FOREGROUND,
+                blending_display_input=[
+                    BlendingDisplayInput(
+                        blending_input_number=1
+                    ),
+                    BlendingDisplayInput(
+                        blending_input_number=2
+                    )
+                ]
+            )
+
+    def test_construction_foreground_wrong_blending_display_input_value(self):
+        with pytest.raises(ValueError):
+            BlendingDisplay(
+                blending_mode=BlendingModeValues.FOREGROUND,
+                blending_display_input=[
+                    BlendingDisplayInput(
+                        blending_input_number=1
+                    )
+                ],
+                relative_opacity=1.
+            )
+
+
 class TestXSoftcopyPresentationState(unittest.TestCase):
 
     def setUp(self):
@@ -867,20 +1043,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             lut_data=np.arange(256, dtype=np.uint8)
         )
 
-        self._softcopy_voi_lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            window_explanation='Soft Tissue Window'
-        )
-
-        self._softcopy_voi_lut_partial = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            window_explanation='Soft Tissue Window',
-            referenced_images=ReferencedImageSequence(self._ct_series)
-        )
-
-        self._presentation_lut = LUT(
+        self._presentation_lut = PresentationLUT(
             lut_data=np.arange(10, 100, dtype=np.uint8),
             first_mapped_value=0
         )
@@ -920,9 +1083,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert pr.ContentCreatorName == 'Doe^John'
         assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
         assert not hasattr(pr, 'ModalityLUTSequence')
-        assert not hasattr(pr, 'RescaleSlope')
-        assert not hasattr(pr, 'RescaleIntercept')
-        assert not hasattr(pr, 'RescaleType')
+        assert hasattr(pr, 'RescaleSlope')
+        assert hasattr(pr, 'RescaleIntercept')
+        assert hasattr(pr, 'RescaleType')
+        assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
+        assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -942,9 +1107,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            rescale_intercept=1024.0,
-            rescale_slope=2.0,
-            rescale_type='HU',
+            modality_lut_transformation=ModalityLUTTransformation(
+                rescale_intercept=1024.0,
+                rescale_slope=2.0,
+                rescale_type='HU',
+            )
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -984,7 +1151,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            modality_lut=self._modality_lut,
+            modality_lut_transformation=ModalityLUTTransformation(
+                modality_lut=self._modality_lut,
+            )
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -1023,8 +1192,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_modality_lut=True,
+            content_creator_name='Doe^John'
         )
         assert gsps.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert gsps.RescaleSlope == self._ct_series[0].RescaleSlope
@@ -1045,8 +1213,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_modality_lut=True,
+            content_creator_name='Doe^John'
         )
         shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
         trans_seq = shared_grp.PixelValueTransformationSequence[0]
@@ -1072,7 +1239,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            softcopy_voi_luts=[self._softcopy_voi_lut],
+            voi_lut_transformations=[
+                SoftcopyVOILUTTransformation(
+                    window_center=40.0,
+                    window_width=400.0,
+                    window_explanation='Soft Tissue Window'
+                )
+            ]
+
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert hasattr(gsps.SoftcopyVOILUTSequence[0], 'WindowWidth')
@@ -1095,8 +1269,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         expected_width = self._ct_series[0].WindowWidth
@@ -1129,8 +1302,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 2
         ref_ims_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
@@ -1169,8 +1341,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert not hasattr(gsps, 'SoftcopyVOILUTSequence')
 
@@ -1181,8 +1352,8 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
         # Construct test LUT data
         luts = [
-            LUT(0, np.array([2, 3, 4], np.uint16)),
-            LUT(0, np.array([5, 6, 7], np.uint16))
+            VOILUT(0, np.array([2, 3, 4], np.uint16)),
+            VOILUT(0, np.array([5, 6, 7], np.uint16)),
         ]
         ct_im.VOILUTSequence = luts
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1199,8 +1370,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert len(gsps.SoftcopyVOILUTSequence[0].VOILUTSequence) == 2
@@ -1220,8 +1390,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True,
+            content_creator_name='Doe^John'
         )
         shared_grp = self._ct_multiframe.SharedFunctionalGroupsSequence[0]
         voi_seq = shared_grp.FrameVOILUTSequence[0]
@@ -1242,11 +1411,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             edited_multiframe.SharedFunctionalGroupsSequence[0],
             'FrameVOILUTSequence'
         )
-        new_voi_lut_0 = SoftcopyVOILUT(
+        new_voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
         )
-        new_voi_lut_1 = SoftcopyVOILUT(
+        new_voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
         )
@@ -1269,8 +1438,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             concept_name=codes.DCM.PresentationState,
             institution_name='MGH',
             institutional_department_name='Radiology',
-            content_creator_name='Doe^John',
-            copy_voi_lut=True,
+            content_creator_name='Doe^John'
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 2
 
@@ -1305,7 +1473,16 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[self._softcopy_voi_lut_partial],
+                voi_lut_transformations=[
+                    SoftcopyVOILUTTransformation(
+                        window_center=40.0,
+                        window_width=400.0,
+                        window_explanation='Soft Tissue Window',
+                        referenced_images=ReferencedImageSequence(
+                            self._ct_series
+                        )
+                    )
+                ]
                 # references missing images ^
             )
 
@@ -1327,12 +1504,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+            presentation_lut_transformation=PresentationLUTTransformation(
+                presentation_lut_shape=PresentationLUTShapeValues.INVERSE
+            )
         )
         assert gsps.PresentationLUTShape == 'INVERSE'
         assert not hasattr(gsps, 'PresentationLUTSequence')
 
-    def test_construction_with_presentation_luts(self):
+    def test_construction_with_presentation_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
             series_instance_uid=self._series_uid,
@@ -1350,7 +1529,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            presentation_luts=[self._presentation_lut]
+            presentation_lut_transformation=PresentationLUTTransformation(
+                presentation_lut=self._presentation_lut
+            )
         )
         assert len(gsps.PresentationLUTSequence) == 1
         assert not hasattr(gsps, 'PresentationLUTShape')
@@ -1374,8 +1555,10 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                presentation_luts=[self._presentation_lut],
-                presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+                presentation_lut_transformation=PresentationLUTTransformation(
+                    presentation_lut=self._presentation_lut,
+                    presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+                )
             )
 
     def test_construction_color(self):
@@ -1469,43 +1652,45 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
             )
 
-    # TODO find a profile that will make this test work
-    # def test_construction_icc_profile(self):
-    #     profile = ImageCmsProfile(createProfile('LAB')).tobytes()
+    def test_construction_icc_profile(self):
+        icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
 
-    #     pr = ColorSoftcopyPresentationState(
-    #         referenced_images=[self._sm_image],
-    #         series_instance_uid=self._series_uid,
-    #         series_number=123,
-    #         sop_instance_uid=self._sop_uid,
-    #         instance_number=456,
-    #         manufacturer='Foo Corp.',
-    #         manufacturer_model_name='Bar, Mark 2',
-    #         software_versions='0.0.1',
-    #         device_serial_number='12345',
-    #         content_label='DOODLE',
-    #         graphic_layers=[self._layer],
-    #         graphic_annotations=[self._ann_sm],
-    #         concept_name=codes.DCM.PresentationState,
-    #         institution_name='MGH',
-    #         institutional_department_name='Radiology',
-    #         content_creator_name='Doe^John',
-    #         icc_profile=profile
-    #     )
-    #     assert hasattr(pr, 'ICCProfile')
+        pr = ColorSoftcopyPresentationState(
+            referenced_images=[self._sm_image],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_sm],
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John',
+            icc_profile=icc_profile
+        )
+        assert hasattr(pr, 'ICCProfile')
 
-    #     # Write out dataset and test it works as expected
-    #     with BytesIO() as buf:
-    #         pr.save_as(buf)
-    #         buf.seek(0)
-    #         reread = dcmread(buf)
+        # Write out dataset and test it works as expected
+        with BytesIO() as buf:
+            pr.save_as(buf)
+            buf.seek(0)
+            reread = dcmread(buf)
 
-    #     # A basic check that the profile was read correctly
-    #     image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
-    #     assert (
-    #         image_profile.profile.profile_description ==
-    #         'Lab identity built-in'
-    #     )
+        # A basic check that the profile was read correctly
+        image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
+        assert (
+            image_profile.profile.profile_description ==
+            'sRGB v4 ICC preference perceptual intent beta'
+        )
 
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1648,17 +1833,17 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
             )
 
-    def test_construction_palette_color_lut(self):
+    def test_construction_palette_color_lut_transformation(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         r_first_mapped_value = 32
         g_first_mapped_value = 32
         b_first_mapped_value = 32
-        r_lut = LUT(r_first_mapped_value, r_lut_data)
-        g_lut = LUT(g_first_mapped_value, g_lut_data)
-        b_lut = LUT(b_first_mapped_value, b_lut_data)
-        lut = PaletteColorLookupTable(
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        transformation = PaletteColorLUTTransformation(
             red_lut=r_lut,
             green_lut=g_lut,
             blue_lut=b_lut,
@@ -1681,7 +1866,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            palette_color_lut=lut,
+            palette_color_lut_transformation=transformation,
         )
         assert pr.SeriesInstanceUID == self._series_uid
         assert pr.SOPInstanceUID == self._sop_uid
@@ -1699,9 +1884,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert pr.ContentCreatorName == 'Doe^John'
         assert pr.ConceptNameCodeSequence[0].CodeValue == 'PR'
         assert not hasattr(pr, 'ModalityLUTSequence')
-        assert not hasattr(pr, 'RescaleSlope')
-        assert not hasattr(pr, 'RescaleIntercept')
-        assert not hasattr(pr, 'RescaleType')
+        assert hasattr(pr, 'RescaleSlope')
+        assert hasattr(pr, 'RescaleIntercept')
+        assert hasattr(pr, 'RescaleType')
+        assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
         red_descriptor = [len(r_lut_data), r_first_mapped_value, 16]
         r_lut_data_retrieved = np.frombuffer(
             pr.RedPaletteColorLookupTableData,

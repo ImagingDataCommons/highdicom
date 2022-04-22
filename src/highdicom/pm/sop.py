@@ -7,7 +7,7 @@ from pydicom.encaps import encapsulate
 from highdicom.base import SOPClass
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
-    PaletteColorLookupTable,
+    PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -87,7 +87,9 @@ class ParametricMap(SOPClass):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
-        palette_color_lut: Optional[PaletteColorLookupTable] = None,
+        palette_color_lut_transformation: Optional[
+            PaletteColorLUTTransformation
+        ] = None,
         **kwargs,
     ):
         """
@@ -219,8 +221,9 @@ class ParametricMap(SOPClass):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this parametric map.
-        palette_color_lut: Union[highdicom.PaletteColorLookupTable, None], optional
-            Suggested palette lookup table to apply when rendering the image.
+        palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
+            Description of the Palette Color LUT Transformation for tranforming
+            grayscale into RGB color pixel values
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -669,16 +672,19 @@ class ParametricMap(SOPClass):
             raise ValueError('Encountered unexpected pixel data type.')
 
         # Palette color lookup table
-        if palette_color_lut is not None:
+        if palette_color_lut_transformation is not None:
             if pixel_data_type != _PixelDataType.USHORT:
                 raise ValueError(
                     'Use of palette_color_lut is only supported with integer-'
                     'valued pixel data.'
                 )
-            if not isinstance(palette_color_lut, PaletteColorLookupTable):
+            if not isinstance(
+                palette_color_lut_transformation,
+                PaletteColorLUTTransformation
+            ):
                 raise TypeError(
-                    'Argument "palette_color_lut" should be of type '
-                    'highdicom.PaletteColorLookupTable.'
+                    'Argument "palette_color_lut_transformation" should be of '
+                    'type PaletteColorLookupTable.'
                 )
             self.PixelPresentation = 'COLOR_RANGE'
 
@@ -686,15 +692,24 @@ class ParametricMap(SOPClass):
             for color in colors:
                 desc_kw = f'{color}PaletteColorLookupTableDescriptor'
                 data_kw = f'{color}PaletteColorLookupTableData'
-                desc = getattr(palette_color_lut, desc_kw)
-                lut = getattr(palette_color_lut, data_kw)
+                desc = getattr(palette_color_lut_transformation, desc_kw)
+                lut = getattr(palette_color_lut_transformation, data_kw)
 
                 setattr(self, desc_kw, desc)
                 setattr(self, data_kw, lut)
 
-            if hasattr(palette_color_lut, 'PaletteColorLookupTableUID'):
-                uid = palette_color_lut.PaletteColorLookupTableUID
-                self.PaletteColorLookupTableUID = uid
+            if hasattr(
+                palette_color_lut_transformation,
+                'PaletteColorLookupTableUID'
+            ):
+                setattr(
+                    self,
+                    'PaletteColorLookupTableUID',
+                    getattr(
+                        palette_color_lut_transformation,
+                        'PaletteColorLookupTableUID'
+                    )
+                )
         else:
             self.PixelPresentation = 'MONOCHROME'
 

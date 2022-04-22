@@ -3,7 +3,6 @@ from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
-import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -15,9 +14,10 @@ from pydicom._storage_sopclass_uids import SegmentationStorage
 
 from highdicom.enum import (
     CoordinateSystemNames,
-    VOILUTFunctionValues,
+    PresentationLUTShapeValues,
+    RescaleTypeValues,
     UniversalEntityIDTypeValues,
-    RescaleTypeValues
+    VOILUTFunctionValues,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
@@ -173,7 +173,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
 class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
-    """Sequence identifying the person who created the content."""
+    """Sequence of data elements for identifying the person who created content.
+
+    """
+
     def __init__(
         self,
         person_identification_codes: Sequence[Union[Code, CodedConcept]],
@@ -687,7 +690,7 @@ class IssuerOfIdentifier(Dataset):
 
 class SpecimenCollection(ContentSequence):
 
-    """Sequence of SR content item describing a specimen collection procedure.
+    """Sequence of SR content items describing a specimen collection procedure.
     """
 
     def __init__(
@@ -711,7 +714,7 @@ class SpecimenCollection(ContentSequence):
 
 class SpecimenSampling(ContentSequence):
 
-    """Sequence of SR content item describing a specimen sampling procedure.
+    """Sequence of SR content items describing a specimen sampling procedure.
 
     See SR template
     :dcm:`TID 8002 Specimen Sampling <part16/chapter_C.html#sect_TID_8002>`.
@@ -770,7 +773,7 @@ class SpecimenSampling(ContentSequence):
 
 class SpecimenStaining(ContentSequence):
 
-    """Sequence of SR content item describing a specimen staining procedure
+    """Sequence of SR content items describing a specimen staining procedure
 
     See SR template
     :dcm:`TID 8003 Specimen Staining <part16/chapter_C.html#sect_TID_8003>`.
@@ -811,7 +814,8 @@ class SpecimenStaining(ContentSequence):
 
 class SpecimenProcessing(ContentSequence):
 
-    """Sequence of SR content item describing a specimen processing procedure.
+    """Sequence of SR content items describing a specimen processing procedure.
+
     """
 
     def __init__(
@@ -1072,7 +1076,7 @@ class SpecimenDescription(Dataset):
 
 class ReferencedImageSequence(DataElementSequence):
 
-    """Sequence describing references to images, frames and/or segments."""
+    """Sequence of data elements describing a set of referenced images."""
 
     def __init__(
         self,
@@ -1195,7 +1199,7 @@ class ReferencedImageSequence(DataElementSequence):
 
 class LUT(Dataset):
 
-    """Dataset describing a pixel value lookup table."""
+    """Dataset describing a lookup table (LUT)."""
 
     def __init__(
         self,
@@ -1210,7 +1214,7 @@ class LUT(Dataset):
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
-        lut_data: np.ndarray
+        lut_data: numpy.ndarray
             Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
@@ -1236,33 +1240,37 @@ class LUT(Dataset):
             )
 
         if not isinstance(lut_data, np.ndarray):
-            raise TypeError('Argument "lut_data" must be of type np.ndarray')
+            raise TypeError('Argument "lut_data" must have type numpy.ndarray.')
         if lut_data.ndim != 1:
-            raise ValueError("Numpy array must have a single dimension.")
+            raise ValueError(
+                'Argument "lut_data" must be an array with a single dimension.'
+            )
         len_data = lut_data.size
         if len_data == 0:
             raise ValueError('Argument "lut_data" must not be empty.')
         if len_data > 2**16:
             raise ValueError(
-                'Length of lut_data must be no greater than 2^16 elements.'
+                'Length of argument "lut_data" must be no greater than '
+                '2^16 elements.'
             )
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
             len_data = 0
         if lut_data.dtype.type == np.uint8:
-            bits_allocated = 8
+            bits_per_entry = 8
         elif lut_data.dtype.type == np.uint16:
-            bits_allocated = 16
+            bits_per_entry = 16
         else:
             raise ValueError(
                 "Numpy array must have dtype uint8 or uint16."
             )
-        self.LUTData = lut_data.tobytes()
+        # The LUT data attribute has VR OW (16-bit other words)
+        self.LUTData = lut_data.astype(np.uint16).tobytes()
 
         self.LUTDescriptor = [
             len_data,
             int(first_mapped_value),
-            bits_allocated
+            bits_per_entry
         ]
 
         if lut_explanation is not None:
@@ -1271,32 +1279,50 @@ class LUT(Dataset):
 
     @property
     def lut_data(self) -> np.ndarray:
-        """np.ndarray: LUT data formatted as np.ndarray."""
-        if self.bits_allocated == 8:
-            np_dtype = np.uint8
-        elif self.bits_allocated == 16:
-            np_dtype = np.uint16
+        """numpy.ndarray: LUT data"""
+        if self.bits_per_entry == 8:
+            dtype = np.uint8
+        elif self.bits_per_entry == 16:
+            dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        lut_length = self.LUTDescriptor[0]
-        data = np.frombuffer(self.LUTData, np_dtype)
-        if len(data) != lut_length:
+        length = self.LUTDescriptor[0]
+        data = self.LUTData
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(dtype)
+        if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
-                f'LUTDescriptor. Expected {lut_length}, found {len(data)}.'
+                f'LUTDescriptor. Expected {length}, found {len(array)}.'
             )
-        return data
+        return array
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        value = int(self.LUTDescriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
 
     @property
     def first_mapped_value(self) -> int:
         """int: Pixel value that will be mapped to the first value in the
-        LUT.
+        lookup table.
         """
         return int(self.LUTDescriptor[1])
 
     @property
-    def bits_allocated(self) -> int:
-        """int: Bits allocated for the LUT data. 8 or 16."""
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
         return int(self.LUTDescriptor[2])
 
 
@@ -1321,7 +1347,7 @@ class ModalityLUT(LUT):
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup-table.
-        lut_data: np.ndarray
+        lut_data: numpy.ndarray
             Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
@@ -1339,9 +1365,43 @@ class ModalityLUT(LUT):
             self.ModalityLUTType = lut_type
 
 
-class VOILUT(Dataset):
+class VOILUT(LUT):
 
-    """Dataset describing a value-of-interest lookup table."""
+    """Dataset describing an item of the VOI LUT Sequence."""
+
+    def __init__(
+        self,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
+
+        """
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
+
+
+class VOILUTTransformation(Dataset):
+
+    """Dataset describing the VOI LUT Transformation as part of the Pixel
+    Transformation Sequence to transform modality pixel values into pixel
+    values that are of interest to a user or an application.
+
+    """
 
     def __init__(
         self,
@@ -1349,7 +1409,7 @@ class VOILUT(Dataset):
         window_width: Union[float, Sequence[float], None] = None,
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        luts: Optional[Sequence[LUT]] = None,
+        voi_luts: Optional[Sequence[VOILUT]] = None,
     ):
         """
 
@@ -1364,13 +1424,13 @@ class VOILUT(Dataset):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        luts: Union[Sequence[highdicom.LUT], None], optional
+        voi_luts: Union[Sequence[highdicom.VOILUT], None], optional
             Intensity lookup tables used for display.
 
         Note
         ----
         Either ``window_center`` and ``window_width`` should be provided or
-        ``luts`` should be provided, or both. ``window_explanation`` should
+        ``voi_luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
@@ -1461,15 +1521,15 @@ class VOILUT(Dataset):
                 )
             self.VOILUTFunction = VOILUTFunctionValues(voi_lut_function).value
 
-        if luts is not None:
-            if len(luts) == 0:
-                raise ValueError('"luts" should not be empty.')
-            for lut in luts:
-                if not isinstance(lut, LUT):
+        if voi_luts is not None:
+            if len(voi_luts) == 0:
+                raise ValueError('Argument "voi_luts" should not be empty.')
+            for lut in voi_luts:
+                if not isinstance(lut, VOILUT):
                     raise TypeError(
-                        'Items of "luts" should be of type highdicom.LUT.'
+                        'Items of "voi_luts" should be of type VOILUT.'
                     )
-            self.VOILUTSequence = list(luts)
+            self.VOILUTSequence = list(voi_luts)
         else:
             if window_center is None:
                 raise TypeError(
@@ -1478,133 +1538,633 @@ class VOILUT(Dataset):
                 )
 
 
-class PaletteColorLookupTable(Dataset):
+class ModalityLUTTransformation(Dataset):
 
-    """Dataset describing a palette color lookup table."""
+    """Dataset describing the Modality LUT Transformation as part of the Pixel
+    Transformation Sequence to transform the manufacturer dependent pixel
+    values into pixel values that are meaningful for the modality and are
+    manufacturer independent.
+
+    """
 
     def __init__(
         self,
-        red_lut: LUT,
-        green_lut: LUT,
-        blue_lut: LUT,
+        rescale_intercept: Optional[Union[int, float]] = None,
+        rescale_slope: Optional[Union[int, float]] = None,
+        rescale_type: Optional[Union[RescaleTypeValues, str]] = None,
+        modality_lut: Optional[ModalityLUT] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        rescale_intercept: Union[int, float, None], optional
+            Intercept of linear function used for rescaling pixel values.
+        rescale_slope: Union[int, float, None], optional
+            Slope of linear function used for rescaling pixel values.
+        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
+            String or enumerated value specifying the units of the output of
+            the Modality LUT or rescale operation.
+        modality_lut: Union[highdicom.ModalityLUT, None], optional
+            Lookup table specifying a pixel rescaling operation to apply to
+            the stored values to give modality values.
+
+        Note
+        ----
+        Either `modality_lut` may be specified or all three of `rescale_slope`,
+        `rescale_intercept`, and `rescale_type` may be specified. All four
+        parameters should not be specified simultaneously.
+
+        """
+        super().__init__()
+        if modality_lut is not None:
+            if rescale_intercept is not None:
+                raise TypeError(
+                    'Argument "rescale_intercept" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_slope is not None:
+                raise TypeError(
+                    'Argument "rescale_slope" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_type is not None:
+                raise TypeError(
+                    'Argument "rescale_type" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if not isinstance(modality_lut, ModalityLUT):
+                raise TypeError(
+                    'Argument "modality_lut" must be of type '
+                    'highdicom.ModalityLUT.'
+                )
+            self.ModalityLUTSequence = [modality_lut]
+        else:
+            if rescale_intercept is None:
+                raise TypeError(
+                    'Argument "rescale_intercept" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            if rescale_slope is None:
+                raise TypeError(
+                    'Argument "rescale_slope" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            if rescale_type is None:
+                raise TypeError(
+                    'Argument "rescale_type" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
+            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            if isinstance(rescale_type, RescaleTypeValues):
+                self.RescaleType = rescale_type.value
+            else:
+                _check_long_string(rescale_type)
+                self.RescaleType = rescale_type
+
+
+class PresentationLUT(LUT):
+
+    """Dataset describing an item of the Presentation LUT Sequence."""
+
+    def __init__(
+        self,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
+
+        """
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
+
+
+class PresentationLUTTransformation(Dataset):
+
+    """Dataset describing the Presentation LUT Transformation as part of the
+    Pixel Transformation Sequence to transform polarity pixel values into
+    device-indendent presentation values (P-Values).
+
+    """
+
+    def __init__(
+        self,
+        presentation_lut_shape: Optional[
+            Union[PresentationLUTShapeValues, str]
+        ] = None,
+        presentation_lut: Optional[PresentationLUT] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
+            Shape of the presentation LUT
+        presentation_lut: Optional[highdicom.PresentationLUT], optional
+            Presentation LUT
+
+        Note
+        -----
+        Only one of ``presentation_lut_shape`` or ``presentation_lut`` should
+        be provided.
+
+        """  # noqa: E501
+        super().__init__()
+        if presentation_lut is not None:
+            if presentation_lut_shape is not None:
+                raise TypeError(
+                    'Only one of arguments "presentation_lut" or '
+                    '"presentation_lut_shape" should be provided.'
+                )
+            if not isinstance(presentation_lut, PresentationLUT):
+                raise TypeError(
+                    'Argument "presentation_lut" must be of '
+                    'type PresentationLUT.'
+                )
+            self.PresentationLUTSequence = [presentation_lut]
+        else:
+            presentation_lut_shape = (
+                presentation_lut_shape or
+                PresentationLUTShapeValues.IDENTITY
+            )
+            self.PresentationLUTShape = PresentationLUTShapeValues(
+                presentation_lut_shape
+            ).value
+
+
+class PaletteColorLUT(Dataset):
+
+    """Dataset describing a palette color lookup table (LUT)."""
+
+    def __init__(
+        self,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        color: str
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        color: str
+            Text representing the color (``red``, ``green``, or
+            ``blue``).
+
+        Note
+        ----
+        After the LUT is applied, a pixel in the image with value equal to
+        ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
+        an input value of ``first_mapped_value + 1`` is mapped to
+        ``lut_data[1]``, and so on.
+
+        """
+        super().__init__()
+        if not isinstance(first_mapped_value, int):
+            raise TypeError('Argument "first_mapped_value" must be an integer.')
+        if first_mapped_value < 0:
+            raise ValueError(
+                'Argument "first_mapped_value" must be non-negative.'
+            )
+        if first_mapped_value >= 2 ** 16:
+            raise ValueError(
+                'Argument "first_mapped_value" must be less than 2^16.'
+            )
+
+        if not isinstance(lut_data, np.ndarray):
+            raise TypeError('Argument "lut_data" must have type numpy.ndarray.')
+        if lut_data.ndim != 1:
+            raise ValueError(
+                'Argument "lut_data" must be an array with a single dimension.'
+            )
+        len_data = lut_data.shape[0]
+        if len_data == 0:
+            raise ValueError('Argument "lut_data" must not be empty.')
+        if len_data > 2**16:
+            raise ValueError(
+                'Length of argument "lut_data" must be no greater than '
+                '2^16 elements.'
+            )
+        elif len_data == 2**16:
+            # Per the standard, this is recorded as 0
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
+        if lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+        elif lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
+
+        if color.lower() not in ('red', 'green', 'blue'):
+            raise ValueError(
+                'Argument "color" must be either "red", "green", or "blue".'
+            )
+        self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
+
+        # The Palette Color Lookup Table Data attributes have VR OW
+        # (16-bit other words)
+        setattr(
+            self,
+            f'{self._attr_name_prefix}Data',
+            lut_data.astype(np.uint16).tobytes()
+        )
+        setattr(
+            self,
+            f'{self._attr_name_prefix}Descriptor',
+            [number_of_entries, int(first_mapped_value), bits_per_entry]
+        )
+
+    @property
+    def lut_data(self) -> np.ndarray:
+        """numpy.ndarray: lookup table data"""
+        if self.bits_per_entry == 8:
+            dtype = np.uint8
+        elif self.bits_per_entry == 16:
+            dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
+        length = self.number_of_entries
+        data = getattr(self, f'{self._attr_name_prefix}Data')
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(dtype)
+        if len(array) != length:
+            raise RuntimeError(
+                'Length of Lookup Table Data does not match the value '
+                'expected from the Lookup Table Descriptor. '
+                f'Expected {length}, found {len(array)}.'
+            )
+        return array
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        value = int(descriptor[0])
+        if value == 0:
+            return 2**16
+        return value
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        lookup table.
+        """
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        return int(descriptor[1])
+
+    @property
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        return int(descriptor[2])
+
+
+class SegmentedPaletteColorLUT(Dataset):
+
+    """Dataset describing a segmented palette color lookup table (LUT)."""
+
+    def __init__(
+        self,
+        first_mapped_value: int,
+        segmented_lut_data: np.ndarray,
+        color: str
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup table.
+        segmented_lut_data: numpy.ndarray
+            Segmented lookup table data. Must be of type uint8 or uint16.
+        color: str
+            Free-form text explanation of the color (``red``, ``green``, or
+            ``blue``).
+
+        Note
+        ----
+        After the LUT is applied, a pixel in the image with value equal to
+        ``first_mapped_value`` is mapped to an output value of ``lut_data[0]``,
+        an input value of ``first_mapped_value + 1`` is mapped to
+        ``lut_data[1]``, and so on.
+
+        """
+        super().__init__()
+        if not isinstance(first_mapped_value, int):
+            raise TypeError('Argument "first_mapped_value" must be an integer.')
+        if first_mapped_value < 0:
+            raise ValueError(
+                'Argument "first_mapped_value" must be non-negative.'
+            )
+        if first_mapped_value >= 2 ** 16:
+            raise ValueError(
+                'Argument "first_mapped_value" must be less than 2^16.'
+            )
+
+        if not isinstance(segmented_lut_data, np.ndarray):
+            raise TypeError(
+                'Argument "segmented_lut_data" must have type numpy.ndarray.'
+            )
+        if segmented_lut_data.ndim != 1:
+            raise ValueError(
+                'Argument "segmented_lut_data" must be an array with a '
+                'single dimension.'
+            )
+        len_data = segmented_lut_data.size
+        if len_data == 0:
+            raise ValueError('Argument "segmented_lut_data" must not be empty.')
+        if len_data > 2**16:
+            raise ValueError(
+                'Length of argument "segmented_lut_data" must be no greater '
+                'than 2^16 elements.'
+            )
+        elif len_data == 2**16:
+            # Per the standard, this is recorded as 0
+            len_data = 0
+        if segmented_lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+            self._dtype = np.uint8
+        elif segmented_lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+            self._dtype = np.uint16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
+
+        if color.lower() not in ('red', 'green', 'blue'):
+            raise ValueError(
+                'Argument "color" must be either "red", "green", or "blue".'
+            )
+        self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
+
+        # The Segmented Palette Color Lookup Table Data attributes have VR OW
+        # (16-bit other words)
+        setattr(
+            self,
+            f'Segmented{self._attr_name_prefix}Data',
+            segmented_lut_data.astype(np.uint16).tobytes()
+        )
+
+        expanded_lut_values = []
+        i = 0
+        offset = 0
+        while i < len(segmented_lut_data):
+            opcode = segmented_lut_data[i]
+            i += 1
+            if opcode == 0:
+                # Discrete segment type (constant)
+                length = segmented_lut_data[i]
+                i += 1
+                value = segmented_lut_data[i]
+                i += 1
+                expanded_lut_values.extend([
+                    value for _ in range(length)
+                ])
+                offset += length
+            elif opcode == 1:
+                # Linear segment type (interpolation)
+                length = segmented_lut_data[i]
+                i += 1
+                start_value = expanded_lut_values[offset - 1]
+                end_value = segmented_lut_data[i]
+                i += 1
+                step = (end_value - start_value) / (length - 1)
+                expanded_lut_values.extend([
+                    start_value + int(np.round(j * step))
+                    for j in range(length)
+
+                ])
+                offset += length
+            elif opcode == 2:
+                # TODO
+                raise ValueError(
+                  'Indirect segment type is not yet supported for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+            else:
+                raise ValueError(
+                  f'Encountered unexpected segment type {opcode} for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+
+        self._lut_data = np.array(
+            expanded_lut_values,
+            dtype=self._dtype
+        )
+
+        len_data = len(expanded_lut_values)
+        if len_data == 2**16:
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
+        setattr(
+            self,
+            f'{self._attr_name_prefix}Descriptor',
+            [number_of_entries, int(first_mapped_value), bits_per_entry]
+        )
+
+    @property
+    def segmented_lut_data(self) -> np.ndarray:
+        """numpy.ndarray: segmented lookup table data"""
+        length = self.number_of_entries
+        data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(self._dtype)
+        if len(array) != length:
+            raise RuntimeError(
+                'Length of LUTData does not match the value expected from the '
+                f'LUTDescriptor. Expected {length}, found {len(array)}.'
+            )
+        return array
+
+    @property
+    def lut_data(self) -> np.ndarray:
+        """numpy.ndarray: expanded lookup table data"""
+        return self._lut_data
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        value = int(descriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        lookup table.
+        """
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        return int(descriptor[1])
+
+    @property
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
+        descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
+        return int(descriptor[2])
+
+
+class PaletteColorLUTTransformation(Dataset):
+
+    """Dataset describing the Palette Color LUT Transformation as part of the
+    Pixel Transformation Sequence to transform grayscale into RGB color pixel
+    values.
+
+    """
+
+    def __init__(
+        self,
+        red_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
+        green_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
+        blue_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
         palette_color_lut_uid: Union[UID, str, None] = None
     ):
         """
 
         Parameters
         ----------
-        red_lut: highdicom.LUT
+        red_lut: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the red output color channel.
-        green: highdicom.LUT
+        green: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the green output color channel.
-        blue_lut: highdicom.LUT
+        blue_lut: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the blue output color channel.
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
-        """
+        """  # noqa: E501
         super().__init__()
 
         # Checks on inputs
-        all_luts = [red_lut, green_lut, blue_lut]
-        for lut in all_luts:
-            if not isinstance(lut, LUT):
+        self._color_luts = {
+            'Red': red_lut,
+            'Green': green_lut,
+            'Blue': blue_lut
+        }
+        for lut in self._color_luts.values():
+            if not isinstance(lut, (PaletteColorLUT, SegmentedPaletteColorLUT)):
                 raise TypeError(
                     'Arguments "red_lut", "green_lut", and "blue_lut" must be '
-                    'of type highdicom.LUT.'
+                    'of type PaletteColorLUT or SegmentedPaletteColorLUT.'
                 )
-        red_length = red_lut.LUTDescriptor[0]
-        green_length = green_lut.LUTDescriptor[0]
-        blue_length = blue_lut.LUTDescriptor[0]
-        if green_length != red_length or blue_length != red_length:
-            raise ValueError('All three LUTs must be of the same length.')
-        bits = red_lut.bits_allocated
-        if green_lut.bits_allocated != bits or blue_lut.bits_allocated != bits:
+        if not hasattr(red_lut, 'RedPaletteColorLookupTableDescriptor'):
             raise ValueError(
-                'All three LUTs must have the same number of bits per entry.'
+                'Argument "red_lut" does not correspond to red color.'
+            )
+        if not hasattr(green_lut, 'GreenPaletteColorLookupTableDescriptor'):
+            raise ValueError(
+                'Argument "green_lut" does not correspond to green color.'
+            )
+        if not hasattr(blue_lut, 'BluePaletteColorLookupTableDescriptor'):
+            raise ValueError(
+                'Argument "blue_lut" does not correspond to blue color.'
+            )
+
+        red_length = red_lut.number_of_entries
+        green_length = green_lut.number_of_entries
+        blue_length = blue_lut.number_of_entries
+        if len(set([red_length, green_length, blue_length])) != 1:
+            raise ValueError(
+                'All three palette color LUTs must have the same number of '
+                'entries.'
+            )
+        red_bits = red_lut.bits_per_entry
+        green_bits = green_lut.bits_per_entry
+        blue_bits = blue_lut.bits_per_entry
+        if len(set([red_bits, green_bits, blue_bits])) != 1:
+            raise ValueError(
+                'All three palette color LUTs must have the same number of '
+                'bits per entry.'
             )
         red_fmv = red_lut.first_mapped_value
         green_fmv = green_lut.first_mapped_value
         blue_fmv = blue_lut.first_mapped_value
-        if green_fmv != red_fmv or blue_fmv != red_fmv:
+        if len(set([red_fmv, green_fmv, blue_fmv])) != 1:
             raise ValueError(
-                'All three LUTs must have the same first mapped value.'
+                'All three palette color LUTs must have the same '
+                'first mapped value.'
             )
 
-        colors = ['Red', 'Green', 'Blue']
-        for color, lut in zip(colors, all_luts):
-            if hasattr(lut, 'LUTExplanation'):
-                warnings.warn(
-                    '"LUTExplanation" attributes of LUTs passed to '
-                    f'{self.__class__.__name__} will be discarded.',
-                    UserWarning
-                )
-
+        for name, lut in self._color_luts.items():
+            desc_attr = f'{name}PaletteColorLookupTableDescriptor'
             setattr(
                 self,
-                f'{color.title()}PaletteColorLookupTableDescriptor',
-                lut.LUTDescriptor
+                desc_attr,
+                getattr(lut, desc_attr)
             )
+            if isinstance(lut, SegmentedPaletteColorLUT):
+                data_attr = f'Segmented{name}PaletteColorLookupTableData'
+            else:
+                data_attr = f'{name}PaletteColorLookupTableData'
             setattr(
                 self,
-                f'{color.title()}PaletteColorLookupTableData',
-                lut.LUTData
+                data_attr,
+                getattr(lut, data_attr)
             )
 
         if palette_color_lut_uid is not None:
             self.PaletteColorLookupTableUID = palette_color_lut_uid
 
-    def get_lut(self) -> np.ndarray:
-        """Get the lookup table data as a numpy.ndarray.
-
-        Returns
-        -------
-        np.ndarray:
-            Numpy array of shape n x 3 where each row gives the three output
-            values (R, G, B) for each valid input value. Datatype of the array
-            will be uint8 or unit16 depending on the data type of the underlying
-            stored values.
-
-        """
-        if self.bits_allocated == 8:
-            np_dtype = np.uint8
-        elif self.bits_allocated == 16:
-            np_dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
-        lut_length = self.RedPaletteColorLookupTableDescriptor[0]
-        r_data = np.frombuffer(self.RedPaletteColorLookupTableData, np_dtype)
-        g_data = np.frombuffer(self.GreenPaletteColorLookupTableData, np_dtype)
-        b_data = np.frombuffer(self.BluePaletteColorLookupTableData, np_dtype)
-
-        for color, data in zip(
-            ['red', 'green', 'blue'],
-            [r_data, g_data, b_data]
-        ):
-            if len(data) != lut_length:
-                raise RuntimeError(
-                    'Length of LUT data does not match the value expected from '
-                    f'the descriptor for the {color} channel. Expected '
-                    f'{lut_length}, found {len(data)}.'
-                )
-
-        # Combine the three channels
-        data = np.stack([r_data, g_data, b_data]).T
-
-        return data
+        # To cache the array
+        self._lut_data = None
 
     @property
-    def first_mapped_value(self) -> int:
-        """int: Pixel value that will be mapped to the first value in the
-        LUT.
+    def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the red output color channel
+
         """
-        # All descriptors should match by construction and according to the
-        # standard
-        return int(self.RedPaletteColorLookupTableDescriptor[1])
+        return self._color_luts['Red']
 
     @property
-    def bits_allocated(self) -> int:
-        """int: Bits allocated for the LUT data. 8 or 16."""
-        # All descriptors should match by construction and according to the
-        # standard
-        return int(self.RedPaletteColorLookupTableDescriptor[2])
+    def green_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the green output color channel
+
+        """
+        return self._color_luts['Green']
+
+    @property
+    def blue_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the blue output color channel
+
+        """
+        return self._color_luts['Blue']
