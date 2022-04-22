@@ -145,8 +145,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             Identifying information for the person who created the content of
             this presentation state.
         modality_lut_transformation: Union[highdicom.ModalityLUTTransformation, None], optional
-            Description of the Modality LUT Transformation for tranforming modality
-            dependent into modality independent pixel values
+            Description of the Modality LUT Transformation for transforming modality
+            dependent into modality independent pixel values. If no value is provided,
+            the modality transformation in the referenced images, if any, will be used.
         voi_lut_transformations: Union[Sequence[highdicom.pr.SoftcopyVOILUTTransformation], None], optional
             Description of the VOI LUT Transformation for tranforming
             modality pixel values into pixel values that are of interest to a
