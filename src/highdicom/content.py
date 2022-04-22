@@ -1654,38 +1654,36 @@ class PresentationLUTTransformation(Dataset):
         presentation_lut_shape: Optional[
             Union[PresentationLUTShapeValues, str]
         ] = None,
-        presentation_luts: Optional[Sequence[PresentationLUT]] = None,
+        presentation_lut: Optional[PresentationLUT] = None,
     ):
         """
 
         Parameters
         ----------
         presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
-            Shape of the presentation LUT, applied after the Softcopy
-            VOI LUT Transformation to create display values.
-        presentation_luts: Optional[Sequence[highdicom.LUT]], optional
-            LUTs for the presentation LUT, applied after the Softcopy
-            VOI LUT Transformation to create display values.
+            Shape of the presentation LUT
+        presentation_lut: Optional[highdicom.PresentationLUT], optional
+            Presentation LUT
+
+        Note
+        -----
+        Only one of ``presentation_lut_shape`` or ``presentation_lut`` should
+        be provided.
 
         """  # noqa: E501
         super().__init__()
-        if presentation_luts is not None:
+        if presentation_lut is not None:
             if presentation_lut_shape is not None:
                 raise TypeError(
-                    'Only one of "presentation_luts" or '
+                    'Only one of arguments "presentation_lut" or '
                     '"presentation_lut_shape" should be provided.'
                 )
-            if len(presentation_luts) == 0:
-                raise ValueError(
-                    'Argument "presentation_luts" must not be empty.'
+            if not isinstance(presentation_lut, PresentationLUT):
+                raise TypeError(
+                    'Argument "presentation_lut" must be of '
+                    'type PresentationLUT.'
                 )
-            for v in presentation_luts:
-                if not isinstance(v, PresentationLUT):
-                    raise TypeError(
-                        'Items of argument "presentation_luts" must be of '
-                        'type PresentationLUT.'
-                    )
-            self.PresentationLUTSequence = presentation_luts
+            self.PresentationLUTSequence = [presentation_lut]
         else:
             presentation_lut_shape = (
                 presentation_lut_shape or

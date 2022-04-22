@@ -1846,7 +1846,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.PresentationLUTShape == 'INVERSE'
         assert not hasattr(gsps, 'PresentationLUTSequence')
 
-    def test_construction_with_presentation_luts(self):
+    def test_construction_with_presentation_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
             series_instance_uid=self._series_uid,
@@ -1865,7 +1865,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
             presentation_lut_transformation=PresentationLUTTransformation(
-                presentation_luts=[self._presentation_lut]
+                presentation_lut=self._presentation_lut
             )
         )
         assert len(gsps.PresentationLUTSequence) == 1
@@ -1891,7 +1891,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
                 presentation_lut_transformation=PresentationLUTTransformation(
-                    presentation_luts=[self._presentation_lut],
+                    presentation_lut=self._presentation_lut,
                     presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
                 )
             )
