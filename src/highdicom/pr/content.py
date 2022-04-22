@@ -9,21 +9,22 @@ from PIL.ImageCms import ImageCmsProfile
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.multival import MultiValue
-from pydicom.valuerep import DA, PersonName, TM, format_number_as_ds
+from pydicom.valuerep import DA, PersonName, TM
 from typing import Optional, Union, Sequence, Tuple
 
 from highdicom.color import CIELabColor
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
-    LUT,
-    ModalityLUT,
-    PaletteColorLookupTable,
+    ModalityLUTTransformation,
+    PaletteColorLUTTransformation,
+    PresentationLUTTransformation,
     ReferencedImageSequence,
     VOILUT,
+    VOILUTTransformation,
 )
 from highdicom.enum import (
     RescaleTypeValues,
-    VOILUTFunctionValues
+    VOILUTFunctionValues,
 )
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
@@ -702,9 +703,18 @@ class GraphicAnnotation(Dataset):
             )
 
 
-class SoftcopyVOILUT(VOILUT):
+class SoftcopyVOILUTTransformation(VOILUTTransformation):
 
-    """Dataset describing an item of the Softcopy VOI LUT Sequence."""
+    """Dataset describing the VOI LUT Transformation as part of the Pixel
+    Transformation Sequence to transform the modality pixel values into
+    pixel values that are of interest to a user or an application.
+
+    The description is specific to the application of the VOI LUT
+    Transformation in the context of a Softcopy Presentation State, where
+    potentially only a subset of explicitly referenced images should be
+    transformed.
+
+    """
 
     def __init__(
         self,
@@ -712,7 +722,7 @@ class SoftcopyVOILUT(VOILUT):
         window_width: Union[float, Sequence[float], None] = None,
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        luts: Optional[Sequence[LUT]] = None,
+        voi_luts: Optional[Sequence[VOILUT]] = None,
         referenced_images: Optional[ReferencedImageSequence] = None,
     ):
         """
@@ -728,18 +738,18 @@ class SoftcopyVOILUT(VOILUT):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        luts: Union[Sequence[highdicom.LUT], None], optional
+        voi_luts: Union[Sequence[highdicom.VOILUT], None], optional
             Intensity lookup tables used for display.
         referenced_images: Union[highdicom.ReferencedImageSequence, None], optional
-            Images to which the VOI LUT described in this dataset applies. Note
-            that if unspecified, the VOI LUT applies to every frame of every
-            image referenced in the presentation state object that this dataset
-            is included in.
+            Images to which the VOI LUT Transformation described in this
+            dataset applies. Note that if unspecified, the VOI LUT
+            Transformation applies to every frame of every image referenced in
+            the presentation state object that this dataset is included in.
 
         Note
         ----
         Either ``window_center`` and ``window_width`` should be provided or
-        ``luts`` should be provided, or both. ``window_explanation`` should
+        ``voi_luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
 
         """  # noqa: E501
@@ -748,9 +758,8 @@ class SoftcopyVOILUT(VOILUT):
             window_width=window_width,
             window_explanation=window_explanation,
             voi_lut_function=voi_lut_function,
-            luts=luts,
+            voi_luts=voi_luts
         )
-
         if referenced_images is not None:
             if not isinstance(referenced_images, ReferencedImageSequence):
                 raise TypeError(
@@ -890,7 +899,7 @@ def _add_presentation_state_relationship_attributes(
 ) -> None:
     """Add attributes of module Presentation State Relationship.
 
-Also perform checks that the referenced images are suitable.
+    Also perform checks that the referenced images are suitable.
 
     Parameters
     ----------
@@ -1072,10 +1081,7 @@ def _add_displayed_area_attributes(
 
 def _add_modality_lut_attributes(
     dataset: Dataset,
-    rescale_intercept: Union[int, float, None] = None,
-    rescale_slope: Union[int, float, None] = None,
-    rescale_type: Union[RescaleTypeValues, str, None] = None,
-    modality_lut: Optional[ModalityLUT] = None,
+    modality_lut_transformation: ModalityLUTTransformation,
 ) -> None:
     """Add attributes of module Modality LUT.
 
@@ -1083,83 +1089,24 @@ def _add_modality_lut_attributes(
     ----------
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
-    rescale_intercept: Union[int, float, None], optional
-        Intercept of linear function used for rescaling pixel values.
-    rescale_slope: Union[int, float, None], optional
-        Slope of linear function used for rescaling pixel values.
-    rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
-        String or enumerated value specifying the units of the output of
-        the Modality LUT or rescale operation.
-    modality_lut: Union[highdicom.ModalityLUT, None], optional
-        Lookup table specifying a pixel rescaling operation to apply to
-        the stored values to give modality values.
-
-    Note
-    ----
-    Either `modality_lut` may be specified or all three of `rescale_slope`,
-    `rescale_intercept` and `rescale_type` may be specified. All four
-    parameters should not be specified simultaneously. All parameters may be
-    ``None`` if there is no modality LUT to apply to the images.
+    modality_lut_transformation: highdicom.ModalityLUTTransformation
+        Description of the Modality LUT Transformation for tranforming modality
+        dependent into modality independent pixel values
 
     """
-    if modality_lut is not None:
-        if rescale_intercept is not None:
-            raise TypeError(
-                'Argument "rescale_intercept" must not be specified when '
-                '"modality_lut" is specified.'
-            )
-        if rescale_slope is not None:
-            raise TypeError(
-                'Argument "rescale_slope" must not be specified when '
-                '"modality_lut" is specified.'
-            )
-        if rescale_type is not None:
-            raise TypeError(
-                'Argument "rescale_type" must not be specified when '
-                '"modality_lut" is specified.'
-            )
-        if not isinstance(modality_lut, ModalityLUT):
-            raise TypeError(
-                'Argument "modality_lut" must be of type '
-                'highdicom.ModalityLUT.'
-            )
-        dataset.ModalityLUTSequence = [modality_lut]
-    elif rescale_intercept is not None:
-        if rescale_slope is None:
-            raise TypeError(
-                'Argument "rescale_slope" must be specified when '
-                '"modality_lut" is not specified.'
-            )
-        if rescale_type is None:
-            raise TypeError(
-                'Argument "rescale_type" must be specified when '
-                '"modality_lut" is not specified.'
-            )
-        dataset.RescaleIntercept = format_number_as_ds(rescale_intercept)
-        dataset.RescaleSlope = format_number_as_ds(rescale_slope)
-        if isinstance(rescale_type, RescaleTypeValues):
-            dataset.RescaleType = rescale_type.value
-        else:
-            _check_long_string(rescale_type)
-            dataset.RescaleType = rescale_type
-    else:
-        # Nothing to do except check arguments
-        if rescale_slope is not None:
-            raise TypeError(
-                'Argument "rescale_slope" must not be specified unless '
-                '"rescale_intercept" is specified.'
-            )
-        if rescale_type is not None:
-            raise TypeError(
-                'Argument "rescale_type" must not be specified when '
-                '"rescale_intercept" is specified.'
-            )
+    if not isinstance(modality_lut_transformation, ModalityLUTTransformation):
+        raise ValueError(
+            'Argument "modality_lut_transformation" must have type '
+            'ModalityLUTTransformation.'
+        )
+    for element in modality_lut_transformation:
+        dataset[element.tag] = element
 
 
-def _get_modality_lut_attributes(
+def _get_modality_lut_transformation(
     referenced_images: Sequence[Dataset]
-) -> Dataset:
-    """Get attributes of module Modality LUT from the referenced images.
+) -> ModalityLUTTransformation:
+    """Get Modality LUT Transformation from the referenced images.
 
     Parameters
     ----------
@@ -1168,8 +1115,9 @@ def _get_modality_lut_attributes(
 
     Returns
     -------
-    pydicom.Dataset
-        Dataset containing attributes of module Modality LUT
+    highdicom.ModalityLUTTransformation
+        Description of the Modality LUT Transformation for tranforming modality
+        dependent into modality independent pixel values
 
     Raises
     ------
@@ -1179,7 +1127,6 @@ def _get_modality_lut_attributes(
 
     """
     # Multframe images
-    dataset = Dataset()
     if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
         if len(referenced_images) > 1:
             raise ValueError(
@@ -1219,10 +1166,6 @@ def _get_modality_lut_attributes(
                     'Sequence. This is not compatible with the '
                     'Modality LUT module.'
                 )
-
-        dataset.RescaleIntercept = intercept
-        dataset.RescaleSlope = slope
-        dataset.RescaleType = rescale_type
 
     else:
         have_slopes = [
@@ -1301,17 +1244,17 @@ def _get_modality_lut_attributes(
             else:
                 rescale_type = RescaleTypeValues.HU.value
 
-        dataset.RescaleIntercept = intercept
-        dataset.RescaleSlope = slope
-        dataset.RescaleType = rescale_type
-
-    return dataset
+    return ModalityLUTTransformation(
+        rescale_intercept=intercept,
+        rescale_slope=slope,
+        rescale_type=rescale_type
+    )
 
 
 def _add_softcopy_voi_lut_attributes(
     dataset: Dataset,
     referenced_images: Sequence[Dataset],
-    softcopy_voi_luts: Sequence[SoftcopyVOILUT]
+    voi_lut_transformations: Sequence[SoftcopyVOILUTTransformation]
 ) -> None:
     """Add attributes of module Softcopy VOI LUT.
 
@@ -1321,30 +1264,32 @@ def _add_softcopy_voi_lut_attributes(
         Dataset to which attributes should be added
     referenced_images: Sequence[pydicom.Dataset]
         Images that should be referenced
-    softcopy_voi_luts: Sequence[highdicom.pr.SoftcopyVOILUT]
-        One or more pixel value-of-interest operations to be applied after
-        the modality LUT and/or rescale operation. Note that multiple
-        items should only be provided if no image, or frame within a
-        multi-frame image, is referenced by more than one item.
+    voi_lut_transformations: Sequence[highdicom.pr.SoftcopyVOILUTTransformation]
+        Description of the VOI LUT Transformation for tranforming modality
+        pixel values into pixel values that are of interest to a user or an
+        application
 
-    """
-    if len(softcopy_voi_luts) == 0:
-        raise ValueError('Argument "softcopy_voi_luts" must not be empty.')
-    for i, v in enumerate(softcopy_voi_luts):
-        if not isinstance(v, SoftcopyVOILUT):
+    """  # noqa: E501
+    if len(voi_lut_transformations) == 0:
+        raise ValueError(
+            'Argument "voi_lut_transformations" must not be empty.'
+        )
+    for i, v in enumerate(voi_lut_transformations):
+        if not isinstance(v, SoftcopyVOILUTTransformation):
             raise TypeError(
-                f'Item #{i} of "softcopy_voi_luts" must have type '
-                'highdicom.pr.SoftcopyVOILUT.'
+                f'Item #{i} of "voi_lut_transformations" must have '
+                'highdicom.pr.SoftcopyVOILUTTransformation.'
             )
 
-    if len(softcopy_voi_luts) > 1:
+    if len(voi_lut_transformations) > 1:
         if not all(
             hasattr(v, 'ReferencedImageSequence')
-            for v in softcopy_voi_luts
+            for v in voi_lut_transformations
         ):
             raise ValueError(
-                'If multiple items are passed in "softcopy_voi_luts", '
-                'each must specify the images that it applies to.'
+                'If multiple items of argument '
+                '"voi_lut_transformations" are passed, '
+                'each must reference the images that it applies to.'
             )
 
     ref_images_lut = {
@@ -1353,11 +1298,11 @@ def _add_softcopy_voi_lut_attributes(
     }
     prev_ref_frames = defaultdict(list)
     prev_ref_segs = defaultdict(list)
-    for v in softcopy_voi_luts:
+    for transformation in voi_lut_transformations:
         # If the softcopy VOI LUT references specific images,
         # check that the references are valid
-        if hasattr(v, 'ReferencedImageSequence'):
-            for item in v.ReferencedImageSequence:
+        if hasattr(transformation, 'ReferencedImageSequence'):
+            for item in transformation.ReferencedImageSequence:
                 uids = (
                     item.ReferencedSOPClassUID,
                     item.ReferencedSOPInstanceUID
@@ -1366,7 +1311,7 @@ def _add_softcopy_voi_lut_attributes(
                     raise ValueError(
                         f'Instance with SOP Instance UID {uids[1]} and '
                         f'SOP Class UID {uids[0]} is referenced in '
-                        'items of "softcopy_voi_luts", but not '
+                        'items of "voi_lut_transformations", but not '
                         'included in "referenced_images".'
                     )
                 ref_im = ref_images_lut[uids]
@@ -1423,13 +1368,13 @@ def _add_softcopy_voi_lut_attributes(
                             )
                         prev_ref_segs[uids].append(s)
 
-    dataset.SoftcopyVOILUTSequence = softcopy_voi_luts
+    dataset.SoftcopyVOILUTSequence = voi_lut_transformations
 
 
-def _extract_softcopy_voi_lut_attributes(
+def _get_softcopy_voi_lut_transformations(
     referenced_images: Sequence[Dataset]
-) -> Dataset:
-    """Get attributes of module Softcopy VOI LUT from referenced images.
+) -> Sequence[SoftcopyVOILUTTransformation]:
+    """Get Softcopy VOI LUT Transformation from referenced images.
 
     Any Window Center, Window Width, Window Explanation, VOI LUT Function,
     or VOI LUT Sequence attributes the referenced images are copied to the
@@ -1446,11 +1391,11 @@ def _extract_softcopy_voi_lut_attributes(
 
     Returns
     -------
-    pydicom.Dataset
+    Sequence[highdicom.SoftcopyVOILUTTransformation]
         Dataset containing attributes of module Softcopy VOI LUT
 
     """
-    dataset = Dataset()
+    transformations = []
     if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
         if len(referenced_images) > 1:
             raise ValueError(
@@ -1466,7 +1411,7 @@ def _extract_softcopy_voi_lut_attributes(
             # groups and therefore are consistent between frames
             voi_seq = shared_grps.FrameVOILUTSequence[0]
 
-            softcopy_voi_lut = SoftcopyVOILUT(
+            softcopy_voi_lut_transformation = SoftcopyVOILUTTransformation(
                 window_center=voi_seq.WindowCenter,
                 window_width=voi_seq.WindowWidth,
                 window_explanation=getattr(
@@ -1476,7 +1421,7 @@ def _extract_softcopy_voi_lut_attributes(
                 ),
                 voi_lut_function=getattr(voi_seq, 'VOILUTFunction', None),
             )
-            dataset.SoftcopyVOILUTSequence = [softcopy_voi_lut]
+            transformations.append(softcopy_voi_lut_transformation)
 
         else:
             # Check the per-frame functional groups, which may be
@@ -1499,7 +1444,6 @@ def _extract_softcopy_voi_lut_attributes(
                         getattr(voi_seq, 'VOILUTFunction', None),
                     )].append(frame_number)
 
-            softcopy_voi_luts = []
             for (width, center, exp, func), frame_list in by_window.items():
                 if len(frame_list) == im.NumberOfFrames:
                     # All frames included, no need to include the
@@ -1512,8 +1456,8 @@ def _extract_softcopy_voi_lut_attributes(
                         referenced_frame_number=frame_list,
                     )
 
-                softcopy_voi_luts.append(
-                    SoftcopyVOILUT(
+                transformations.append(
+                    SoftcopyVOILUTTransformation(
                         window_center=center,
                         window_width=width,
                         window_explanation=exp,
@@ -1521,8 +1465,6 @@ def _extract_softcopy_voi_lut_attributes(
                         referenced_images=refs_to_include
                     )
                 )
-
-            dataset.SoftcopyVOILUTSequence = softcopy_voi_luts
 
     else:  # single frame
         by_window = defaultdict(list)
@@ -1566,7 +1508,6 @@ def _extract_softcopy_voi_lut_attributes(
                 lut_id = tuple(lut_info)
                 by_lut[lut_id].append(ref_im)
 
-        softcopy_voi_luts = []
         for (width, center, exp, func), im_list in by_window.items():
             if len(im_list) == len(referenced_images):
                 # All datasets included, no need to include the referenced
@@ -1576,8 +1517,8 @@ def _extract_softcopy_voi_lut_attributes(
                 # Include specific references
                 refs_to_include = ReferencedImageSequence(im_list)
 
-            softcopy_voi_luts.append(
-                SoftcopyVOILUT(
+            transformations.append(
+                SoftcopyVOILUTTransformation(
                     window_center=center,
                     window_width=width,
                     window_explanation=exp,
@@ -1596,7 +1537,7 @@ def _extract_softcopy_voi_lut_attributes(
                 refs_to_include = ReferencedImageSequence(im_list)
 
             luts = [
-                LUT(
+                VOILUT(
                     first_mapped_value=fmv,
                     lut_data=np.frombuffer(
                         data,
@@ -1606,22 +1547,18 @@ def _extract_softcopy_voi_lut_attributes(
                 )
                 for (fmv, ba, exp, data) in lut_id
             ]
-            softcopy_voi_luts.append(
-                SoftcopyVOILUT(
+            transformations.append(
+                SoftcopyVOILUTTransformation(
                     referenced_images=refs_to_include,
-                    luts=luts
+                    voi_luts=luts
                 )
             )
 
-        dataset.SoftcopyVOILUTSequence = softcopy_voi_luts
-
-    return dataset
+    return transformations
 
 
-def _extract_icc_profile_attributes(
-    referenced_images: Sequence[Dataset]
-) -> Dataset:
-    """Get attributes of module ICC Profile from a referenced image.
+def _get_icc_profile(referenced_images: Sequence[Dataset]) -> bytes:
+    """Get ICC Profile from a referenced image.
 
     Parameters
     ----------
@@ -1630,8 +1567,8 @@ def _extract_icc_profile_attributes(
 
     Returns
     -------
-    pydicom.Dataset
-        Dataset containing attributes of module ICC Profile
+    bytes
+        ICC Profile
 
     Raises
     ------
@@ -1662,9 +1599,7 @@ def _extract_icc_profile_attributes(
             'Found more than one ICC Profile in referenced images.'
         )
 
-    dataset = Dataset()
-    dataset.ICCProfile = icc_profiles[0]
-    return dataset
+    return icc_profiles[0]
 
 
 def _add_icc_profile_attributes(
@@ -1711,7 +1646,7 @@ def _add_icc_profile_attributes(
 
 def _add_palette_color_lookup_table_attributes(
     dataset: Dataset,
-    palette_color_lut: PaletteColorLookupTable
+    palette_color_lut_transformation: PaletteColorLUTTransformation
 ) -> None:
     """Add attributes from the Palette Color Lookup Table module.
 
@@ -1719,31 +1654,49 @@ def _add_palette_color_lookup_table_attributes(
     ----------
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
-    palette_color_lut: highdicom.content.PaletteColorLookupTable
-        A palette color lookup table to apply to the image.
+    palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
+        Description of the Palette Color LUT Transformation for tranforming
+        grayscale into RGB color pixel values
+
+    """  # noqa: E501
+    if not isinstance(
+        palette_color_lut_transformation,
+        PaletteColorLUTTransformation
+    ):
+        raise TypeError(
+            'Argument "palette_color_lut_transformation" must be of type '
+            'PaletteColorLUTTransformation.'
+        )
+
+    for element in palette_color_lut_transformation:
+        dataset[element.tag] = element
+
+
+def _add_softcopy_presentation_lut_attributes(
+    dataset: Dataset,
+    presentation_lut_transformation: PresentationLUTTransformation,
+) -> None:
+    """Add attributes of module Softcopy Presentation LUT.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to which attributes should be added
+    presentation_lut_transformation: highdicom.pr.PresentationLUTTransformation
+        Description of the Modality LUT Transformation for tranforming modality
+        dependent into modality independent pixel values
 
     """
-    if not isinstance(palette_color_lut, PaletteColorLookupTable):
-        raise TypeError(
-            'Argument "palette_color_lut" must be of type '
-            'PaletteColorLookupTable.'
+    if not isinstance(
+        presentation_lut_transformation,
+        PresentationLUTTransformation
+    ):
+        raise ValueError(
+            'Argument "presenation_lut_transformation" must have type '
+            'PresentationLUTTransformation.'
         )
-    colors = ['Red', 'Green', 'Blue']
-
-    for color in colors:
-        desc_attr = f'{color}PaletteColorLookupTableDescriptor'
-        desc = getattr(palette_color_lut, desc_attr)
-        setattr(dataset, desc_attr, desc)
-
-        data_attr = f'{color}PaletteColorLookupTableData'
-        if not hasattr(palette_color_lut, data_attr):
-            data_attr = f'Segmented{color}PaletteColorLookupTableData'
-        lut = getattr(palette_color_lut, data_attr)
-        setattr(dataset, data_attr, lut)
-
-    if hasattr(palette_color_lut, 'PaletteColorLookupTableUID'):
-        uid = palette_color_lut.PaletteColorLookupTableUID
-        dataset.PaletteColorLookupTableUID = uid
+    for element in presentation_lut_transformation:
+        dataset[element.tag] = element
 
 
 class AdvancedBlending(Dataset):
@@ -1754,12 +1707,15 @@ class AdvancedBlending(Dataset):
         self,
         referenced_images: Sequence[Dataset],
         blending_input_number: int,
-        rescale_intercept: Union[int, float, None] = None,
-        rescale_slope: Union[int, float, None] = None,
-        rescale_type: Union[RescaleTypeValues, str, None] = None,
-        modality_lut: Optional[ModalityLUT] = None,
-        softcopy_voi_luts: Optional[Sequence[SoftcopyVOILUT]] = None,
-        palette_color_lut: Optional[PaletteColorLookupTable] = None,
+        modality_lut_transformation: Optional[
+            ModalityLUTTransformation
+        ] = None,
+        voi_lut_transformations: Optional[
+            Sequence[SoftcopyVOILUTTransformation]
+        ] = None,
+        palette_color_lut_transformation: Optional[
+            PaletteColorLUTTransformation
+        ] = None,
     ) -> None:
         """
 
@@ -1770,29 +1726,22 @@ class AdvancedBlending(Dataset):
         blending_input_number: int
             Relative one-based index of the item for input into the blending
             operation
-        rescale_intercept: Union[int, float, None], optional
-            Intercept used for rescaling pixel values.
-        rescale_slope: Union[int, float, None], optional
-            Slope used for rescaling pixel values.
-        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
-            String or enumerated value specifying the units of the output of
-            the Modality LUT or rescale operation.
-        modality_lut: Union[highdicom.ModalityLUT, None], optional
-            Lookup table specifying a pixel rescaling operation to apply to
-            the stored values to give modality values.
-        softcopy_voi_luts: Union[Sequence[highdicom.pr.SoftcopyVOILUT], None], optional
-            One or more pixel value-of-interest operations to be applied after
-            the modality LUT and/or rescale operation. Note that multiple
-            items should only be provided if no image, or frame within a
-            multi-frame image, is referenced by more than one item.
-        palette_color_lut: Union[highdicom.content.PaletteColorLookupTable, None], optional
-            Palette color lookup table to apply to grayscale images.
+        modality_lut_transformation: Union[highdicom.ModalityLUTTransformation, None], optional
+            Description of the Modality LUT Transformation for tranforming modality
+            dependent into modality independent pixel values
+        voi_lut_transformations: Union[Sequence[highdicom.pr.SoftcopyVOILUTTransformation], None], optional
+            Description of the VOI LUT Transformation for tranforming
+            modality pixel values into pixel values that are of interest to a
+            user or an application
+        palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
+            Description of the Palette Color LUT Transformation for tranforming
+            grayscale into RGB color pixel values
 
         """  # noqa: E501
         super().__init__()
         ref_im = referenced_images[0]
         if ref_im.SamplesPerPixel == 1:
-            if palette_color_lut is None:
+            if palette_color_lut_transformation is None:
                 raise ValueError(
                     'For advanced blending presentation, if referenced images '
                     'are grayscale a palette color lookup table must be '
@@ -1851,95 +1800,77 @@ class AdvancedBlending(Dataset):
         self.SeriesInstanceUID = UID()
 
         # Modality LUT
-        if modality_lut is not None:
+        if modality_lut_transformation is None:
+            try:
+                modality_lut_transformation = _get_modality_lut_transformation(
+                    referenced_images
+                )
+            except (ValueError, TypeError, AttributeError):
+                logger.debug(
+                    'no Modality LUT attributes found in referenced images'
+                )
+
+        if modality_lut_transformation is not None:
+            logger.debug(
+                'use Modality LUT attributes from referenced images'
+            )
             _add_modality_lut_attributes(
                 self,
-                modality_lut=modality_lut
+                modality_lut_transformation=modality_lut_transformation
             )
-        else:
-            were_rescale_attributes_provided = [
-                rescale_intercept is not None,
-                rescale_slope is not None,
-                rescale_type is not None,
-            ]
-            if all(were_rescale_attributes_provided):
-                _add_modality_lut_attributes(
-                    self,
-                    rescale_intercept=rescale_intercept,
-                    rescale_slope=rescale_slope,
-                    rescale_type=rescale_type
-                )
-            elif any(were_rescale_attributes_provided):
-                raise TypeError(
-                    'Arguments "rescale_intercept", "rescale_slope", and '
-                    '"rescale_type" must either all be provided or none of '
-                    'them shall be provided.'
-                )
-            else:
-                try:
-                    ds = _get_modality_lut_attributes(referenced_images)
-                except (ValueError, AttributeError):
-                    logger.debug(
-                        'no Modality LUT attributes found in referenced images'
-                    )
-                logger.debug(
-                    'use Modality LUT attributes from referenced images'
-                )
-                _add_modality_lut_attributes(
-                    self,
-                    rescale_intercept=ds.RescaleIntercept,
-                    rescale_slope=ds.RescaleSlope,
-                    rescale_type=ds.RescaleType
-                )
 
         # Softcopy VOI LUT
-        if softcopy_voi_luts is not None:
-            if len(softcopy_voi_luts) == 0:
+        if voi_lut_transformations is not None:
+            if len(voi_lut_transformations) == 0:
                 raise ValueError(
-                    'Argument "softcopy_voi_luts" must not be empty.'
+                    'Argument "voi_lut_transformations" must not be '
+                    'empty.'
                 )
-            for v in softcopy_voi_luts:
-                if not isinstance(v, SoftcopyVOILUT):
+            for v in voi_lut_transformations:
+                if not isinstance(v, SoftcopyVOILUTTransformation):
                     raise TypeError(
-                        'Items of "softcopy_voi_luts" must be of type '
-                        'SoftcopyVOILUT.'
+                        'Items of argument "voi_lut_transformations" '
+                        'must be of type SoftcopyVOILUTTransformation.'
                     )
 
-            if len(softcopy_voi_luts) > 1:
+            if len(voi_lut_transformations) > 1:
                 if not all(
                     hasattr(v, 'ReferencedImageSequence')
-                    for v in softcopy_voi_luts
+                    for v in voi_lut_transformations
                 ):
                     raise ValueError(
-                        'If multiple items are passed in "softcopy_voi_luts", '
-                        'each must specify the images that it applies to.'
+                        'If argument "voi_lut_transformations" '
+                        'contains multiple items, each item must reference the '
+                        'images that it applies to.'
                     )
             _add_softcopy_voi_lut_attributes(
                 self,
                 referenced_images=referenced_images,
-                softcopy_voi_luts=softcopy_voi_luts
+                voi_lut_transformations=voi_lut_transformations
             )
         else:
             try:
-                ds = _extract_softcopy_voi_lut_attributes(referenced_images)
+                voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+                    referenced_images
+                )
             except (AttributeError, ValueError):
                 logger.debug(
                     'no VOI LUT attributes found in referenced images'
                 )
-            if len(ds.SoftcopyVOILUTSequence) > 0:
+            if len(voi_lut_transformations) > 0:
                 logger.debug(
                     'use VOI LUT attributes from referenced images'
                 )
                 _add_softcopy_voi_lut_attributes(
                     self,
                     referenced_images=referenced_images,
-                    softcopy_voi_luts=ds.SoftcopyVOILUTSequence
+                    voi_lut_transformations=voi_lut_transformations
                 )
 
         # Palette Color Lookup Table
         _add_palette_color_lookup_table_attributes(
             self,
-            palette_color_lut=palette_color_lut
+            palette_color_lut_transformation=palette_color_lut_transformation
         )
 
 

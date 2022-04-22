@@ -14,15 +14,19 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 
 from highdicom import (
-    ColorLUT,
+    PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
-    LUT,
     ModalityLUT,
-    PaletteColorLookupTable,
+    ModalityLUTTransformation,
+    PresentationLUT,
+    PresentationLUTShapeValues,
+    PresentationLUTTransformation,
+    PaletteColorLUTTransformation,
     RescaleTypeValues,
     ReferencedImageSequence,
-    SegmentedColorLUT,
+    SegmentedPaletteColorLUT,
     UID,
+    VOILUT,
     VOILUTFunctionValues,
 )
 from highdicom.color import CIELabColor
@@ -39,18 +43,17 @@ from highdicom.pr import (
     GraphicObject,
     GraphicTypeValues,
     GrayscaleSoftcopyPresentationState,
-    PresentationLUTShapeValues,
     PseudoColorSoftcopyPresentationState,
-    SoftcopyVOILUT,
+    SoftcopyVOILUTTransformation,
     TextObject,
 )
 
 
-class TestSoftcopyVOILUT(unittest.TestCase):
+class TestSoftcopyVOILUTTransformation(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._lut = LUT(
+        self._lut = VOILUT(
             first_mapped_value=0,
             lut_data=np.array([10, 11, 12], np.uint8)
         )
@@ -64,7 +67,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         )
 
     def test_construction_basic(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0
         )
@@ -73,7 +76,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert not hasattr(lut, 'VOILUTSequence')
 
     def test_construction_explanation(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             window_explanation='Soft Tissue Window'
@@ -82,7 +85,7 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert lut.WindowWidth == 400.0
 
     def test_construction_multiple(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=[40.0, 600.0],
             window_width=[400.0, 1500.0],
             window_explanation=['Soft Tissue Window', 'Lung Window'],
@@ -92,28 +95,28 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_multiple_mismatch1(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=40.0,
                 window_width=[400.0, 1500.0],
             )
 
     def test_construction_multiple_mismatch2(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=400.0,
             )
 
     def test_construction_multiple_mismatch3(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0, -50.0],
             )
 
     def test_construction_explanation_mismatch(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=[40.0, 600.0],
                 window_width=[400.0, 1500.0],
                 window_explanation='Lung Window',
@@ -121,14 +124,14 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_explanation_mismatch2(self):
         with pytest.raises(ValueError):
-            SoftcopyVOILUT(
+            SoftcopyVOILUTTransformation(
                 window_center=40.0,
                 window_width=400.0,
                 window_explanation=['Soft Tissue Window', 'Lung Window'],
             )
 
     def test_construction_lut_function(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             voi_lut_function=VOILUTFunctionValues.SIGMOID,
@@ -138,16 +141,16 @@ class TestSoftcopyVOILUT(unittest.TestCase):
         assert lut.VOILUTFunction == VOILUTFunctionValues.SIGMOID.value
 
     def test_construction_luts(self):
-        lut = SoftcopyVOILUT(luts=[self._lut])
+        lut = SoftcopyVOILUTTransformation(voi_luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
 
     def test_construction_both(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
-            luts=[self._lut]
+            voi_luts=[self._lut]
         )
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0
@@ -155,10 +158,10 @@ class TestSoftcopyVOILUT(unittest.TestCase):
 
     def test_construction_neither(self):
         with pytest.raises(TypeError):
-            SoftcopyVOILUT()
+            SoftcopyVOILUTTransformation()
 
     def test_construction_ref_ims(self):
-        lut = SoftcopyVOILUT(
+        lut = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ReferencedImageSequence(self._ct_series)
@@ -781,14 +784,14 @@ class TestAdvancedBlending(unittest.TestCase):
         ds = AdvancedBlending(
             referenced_images=[self._sm_image],
             blending_input_number=1,
-            softcopy_voi_luts=[
-                SoftcopyVOILUT(
+            voi_lut_transformations=[
+                SoftcopyVOILUTTransformation(
                     window_center=12.,
                     window_width=24.
                 )
             ],
-            palette_color_lut=PaletteColorLookupTable(
-                red_lut=SegmentedColorLUT(
+            palette_color_lut_transformation=PaletteColorLUTTransformation(
+                red_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
                     number_of_entries=256,
                     segmented_lut_data=np.array(
@@ -802,7 +805,7 @@ class TestAdvancedBlending(unittest.TestCase):
                     ),
                     color='red'
                 ),
-                green_lut=SegmentedColorLUT(
+                green_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
                     number_of_entries=256,
                     segmented_lut_data=np.array(
@@ -816,7 +819,7 @@ class TestAdvancedBlending(unittest.TestCase):
                     ),
                     color='green'
                 ),
-                blue_lut=SegmentedColorLUT(
+                blue_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
                     number_of_entries=256,
                     segmented_lut_data=np.array(
@@ -1043,20 +1046,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             lut_data=np.arange(256, dtype=np.uint8)
         )
 
-        self._softcopy_voi_lut = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            window_explanation='Soft Tissue Window'
-        )
-
-        self._softcopy_voi_lut_partial = SoftcopyVOILUT(
-            window_center=40.0,
-            window_width=400.0,
-            window_explanation='Soft Tissue Window',
-            referenced_images=ReferencedImageSequence(self._ct_series)
-        )
-
-        self._presentation_lut = LUT(
+        self._presentation_lut = PresentationLUT(
             lut_data=np.arange(10, 100, dtype=np.uint8),
             first_mapped_value=0
         )
@@ -1120,9 +1110,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            rescale_intercept=1024.0,
-            rescale_slope=2.0,
-            rescale_type='HU',
+            modality_lut_transformation=ModalityLUTTransformation(
+                rescale_intercept=1024.0,
+                rescale_slope=2.0,
+                rescale_type='HU',
+            )
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -1162,7 +1154,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            modality_lut=self._modality_lut,
+            modality_lut_transformation=ModalityLUTTransformation(
+                modality_lut=self._modality_lut,
+            )
         )
         assert gsps.SeriesInstanceUID == self._series_uid
         assert gsps.SOPInstanceUID == self._sop_uid
@@ -1248,7 +1242,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            softcopy_voi_luts=[self._softcopy_voi_lut],
+            voi_lut_transformations=[
+                SoftcopyVOILUTTransformation(
+                    window_center=40.0,
+                    window_width=400.0,
+                    window_explanation='Soft Tissue Window'
+                )
+            ]
+
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert hasattr(gsps.SoftcopyVOILUTSequence[0], 'WindowWidth')
@@ -1354,8 +1355,8 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
         # Construct test LUT data
         luts = [
-            LUT(0, np.array([2, 3, 4], np.uint16)),
-            LUT(0, np.array([5, 6, 7], np.uint16))
+            VOILUT(0, np.array([2, 3, 4], np.uint16)),
+            VOILUT(0, np.array([5, 6, 7], np.uint16)),
         ]
         ct_im.VOILUTSequence = luts
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1413,11 +1414,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             edited_multiframe.SharedFunctionalGroupsSequence[0],
             'FrameVOILUTSequence'
         )
-        new_voi_lut_0 = SoftcopyVOILUT(
+        new_voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
         )
-        new_voi_lut_1 = SoftcopyVOILUT(
+        new_voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
         )
@@ -1475,17 +1476,26 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[self._softcopy_voi_lut_partial],
+                voi_lut_transformations=[
+                    SoftcopyVOILUTTransformation(
+                        window_center=40.0,
+                        window_width=400.0,
+                        window_explanation='Soft Tissue Window',
+                        referenced_images=ReferencedImageSequence(
+                            self._ct_series
+                        )
+                    )
+                ]
                 # references missing images ^
             )
 
     def test_construction_with_voi_lut_with_ref_ims(self):
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ReferencedImageSequence(self._ct_series[:1])
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ReferencedImageSequence(self._ct_series[1:])
@@ -1507,7 +1517,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            voi_lut_transformations=[voi_lut_0, voi_lut_1],
         )
         assert len(gsps.SoftcopyVOILUTSequence) == 2
         assert hasattr(
@@ -1516,12 +1526,12 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         )
 
     def test_construction_with_voi_lut_two_vois_for_image(self):
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ReferencedImageSequence(self._ct_series)
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ReferencedImageSequence(self._ct_series[2:3])
@@ -1544,16 +1554,16 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_multiple_voi_luts_with_no_ref_ims(self):
         # Two VOI LUT sequences, one of which does not specify images
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ReferencedImageSequence(self._ct_series[2:3])
@@ -1576,7 +1586,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_softcopy_voi_lut_with_ref_frames(self):
@@ -1584,7 +1594,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             referenced_frame_number=[1]
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1593,7 +1603,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             referenced_frame_number=[2]
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1613,7 +1623,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            voi_lut_transformations=[voi_lut_0, voi_lut_1],
         )
         ref_im_seq_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
         assert ref_im_seq_0[0].ReferencedFrameNumber == 1
@@ -1625,7 +1635,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             referenced_frame_number=[1]
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1634,7 +1644,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             referenced_frame_number=[1, 2]  # overlap with previous frames
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1655,14 +1665,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_softcopy_voi_lut_with_duplicate_frames_2(self):
         ref_ims_0 = ReferencedImageSequence(
             referenced_images=[self._ct_multiframe],  # applies to all frames
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1671,7 +1681,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._ct_multiframe],
             referenced_frame_number=[1, 2]  # overlap with previous frames
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1692,7 +1702,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_softcopy_voi_lut_with_ref_segments(self):
@@ -1700,7 +1710,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._seg],
             referenced_segment_number=[1]
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1709,7 +1719,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._seg],
             referenced_segment_number=[2]
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1729,7 +1739,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+            voi_lut_transformations=[voi_lut_0, voi_lut_1],
         )
         ref_im_seq_0 = gsps.SoftcopyVOILUTSequence[0].ReferencedImageSequence
         assert ref_im_seq_0[0].ReferencedSegmentNumber == 1
@@ -1741,7 +1751,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._seg],
             referenced_segment_number=[1]
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1750,7 +1760,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._seg],
             referenced_segment_number=[1, 2]  # overlap with previous
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1771,14 +1781,14 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_softcopy_voi_lut_with_duplicate_segments_2(self):
         ref_ims_0 = ReferencedImageSequence(
             referenced_images=[self._seg],  # applies to all segments
         )
-        voi_lut_0 = SoftcopyVOILUT(
+        voi_lut_0 = SoftcopyVOILUTTransformation(
             window_center=1600.0,
             window_width=2000.0,
             referenced_images=ref_ims_0,
@@ -1787,7 +1797,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             referenced_images=[self._seg],
             referenced_segment_number=[1, 2]  # overlap with previous
         )
-        voi_lut_1 = SoftcopyVOILUT(
+        voi_lut_1 = SoftcopyVOILUTTransformation(
             window_center=40.0,
             window_width=400.0,
             referenced_images=ref_ims_1,
@@ -1808,7 +1818,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                softcopy_voi_luts=[voi_lut_0, voi_lut_1],
+                voi_lut_transformations=[voi_lut_0, voi_lut_1],
             )
 
     def test_construction_with_presentation_lut_shape(self):
@@ -1829,7 +1839,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+            presentation_lut_transformation=PresentationLUTTransformation(
+                presentation_lut_shape=PresentationLUTShapeValues.INVERSE
+            )
         )
         assert gsps.PresentationLUTShape == 'INVERSE'
         assert not hasattr(gsps, 'PresentationLUTSequence')
@@ -1852,7 +1864,9 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            presentation_luts=[self._presentation_lut]
+            presentation_lut_transformation=PresentationLUTTransformation(
+                presentation_luts=[self._presentation_lut]
+            )
         )
         assert len(gsps.PresentationLUTSequence) == 1
         assert not hasattr(gsps, 'PresentationLUTShape')
@@ -1876,8 +1890,10 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 institution_name='MGH',
                 institutional_department_name='Radiology',
                 content_creator_name='Doe^John',
-                presentation_luts=[self._presentation_lut],
-                presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+                presentation_lut_transformation=PresentationLUTTransformation(
+                    presentation_luts=[self._presentation_lut],
+                    presentation_lut_shape=PresentationLUTShapeValues.INVERSE,
+                )
             )
 
     def test_construction_color(self):
@@ -2152,17 +2168,17 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
             )
 
-    def test_construction_palette_color_lut(self):
+    def test_construction_palette_color_lut_transformation(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
         b_lut_data = np.arange(30, 140, dtype=np.uint16)
         r_first_mapped_value = 32
         g_first_mapped_value = 32
         b_first_mapped_value = 32
-        r_lut = ColorLUT(r_first_mapped_value, r_lut_data, color='red')
-        g_lut = ColorLUT(g_first_mapped_value, g_lut_data, color='green')
-        b_lut = ColorLUT(b_first_mapped_value, b_lut_data, color='blue')
-        lut = PaletteColorLookupTable(
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        transformation = PaletteColorLUTTransformation(
             red_lut=r_lut,
             green_lut=g_lut,
             blue_lut=b_lut,
@@ -2185,7 +2201,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             institution_name='MGH',
             institutional_department_name='Radiology',
             content_creator_name='Doe^John',
-            palette_color_lut=lut,
+            palette_color_lut_transformation=transformation,
         )
         assert pr.SeriesInstanceUID == self._series_uid
         assert pr.SOPInstanceUID == self._sop_uid

@@ -16,7 +16,7 @@ from pydicom.uid import (
 
 from highdicom import (
     ColorLUT,
-    PaletteColorLookupTable,
+    PaletteColorLUTTransformation,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
@@ -444,7 +444,7 @@ class TestParametricMap(unittest.TestCase):
         r_lut = ColorLUT(r_first_mapped_value, r_lut_data, color='red')
         g_lut = ColorLUT(g_first_mapped_value, g_lut_data, color='green')
         b_lut = ColorLUT(b_first_mapped_value, b_lut_data, color='blue')
-        lut = PaletteColorLookupTable(
+        transformation = PaletteColorLUTTransformation(
             red_lut=r_lut,
             green_lut=g_lut,
             blue_lut=b_lut,
@@ -468,7 +468,7 @@ class TestParametricMap(unittest.TestCase):
             content_qualification=ContentQualificationValues.SERVICE,
             image_flavor=ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=DerivedPixelContrastValues.NONE,
-            palette_color_lut=lut,
+            palette_color_lut_transformation=transformation,
         )
         assert instance.PixelPresentation == 'COLOR_RANGE'
         assert instance.PaletteColorLookupTableUID == lut_uid
