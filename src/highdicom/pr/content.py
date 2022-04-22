@@ -1105,7 +1105,7 @@ def _add_modality_lut_attributes(
 
 def _get_modality_lut_transformation(
     referenced_images: Sequence[Dataset]
-) -> ModalityLUTTransformation:
+) -> Union[ModalityLUTTransformation, None]:
     """Get Modality LUT Transformation from the referenced images.
 
     Parameters
@@ -1115,9 +1115,10 @@ def _get_modality_lut_transformation(
 
     Returns
     -------
-    highdicom.ModalityLUTTransformation
+    Union[ModalityLUTTransformation, None]
         Description of the Modality LUT Transformation for tranforming modality
-        dependent into modality independent pixel values
+        dependent into modality independent pixel values. None if no such
+        attributes are found in the referenced images.
 
     Raises
     ------
@@ -1244,11 +1245,14 @@ def _get_modality_lut_transformation(
             else:
                 rescale_type = RescaleTypeValues.HU.value
 
-    return ModalityLUTTransformation(
-        rescale_intercept=intercept,
-        rescale_slope=slope,
-        rescale_type=rescale_type
-    )
+    if intercept is None:
+        return None
+    else:
+        return ModalityLUTTransformation(
+            rescale_intercept=intercept,
+            rescale_slope=slope,
+            rescale_type=rescale_type
+        )
 
 
 def _add_softcopy_voi_lut_attributes(
@@ -1799,25 +1803,27 @@ class AdvancedBlending(Dataset):
         self.StudyInstanceUID = ref_im.StudyInstanceUID
         self.SeriesInstanceUID = UID()
 
-        # Modality LUT
-        if modality_lut_transformation is None:
-            try:
-                modality_lut_transformation = _get_modality_lut_transformation(
-                    referenced_images
-                )
-            except (ValueError, TypeError, AttributeError):
-                logger.debug(
-                    'no Modality LUT attributes found in referenced images'
-                )
-
         if modality_lut_transformation is not None:
-            logger.debug(
-                'use Modality LUT attributes from referenced images'
-            )
             _add_modality_lut_attributes(
                 self,
                 modality_lut_transformation=modality_lut_transformation
             )
+        else:
+            modality_lut_transformation = _get_modality_lut_transformation(
+                referenced_images
+            )
+            if modality_lut_transformation is None:
+                logger.debug(
+                    'no Modality LUT attributes found in referenced images'
+                )
+            else:
+                logger.debug(
+                    'use Modality LUT attributes from referenced images'
+                )
+                _add_modality_lut_attributes(
+                    self,
+                    modality_lut_transformation=modality_lut_transformation
+                )
 
         # Softcopy VOI LUT
         if voi_lut_transformations is not None:

@@ -246,21 +246,21 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 modality_lut_transformation=modality_lut_transformation
             )
         else:
-            try:
-                modality_lut_transformation = _get_modality_lut_transformation(
-                    referenced_images
-                )
-            except (ValueError, AttributeError):
+            modality_lut_transformation = _get_modality_lut_transformation(
+                referenced_images
+            )
+            if modality_lut_transformation is None:
                 logger.debug(
                     'no Modality LUT attributes found in referenced images'
                 )
-            logger.debug(
-                'use Modality LUT attributes from referenced images'
-            )
-            _add_modality_lut_attributes(
-                self,
-                modality_lut_transformation=modality_lut_transformation
-            )
+            else:
+                logger.debug(
+                    'use Modality LUT attributes from referenced images'
+                )
+                _add_modality_lut_attributes(
+                    self,
+                    modality_lut_transformation=modality_lut_transformation
+                )
 
         # Softcopy VOI LUT
         if voi_lut_transformations is not None:
@@ -514,21 +514,21 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 modality_lut_transformation=modality_lut_transformation
             )
         else:
-            try:
-                modality_lut_transformation = _get_modality_lut_transformation(
-                    referenced_images
-                )
-            except (ValueError, AttributeError):
+            modality_lut_transformation = _get_modality_lut_transformation(
+                referenced_images
+            )
+            if modality_lut_transformation is None:
                 logger.debug(
                     'no Modality LUT attributes found in referenced images'
                 )
-            logger.debug(
-                'use Modality LUT attributes from referenced images'
-            )
-            _add_modality_lut_attributes(
-                self,
-                modality_lut_transformation=modality_lut_transformation
-            )
+            else:
+                logger.debug(
+                    'use Modality LUT attributes from referenced images'
+                )
+                _add_modality_lut_attributes(
+                    self,
+                    modality_lut_transformation=modality_lut_transformation
+                )
 
         # Softcopy VOI LUT
         if voi_lut_transformations is not None:
