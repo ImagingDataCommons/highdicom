@@ -1824,7 +1824,6 @@ class SegmentedPaletteColorLUT(Dataset):
     def __init__(
         self,
         first_mapped_value: int,
-        number_of_entries: int,
         segmented_lut_data: np.ndarray,
         color: str
     ):
@@ -1835,8 +1834,6 @@ class SegmentedPaletteColorLUT(Dataset):
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup table.
-        number_of_entries: int
-            Total number of entries in the expanded lookup table
         segmented_lut_data: numpy.ndarray
             Segmented lookup table data. Must be of type uint8 or uint16.
         color: str
@@ -1885,8 +1882,10 @@ class SegmentedPaletteColorLUT(Dataset):
             len_data = 0
         if segmented_lut_data.dtype.type == np.uint8:
             bits_per_entry = 8
+            self._dtype = np.uint8
         elif segmented_lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
+            self._dtype = np.uint16
         else:
             raise ValueError(
                 "Numpy array must have dtype uint8 or uint16."
@@ -1903,26 +1902,72 @@ class SegmentedPaletteColorLUT(Dataset):
             f'Segmented{self._attr_name_prefix}Data',
             segmented_lut_data.tobytes()
         )
+
+        expanded_lut_values = []
+        i = 0
+        offset = 0
+        while i < len(segmented_lut_data):
+            print(f'--{i}--')
+            opcode = segmented_lut_data[i]
+            i += 1
+            print('OPCODE: ', opcode)
+            if opcode == 0:
+                # Discrete segment type (constant)
+                length = segmented_lut_data[i]
+                i += 1
+                value = segmented_lut_data[i]
+                i += 1
+                print(f'LENGTH: {length}, VALUE: {value}')
+                expanded_lut_values.extend([
+                    value for _ in range(length)
+                ])
+                offset += length
+            elif opcode == 1:
+                # Linear segment type (interpolation)
+                length = segmented_lut_data[i]
+                i += 1
+                print(len(expanded_lut_values), offset)
+                start_value = expanded_lut_values[offset - 1]
+                end_value = segmented_lut_data[i]
+                i += 1
+                step = (end_value - start_value) / (length - 1)
+                print(start_value, end_value)
+                expanded_lut_values.extend([
+                    start_value + int(np.round(j * step))
+                    for j in range(length)
+
+                ])
+                offset += length
+            elif opcode == 2:
+                # TODO
+                raise ValueError(
+                  'Indirect segment type is not yet supported for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+            else:
+                raise ValueError(
+                  'Encountered unexpected segment type for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+
+        self._lut_data = np.array(
+            expanded_lut_values,
+            dtype=self._dtype
+        )
+
+        number_of_entries = len(expanded_lut_values)
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
             [number_of_entries, int(first_mapped_value), bits_per_entry]
         )
 
-        self._lut_data = None
-
     @property
     def segmented_lut_data(self) -> np.ndarray:
         """numpy.ndarray: segmented lookup table data"""
-        if self.bits_per_entry == 8:
-            dtype = np.uint8
-        elif self.bits_per_entry == 16:
-            dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
-        array = np.frombuffer(data, dtype)
+        array = np.frombuffer(data, self._dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -1933,46 +1978,6 @@ class SegmentedPaletteColorLUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: expanded lookup table data"""
-        if self._lut_data is None:
-            self._lut_data = np.zeros(self.number_of_entries)
-            segmented_array = self.segmented_lut_data
-            i = 0
-            offset = 0
-            while i <= len(segmented_array):
-                opcode = segmented_array[i]
-                i += 1
-                if opcode == 0:
-                    # Discrete
-                    length = segmented_array[i]
-                    i += 1
-                    value = segmented_array[i]
-                    for j in range(length):
-                        self._lut_data[offset + j] = value
-                    offset += length
-                elif opcode == 1:
-                    # Linear (interpolation)
-                    length = segmented_array[i]
-                    i += 1
-                    endpoint = segmented_array[i]
-                    startpoint = self._lut_array[offset - 1]
-                    step = (endpoint - startpoint) / (length - 1)
-                    for j in range(length):
-                        self._lut_data[offset + j] = (
-                            startpoint + int(np.round(j * step))
-                        )
-                    offset += length
-                elif opcode == 2:
-                    # TODO
-                    raise ValueError(
-                      'Indirect segment type is not yet supported for '
-                      'Segmented Palette Color Lookup Table.'
-                    )
-                else:
-                    raise ValueError(
-                      'Encountered unexpected segment type for '
-                      'Segmented Palette Color Lookup Table.'
-                    )
-
         return self._lut_data
 
     @property
