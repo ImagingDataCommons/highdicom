@@ -1382,7 +1382,7 @@ def _get_softcopy_voi_lut_transformations(
 
     Any Window Center, Window Width, Window Explanation, VOI LUT Function,
     or VOI LUT Sequence attributes the referenced images are copied to the
-    new dataset.  Missing values will cause no errors, and
+    new sequence.  Missing values will cause no errors, and
     will result in the relevant (optional) attributes being omitted from
     the presentation state object.  Inconsistent values between
     referenced images will result in multiple different items of the
@@ -1403,8 +1403,9 @@ def _get_softcopy_voi_lut_transformations(
     if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
         if len(referenced_images) > 1:
             raise ValueError(
-                "The 'copy_voi_lut' option is not available when "
-                "multiple images are passed and any of them are multiframe."
+                "If multiple images are passed and any of them are multiframe, "
+                "a 'softcopy_voi_lut_transformation' must be explicitly "
+                "provided."
             )
 
         im = referenced_images[0]
@@ -1855,14 +1856,9 @@ class AdvancedBlending(Dataset):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            try:
-                voi_lut_transformations = _get_softcopy_voi_lut_transformations(
-                    referenced_images
-                )
-            except (AttributeError, ValueError):
-                logger.debug(
-                    'no VOI LUT attributes found in referenced images'
-                )
+            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+                referenced_images
+            )
             if len(voi_lut_transformations) > 0:
                 logger.debug(
                     'use VOI LUT attributes from referenced images'
@@ -1871,6 +1867,10 @@ class AdvancedBlending(Dataset):
                     self,
                     referenced_images=referenced_images,
                     voi_lut_transformations=voi_lut_transformations
+                )
+            else:
+                logger.debug(
+                    'no VOI LUT attributes found in referenced images'
                 )
 
         # Palette Color Lookup Table

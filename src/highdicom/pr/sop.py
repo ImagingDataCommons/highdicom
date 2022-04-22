@@ -292,14 +292,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            try:
-                voi_lut_transformations = _get_softcopy_voi_lut_transformations(
-                    referenced_images
-                )
-            except (AttributeError, ValueError):
-                logger.debug(
-                    'no VOI LUT attributes found in referenced images'
-                )
+            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+                referenced_images
+            )
             if len(voi_lut_transformations) > 0:
                 logger.debug(
                     'use VOI LUT attributes from referenced images'
@@ -308,6 +303,10 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                     self,
                     referenced_images=referenced_images,
                     voi_lut_transformations=voi_lut_transformations
+                )
+            else:
+                logger.debug(
+                    'no VOI LUT attributes found in referenced images'
                 )
 
         # Softcopy Presentation LUT
@@ -560,14 +559,9 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            try:
-                voi_lut_transformations = _get_softcopy_voi_lut_transformations(
-                    referenced_images
-                )
-            except (AttributeError, ValueError):
-                logger.debug(
-                    'no VOI LUT attributes found in referenced images'
-                )
+            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+                referenced_images
+            )
             if len(voi_lut_transformations) > 0:
                 logger.debug(
                     'use VOI LUT attributes from referenced images'
@@ -576,6 +570,10 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                     self,
                     referenced_images=referenced_images,
                     voi_lut_transformations=voi_lut_transformations
+                )
+            else:
+                logger.debug(
+                    'no VOI LUT attributes found in referenced images'
                 )
 
         # Palette Color Lookup Table
