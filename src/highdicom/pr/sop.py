@@ -21,7 +21,6 @@ from highdicom.content import (
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
 )
-from highdicom.enum import RescaleTypeValues
 from highdicom.pr.content import (
     _add_displayed_area_attributes,
     _add_equipment_attributes,
@@ -349,9 +348,6 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
-        rescale_intercept: Union[int, float, None] = None,
-        rescale_slope: Union[int, float, None] = None,
-        rescale_type: Union[RescaleTypeValues, str, None] = None,
         modality_lut_transformation: Optional[
             ModalityLUTTransformation
         ] = None,
@@ -415,13 +411,6 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this presentation state.
-        rescale_intercept: Union[int, float, None], optional
-            Intercept used for rescaling pixel values.
-        rescale_slope: Union[int, float, None], optional
-            Slope used for rescaling pixel values.
-        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
-            String or enumerated value specifying the units of the output of
-            the Modality LUT or rescale operation.
         modality_lut_transformation: Union[highdicom.ModalityLUTTransformation, None], optional
             Description of the Modality LUT Transformation for tranforming modality
             dependent into modality independent pixel values
