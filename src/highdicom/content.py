@@ -1766,7 +1766,9 @@ class PaletteColorLUT(Dataset):
             )
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
-            len_data = 0
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
         if lut_data.dtype.type == np.uint8:
             bits_per_entry = 8
         elif lut_data.dtype.type == np.uint16:
@@ -1792,7 +1794,7 @@ class PaletteColorLUT(Dataset):
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
-            [len_data, int(first_mapped_value), bits_per_entry]
+            [number_of_entries, int(first_mapped_value), bits_per_entry]
         )
 
     @property
@@ -1822,7 +1824,10 @@ class PaletteColorLUT(Dataset):
     def number_of_entries(self) -> int:
         """int: Number of entries in the lookup table."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
-        return int(descriptor[0])
+        value = int(descriptor[0])
+        if value == 0:
+            return 2**16
+        return value
 
     @property
     def first_mapped_value(self) -> int:
@@ -1974,7 +1979,11 @@ class SegmentedPaletteColorLUT(Dataset):
             dtype=self._dtype
         )
 
-        number_of_entries = len(expanded_lut_values)
+        len_data = len(expanded_lut_values)
+        if len_data == 2**16:
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
