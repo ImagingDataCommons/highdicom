@@ -9,7 +9,6 @@ from highdicom.pr.enum import (
     AnnotationUnitsValues,
     BlendingModeValues,
     GraphicTypeValues,
-    PresentationLUTShapeValues,
     TextJustificationValues,
 )
 from highdicom.pr.content import (
@@ -20,7 +19,7 @@ from highdicom.pr.content import (
     GraphicGroup,
     GraphicLayer,
     GraphicObject,
-    SoftcopyVOILUT,
+    SoftcopyVOILUTTransformation,
     TextObject
 )
 
@@ -45,10 +44,8 @@ __all__ = [
     'GraphicObject',
     'GraphicTypeValues',
     'GrayscaleSoftcopyPresentationState',
-    'ModalityLUT',
-    'PresentationLUTShapeValues',
     'PseudoColorSoftcopyPresentationState',
-    'SoftcopyVOILUT',
+    'SoftcopyVOILUTTransformation',
     'TextJustificationValues',
     'TextObject',
 ]

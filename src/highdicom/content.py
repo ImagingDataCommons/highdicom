@@ -14,9 +14,10 @@ from pydicom._storage_sopclass_uids import SegmentationStorage
 
 from highdicom.enum import (
     CoordinateSystemNames,
-    VOILUTFunctionValues,
+    PresentationLUTShapeValues,
+    RescaleTypeValues,
     UniversalEntityIDTypeValues,
-    RescaleTypeValues
+    VOILUTFunctionValues,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
@@ -172,7 +173,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
 class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
-    """Sequence identifying the person who created the content."""
+    """Sequence of data elements for identifying the person who created content.
+
+    """
+
     def __init__(
         self,
         person_identification_codes: Sequence[Union[Code, CodedConcept]],
@@ -686,7 +690,7 @@ class IssuerOfIdentifier(Dataset):
 
 class SpecimenCollection(ContentSequence):
 
-    """Sequence of SR content item describing a specimen collection procedure.
+    """Sequence of SR content items describing a specimen collection procedure.
     """
 
     def __init__(
@@ -710,7 +714,7 @@ class SpecimenCollection(ContentSequence):
 
 class SpecimenSampling(ContentSequence):
 
-    """Sequence of SR content item describing a specimen sampling procedure.
+    """Sequence of SR content items describing a specimen sampling procedure.
 
     See SR template
     :dcm:`TID 8002 Specimen Sampling <part16/chapter_C.html#sect_TID_8002>`.
@@ -769,7 +773,7 @@ class SpecimenSampling(ContentSequence):
 
 class SpecimenStaining(ContentSequence):
 
-    """Sequence of SR content item describing a specimen staining procedure
+    """Sequence of SR content items describing a specimen staining procedure
 
     See SR template
     :dcm:`TID 8003 Specimen Staining <part16/chapter_C.html#sect_TID_8003>`.
@@ -810,7 +814,8 @@ class SpecimenStaining(ContentSequence):
 
 class SpecimenProcessing(ContentSequence):
 
-    """Sequence of SR content item describing a specimen processing procedure.
+    """Sequence of SR content items describing a specimen processing procedure.
+
     """
 
     def __init__(
@@ -1071,7 +1076,7 @@ class SpecimenDescription(Dataset):
 
 class ReferencedImageSequence(DataElementSequence):
 
-    """Sequence describing references to images, frames and/or segments."""
+    """Sequence of data elements describing a set of referenced images."""
 
     def __init__(
         self,
@@ -1194,12 +1199,7 @@ class ReferencedImageSequence(DataElementSequence):
 
 class LUT(Dataset):
 
-    """Class that abstracts a pixel value lookup table.
-
-    Instances of the class may be incorporated into items of various LUT
-    Sequence attributes (Modality LUT Sequence, VOI LUT Sequence, etc.).
-
-    """
+    """Dataset describing a lookup table (LUT)."""
 
     def __init__(
         self,
@@ -1331,6 +1331,13 @@ class ModalityLUT(LUT):
         lut_type: Union[highdicom.RescaleTypeValues, str]
             String or enumerated value specifying the units of the output of
             the LUT operation.
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
 
         """
         super().__init__(
@@ -1345,13 +1352,41 @@ class ModalityLUT(LUT):
             self.ModalityLUTType = lut_type
 
 
-class VOILUT(Dataset):
+class VOILUT(LUT):
 
-    """Class implementating the VOI LUT Macro.
+    """Dataset describing an item of the VOI LUT Sequence."""
 
-    Warning
-    -------
-    This class does **not** implement an item of the VOI LUT Sequence.
+    def __init__(
+        self,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
+
+        """
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
+
+
+class VOILUTTransformation(Dataset):
+
+    """Dataset describing the VOI LUT Transformation as part of the Pixel
+    Transformation Sequence to transform modality pixel values into pixel
+    values that are of interest to a user or an application.
 
     """
 
@@ -1361,7 +1396,7 @@ class VOILUT(Dataset):
         window_width: Union[float, Sequence[float], None] = None,
         window_explanation: Union[str, Sequence[str], None] = None,
         voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        luts: Optional[Sequence[LUT]] = None,
+        voi_luts: Optional[Sequence[VOILUT]] = None,
     ):
         """
 
@@ -1376,27 +1411,14 @@ class VOILUT(Dataset):
         voi_lut_function: Union[highdicom.VOILUTFunctionValues, str, None], optional
             Description of the LUT function parametrized by ``window_center``.
             and ``window_width``.
-        luts: Union[Sequence[highdicom.LUT], None], optional
+        voi_luts: Union[Sequence[highdicom.VOILUT], None], optional
             Intensity lookup tables used for display.
 
         Note
         ----
         Either ``window_center`` and ``window_width`` should be provided or
-        ``luts`` should be provided, or both. ``window_explanation`` should
+        ``voi_luts`` should be provided, or both. ``window_explanation`` should
         only be provided if ``window_center`` is provided.
-
-        Note
-        ----
-        Despite their similar name and function, :class:`highdicom.ModalityLUT`
-        and :class:`highdicom.VOILUT` are structured differently and expose
-        a different interface.
-        While instances of :class:`highdicom.ModalityLUT` are derived from
-        :class:`highdicom.LUT`, instances of :class:`highdicom.VOILUT` may be
-        composed of one or more instances of :class:`highdicom.LUT`.
-        Furthermore, instances of :class:`highdicom.VOILUT` may describe the
-        transformation of modality pixel values into pixel values of interest
-        (VOI) for display via a continous function rather than a lookup table.
-        The name "LUT" may thus be misleading.
 
         """  # noqa: E501
         super().__init__()
@@ -1486,15 +1508,15 @@ class VOILUT(Dataset):
                 )
             self.VOILUTFunction = VOILUTFunctionValues(voi_lut_function).value
 
-        if luts is not None:
-            if len(luts) == 0:
-                raise ValueError('"luts" should not be empty.')
-            for lut in luts:
-                if not isinstance(lut, LUT):
+        if voi_luts is not None:
+            if len(voi_luts) == 0:
+                raise ValueError('Argument "voi_luts" should not be empty.')
+            for lut in voi_luts:
+                if not isinstance(lut, VOILUT):
                     raise TypeError(
-                        'Items of "luts" should be of type highdicom.LUT.'
+                        'Items of "voi_luts" should be of type VOILUT.'
                     )
-            self.VOILUTSequence = list(luts)
+            self.VOILUTSequence = list(voi_luts)
         else:
             if window_center is None:
                 raise TypeError(
@@ -1503,9 +1525,180 @@ class VOILUT(Dataset):
                 )
 
 
-class ColorLUT(Dataset):
+class ModalityLUTTransformation(Dataset):
 
-    """Class that abstracts a pixel value palette color lookup table."""
+    """Dataset describing the Modality LUT Transformation as part of the Pixel
+    Transformation Sequence to transform the manufacturer dependent pixel
+    values into pixel values that are meaningful for the modality and are
+    manufacturer independent.
+
+    """
+
+    def __init__(
+        self,
+        rescale_intercept: Optional[Union[int, float]] = None,
+        rescale_slope: Optional[Union[int, float]] = None,
+        rescale_type: Optional[Union[RescaleTypeValues, str]] = None,
+        modality_lut: Optional[ModalityLUT] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        rescale_intercept: Union[int, float, None], optional
+            Intercept of linear function used for rescaling pixel values.
+        rescale_slope: Union[int, float, None], optional
+            Slope of linear function used for rescaling pixel values.
+        rescale_type: Union[highdicom.RescaleTypeValues, str, None], optional
+            String or enumerated value specifying the units of the output of
+            the Modality LUT or rescale operation.
+        modality_lut: Union[highdicom.ModalityLUT, None], optional
+            Lookup table specifying a pixel rescaling operation to apply to
+            the stored values to give modality values.
+
+        Note
+        ----
+        Either `modality_lut` may be specified or all three of `rescale_slope`,
+        `rescale_intercept`, and `rescale_type` may be specified. All four
+        parameters should not be specified simultaneously.
+
+        """
+        super().__init__()
+        if modality_lut is not None:
+            if rescale_intercept is not None:
+                raise TypeError(
+                    'Argument "rescale_intercept" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_slope is not None:
+                raise TypeError(
+                    'Argument "rescale_slope" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if rescale_type is not None:
+                raise TypeError(
+                    'Argument "rescale_type" must not be specified when '
+                    '"modality_lut" is specified.'
+                )
+            if not isinstance(modality_lut, ModalityLUT):
+                raise TypeError(
+                    'Argument "modality_lut" must be of type '
+                    'highdicom.ModalityLUT.'
+                )
+            self.ModalityLUTSequence = [modality_lut]
+        else:
+            if rescale_intercept is None:
+                raise TypeError(
+                    'Argument "rescale_intercept" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            if rescale_slope is None:
+                raise TypeError(
+                    'Argument "rescale_slope" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            if rescale_type is None:
+                raise TypeError(
+                    'Argument "rescale_type" must be specified when '
+                    '"modality_lut" is not specified.'
+                )
+            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
+            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            if isinstance(rescale_type, RescaleTypeValues):
+                self.RescaleType = rescale_type.value
+            else:
+                _check_long_string(rescale_type)
+                self.RescaleType = rescale_type
+
+
+class PresentationLUT(LUT):
+
+    """Dataset describing an item of the Presentation LUT Sequence."""
+
+    def __init__(
+        self,
+        first_mapped_value: int,
+        lut_data: np.ndarray,
+        lut_explanation: Optional[str] = None
+    ):
+        """
+
+        Parameters
+        ----------
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup-table.
+        lut_data: numpy.ndarray
+            Lookup table data. Must be of type uint8 or uint16.
+        lut_explanation: Union[str, None], optional
+            Free-form text explanation of the meaning of the LUT.
+
+        """
+        super().__init__(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data,
+            lut_explanation=lut_explanation
+        )
+
+
+class PresentationLUTTransformation(Dataset):
+
+    """Dataset describing the Presentation LUT Transformation as part of the
+    Pixel Transformation Sequence to transform polarity pixel values into
+    device-indendent presentation values (P-Values).
+
+    """
+
+    def __init__(
+        self,
+        presentation_lut_shape: Optional[
+            Union[PresentationLUTShapeValues, str]
+        ] = None,
+        presentation_luts: Optional[Sequence[PresentationLUT]] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        presentation_lut_shape: Union[highdicom.pr.PresentationLUTShapeValues, str, None], optional
+            Shape of the presentation LUT, applied after the Softcopy
+            VOI LUT Transformation to create display values.
+        presentation_luts: Optional[Sequence[highdicom.LUT]], optional
+            LUTs for the presentation LUT, applied after the Softcopy
+            VOI LUT Transformation to create display values.
+
+        """  # noqa: E501
+        super().__init__()
+        if presentation_luts is not None:
+            if presentation_lut_shape is not None:
+                raise TypeError(
+                    'Only one of "presentation_luts" or '
+                    '"presentation_lut_shape" should be provided.'
+                )
+            if len(presentation_luts) == 0:
+                raise ValueError(
+                    'Argument "presentation_luts" must not be empty.'
+                )
+            for v in presentation_luts:
+                if not isinstance(v, PresentationLUT):
+                    raise TypeError(
+                        'Items of argument "presentation_luts" must be of '
+                        'type PresentationLUT.'
+                    )
+            self.PresentationLUTSequence = presentation_luts
+        else:
+            presentation_lut_shape = (
+                presentation_lut_shape or
+                PresentationLUTShapeValues.IDENTITY
+            )
+            self.PresentationLUTShape = PresentationLUTShapeValues(
+                presentation_lut_shape
+            ).value
+
+
+class PaletteColorLUT(Dataset):
+
+    """Dataset describing a palette color lookup table (LUT)."""
 
     def __init__(
         self,
@@ -1626,10 +1819,9 @@ class ColorLUT(Dataset):
         return int(descriptor[2])
 
 
-class SegmentedColorLUT(Dataset):
+class SegmentedPaletteColorLUT(Dataset):
 
-    """Class that abstracts a segmented pixel value palette color lookup table.
-    """
+    """Dataset describing a segmented palette color lookup table (LUT)."""
 
     def __init__(
         self,
@@ -1806,31 +1998,35 @@ class SegmentedColorLUT(Dataset):
         return int(descriptor[2])
 
 
-class PaletteColorLookupTable(Dataset):
+class PaletteColorLUTTransformation(Dataset):
 
-    """Dataset describing a palette color lookup table."""
+    """Dataset describing the Palette Color LUT Transformation as part of the
+    Pixel Transformation Sequence to transform grayscale into RGB color pixel
+    values.
+
+    """
 
     def __init__(
         self,
-        red_lut: Union[ColorLUT, SegmentedColorLUT],
-        green_lut: Union[ColorLUT, SegmentedColorLUT],
-        blue_lut: Union[ColorLUT, SegmentedColorLUT],
+        red_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
+        green_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
+        blue_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
         palette_color_lut_uid: Union[UID, str, None] = None
     ):
         """
 
         Parameters
         ----------
-        red_lut: highdicom.LUT
+        red_lut: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the red output color channel.
-        green: highdicom.LUT
+        green: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the green output color channel.
-        blue_lut: highdicom.LUT
+        blue_lut: Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]
             Lookup table for the blue output color channel.
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
-        """
+        """  # noqa: E501
         super().__init__()
 
         # Checks on inputs
@@ -1840,10 +2036,10 @@ class PaletteColorLookupTable(Dataset):
             'Blue': blue_lut
         }
         for lut in self._color_luts.values():
-            if not isinstance(lut, (ColorLUT, SegmentedColorLUT)):
+            if not isinstance(lut, (PaletteColorLUT, SegmentedPaletteColorLUT)):
                 raise TypeError(
                     'Arguments "red_lut", "green_lut", and "blue_lut" must be '
-                    'of type ColorLUT or SegmentedColorLUT.'
+                    'of type PaletteColorLUT or SegmentedPaletteColorLUT.'
                 )
         if not hasattr(red_lut, 'RedPaletteColorLookupTableDescriptor'):
             raise ValueError(
@@ -1890,7 +2086,7 @@ class PaletteColorLookupTable(Dataset):
                 desc_attr,
                 getattr(lut, desc_attr)
             )
-            if isinstance(lut, SegmentedColorLUT):
+            if isinstance(lut, SegmentedPaletteColorLUT):
                 data_attr = f'Segmented{name}PaletteColorLookupTableData'
             else:
                 data_attr = f'{name}PaletteColorLookupTableData'
@@ -1907,42 +2103,25 @@ class PaletteColorLookupTable(Dataset):
         self._lut_data = None
 
     @property
-    def lut_data(self) -> np.ndarray:
-        """Get the lookup table data.
-
-        Returns
-        -------
-        np.ndarray:
-            Numpy array of shape n x 3 where each row gives the three output
-            values (R, G, B) for each valid input value. Datatype of the array
-            will be uint8 or unit16 depending on the data type of the underlying
-            stored values.
+    def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the red output color channel
 
         """
-        if self._lut_data is None:
-            r_array = self._color_luts['Red'].lut_data
-            g_array = self._color_luts['Green'].lut_data
-            b_array = self._color_luts['Blue'].lut_data
-            # Combine the three colors to get an (R, G, B) triplet per entry
-            self._lut_data = np.stack([r_array, g_array, b_array]).T
-
-        return self._lut_data
+        return self._color_luts['Red']
 
     @property
-    def number_of_entries(self) -> int:
-        """int: Number of entries in the lookup table."""
-        # All descriptors should match by construction and according to the
-        # standard
-        return int(self.RedPaletteColorLookupTableDescriptor[0])
+    def green_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the green output color channel
 
-    @property
-    def first_mapped_value(self) -> int:
-        """int: Pixel value that will be mapped to the first value in the
-        LUT.
         """
-        return int(self.RedPaletteColorLookupTableDescriptor[1])
+        return self._color_luts['Green']
 
     @property
-    def bits_per_entry(self) -> int:
-        """int: Bits allocated for the LUT data. 8 or 16."""
-        return int(self.RedPaletteColorLookupTableDescriptor[2])
+    def blue_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+        """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the blue output color channel
+
+        """
+        return self._color_luts['Blue']

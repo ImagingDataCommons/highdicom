@@ -135,6 +135,24 @@ class VOILUTFunctionValues(Enum):
     SIGMOID = 'SIGMOID'
 
 
+class PresentationLUTShapeValues(Enum):
+
+    """Enumerated values for the Presentation LUT Shape attribute."""
+
+    IDENTITY = 'IDENTITY'
+    """No further translation of values is performed."""
+
+    INVERSE = 'INVERSE'
+    """
+
+    A value of INVERSE shall mean the same as a value of IDENTITY, except that
+    the minimum output value shall convey the meaning of the maximum available
+    luminance, and the maximum value shall convey the minimum available
+    luminance.
+
+    """
+
+
 class LateralityValues(Enum):
 
     """Enumerated values for Laterality attribute."""
