@@ -1394,6 +1394,7 @@ class SpecimenDescription(Dataset):
 
         return desc
 
+
 class ReferencedImageSequence(DataElementSequence):
 
     """Sequence of data elements describing a set of referenced images."""

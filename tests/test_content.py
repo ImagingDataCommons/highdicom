@@ -32,7 +32,6 @@ from highdicom import (
     VOILUTFunctionValues,
 )
 from highdicom.sr.value_types import CodeContentItem, TextContentItem
-from highdicom.uid import UID
 
 from .utils import write_and_read_dataset
 

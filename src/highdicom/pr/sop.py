@@ -957,8 +957,8 @@ class AdvancedBlendingPresentationState(SOPClass):
             if int(item.BlendingInputNumber) != i:
                 raise ValueError(
                     'The values of attribute Blending Input Number of items of '
-                    'argument "blending" must be ordinal numbers starting from 1 '
-                    'and monotonically increasing by 1.'
+                    'argument "blending" must be ordinal numbers starting from '
+                    '1 and monotonically increasing by 1.'
                 )
         self.AdvancedBlendingSequence = blending
 
