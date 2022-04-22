@@ -1247,12 +1247,12 @@ def _get_modality_lut_transformation(
 
     if intercept is None:
         return None
-    else:
-        return ModalityLUTTransformation(
-            rescale_intercept=intercept,
-            rescale_slope=slope,
-            rescale_type=rescale_type
-        )
+
+    return ModalityLUTTransformation(
+        rescale_intercept=intercept,
+        rescale_slope=slope,
+        rescale_type=rescale_type
+    )
 
 
 def _add_softcopy_voi_lut_attributes(
