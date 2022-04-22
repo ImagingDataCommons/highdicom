@@ -149,9 +149,11 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             dependent into modality independent pixel values. If no value is provided,
             the modality transformation in the referenced images, if any, will be used.
         voi_lut_transformations: Union[Sequence[highdicom.pr.SoftcopyVOILUTTransformation], None], optional
-            Description of the VOI LUT Transformation for tranforming
+            Description of the VOI LUT Transformation for transforming
             modality pixel values into pixel values that are of interest to a
-            user or an application
+            user or an application. If no value is provided, the VOI LUT
+            transformation in the referenced images, if any, will be
+            used.
         presentation_lut_transformation: Union[highdicom.pr.PresentationLUTTransformation, None], optional
             Description of the Presentation LUT Transformation for transforming
             polarity pixel values into device-indendent presentation values
