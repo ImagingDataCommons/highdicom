@@ -8,6 +8,7 @@ import numpy as np
 from PIL.ImageCms import ImageCmsProfile
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
+from pydicom.multival import MultiValue
 from pydicom.valuerep import DA, PersonName, TM
 from typing import Optional, Union, Sequence, Tuple
 
@@ -1277,7 +1278,7 @@ def _add_softcopy_voi_lut_attributes(
         if not isinstance(v, SoftcopyVOILUTTransformation):
             raise TypeError(
                 f'Item #{i} of "voi_lut_transformations" must have '
-                'type SoftcopyVOILUTTransformation.'
+                'highdicom.pr.SoftcopyVOILUTTransformation.'
             )
 
     if len(voi_lut_transformations) > 1:
@@ -1327,21 +1328,16 @@ def _add_softcopy_voi_lut_attributes(
                 nframes = getattr(ref_im, 'NumberOfFrames', 1)
                 if hasattr(item, 'ReferencedFrameNumber'):
                     ref_frames = item.ReferencedFrameNumber
-                    if not isinstance(ref_frames, list):
+                    if not isinstance(ref_frames, MultiValue):
                         ref_frames = [ref_frames]
-                    for f in ref_frames:
-                        if f > nframes:
-                            raise ValueError(
-                                f'Frame {f} in image with SOP Instance '
-                                f'UID {uids[1]} is referenced in an '
-                                'item of the "softcopy_voi_luts" but '
-                                'is not a valid frame number in that '
-                                'image.'
-                            )
                 else:
-                    # If ReferencedFrameNumber is not present, the
-                    # reference refers to all frames
-                    ref_frames = list(range(1, nframes))
+                    if hasattr(item, 'ReferencedSegmentNumber'):
+                        # Do not check frames if segments are specified
+                        ref_frames = []
+                    else:
+                        # If ReferencedFrameNumber is not present, the
+                        # reference refers to all frames
+                        ref_frames = list(range(1, nframes + 1))
 
                 for f in ref_frames:
                     if f in prev_ref_frames[uids]:
@@ -1354,40 +1350,23 @@ def _add_softcopy_voi_lut_attributes(
                     prev_ref_frames[uids].append(f)
 
                 if hasattr(item, 'ReferencedSegmentNumber'):
-                    try:
-                        nsegments = ref_im.NumberOfSegments
-                    except AttributeError:
-                        raise ValueError(
-                            'An item of "softcopy_voi_luts" references '
-                            'segments of the image with SOP Instance '
-                            f'UID {uids[1]}, but this image does not '
-                            'contain segments.'
-                        )
-
                     ref_segs = item.ReferencedSegmentNumber
-                    if not isinstance(ref_segs, list):
+                    if not isinstance(ref_segs, MultiValue):
                         ref_segs = [ref_segs]
-                    for s in ref_segs:
-                        if s > nsegments:
-                            raise ValueError(
-                                f'Segment {s} in image with SOP '
-                                f'Instance UID {uids[1]} is referenced '
-                                'in an item of the "softcopy_voi_luts" '
-                                'but is not a valid segment number in '
-                                'that image.'
-                            )
 
-                if hasattr(ref_im, 'NumberOfSegments'):
+                if hasattr(ref_im, 'SegmentSequence'):
+                    nsegments = len(ref_im.SegmentSequence)
                     if not hasattr(item, 'ReferencedSegmentNumber'):
                         ref_segs = list(range(1, nsegments))
-                    if s in prev_ref_segs[uids]:
-                        raise ValueError(
-                            f'Segment {s} in image with SOP '
-                            f'Instance  UID {uids[1]} is '
-                            'referenced in more than one item of '
-                            'the "softcopy_voi_luts".'
-                        )
-                    prev_ref_segs[uids].append(s)
+                    for s in ref_segs:
+                        if s in prev_ref_segs[uids]:
+                            raise ValueError(
+                                f'Segment {s} in image with SOP '
+                                f'Instance  UID {uids[1]} is '
+                                'referenced in more than one item of '
+                                'the "softcopy_voi_luts".'
+                            )
+                        prev_ref_segs[uids].append(s)
 
     dataset.SoftcopyVOILUTSequence = voi_lut_transformations
 
