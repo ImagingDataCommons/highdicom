@@ -1264,7 +1264,8 @@ class LUT(Dataset):
             raise ValueError(
                 "Numpy array must have dtype uint8 or uint16."
             )
-        self.LUTData = lut_data.tobytes()
+        # The LUT data attribute has VR OW (16-bit other words)
+        self.LUTData = lut_data.astype(np.uint16).tobytes()
 
         self.LUTDescriptor = [
             len_data,
@@ -1287,7 +1288,10 @@ class LUT(Dataset):
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.LUTDescriptor[0]
         data = self.LUTData
-        array = np.frombuffer(data, dtype)
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -1298,7 +1302,16 @@ class LUT(Dataset):
     @property
     def number_of_entries(self) -> int:
         """int: Number of entries in the lookup table."""
-        return int(self.LUTDescriptor[0])
+        value = int(self.LUTDescriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
 
     @property
     def first_mapped_value(self) -> int:
@@ -1743,7 +1756,7 @@ class PaletteColorLUT(Dataset):
             raise ValueError(
                 'Argument "lut_data" must be an array with a single dimension.'
             )
-        len_data = lut_data.size
+        len_data = lut_data.shape[0]
         if len_data == 0:
             raise ValueError('Argument "lut_data" must not be empty.')
         if len_data > 2**16:
@@ -1753,7 +1766,9 @@ class PaletteColorLUT(Dataset):
             )
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
-            len_data = 0
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
         if lut_data.dtype.type == np.uint8:
             bits_per_entry = 8
         elif lut_data.dtype.type == np.uint16:
@@ -1769,11 +1784,17 @@ class PaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
-        setattr(self, f'{self._attr_name_prefix}Data', lut_data.tobytes())
+        # The Palette Color Lookup Table Data attributes have VR OW
+        # (16-bit other words)
+        setattr(
+            self,
+            f'{self._attr_name_prefix}Data',
+            lut_data.astype(np.uint16).tobytes()
+        )
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
-            [len_data, int(first_mapped_value), bits_per_entry]
+            [number_of_entries, int(first_mapped_value), bits_per_entry]
         )
 
     @property
@@ -1787,7 +1808,10 @@ class PaletteColorLUT(Dataset):
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'{self._attr_name_prefix}Data')
-        array = np.frombuffer(data, dtype)
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of Lookup Table Data does not match the value '
@@ -1800,7 +1824,10 @@ class PaletteColorLUT(Dataset):
     def number_of_entries(self) -> int:
         """int: Number of entries in the lookup table."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
-        return int(descriptor[0])
+        value = int(descriptor[0])
+        if value == 0:
+            return 2**16
+        return value
 
     @property
     def first_mapped_value(self) -> int:
@@ -1824,7 +1851,6 @@ class SegmentedPaletteColorLUT(Dataset):
     def __init__(
         self,
         first_mapped_value: int,
-        number_of_entries: int,
         segmented_lut_data: np.ndarray,
         color: str
     ):
@@ -1835,8 +1861,6 @@ class SegmentedPaletteColorLUT(Dataset):
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup table.
-        number_of_entries: int
-            Total number of entries in the expanded lookup table
         segmented_lut_data: numpy.ndarray
             Segmented lookup table data. Must be of type uint8 or uint16.
         color: str
@@ -1885,8 +1909,10 @@ class SegmentedPaletteColorLUT(Dataset):
             len_data = 0
         if segmented_lut_data.dtype.type == np.uint8:
             bits_per_entry = 8
+            self._dtype = np.uint8
         elif segmented_lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
+            self._dtype = np.uint16
         else:
             raise ValueError(
                 "Numpy array must have dtype uint8 or uint16."
@@ -1898,31 +1924,81 @@ class SegmentedPaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
+        # The Segmented Palette Color Lookup Table Data attributes have VR OW
+        # (16-bit other words)
         setattr(
             self,
             f'Segmented{self._attr_name_prefix}Data',
-            segmented_lut_data.tobytes()
+            segmented_lut_data.astype(np.uint16).tobytes()
         )
+
+        expanded_lut_values = []
+        i = 0
+        offset = 0
+        while i < len(segmented_lut_data):
+            opcode = segmented_lut_data[i]
+            i += 1
+            if opcode == 0:
+                # Discrete segment type (constant)
+                length = segmented_lut_data[i]
+                i += 1
+                value = segmented_lut_data[i]
+                i += 1
+                expanded_lut_values.extend([
+                    value for _ in range(length)
+                ])
+                offset += length
+            elif opcode == 1:
+                # Linear segment type (interpolation)
+                length = segmented_lut_data[i]
+                i += 1
+                start_value = expanded_lut_values[offset - 1]
+                end_value = segmented_lut_data[i]
+                i += 1
+                step = (end_value - start_value) / (length - 1)
+                expanded_lut_values.extend([
+                    start_value + int(np.round(j * step))
+                    for j in range(length)
+
+                ])
+                offset += length
+            elif opcode == 2:
+                # TODO
+                raise ValueError(
+                  'Indirect segment type is not yet supported for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+            else:
+                raise ValueError(
+                  f'Encountered unexpected segment type {opcode} for '
+                  'Segmented Palette Color Lookup Table.'
+                )
+
+        self._lut_data = np.array(
+            expanded_lut_values,
+            dtype=self._dtype
+        )
+
+        len_data = len(expanded_lut_values)
+        if len_data == 2**16:
+            number_of_entries = 0
+        else:
+            number_of_entries = len_data
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
             [number_of_entries, int(first_mapped_value), bits_per_entry]
         )
 
-        self._lut_data = None
-
     @property
     def segmented_lut_data(self) -> np.ndarray:
         """numpy.ndarray: segmented lookup table data"""
-        if self.bits_per_entry == 8:
-            dtype = np.uint8
-        elif self.bits_per_entry == 16:
-            dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
-        array = np.frombuffer(data, dtype)
+        # The LUT data attributes have VR OW (16-bit other words)
+        array = np.frombuffer(data, dtype=np.uint16)
+        # Needs to be casted according to third descriptor value.
+        array = array.astype(self._dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -1933,53 +2009,22 @@ class SegmentedPaletteColorLUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: expanded lookup table data"""
-        if self._lut_data is None:
-            self._lut_data = np.zeros(self.number_of_entries)
-            segmented_array = self.segmented_lut_data
-            i = 0
-            offset = 0
-            while i <= len(segmented_array):
-                opcode = segmented_array[i]
-                i += 1
-                if opcode == 0:
-                    # Discrete
-                    length = segmented_array[i]
-                    i += 1
-                    value = segmented_array[i]
-                    for j in range(length):
-                        self._lut_data[offset + j] = value
-                    offset += length
-                elif opcode == 1:
-                    # Linear (interpolation)
-                    length = segmented_array[i]
-                    i += 1
-                    endpoint = segmented_array[i]
-                    startpoint = self._lut_array[offset - 1]
-                    step = (endpoint - startpoint) / (length - 1)
-                    for j in range(length):
-                        self._lut_data[offset + j] = (
-                            startpoint + int(np.round(j * step))
-                        )
-                    offset += length
-                elif opcode == 2:
-                    # TODO
-                    raise ValueError(
-                      'Indirect segment type is not yet supported for '
-                      'Segmented Palette Color Lookup Table.'
-                    )
-                else:
-                    raise ValueError(
-                      'Encountered unexpected segment type for '
-                      'Segmented Palette Color Lookup Table.'
-                    )
-
         return self._lut_data
 
     @property
     def number_of_entries(self) -> int:
         """int: Number of entries in the lookup table."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
-        return int(descriptor[0])
+        value = int(descriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
 
     @property
     def first_mapped_value(self) -> int:

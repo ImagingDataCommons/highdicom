@@ -793,13 +793,10 @@ class TestAdvancedBlending(unittest.TestCase):
             palette_color_lut_transformation=PaletteColorLUTTransformation(
                 red_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
-                    number_of_entries=256,
                     segmented_lut_data=np.array(
                         [
-                            0, 0, 1,
-                            0, 0, 0,
-                            1, 0, 255,
-                            0, 0, 0,
+                            0, 1, 0,
+                            1, 255, 0,
                         ],
                         dtype=np.uint8
                     ),
@@ -807,13 +804,10 @@ class TestAdvancedBlending(unittest.TestCase):
                 ),
                 green_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
-                    number_of_entries=256,
                     segmented_lut_data=np.array(
                         [
-                            0, 0, 1,
-                            0, 0, 0,
-                            1, 0, 255,
-                            0, 0, 0,
+                            0, 1, 0,
+                            1, 255, 0,
                         ],
                         dtype=np.uint8
                     ),
@@ -821,13 +815,10 @@ class TestAdvancedBlending(unittest.TestCase):
                 ),
                 blue_lut=SegmentedPaletteColorLUT(
                     first_mapped_value=0,
-                    number_of_entries=256,
                     segmented_lut_data=np.array(
                         [
-                            0, 0, 1,
-                            0, 0, 0,
-                            1, 0, 255,
-                            0, 255, 0,
+                            0, 1, 0,
+                            1, 255, 255,
                         ],
                         dtype=np.uint8
                     ),
@@ -841,8 +832,17 @@ class TestAdvancedBlending(unittest.TestCase):
         assert ds.BlendingInputNumber == 1
         assert len(ds.SoftcopyVOILUTSequence) == 1
         assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
+        assert ds.RedPaletteColorLookupTableDescriptor[0] == 256
+        assert ds.RedPaletteColorLookupTableDescriptor[1] == 0
+        assert ds.RedPaletteColorLookupTableDescriptor[2] == 8
         assert len(ds.GreenPaletteColorLookupTableDescriptor) == 3
+        assert ds.GreenPaletteColorLookupTableDescriptor[0] == 256
+        assert ds.GreenPaletteColorLookupTableDescriptor[1] == 0
+        assert ds.GreenPaletteColorLookupTableDescriptor[2] == 8
         assert len(ds.BluePaletteColorLookupTableDescriptor) == 3
+        assert ds.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert ds.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert ds.BluePaletteColorLookupTableDescriptor[2] == 8
         assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
