@@ -940,7 +940,7 @@ class AdvancedBlendingPresentationState(SOPClass):
                 'Study Instance UID as the referenced images.'
             )
 
-        for i, item in enumerate(blending):
+        for i, item in enumerate(blending, 1):
             if not isinstance(item, AdvancedBlending):
                 raise TypeError(
                     'Items of argument "blending" must have type '
@@ -951,17 +951,12 @@ class AdvancedBlendingPresentationState(SOPClass):
                     'All items of argument "blending" must have the same '
                     'Study Instance UID.'
                 )
-            blending_input_numbers[i] = int(item.BlendingInputNumber)
-
-        if not np.array_equal(
-            blending_input_numbers,
-            np.arange(1, len(blending_input_numbers) + 1, 1)
-        ):
-            raise ValueError(
-                'The values of attribute Blending Input Number of items of '
-                'argument "blending" must be ordinal numbers starting from 1 '
-                'and monotonically increasing by 1.'
-            )
+            if int(item.BlendingInputNumber) != i:
+                raise ValueError(
+                    'The values of attribute Blending Input Number of items of '
+                    'argument "blending" must be ordinal numbers starting from 1 '
+                    'and monotonically increasing by 1.'
+                )
         self.AdvancedBlendingSequence = blending
 
         # Advanced Blending Presentation State Display
