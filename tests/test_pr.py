@@ -843,9 +843,9 @@ class TestAdvancedBlending(unittest.TestCase):
         assert ds.BluePaletteColorLookupTableDescriptor[0] == 256
         assert ds.BluePaletteColorLookupTableDescriptor[1] == 0
         assert ds.BluePaletteColorLookupTableDescriptor[2] == 8
-        assert len(ds.SegmentedRedPaletteColorLookupTableData) == 6
-        assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 6
-        assert len(ds.SegmentedBluePaletteColorLookupTableData) == 6
+        assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
+        assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
         assert not hasattr(ds, 'ThresholdSequence')
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')
@@ -935,6 +935,51 @@ class TestBlendingDisplay(unittest.TestCase):
                 ],
                 relative_opacity=1.
             )
+
+
+class TestPaletteColorLUT(unittest.TestCase):
+
+    def test_construction_16bit(self):
+        lut_data = np.arange(10, 120, dtype=np.uint16)
+        first_mapped_value = 32
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='red')
+
+        assert len(lut.RedPaletteColorLookupTableDescriptor) == 3
+        assert lut.RedPaletteColorLookupTableDescriptor[0] == 110
+        assert lut.RedPaletteColorLookupTableDescriptor[1] == 32
+        assert lut.RedPaletteColorLookupTableDescriptor[2] == 16
+        assert not hasattr(lut, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.RedPaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert not hasattr(lut, 'BluePaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 16
+        assert lut.lut_data.dtype == np.uint16
+        np.array_equal(lut.lut_data, lut_data)
+
+    def test_construction_8bit(self):
+        lut_data = np.arange(0, 256, dtype=np.uint8)
+        first_mapped_value = 0
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+
+        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.BluePaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 8
+        assert lut.lut_data.dtype == np.uint8
+        np.array_equal(lut.lut_data, lut_data)
 
 
 class TestXSoftcopyPresentationState(unittest.TestCase):
