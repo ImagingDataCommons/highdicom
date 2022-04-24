@@ -2616,6 +2616,15 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             )
         ]
 
+    def test_construction(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1501'
+        assert len(template.source_images) == 0
+
     def test_construction_with_source_images(self):
         template = MeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,

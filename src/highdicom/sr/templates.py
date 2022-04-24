@@ -2418,10 +2418,10 @@ class Measurement(Template):
         return []
 
 
-class MeasurementsAndQualitativeEvaluations(Template):
+class _MeasurementsAndQualitativeEvaluations(Template):
 
-    """:dcm:`TID 1501 <part16/chapter_A.html#sect_TID_1501>`
-     Measurement and Qualitative Evaluation Group"""
+    """Abstract base class for Measurements and Qualitative Evaluation
+    templates."""
 
     def __init__(
         self,
@@ -2438,7 +2438,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
             Sequence[QualitativeEvaluation]
         ] = None,
         finding_category: Optional[Union[CodedConcept, Code]] = None,
-        source_images: Optional[Sequence[SourceImage]] = None,
     ):
         """
 
@@ -2470,10 +2469,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
-        source_images: Optional[Sequence[highdicom.sr.SourceImage]], optional
-            Images to that were the source of the measurements. If not provided,
-            all images that listed in the document tree of the containing SR
-            document are assumed to be source images.
 
         """  # noqa: E501
         super().__init__()
@@ -2594,14 +2589,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'have type QualitativeEvaluations.'
                     )
                 content.extend(evaluation)
-        if source_images is not None:
-            for src_img in source_images:
-                if not isinstance(src_img, SourceImage):
-                    raise TypeError(
-                        'Items of argument "source_images" must '
-                        'have type highdicom.sr.SourceImage.'
-                    )
-            content.extend(source_images)
         if len(content) > 0:
             group_item.ContentSequence = content
         self.append(group_item)
@@ -2611,7 +2598,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'MeasurementsAndQualitativeEvaluations':
+    ) -> '_MeasurementsAndQualitativeEvaluations':
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -2626,7 +2613,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
 
         Returns
         -------
-        highdicom.sr.MeasurementsAndQualitativeEvaluations
+        highdicom.sr._MeasurementsAndQualitativeEvaluations
             Content Sequence containing root CONTAINER SR Content Item
 
         """
@@ -2646,8 +2633,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 'because it does not have name "Measurement Group".'
             )
         instance = ContentSequence.from_sequence(sequence)
-        instance.__class__ = MeasurementsAndQualitativeEvaluations
-        return cast(MeasurementsAndQualitativeEvaluations, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
     @property
     def method(self) -> Union[CodedConcept, None]:
@@ -2752,25 +2739,6 @@ class MeasurementsAndQualitativeEvaluations(Template):
             return [FindingSite.from_dataset(m) for m in matches]
         return []
 
-    @property
-    def source_images(self) -> List[SourceImage]:
-        """List[highdicom.sr.SourceImage]: source images"""
-        root_item = self[0]
-        name = Code(
-            value='260753009',
-            scheme_designator='SCT',
-            meaning='Source',
-        )
-        matches = find_content_items(
-            root_item,
-            name=name,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
-        if len(matches) > 0:
-            return [SourceImage.from_dataset(m) for m in matches]
-        return []
-
     def get_measurements(
         self,
         name: Optional[Union[Code, CodedConcept]] = None
@@ -2845,8 +2813,112 @@ class MeasurementsAndQualitativeEvaluations(Template):
         ]
 
 
+class MeasurementsAndQualitativeEvaluations(
+    _MeasurementsAndQualitativeEvaluations
+):
+
+    """:dcm:`TID 1501 <part16/chapter_A.html#sect_TID_1501>`
+     Measurement and Qualitative Evaluation Group"""
+
+    def __init__(
+        self,
+        tracking_identifier: TrackingIdentifier,
+        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
+        time_point_context: Optional[TimePointContext] = None,
+        finding_type: Optional[Union[CodedConcept, Code]] = None,
+        method: Optional[Union[CodedConcept, Code]] = None,
+        algorithm_id: Optional[AlgorithmIdentification] = None,
+        finding_sites: Optional[Sequence[FindingSite]] = None,
+        session: Optional[str] = None,
+        measurements: Sequence[Measurement] = None,
+        qualitative_evaluations: Optional[
+            Sequence[QualitativeEvaluation]
+        ] = None,
+        finding_category: Optional[Union[CodedConcept, Code]] = None,
+        source_images: Optional[Sequence[SourceImage]] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        tracking_identifier: highdicom.sr.TrackingIdentifier
+            Identifier for tracking measurements
+        referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
+            Referenced real world value map for region of interest
+        time_point_context: Union[highdicom.sr.TimePointContext, None], optional
+            Description of the time point context
+        finding_type: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Type of observed finding
+        method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Coded measurement method (see
+            :dcm:`CID 6147 <part16/sect_CID_6147.html>`
+            "Response Criteria" for options)
+        algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
+            Identification of algorithm used for making measurements
+        finding_sites: Sequence[highdicom.sr.FindingSite, None], optional
+            Coded description of one or more anatomic locations at which
+            finding was observed
+        session: Union[str, None], optional
+            Description of the session
+        measurements: Union[Sequence[highdicom.sr.Measurement], None], optional
+            Numeric measurements
+        qualitative_evaluations: Union[Sequence[highdicom.sr.QualitativeEvaluation], None], optional
+            Coded name-value pairs that describe qualitative evaluations
+        finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Category of observed finding, e.g., anatomic structure or
+            morphologically abnormal structure
+        source_images: Optional[Sequence[highdicom.sr.SourceImage]], optional
+            Images to that were the source of the measurements. If not provided,
+            all images that listed in the document tree of the containing SR
+            document are assumed to be source images.
+
+        """  # noqa: E501
+        super().__init__(
+            tracking_identifier=tracking_identifier,
+            referenced_real_world_value_map=referenced_real_world_value_map,
+            time_point_context=time_point_context,
+            finding_type=finding_type,
+            method=method,
+            algorithm_id=algorithm_id,
+            finding_sites=finding_sites,
+            session=session,
+            measurements=measurements,
+            qualitative_evaluations=qualitative_evaluations,
+            finding_category=finding_category,
+        )
+        group_item = self[0]
+
+        if source_images is not None:
+            for img in source_images:
+                if not isinstance(img, SourceImage):
+                    raise TypeError(
+                        'Items of argument "source_images" must be of type '
+                        'highdicom.sr.SourceImage.'
+                    )
+            group_item.ContentSequence.extend(source_images)
+
+    @property
+    def source_images(self) -> List[SourceImage]:
+        """List[highdicom.sr.SourceImage]: source images"""
+        root_item = self[0]
+        name = Code(
+            value='260753009',
+            scheme_designator='SCT',
+            meaning='Source',
+        )
+        matches = find_content_items(
+            root_item,
+            name=name,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(matches) > 0:
+            return [SourceImage.from_dataset(m) for m in matches]
+        return []
+
+
 class _ROIMeasurementsAndQualitativeEvaluations(
-        MeasurementsAndQualitativeEvaluations):
+        _MeasurementsAndQualitativeEvaluations):
 
     """Abstract base class for ROI Measurements and Qualitative Evaluation
     templates."""
@@ -2996,12 +3068,6 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
-
-    @property
-    def source_images(self) -> Sequence:
-        """Sequence: Will always return an empty sequence."""
-        # This essentially removes this property from the base class
-        return []
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
