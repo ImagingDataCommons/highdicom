@@ -17,6 +17,7 @@ from highdicom.sr.content import (
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
+    SourceImage,
     SourceImageForMeasurement,
     SourceImageForSegmentation,
     SourceSeriesForSegmentation
@@ -2436,7 +2437,8 @@ class MeasurementsAndQualitativeEvaluations(Template):
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None
+        finding_category: Optional[Union[CodedConcept, Code]] = None,
+        source_images: Optional[Sequence[SourceImage]] = None,
     ):
         """
 
@@ -2468,6 +2470,10 @@ class MeasurementsAndQualitativeEvaluations(Template):
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
+        source_images: Optional[Sequence[highdicom.sr.SourceImage]], optional
+            Images to that were the source of the measurements. If not provided,
+            all images that listed in the document tree of the containing SR
+            document are assumed to be source images.
 
         """  # noqa: E501
         super().__init__()
@@ -2588,6 +2594,14 @@ class MeasurementsAndQualitativeEvaluations(Template):
                         'have type QualitativeEvaluations.'
                     )
                 content.extend(evaluation)
+        if source_images is not None:
+            for src_img in source_images:
+                if not isinstance(src_img, SourceImage):
+                    raise TypeError(
+                        'Items of argument "source_images" must '
+                        'have type highdicom.sr.SourceImage.'
+                    )
+            content.extend(source_images)
         if len(content) > 0:
             group_item.ContentSequence = content
         self.append(group_item)
@@ -2736,6 +2750,25 @@ class MeasurementsAndQualitativeEvaluations(Template):
         )
         if len(matches) > 0:
             return [FindingSite.from_dataset(m) for m in matches]
+        return []
+
+    @property
+    def source_images(self) -> List[SourceImage]:
+        """List[highdicom.sr.SourceImage]: source images"""
+        root_item = self[0]
+        name = Code(
+            value='260753009',
+            scheme_designator='SCT',
+            meaning='Source',
+        )
+        matches = find_content_items(
+            root_item,
+            name=name,
+            value_type=ValueTypeValues.IMAGE,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        if len(matches) > 0:
+            return [SourceImage.from_dataset(m) for m in matches]
         return []
 
     def get_measurements(
@@ -2963,6 +2996,12 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
+
+    @property
+    def source_images(self) -> Sequence:
+        """Sequence: Will always return an empty sequence."""
+        # This essentially removes this property from the base class
+        return []
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(

@@ -47,6 +47,7 @@ from highdicom.sr import (
     ObserverContext,
     PersonObserverIdentifyingAttributes,
     PixelOriginInterpretationValues,
+    MeasurementsAndQualitativeEvaluations,
     PlanarROIMeasurementsAndQualitativeEvaluations,
     PnameContentItem,
     QualitativeEvaluation,
@@ -56,6 +57,7 @@ from highdicom.sr import (
     RelationshipTypeValues,
     Scoord3DContentItem,
     ScoordContentItem,
+    SourceImage,
     SourceImageForMeasurement,
     SourceImageForRegion,
     SourceImageForSegmentation,
@@ -1683,6 +1685,119 @@ class TestSourceImageForRegion(unittest.TestCase):
             )
 
 
+class TestSourceImage(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._src_dataset_multiframe = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+        self._ref_frames = [1, 2]
+        self._ref_frames_invalid = [
+            self._src_dataset_multiframe.NumberOfFrames + 1
+        ]
+
+    def test_construction(self):
+        src_image = SourceImage(
+            self._src_dataset.SOPClassUID,
+            self._src_dataset.SOPInstanceUID
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+        assert src_image.value_type == ValueTypeValues.IMAGE
+        assert src_image.relationship_type == RelationshipTypeValues.CONTAINS
+
+    def test_construction_with_frame_reference(self):
+        src_image = SourceImage(
+            self._src_dataset_multiframe.SOPClassUID,
+            self._src_dataset_multiframe.SOPInstanceUID,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image(self):
+        src_image = SourceImage.from_source_image(
+            self._src_dataset
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_from_source_image_with_referenced_frames(self):
+        src_image = SourceImage.from_source_image(
+            self._src_dataset_multiframe,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image_with_invalid_referenced_frames(self):
+        with pytest.raises(ValueError):
+            SourceImage.from_source_image(
+                self._src_dataset_multiframe,
+                self._ref_frames_invalid
+            )
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceImage.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurement.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
 class TestSourceImageForMeasurement(unittest.TestCase):
 
     def setUp(self):
@@ -2476,6 +2591,48 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(evaluation) == 1
         assert evaluation.name == self._name
         assert evaluation.value == self._value
+
+
+class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._tracking_identifier = TrackingIdentifier(
+            uid=generate_uid(),
+            identifier='planar roi measurements'
+        )
+        self._measurements = [
+            Measurement(
+                name=codes.SCT.Area,
+                value=5,
+                unit=codes.UCUM.SquareCentimeter
+            ),
+        ]
+        self._src_instance_uid = UID()
+        self._source_images = [
+            SourceImage(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=self._src_instance_uid
+            )
+        ]
+
+    def test_construction_with_source_images(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+            source_images=self._source_images,
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1501'
+
+        source_images = template.source_images
+        assert len(source_images) == 1
+        src_image = source_images[0]
+        assert isinstance(src_image, SourceImage)
+        print(src_image)
+        sop_class_uid = src_image.referenced_sop_class_uid
+        assert sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
+        assert src_image.referenced_sop_instance_uid == self._src_instance_uid
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):

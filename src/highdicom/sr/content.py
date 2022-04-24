@@ -182,6 +182,111 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         return cast(LongitudinalTemporalOffsetFromEvent, item)
 
 
+class SourceImage(ImageContentItem):
+
+    """Content item representing a reference to an image that was used as a
+    source.
+    """
+
+    def __init__(
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
+        """
+        Parameters
+        ----------
+        referenced_sop_class_uid: str
+            SOP Class UID of the referenced image object
+        referenced_sop_instance_uid: str
+            SOP Instance UID of the referenced image object
+        referenced_frame_numbers: Union[Sequence[int], None], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Raises
+        ------
+        ValueError
+            If any referenced frame number is not a positive integer
+
+        """
+        if referenced_frame_numbers is not None:
+            if any(f < 1 for f in referenced_frame_numbers):
+                raise ValueError(
+                    'Referenced frame numbers must be >= 1. Frame indexing is '
+                    '1-based.'
+                )
+        super().__init__(
+            name=CodedConcept(
+                value='260753009',
+                scheme_designator='SCT',
+                meaning='Source',
+            ),
+            referenced_sop_class_uid=referenced_sop_class_uid,
+            referenced_sop_instance_uid=referenced_sop_instance_uid,
+            referenced_frame_numbers=referenced_frame_numbers,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+    @classmethod
+    def from_source_image(
+        cls,
+        image: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImage':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        image: pydicom.dataset.Dataset
+            Dataset representing the image to be referenced
+        referenced_frame_numbers: Union[Sequence[int], None], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Returns
+        -------
+        highdicom.sr.SourceImage
+            Content item representing a reference to the image dataset
+
+        """
+        # Check the dataset and referenced frames are valid
+        _check_valid_source_image_dataset(image)
+        _check_frame_numbers_valid_for_dataset(
+            image,
+            referenced_frame_numbers
+        )
+        return cls(
+            referenced_sop_class_uid=image.SOPClassUID,
+            referenced_sop_instance_uid=image.SOPInstanceUID,
+            referenced_frame_numbers=referenced_frame_numbers
+        )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImage':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type IMAGE
+
+        Returns
+        -------
+        highdicom.sr.SourceImage
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(cls, dataset: Dataset) -> 'SourceImage':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceImage, item)
+
+
 class SourceImageForMeasurement(ImageContentItem):
 
     """Content item representing a reference to an image that was used as a
