@@ -3113,6 +3113,13 @@ class TestMeasurementReport(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._source_image_uid = generate_uid()
+        self._source_images = [
+            SourceImage(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=self._source_image_uid
+            )
+        ]
         self._source_image_region_uid = generate_uid()
         self._image = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
@@ -3147,6 +3154,14 @@ class TestMeasurementReport(unittest.TestCase):
                 value=codes.SCT.Lung
             ),
         ]
+        self._image_group = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            finding_type=self._finding_type,
+            finding_sites=[self._finding_site],
+            measurements=self._measurements,
+            qualitative_evaluations=self._qualitative_evaluations,
+            source_images=self._source_images,
+        )
         self._roi_group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
@@ -3164,7 +3179,103 @@ class TestMeasurementReport(unittest.TestCase):
             qualitative_evaluations=self._qualitative_evaluations,
         )
 
-    def test_construction(self):
+    def test_construction_image(self):
+        measurement_report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=[self._image_group]
+        )
+        item = measurement_report[0]
+        assert len(item.ContentSequence) == 13
+
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
+
+        content_item_expectations = [
+            # Observation context
+            (0, '121049'),
+            # Observer context - Person
+            (1, '121005'),
+            (2, '121008'),
+            # Observer context - Device
+            (3, '121005'),
+            (4, '121012'),
+            # Subject context - Specimen
+            (5, '121024'),
+            (6, '121039'),
+            (7, '121041'),
+            (8, '371439000'),
+            (9, '111700'),
+            # Procedure reported
+            (10, '121058'),
+            # Image library
+            (11, '111028'),
+            # Imaging measurements
+            (12, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_type=self._finding_type
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_type=codes.SCT.Tissue
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_site=self._finding_site.value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_site=codes.SCT.Colon
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            tracking_uid=self._tracking_identifier[1].value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.1',
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=UID(),
+        )
+        assert len(matches) == 0
+
+    def test_construction_planar(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
@@ -3242,7 +3353,7 @@ class TestMeasurementReport(unittest.TestCase):
         )
         assert len(matches) == 0
 
-    def test_construction_3d(self):
+    def test_construction_volumetric(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,

@@ -43,12 +43,18 @@ from highdicom.sr.value_types import (
 )
 
 
+# Codes missing from pydicom
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',
     scheme_designator='RFC5646',
     meaning='English (United States)'
 )
 _REGION_IN_SPACE = Code('130488', 'DCM', 'Region in Space')
+_SOURCE = CodedConcept(
+    value='260753009',
+    scheme_designator='SCT',
+    meaning='Source',
+)
 
 
 logger = logging.getLogger(__name__)
@@ -2901,14 +2907,9 @@ class MeasurementsAndQualitativeEvaluations(
     def source_images(self) -> List[SourceImage]:
         """List[highdicom.sr.SourceImage]: source images"""
         root_item = self[0]
-        name = Code(
-            value='260753009',
-            scheme_designator='SCT',
-            meaning='Source',
-        )
         matches = find_content_items(
             root_item,
-            name=name,
+            name=_SOURCE,
             value_type=ValueTypeValues.IMAGE,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
@@ -4528,6 +4529,8 @@ class MeasurementReport(Template):
         tracking_uid: Optional[str] = None,
         finding_type: Optional[Union[CodedConcept, Code]] = None,
         finding_site: Optional[Union[CodedConcept, Code]] = None,
+        referenced_sop_instance_uid: Optional[str] = None,
+        referenced_sop_class_uid: Optional[str] = None
     ) -> List[MeasurementsAndQualitativeEvaluations]:
         """Get imaging measurements of images.
 
@@ -4543,6 +4546,10 @@ class MeasurementReport(Template):
             Finding
         finding_site: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Finding site
+        referenced_sop_instance_uid: Union[str, None], optional
+            SOP Instance UID of the referenced instance.
+        referenced_sop_class_uid: Union[str, None], optional
+            SOP Class UID of the referenced instance.
 
         Returns
         -------
@@ -4587,6 +4594,19 @@ class MeasurementReport(Template):
                     relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
                 )
                 matches.append(matches_tracking_uid)
+
+            if (
+                (referenced_sop_instance_uid is not None) or
+                (referenced_sop_class_uid is not None)
+            ):
+                matches_uids = _contains_image_items(
+                    group_item,
+                    name=_SOURCE,
+                    referenced_sop_class_uid=referenced_sop_class_uid,
+                    referenced_sop_instance_uid=referenced_sop_instance_uid,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+                matches.append(matches_uids)
 
             seq = MeasurementsAndQualitativeEvaluations.from_sequence(
                 [group_item]
