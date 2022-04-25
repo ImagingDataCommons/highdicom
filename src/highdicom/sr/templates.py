@@ -2919,7 +2919,8 @@ class MeasurementsAndQualitativeEvaluations(
 
 
 class _ROIMeasurementsAndQualitativeEvaluations(
-        _MeasurementsAndQualitativeEvaluations):
+    _MeasurementsAndQualitativeEvaluations
+):
 
     """Abstract base class for ROI Measurements and Qualitative Evaluation
     templates."""
