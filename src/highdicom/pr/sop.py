@@ -20,7 +20,9 @@ from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
+    PresentationLUTTransformation,
 )
+from highdicom.enum import PresentationLUTShapeValues
 from highdicom.pr.content import (
     _add_displayed_area_attributes,
     _add_equipment_attributes,
@@ -40,7 +42,6 @@ from highdicom.pr.content import (
     GraphicLayer,
     GraphicGroup,
     GraphicAnnotation,
-    PresentationLUTTransformation,
     SoftcopyVOILUTTransformation,
 )
 from highdicom.sr.coding import CodedConcept
@@ -315,11 +316,16 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 )
 
         # Softcopy Presentation LUT
-        if presentation_lut_transformation is not None:
-            _add_softcopy_presentation_lut_attributes(
-                self,
-                presentation_lut_transformation=presentation_lut_transformation
+        if presentation_lut_transformation is None:
+            # Use the identity transformation as default presentation
+            # transformation
+            presentation_lut_transformation = PresentationLUTTransformation(
+                presentation_lut_shape=PresentationLUTShapeValues.IDENTITY
             )
+        _add_softcopy_presentation_lut_attributes(
+            self,
+            presentation_lut_transformation=presentation_lut_transformation
+        )
 
 
 class PseudoColorSoftcopyPresentationState(SOPClass):
