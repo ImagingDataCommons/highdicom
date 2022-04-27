@@ -154,7 +154,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             user or an application. If no value is provided, the VOI LUT
             transformation in the referenced images, if any, will be
             used.
-        presentation_lut_transformation: Union[highdicom.pr.PresentationLUTTransformation, None], optional
+        presentation_lut_transformation: Union[highdicom.PresentationLUTTransformation, None], optional
             Description of the Presentation LUT Transformation for transforming
             polarity pixel values into device-independent presentation values
         transfer_syntax_uid: Union[str, highdicom.UID], optional
