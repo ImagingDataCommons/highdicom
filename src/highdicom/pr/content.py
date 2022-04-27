@@ -1090,7 +1090,7 @@ def _add_modality_lut_attributes(
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
     modality_lut_transformation: highdicom.ModalityLUTTransformation
-        Description of the Modality LUT Transformation for tranforming modality
+        Description of the Modality LUT Transformation for transforming modality
         dependent into modality independent pixel values
 
     """
@@ -1116,7 +1116,7 @@ def _get_modality_lut_transformation(
     Returns
     -------
     Union[highdicom.ModalityLUTTransformation, None]
-        Description of the Modality LUT Transformation for tranforming modality
+        Description of the Modality LUT Transformation for transforming modality
         dependent into modality independent pixel values. None if no such
         attributes are found in the referenced images.
 
@@ -1269,7 +1269,7 @@ def _add_softcopy_voi_lut_attributes(
     referenced_images: Sequence[pydicom.Dataset]
         Images that should be referenced
     voi_lut_transformations: Sequence[highdicom.pr.SoftcopyVOILUTTransformation]
-        Description of the VOI LUT Transformation for tranforming modality
+        Description of the VOI LUT Transformation for transforming modality
         pixel values into pixel values that are of interest to a user or an
         application
 
@@ -1660,7 +1660,7 @@ def _add_palette_color_lookup_table_attributes(
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
     palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
-        Description of the Palette Color LUT Transformation for tranforming
+        Description of the Palette Color LUT Transformation for transforming
         grayscale into RGB color pixel values
 
     """  # noqa: E501
@@ -1688,7 +1688,7 @@ def _add_softcopy_presentation_lut_attributes(
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
     presentation_lut_transformation: highdicom.pr.PresentationLUTTransformation
-        Description of the Modality LUT Transformation for tranforming modality
+        Description of the Modality LUT Transformation for transforming modality
         dependent into modality independent pixel values
 
     """
@@ -1732,14 +1732,14 @@ class AdvancedBlending(Dataset):
             Relative one-based index of the item for input into the blending
             operation
         modality_lut_transformation: Union[highdicom.ModalityLUTTransformation, None], optional
-            Description of the Modality LUT Transformation for tranforming modality
+            Description of the Modality LUT Transformation for transforming modality
             dependent into modality independent pixel values
         voi_lut_transformations: Union[Sequence[highdicom.pr.SoftcopyVOILUTTransformation], None], optional
-            Description of the VOI LUT Transformation for tranforming
+            Description of the VOI LUT Transformation for transforming
             modality pixel values into pixel values that are of interest to a
             user or an application
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
-            Description of the Palette Color LUT Transformation for tranforming
+            Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
 
         """  # noqa: E501
