@@ -831,8 +831,9 @@ class AdvancedBlendingPresentationState(SOPClass):
             Description of groups of images that should be blended to form a
             pseudo-color image.
         blending_display: Sequence[highdicom.pr.BlendingDisplay]
-            Description of the blending operations and the input series to be
-            used.
+            Description of the blending operations and the images to be
+            used. Each item results in an individual pseudo-color RGB image,
+            which may reused in a following step.
         series_instance_uid: str
             UID of the series
         series_number: Union[int, None]
@@ -1013,6 +1014,15 @@ class AdvancedBlendingPresentationState(SOPClass):
             concept_name=concept_name,
             content_creator_name=content_creator_name,
             content_creator_identification=content_creator_identification
+        )
+
+        # Confusingly, the Advanced Blending Presentation State IOD does not
+        # include the Presentation State Relationship module. However, it
+        # includes the Common Instance Reference module, which containes the
+        # same attributes.
+        _add_presentation_state_relationship_attributes(
+            self,
+            referenced_images=referenced_images
         )
 
         # Graphic Group, Graphic Annotation, and Graphic Layer
