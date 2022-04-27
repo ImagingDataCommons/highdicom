@@ -1687,7 +1687,7 @@ def _add_softcopy_presentation_lut_attributes(
     ----------
     dataset: pydicom.Dataset
         Dataset to which attributes should be added
-    presentation_lut_transformation: highdicom.pr.PresentationLUTTransformation
+    presentation_lut_transformation: highdicom.PresentationLUTTransformation
         Description of the Modality LUT Transformation for transforming modality
         dependent into modality independent pixel values
 
