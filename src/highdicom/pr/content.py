@@ -1070,10 +1070,16 @@ def _add_displayed_area_attributes(
     display_area_item = Dataset()
     display_area_item.PixelOriginInterpretation = 'VOLUME'
     display_area_item.DisplayedAreaTopLeftHandCorner = [1, 1]
-    display_area_item.DisplayedAreaBottomRightHandCorner = [
-        ref_im.Columns,
-        ref_im.Rows,
-    ]
+    if is_tiled_image(ref_im):
+        display_area_item.DisplayedAreaBottomRightHandCorner = [
+            ref_im.TotalPixelMatrixColumns,
+            ref_im.TotalPixelMatrixRows,
+        ]
+    else:
+        display_area_item.DisplayedAreaBottomRightHandCorner = [
+            ref_im.Columns,
+            ref_im.Rows,
+        ]
     display_area_item.PresentationSizeMode = 'SCALE TO FIT'
     display_area_item.PresentationPixelAspectRatio = [1, 1]
     dataset.DisplayedAreaSelectionSequence = [display_area_item]
