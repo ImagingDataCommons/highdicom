@@ -156,7 +156,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             used.
         presentation_lut_transformation: Union[highdicom.pr.PresentationLUTTransformation, None], optional
             Description of the Presentation LUT Transformation for transforming
-            polarity pixel values into device-indendent presentation values
+            polarity pixel values into device-independent presentation values
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
         **kwargs: Any, optional
