@@ -1052,11 +1052,11 @@ class SpecimenPreparationStep(Dataset):
 
     @property
     def processing_procedure(self) -> Union[
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ]:
+        SpecimenCollection,
+        SpecimenSampling,
+        SpecimenStaining,
+        SpecimenProcessing,
+    ]:
         """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
         highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
             Procedure used during processing
