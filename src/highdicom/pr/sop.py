@@ -164,12 +164,17 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        if len(referenced_images) == 0:
+            raise ValueError(
+                'Argument "referenced_images" should not be empty.'
+            )
         for ref_im in referenced_images:
             if ref_im.SamplesPerPixel != 1:
                 raise ValueError(
                     'For grayscale presentation states, all referenced images '
                     'must have a single sample per pixel.'
                 )
+        ref_im = referenced_images[0]
 
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
@@ -432,12 +437,18 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        if len(referenced_images) == 0:
+            raise ValueError(
+                'Argument "referenced_images" should not be empty.'
+            )
         for ref_im in referenced_images:
             if ref_im.SamplesPerPixel != 1:
                 raise ValueError(
                     'For pseudo-color presentation states, all referenced '
                     'images must have a single sample per pixel.'
                 )
+        ref_im = referenced_images[0]
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -693,12 +704,18 @@ class ColorSoftcopyPresentationState(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        if len(referenced_images) == 0:
+            raise ValueError(
+                'Argument "referenced_images" should not be empty.'
+            )
         for ref_im in referenced_images:
             if ref_im.SamplesPerPixel != 3:
                 raise ValueError(
                     'For color presentation states, all referenced '
                     'images must have three samples per pixel.'
                 )
+        ref_im = referenced_images[0]
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
