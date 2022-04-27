@@ -1908,7 +1908,7 @@ class BlendingDisplay(Dataset):
     def __init__(
         self,
         blending_mode: Union[BlendingModeValues, str],
-        blending_display_input: Sequence[BlendingDisplayInput],
+        blending_display_inputs: Sequence[BlendingDisplayInput],
         blending_input_number: Optional[int] = None,
         relative_opacity: Optional[float] = None,
     ) -> None:
@@ -1919,7 +1919,7 @@ class BlendingDisplay(Dataset):
         blending_mode: Union[str, highdicom.pr.BlendingModeValues]
             Method for weighting the different input images during the blending
             operation using alpha composition with premultiplication
-        blending_display_input: Sequence[highdicom.pr.BlendingDisplayInput]
+        blending_display_inputs: Sequence[highdicom.pr.BlendingDisplayInput]
             Inputs for the blending operation. The order of items determines
             the order in which images will be blended.
         blending_input_number: Union[int, None], optional
@@ -1938,15 +1938,15 @@ class BlendingDisplay(Dataset):
         blending_mode = BlendingModeValues(blending_mode)
         self.BlendingMode = blending_mode.value
 
-        if not isinstance(blending_display_input, Sequence):
+        if not isinstance(blending_display_inputs, Sequence):
             raise TypeError(
-                'Argument "blending_display_input" must be a sequence.'
+                'Argument "blending_display_inputs" must be a sequence.'
             )
 
         if blending_mode == BlendingModeValues.FOREGROUND:
-            if len(blending_display_input) != 2:
+            if len(blending_display_inputs) != 2:
                 raise ValueError(
-                    'Argument "blending_display_input" must contain exactly '
+                    'Argument "blending_display_inputs" must contain exactly '
                     'two items if blending mode is "FOREGROUND".'
                 )
             if relative_opacity is None:
@@ -1956,15 +1956,15 @@ class BlendingDisplay(Dataset):
                 )
             self.RelativeOpacity = float(relative_opacity)
         elif blending_mode == BlendingModeValues.EQUAL:
-            if len(blending_display_input) == 0:
+            if len(blending_display_inputs) == 0:
                 raise ValueError(
                     'Argument "blending_display_input" must contain one or '
                     'more items if blending mode is "EQUAL".'
                 )
-        for item in blending_display_input:
+        for item in blending_display_inputs:
             if not isinstance(item, BlendingDisplayInput):
                 raise TypeError(
                     'Items of argument "blending_display_input" must have '
                     'type BlendingDisplayInput.'
                 )
-        self.BlendingDisplayInputSequence = blending_display_input
+        self.BlendingDisplayInputSequence = blending_display_inputs

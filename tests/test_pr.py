@@ -865,7 +865,7 @@ class TestBlendingDisplay(unittest.TestCase):
     def test_construction_equal(self):
         ds = BlendingDisplay(
             blending_mode=BlendingModeValues.EQUAL,
-            blending_display_input=[
+            blending_display_inputs=[
                 BlendingDisplayInput(
                     blending_input_number=1
                 )
@@ -879,7 +879,7 @@ class TestBlendingDisplay(unittest.TestCase):
     def test_construction_forebround(self):
         ds = BlendingDisplay(
             blending_mode=BlendingModeValues.FOREGROUND,
-            blending_display_input=[
+            blending_display_inputs=[
                 BlendingDisplayInput(
                     blending_input_number=1
                 ),
@@ -898,7 +898,7 @@ class TestBlendingDisplay(unittest.TestCase):
         with pytest.raises(TypeError):
             BlendingDisplay(
                 blending_mode=BlendingModeValues.EQUAL,
-                blending_display_input=BlendingDisplayInput(
+                blending_display_inputs=BlendingDisplayInput(
                     blending_input_number=1
                 )
             )
@@ -907,14 +907,14 @@ class TestBlendingDisplay(unittest.TestCase):
         with pytest.raises(ValueError):
             BlendingDisplay(
                 blending_mode=BlendingModeValues.EQUAL,
-                blending_display_input=[]
+                blending_display_inputs=[]
             )
 
     def test_construction_foreground_wrong_relative_opacity_type(self):
         with pytest.raises(TypeError):
             BlendingDisplay(
                 blending_mode=BlendingModeValues.FOREGROUND,
-                blending_display_input=[
+                blending_display_inputs=[
                     BlendingDisplayInput(
                         blending_input_number=1
                     ),
@@ -928,7 +928,7 @@ class TestBlendingDisplay(unittest.TestCase):
         with pytest.raises(ValueError):
             BlendingDisplay(
                 blending_mode=BlendingModeValues.FOREGROUND,
-                blending_display_input=[
+                blending_display_inputs=[
                     BlendingDisplayInput(
                         blending_input_number=1
                     )
