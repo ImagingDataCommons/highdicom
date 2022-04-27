@@ -1071,9 +1071,19 @@ def _add_displayed_area_attributes(
     display_area_item.PixelOriginInterpretation = 'VOLUME'
     display_area_item.DisplayedAreaTopLeftHandCorner = [1, 1]
     if is_tiled_image(ref_im):
+        # In case the images form a multi-resolution pyramid, select the image
+        # at lowest resolution (top of the pyramid).
+        sorted_images = sorted(
+            referenced_images,
+            key=lambda im: im.TotalPixelMatrixRows * im.TotalPixelMatrixColumns
+        )
+        low_res_im = sorted_images[0]
+        display_area_item.ReferencedImageSequence = ReferencedImageSequence(
+            referenced_images=[low_res_im],
+        )
         display_area_item.DisplayedAreaBottomRightHandCorner = [
-            ref_im.TotalPixelMatrixColumns,
-            ref_im.TotalPixelMatrixRows,
+            low_res_im.TotalPixelMatrixColumns,
+            low_res_im.TotalPixelMatrixRows,
         ]
     else:
         display_area_item.DisplayedAreaBottomRightHandCorner = [
