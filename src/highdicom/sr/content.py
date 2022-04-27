@@ -182,7 +182,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         return cast(LongitudinalTemporalOffsetFromEvent, item)
 
 
-class SourceImage(ImageContentItem):
+class SourceImageForMeasurementGroup(ImageContentItem):
 
     """Content item representing a reference to an image that was used as a
     source.
@@ -234,7 +234,7 @@ class SourceImage(ImageContentItem):
         cls,
         image: Dataset,
         referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImage':
+    ) -> 'SourceImageForMeasurementGroup':
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -247,7 +247,7 @@ class SourceImage(ImageContentItem):
 
         Returns
         -------
-        highdicom.sr.SourceImage
+        highdicom.sr.SourceImageForMeasurementGroup
             Content item representing a reference to the image dataset
 
         """
@@ -264,7 +264,7 @@ class SourceImage(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceImage':
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurementGroup':
         """Construct object from an existing dataset.
 
         Parameters
@@ -274,7 +274,7 @@ class SourceImage(ImageContentItem):
 
         Returns
         -------
-        highdicom.sr.SourceImage
+        highdicom.sr.SourceImageForMeasurementGroup
             Constructed object
 
         """
@@ -282,9 +282,12 @@ class SourceImage(ImageContentItem):
         return cls._from_dataset(dataset_copy)
 
     @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'SourceImage':
+    def _from_dataset(
+        cls,
+        dataset: Dataset
+    ) -> 'SourceImageForMeasurementGroup':
         item = super()._from_dataset_base(dataset)
-        return cast(SourceImage, item)
+        return cast(SourceImageForMeasurementGroup, item)
 
 
 class SourceImageForMeasurement(ImageContentItem):

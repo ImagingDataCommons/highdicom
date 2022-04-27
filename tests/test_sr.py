@@ -57,8 +57,8 @@ from highdicom.sr import (
     RelationshipTypeValues,
     Scoord3DContentItem,
     ScoordContentItem,
-    SourceImage,
     SourceImageForMeasurement,
+    SourceImageForMeasurementGroup,
     SourceImageForRegion,
     SourceImageForSegmentation,
     SourceSeriesForSegmentation,
@@ -1709,7 +1709,7 @@ class TestSourceImage(unittest.TestCase):
         ]
 
     def test_construction(self):
-        src_image = SourceImage(
+        src_image = SourceImageForMeasurementGroup(
             self._src_dataset.SOPClassUID,
             self._src_dataset.SOPInstanceUID
         )
@@ -1726,7 +1726,7 @@ class TestSourceImage(unittest.TestCase):
         assert src_image.relationship_type == RelationshipTypeValues.CONTAINS
 
     def test_construction_with_frame_reference(self):
-        src_image = SourceImage(
+        src_image = SourceImageForMeasurementGroup(
             self._src_dataset_multiframe.SOPClassUID,
             self._src_dataset_multiframe.SOPInstanceUID,
             self._ref_frames
@@ -1746,7 +1746,7 @@ class TestSourceImage(unittest.TestCase):
         )
 
     def test_from_source_image(self):
-        src_image = SourceImage.from_source_image(
+        src_image = SourceImageForMeasurementGroup.from_source_image(
             self._src_dataset
         )
         assert len(src_image.ReferencedSOPSequence) == 1
@@ -1760,7 +1760,7 @@ class TestSourceImage(unittest.TestCase):
         )
 
     def test_from_source_image_with_referenced_frames(self):
-        src_image = SourceImage.from_source_image(
+        src_image = SourceImageForMeasurementGroup.from_source_image(
             self._src_dataset_multiframe,
             self._ref_frames
         )
@@ -1780,14 +1780,14 @@ class TestSourceImage(unittest.TestCase):
 
     def test_from_source_image_with_invalid_referenced_frames(self):
         with pytest.raises(ValueError):
-            SourceImage.from_source_image(
+            SourceImageForMeasurementGroup.from_source_image(
                 self._src_dataset_multiframe,
                 self._ref_frames_invalid
             )
 
     def test_from_invalid_source_image_sr(self):
         with pytest.raises(ValueError):
-            SourceImage.from_source_image(
+            SourceImageForMeasurementGroup.from_source_image(
                 self._invalid_src_dataset_sr
             )
 
@@ -2610,7 +2610,7 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         ]
         self._src_instance_uid = UID()
         self._source_images = [
-            SourceImage(
+            SourceImageForMeasurementGroup(
                 referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
                 referenced_sop_instance_uid=self._src_instance_uid
             )
@@ -2637,7 +2637,7 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         source_images = template.source_images
         assert len(source_images) == 1
         src_image = source_images[0]
-        assert isinstance(src_image, SourceImage)
+        assert isinstance(src_image, SourceImageForMeasurementGroup)
         print(src_image)
         sop_class_uid = src_image.referenced_sop_class_uid
         assert sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
@@ -3115,7 +3115,7 @@ class TestMeasurementReport(unittest.TestCase):
         )
         self._source_image_uid = generate_uid()
         self._source_images = [
-            SourceImage(
+            SourceImageForMeasurementGroup(
                 referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
                 referenced_sop_instance_uid=self._source_image_uid
             )

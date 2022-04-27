@@ -17,7 +17,7 @@ from highdicom.sr.content import (
     RealWorldValueMap,
     ReferencedSegment,
     ReferencedSegmentationFrame,
-    SourceImage,
+    SourceImageForMeasurementGroup,
     SourceImageForMeasurement,
     SourceImageForSegmentation,
     SourceSeriesForSegmentation
@@ -2841,7 +2841,9 @@ class MeasurementsAndQualitativeEvaluations(
             Sequence[QualitativeEvaluation]
         ] = None,
         finding_category: Optional[Union[CodedConcept, Code]] = None,
-        source_images: Optional[Sequence[SourceImage]] = None,
+        source_images: Optional[
+            Sequence[SourceImageForMeasurementGroup]
+        ] = None,
     ):
         """
 
@@ -2873,7 +2875,7 @@ class MeasurementsAndQualitativeEvaluations(
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
-        source_images: Optional[Sequence[highdicom.sr.SourceImage]], optional
+        source_images: Optional[Sequence[highdicom.sr.SourceImageForMeasurementGroup]], optional
             Images to that were the source of the measurements. If not provided,
             all images that listed in the document tree of the containing SR
             document are assumed to be source images.
@@ -2896,16 +2898,16 @@ class MeasurementsAndQualitativeEvaluations(
 
         if source_images is not None:
             for img in source_images:
-                if not isinstance(img, SourceImage):
+                if not isinstance(img, SourceImageForMeasurementGroup):
                     raise TypeError(
                         'Items of argument "source_images" must be of type '
-                        'highdicom.sr.SourceImage.'
+                        'highdicom.sr.SourceImageForMeasurementGroup.'
                     )
             group_item.ContentSequence.extend(source_images)
 
     @property
-    def source_images(self) -> List[SourceImage]:
-        """List[highdicom.sr.SourceImage]: source images"""
+    def source_images(self) -> List[SourceImageForMeasurementGroup]:
+        """List[highdicom.sr.SourceImageForMeasurementGroup]: source images"""
         root_item = self[0]
         matches = find_content_items(
             root_item,
@@ -2914,7 +2916,9 @@ class MeasurementsAndQualitativeEvaluations(
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         if len(matches) > 0:
-            return [SourceImage.from_dataset(m) for m in matches]
+            return [
+                SourceImageForMeasurementGroup.from_dataset(m) for m in matches
+            ]
         return []
 
 
