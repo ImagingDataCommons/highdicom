@@ -1,9 +1,10 @@
 """Package for creation of Presentation State instances."""
 
 from highdicom.pr.sop import (
+    AdvancedBlendingPresentationState,
+    ColorSoftcopyPresentationState,
     GrayscaleSoftcopyPresentationState,
     PseudoColorSoftcopyPresentationState,
-    ColorSoftcopyPresentationState,
 )
 from highdicom.pr.enum import (
     AnnotationUnitsValues,
@@ -33,6 +34,7 @@ SOP_CLASS_UIDS = {
 
 __all__ = [
     'AdvancedBlending',
+    'AdvancedBlendingPresentationState',
     'AnnotationUnitsValues',
     'BlendingModeValues',
     'BlendingDisplay',
