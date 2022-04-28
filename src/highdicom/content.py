@@ -1052,11 +1052,11 @@ class SpecimenPreparationStep(Dataset):
 
     @property
     def processing_procedure(self) -> Union[
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ]:
+        SpecimenCollection,
+        SpecimenSampling,
+        SpecimenStaining,
+        SpecimenProcessing,
+    ]:
         """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
         highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
 
@@ -1772,10 +1772,10 @@ class VOILUTTransformation(Dataset):
                         'sequence.'
                     )
                 self.WindowCenter = [
-                    format_number_as_ds(x) for x in window_center
+                    format_number_as_ds(float(x)) for x in window_center
                 ]
             else:
-                self.WindowCenter = format_number_as_ds(window_center)
+                self.WindowCenter = format_number_as_ds(float(window_center))
         if window_width is not None:
             if window_center is None:
                 raise TypeError(
@@ -1796,7 +1796,7 @@ class VOILUTTransformation(Dataset):
                         'Argument "window_width" must not be an empty sequence.'
                     )
                 self.WindowWidth = [
-                    format_number_as_ds(x) for x in window_width
+                    format_number_as_ds(float(x)) for x in window_width
                 ]
             else:
                 if window_is_sequence:
@@ -1804,7 +1804,7 @@ class VOILUTTransformation(Dataset):
                         'Length of "window_width" must match length of '
                         '"window_center".'
                     )
-                self.WindowWidth = format_number_as_ds(window_width)
+                self.WindowWidth = format_number_as_ds(float(window_width))
         if window_explanation is not None:
             if window_center is None:
                 raise TypeError(
