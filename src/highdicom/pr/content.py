@@ -1818,7 +1818,7 @@ class AdvancedBlending(Dataset):
             ref_im_seq.append(ref_im_item)
         self.ReferencedImageSequence = ref_im_seq
         self.StudyInstanceUID = ref_im.StudyInstanceUID
-        self.SeriesInstanceUID = UID()
+        self.SeriesInstanceUID = ref_im.SeriesInstanceUID
 
         if modality_lut_transformation is not None:
             _add_modality_lut_attributes(
