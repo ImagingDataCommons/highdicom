@@ -1586,8 +1586,7 @@ class LUT(Dataset):
             raise ValueError(
                 "Numpy array must have dtype uint8 or uint16."
             )
-        # The LUT data attribute has VR OW (16-bit other words)
-        self.LUTData = lut_data.astype(np.uint16).tobytes()
+        self.LUTData = lut_data.tobytes()
 
         self.LUTDescriptor = [
             len_data,
@@ -1602,18 +1601,19 @@ class LUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: LUT data"""
-        if self.bits_per_entry == 8:
-            dtype = np.uint8
-        elif self.bits_per_entry == 16:
-            dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
         length = self.LUTDescriptor[0]
         data = self.LUTData
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(dtype)
+        if self.bits_per_entry == 8:
+            # Check for special case listed in the standard where 8 bit values
+            # are padded to 16bit
+            if len(data) == length * 2:
+                array = np.frombuffer(data, dtype=np.uint16).astype(np.uint8)
+            else:
+                array = np.frombuffer(data, dtype=np.uint8)
+        elif self.bits_per_entry == 16:
+            array = np.frombuffer(data, dtype=np.uint16)
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -2106,12 +2106,10 @@ class PaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
-        # The Palette Color Lookup Table Data attributes have VR OW
-        # (16-bit other words)
         setattr(
             self,
             f'{self._attr_name_prefix}Data',
-            lut_data.astype(np.uint16).tobytes()
+            lut_data.tobytes()
         )
         setattr(
             self,
@@ -2122,18 +2120,19 @@ class PaletteColorLUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: lookup table data"""
-        if self.bits_per_entry == 8:
-            dtype = np.uint8
-        elif self.bits_per_entry == 16:
-            dtype = np.uint16
-        else:
-            raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'{self._attr_name_prefix}Data')
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(dtype)
+        if self.bits_per_entry == 8:
+            # Check for special case listed in the standard where 8 bit values
+            # are padded to 16bit
+            if len(data) == length * 2:
+                array = np.frombuffer(data, dtype=np.uint16).astype(np.uint8)
+            else:
+                array = np.frombuffer(data, dtype=np.uint8)
+        elif self.bits_per_entry == 16:
+            array = np.frombuffer(data, dtype=np.uint16)
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
         if len(array) != length:
             raise RuntimeError(
                 'Length of Lookup Table Data does not match the value '
@@ -2250,12 +2249,10 @@ class SegmentedPaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
-        # The Segmented Palette Color Lookup Table Data attributes have VR OW
-        # (16-bit other words)
         setattr(
             self,
             f'Segmented{self._attr_name_prefix}Data',
-            segmented_lut_data.astype(np.uint16).tobytes()
+            segmented_lut_data.tobytes()
         )
 
         expanded_lut_values = []
@@ -2321,10 +2318,7 @@ class SegmentedPaletteColorLUT(Dataset):
         """numpy.ndarray: segmented lookup table data"""
         length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(self._dtype)
+        array = np.frombuffer(data, dtype=self._dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '

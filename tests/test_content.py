@@ -906,7 +906,7 @@ class TestPaletteColorLUT(TestCase):
         assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
         assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
         assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
-        assert len(lut.BluePaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert len(lut.BluePaletteColorLookupTableData) == lut_data.shape[0]
         assert not hasattr(lut, 'RedPaletteColorLookupTableData')
         assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
 
