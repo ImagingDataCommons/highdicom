@@ -850,6 +850,8 @@ class TestAdvancedBlending(unittest.TestCase):
         assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
+        assert not hasattr(ds, 'ContentDescription')
+        assert not hasattr(ds, 'ConceptNameCodeSequence')
         assert not hasattr(ds, 'ThresholdSequence')
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')

@@ -846,11 +846,12 @@ def _add_presentation_state_identification_attributes(
     """  # noqa: E501
     _check_code_string(content_label)
     dataset.ContentLabel = content_label
-    if content_description is not None and len(content_description) > 64:
-        raise ValueError(
-            'Argument "content_description" must not exceed 64 characters.'
-        )
-    dataset.ContentDescription = content_description
+    if content_description is not None:
+        if len(content_description) > 64:
+            raise ValueError(
+                'Argument "content_description" must not exceed 64 characters.'
+            )
+        dataset.ContentDescription = content_description
     now = datetime.datetime.now()
     dataset.PresentationCreationDate = DA(now.date())
     dataset.PresentationCreationTime = TM(now.time())
