@@ -781,8 +781,9 @@ class TestAdvancedBlending(unittest.TestCase):
         )
 
     def test_construction(self):
+        ref_image = self._sm_image
         ds = AdvancedBlending(
-            referenced_images=[self._sm_image],
+            referenced_images=[ref_image],
             blending_input_number=1,
             voi_lut_transformations=[
                 SoftcopyVOILUTTransformation(
@@ -827,8 +828,11 @@ class TestAdvancedBlending(unittest.TestCase):
             )
         )
         assert isinstance(ds, Dataset)
-        assert ds.StudyInstanceUID == self._sm_image.StudyInstanceUID
+        assert ds.StudyInstanceUID == ref_image.StudyInstanceUID
+        assert ds.SeriesInstanceUID == ref_image.SeriesInstanceUID
         assert len(ds.ReferencedImageSequence) == 1
+        ref_item = ds.ReferencedImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == ref_image.SOPInstanceUID
         assert ds.BlendingInputNumber == 1
         assert len(ds.SoftcopyVOILUTSequence) == 1
         assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
@@ -846,6 +850,8 @@ class TestAdvancedBlending(unittest.TestCase):
         assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
+        assert not hasattr(ds, 'ContentDescription')
+        assert not hasattr(ds, 'ConceptNameCodeSequence')
         assert not hasattr(ds, 'ThresholdSequence')
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')
