@@ -167,3 +167,17 @@ Item Sequence and the class is consequently derived from
 As a consequence, alternative construction of an instance of
 :class:`highdicom.content.SpecimenPreparationStep` needs to be performed using
 the ``from_dataset()`` instead of the ``from_sequence()`` class method.
+
+.. _big-endian-deprecation:
+
+Deprecation of Big Endian Transfer Syntaxes
+-------------------------------------------
+
+The use of "Big Endian" transfer syntaxes such as `ExplicitVRBigEndian` is
+disallowed from highdicom 0.17.0 onwards. The use of Big Endian transfer
+syntaxes has been retired in the standard for some time. To discourage the use
+of retired transfer syntaxes and to simplify the logic when encoding and
+decoding objects in which byte order is relevant, in version 0.17.0 and onwards
+passing a big endian transfer syntax to the constructor of
+:class:`highdicom.SOPClass` or any of its subclasses will result in a value
+error.

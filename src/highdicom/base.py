@@ -6,7 +6,7 @@ from typing import List, Optional, Sequence, Union
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filewriter import write_file_meta_info
-from pydicom.uid import ExplicitVRBigEndian, ImplicitVRLittleEndian, UID
+from pydicom.uid import ImplicitVRLittleEndian, UID
 from pydicom.valuerep import DA, PersonName, TM
 
 from highdicom.coding_schemes import CodingSchemeIdentificationItem
@@ -116,20 +116,20 @@ class SOPClass(Dataset):
         super().__init__()
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ImplicitVRLittleEndian
-        if transfer_syntax_uid == ExplicitVRBigEndian:
-            self.is_little_endian = False
-        else:
-            self.is_little_endian = True
-        if transfer_syntax_uid == ImplicitVRLittleEndian:
-            self.is_implicit_VR = True
-        else:
-            self.is_implicit_VR = False
+        transfer_syntax_uid = UID(transfer_syntax_uid)
+        if not transfer_syntax_uid.is_little_endian:
+            raise ValueError(
+                "Big Endian transfer syntaxes are retired and no longer "
+                "supported by highdicom."
+            )
+        self.is_little_endian = True  # backwards compatibility
+        self.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
         self.preamble = b'\x00' * 128
         self.file_meta = FileMetaDataset()
-        self.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
+        self.file_meta.TransferSyntaxUID = transfer_syntax_uid
         self.file_meta.MediaStorageSOPClassUID = UID(sop_class_uid)
         self.file_meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
         self.file_meta.FileMetaInformationVersion = b'\x00\x01'
