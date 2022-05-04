@@ -2585,7 +2585,7 @@ class MeasurementsAndQualitativeEvaluations(Template):
                 if not isinstance(evaluation, QualitativeEvaluation):
                     raise TypeError(
                         'Items of argument "qualitative_evaluations" must '
-                        'have type QualitativeEvaluations.'
+                        'have type QualitativeEvaluation.'
                     )
                 content.extend(evaluation)
         if len(content) > 0:
