@@ -174,10 +174,14 @@ Deprecation of Big Endian Transfer Syntaxes
 -------------------------------------------
 
 The use of "Big Endian" transfer syntaxes such as `ExplicitVRBigEndian` is
-disallowed from highdicom 0.17.0 onwards. The use of Big Endian transfer
+disallowed from highdicom 0.18.0 onwards. The use of Big Endian transfer
 syntaxes has been retired in the standard for some time. To discourage the use
 of retired transfer syntaxes and to simplify the logic when encoding and
 decoding objects in which byte order is relevant, in version 0.17.0 and onwards
 passing a big endian transfer syntax to the constructor of
 :class:`highdicom.SOPClass` or any of its subclasses will result in a value
 error.
+
+Similarly, as of highdicom 0.18.0, it is no longer possible to pass datasets
+with a Big Endian transfer syntax to the `from_dataset` methods of any of the
+:class:`highdicom.SOPClass` subclasses.
