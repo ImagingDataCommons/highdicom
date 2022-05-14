@@ -1537,7 +1537,7 @@ class LUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint8 or uint16.
+            Lookup table data. Must be of type uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -1578,13 +1578,13 @@ class LUT(Dataset):
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
             len_data = 0
-        if lut_data.dtype.type == np.uint8:
-            bits_per_entry = 8
-        elif lut_data.dtype.type == np.uint16:
+        # Note 8 bit LUT data is unsupported pending clarification on the
+        # standard
+        if lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
         else:
             raise ValueError(
-                "Numpy array must have dtype uint8 or uint16."
+                "Numpy array must have dtype uint16."
             )
         # The LUT data attribute has VR OW (16-bit other words)
         self.LUTData = lut_data.astype(np.uint16).tobytes()
@@ -1603,7 +1603,7 @@ class LUT(Dataset):
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: LUT data"""
         if self.bits_per_entry == 8:
-            dtype = np.uint8
+            raise RuntimeError("8 bit LUTs are currently unsupported.")
         elif self.bits_per_entry == 16:
             dtype = np.uint16
         else:
@@ -1670,7 +1670,7 @@ class ModalityLUT(LUT):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint8 or uint16.
+            Lookup table data. Must be of type uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -1705,7 +1705,7 @@ class VOILUT(LUT):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint8 or uint16.
+            Lookup table data. Must be of type uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -1964,7 +1964,7 @@ class PresentationLUT(LUT):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint8 or uint16.
+            Lookup table data. Must be of type uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -2047,7 +2047,7 @@ class PaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint8 or uint16.
+            Lookup table data. Must be of type uint16.
         color: str
             Text representing the color (``red``, ``green``, or
             ``blue``).
@@ -2091,13 +2091,13 @@ class PaletteColorLUT(Dataset):
             number_of_entries = 0
         else:
             number_of_entries = len_data
-        if lut_data.dtype.type == np.uint8:
-            bits_per_entry = 8
-        elif lut_data.dtype.type == np.uint16:
+        # Note 8 bit LUT data is unsupported pending clarification on the
+        # standard
+        if lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
         else:
             raise ValueError(
-                "Numpy array must have dtype uint8 or uint16."
+                "Numpy array must have dtype uint16."
             )
 
         if color.lower() not in ('red', 'green', 'blue'):
@@ -2123,7 +2123,7 @@ class PaletteColorLUT(Dataset):
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: lookup table data"""
         if self.bits_per_entry == 8:
-            dtype = np.uint8
+            raise RuntimeError("8 bit LUTs are currently unsupported.")
         elif self.bits_per_entry == 16:
             dtype = np.uint16
         else:
@@ -2184,7 +2184,7 @@ class SegmentedPaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         segmented_lut_data: numpy.ndarray
-            Segmented lookup table data. Must be of type uint8 or uint16.
+            Segmented lookup table data. Must be of type uint16.
         color: str
             Free-form text explanation of the color (``red``, ``green``, or
             ``blue``).
@@ -2233,15 +2233,14 @@ class SegmentedPaletteColorLUT(Dataset):
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
             len_data = 0
-        if segmented_lut_data.dtype.type == np.uint8:
-            bits_per_entry = 8
-            self._dtype = np.uint8
-        elif segmented_lut_data.dtype.type == np.uint16:
+        # Note 8 bit LUT data is currently unsupported pending clarification on
+        # the standard
+        if segmented_lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
             self._dtype = np.uint16
         else:
             raise ValueError(
-                "Numpy array must have dtype uint8 or uint16."
+                "Numpy array must have dtype uint16."
             )
 
         if color.lower() not in ('red', 'green', 'blue'):

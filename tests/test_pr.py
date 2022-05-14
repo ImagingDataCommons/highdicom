@@ -4,7 +4,6 @@ from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 
-
 import numpy as np
 import pytest
 from PIL.ImageCms import ImageCmsProfile
@@ -55,7 +54,7 @@ class TestSoftcopyVOILUTTransformation(unittest.TestCase):
         super().setUp()
         self._lut = VOILUT(
             first_mapped_value=0,
-            lut_data=np.array([10, 11, 12], np.uint8)
+            lut_data=np.array([10, 11, 12], np.uint16)
         )
         self._ct_series = [
             dcmread(f)
@@ -799,7 +798,7 @@ class TestAdvancedBlending(unittest.TestCase):
                             0, 1, 0,
                             1, 255, 0,
                         ],
-                        dtype=np.uint8
+                        dtype=np.uint16
                     ),
                     color='red'
                 ),
@@ -810,7 +809,7 @@ class TestAdvancedBlending(unittest.TestCase):
                             0, 1, 0,
                             1, 255, 0,
                         ],
-                        dtype=np.uint8
+                        dtype=np.uint16
                     ),
                     color='green'
                 ),
@@ -821,7 +820,7 @@ class TestAdvancedBlending(unittest.TestCase):
                             0, 1, 0,
                             1, 255, 255,
                         ],
-                        dtype=np.uint8
+                        dtype=np.uint16
                     ),
                     color='blue'
                 )
@@ -838,15 +837,15 @@ class TestAdvancedBlending(unittest.TestCase):
         assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
         assert ds.RedPaletteColorLookupTableDescriptor[0] == 256
         assert ds.RedPaletteColorLookupTableDescriptor[1] == 0
-        assert ds.RedPaletteColorLookupTableDescriptor[2] == 8
+        assert ds.RedPaletteColorLookupTableDescriptor[2] == 16
         assert len(ds.GreenPaletteColorLookupTableDescriptor) == 3
         assert ds.GreenPaletteColorLookupTableDescriptor[0] == 256
         assert ds.GreenPaletteColorLookupTableDescriptor[1] == 0
-        assert ds.GreenPaletteColorLookupTableDescriptor[2] == 8
+        assert ds.GreenPaletteColorLookupTableDescriptor[2] == 16
         assert len(ds.BluePaletteColorLookupTableDescriptor) == 3
         assert ds.BluePaletteColorLookupTableDescriptor[0] == 256
         assert ds.BluePaletteColorLookupTableDescriptor[1] == 0
-        assert ds.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert ds.BluePaletteColorLookupTableDescriptor[2] == 16
         assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
         assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
@@ -1049,11 +1048,11 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         self._modality_lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
             first_mapped_value=0,
-            lut_data=np.arange(256, dtype=np.uint8)
+            lut_data=np.arange(256, dtype=np.uint16)
         )
 
         self._presentation_lut = PresentationLUT(
-            lut_data=np.arange(10, 100, dtype=np.uint8),
+            lut_data=np.arange(10, 100, dtype=np.uint16),
             first_mapped_value=0
         )
 
