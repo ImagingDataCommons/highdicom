@@ -303,3 +303,30 @@ class SOPClass(Dataset):
 
         """
         self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
+
+
+def _check_little_endian(dataset: Dataset) -> None:
+    """Assert that a dataset uses a little endian transfer syntax.
+
+    Parameters
+    ----------
+    dataset: Dataset
+        Dataset to check.
+
+    Raises
+    ------
+    ValueError:
+        If the dataset does not use a little endian transfer syntax.
+
+    """
+    if not hasattr(dataset, 'file_meta'):
+        logger.warning(
+            'Transfer syntax cannot be determined from the file metadata.'
+            'Little endian encoding of attributes has been assumed.'
+        )
+        return
+    if not dataset.file_meta.TransferSyntaxUID.is_little_endian:
+        raise ValueError(
+            'Parsing of datasets is only valid for datasets with little endian '
+            'transfer syntaxes.'
+        )

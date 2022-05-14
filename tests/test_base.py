@@ -1,12 +1,15 @@
 import pytest
 import unittest
 
+from pydicom import dcmread
 from pydicom.uid import (
     ExplicitVRBigEndian,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
 )
+from pydicom.data import get_testdata_file
 from highdicom import SOPClass, UID
+from highdicom.base import _check_little_endian
 
 
 class TestBase(unittest.TestCase):
@@ -54,3 +57,11 @@ class TestBase(unittest.TestCase):
         )
         assert sop_class.is_implicit_VR
         assert sop_class.is_little_endian
+
+
+class TestEndianCheck(unittest.TestCase):
+
+    def test_big_endian(self):
+        ds = dcmread(get_testdata_file('MR_small_bigendian.dcm'))
+        with pytest.raises(ValueError):
+            _check_little_endian(ds)
