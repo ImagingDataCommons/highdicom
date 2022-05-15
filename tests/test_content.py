@@ -119,17 +119,18 @@ class TestLUT(TestCase):
         self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
         self._explanation = 'My LUT'
 
-    def test_construction(self):
-        first_value = 0
-        lut = LUT(
-            first_mapped_value=first_value,
-            lut_data=self._lut_data,
-        )
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_per_entry == 8
-        assert lut.first_mapped_value == first_value
-        assert np.array_equal(lut.lut_data, self._lut_data)
-        assert not hasattr(lut, 'LUTExplanation')
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction(self):
+    #     first_value = 0
+    #     lut = LUT(
+    #         first_mapped_value=first_value,
+    #         lut_data=self._lut_data,
+    #     )
+    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.first_mapped_value == first_value
+    #     assert np.array_equal(lut.lut_data, self._lut_data)
+    #     assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_16bit(self):
         first_value = 0
@@ -147,13 +148,13 @@ class TestLUT(TestCase):
         first_value = 0
         lut = LUT(
             first_mapped_value=first_value,
-            lut_data=self._lut_data,
+            lut_data=self._lut_data_16,
             lut_explanation=self._explanation
         )
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_per_entry == 8
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
-        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert lut.LUTExplanation == self._explanation
 
 
@@ -165,19 +166,20 @@ class TestModalityLUT(TestCase):
         self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
         self._explanation = 'My LUT'
 
-    def test_construction(self):
-        first_value = 0
-        lut = ModalityLUT(
-            lut_type=RescaleTypeValues.HU,
-            first_mapped_value=first_value,
-            lut_data=self._lut_data,
-        )
-        assert lut.ModalityLUTType == RescaleTypeValues.HU.value
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert lut.bits_per_entry == 8
-        assert lut.first_mapped_value == first_value
-        assert np.array_equal(lut.lut_data, self._lut_data)
-        assert not hasattr(lut, 'LUTExplanation')
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction(self):
+    #     first_value = 0
+    #     lut = ModalityLUT(
+    #         lut_type=RescaleTypeValues.HU,
+    #         first_mapped_value=first_value,
+    #         lut_data=self._lut_data,
+    #     )
+    #     assert lut.ModalityLUTType == RescaleTypeValues.HU.value
+    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.first_mapped_value == first_value
+    #     assert np.array_equal(lut.lut_data, self._lut_data)
+    #     assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_16bit(self):
         first_value = 0
@@ -187,7 +189,7 @@ class TestModalityLUT(TestCase):
             lut_data=self._lut_data_16
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
         assert lut.bits_per_entry == 16
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
@@ -199,11 +201,11 @@ class TestModalityLUT(TestCase):
         lut = ModalityLUT(
             lut_type=lut_type,
             first_mapped_value=first_value,
-            lut_data=self._lut_data
+            lut_data=self._lut_data_16
         )
         assert lut.ModalityLUTType == lut_type
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
 
     def test_construction_with_exp(self):
@@ -211,12 +213,12 @@ class TestModalityLUT(TestCase):
         lut = ModalityLUT(
             lut_type=RescaleTypeValues.HU,
             first_mapped_value=first_value,
-            lut_data=self._lut_data,
+            lut_data=self._lut_data_16,
             lut_explanation=self._explanation
         )
         assert lut.ModalityLUTType == RescaleTypeValues.HU.value
-        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert lut.LUTExplanation == self._explanation
 
     def test_construction_empty_data(self):
@@ -232,7 +234,7 @@ class TestModalityLUT(TestCase):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
                 first_mapped_value=-1,  # invalid
-                lut_data=self._lut_data,
+                lut_data=self._lut_data_16,
             )
 
     def test_construction_wrong_dtype(self):
@@ -630,7 +632,7 @@ class TestVOILUTTransformation(TestCase):
         super().setUp()
         self._lut = VOILUT(
             first_mapped_value=0,
-            lut_data=np.array([10, 11, 12], np.uint8)
+            lut_data=np.array([10, 11, 12], np.uint16)
         )
 
     def test_construction_basic(self):
@@ -895,26 +897,28 @@ class TestPaletteColorLUT(TestCase):
         assert lut.lut_data.dtype == np.uint16
         np.array_equal(lut.lut_data, lut_data)
 
-    def test_construction_8bit(self):
-        lut_data = np.arange(0, 256, dtype=np.uint8)
-        first_mapped_value = 0
-        lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction_8bit(self):
+    #     lut_data = np.arange(0, 256, dtype=np.uint8)
+    #     first_mapped_value = 0
+    #     lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
 
-        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
-        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
-        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
-        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
-        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
-        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
-        assert len(lut.BluePaletteColorLookupTableData) == lut_data.shape[0] * 2
-        assert not hasattr(lut, 'RedPaletteColorLookupTableData')
-        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+    #     assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+    #     assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+    #     assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+    #     assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+    #     assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+    #     expected_len = lut_data.shape[0] * 2
+    #     assert len(lut.BluePaletteColorLookupTableData) == expected_len
+    #     assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
 
-        assert lut.number_of_entries == lut_data.shape[0]
-        assert lut.first_mapped_value == first_mapped_value
-        assert lut.bits_per_entry == 8
-        assert lut.lut_data.dtype == np.uint8
-        np.array_equal(lut.lut_data, lut_data)
+    #     assert lut.number_of_entries == lut_data.shape[0]
+    #     assert lut.first_mapped_value == first_mapped_value
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.lut_data.dtype == np.uint8
+    #     np.array_equal(lut.lut_data, lut_data)
 
 
 class TestPaletteColorLUTTransformation(TestCase):
@@ -995,20 +999,21 @@ class TestPaletteColorLUTTransformation(TestCase):
                 blue_lut=b_lut,
             )
 
-    def test_construction_different_dtypes(self):
-        r_lut_data = np.arange(10, 120, dtype=np.uint8)
-        g_lut_data = np.arange(20, 130, dtype=np.uint16)
-        b_lut_data = np.arange(30, 140, dtype=np.uint16)
-        first_mapped_value = 32
-        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
-        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
-        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
-        with pytest.raises(ValueError):
-            PaletteColorLUTTransformation(
-                red_lut=r_lut,
-                green_lut=g_lut,
-                blue_lut=b_lut,
-            )
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction_different_dtypes(self):
+    #     r_lut_data = np.arange(10, 120, dtype=np.uint8)
+    #     g_lut_data = np.arange(20, 130, dtype=np.uint16)
+    #     b_lut_data = np.arange(30, 140, dtype=np.uint16)
+    #     first_mapped_value = 32
+    #     r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+    #     g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+    #     b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+    #     with pytest.raises(ValueError):
+    #         PaletteColorLUTTransformation(
+    #             red_lut=r_lut,
+    #             green_lut=g_lut,
+    #             blue_lut=b_lut,
+    #         )
 
     def test_construction_different_first_values(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
