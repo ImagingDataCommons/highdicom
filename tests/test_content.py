@@ -1,24 +1,249 @@
 from unittest import TestCase
 
 import pytest
+from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.codedict import codes
+from pydicom.data import get_testdata_file, get_testdata_files
 
-from highdicom.content import (
+import numpy as np
+
+from highdicom.sr import CodedConcept
+from highdicom import (
+    PaletteColorLUT,
+    ContentCreatorIdentificationCodeSequence,
+    ModalityLUT,
+    LUT,
+    PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
+    ReferencedImageSequence,
+    RescaleTypeValues,
     SpecimenCollection,
     SpecimenDescription,
     SpecimenPreparationStep,
     SpecimenProcessing,
     SpecimenSampling,
+    UID,
     SpecimenStaining,
+    VOILUT,
+    VOILUTTransformation,
+    VOILUTFunctionValues,
 )
 from highdicom.sr.value_types import CodeContentItem, TextContentItem
-from highdicom.uid import UID
 
 from .utils import write_and_read_dataset
+
+
+class TestContentCreatorIdentification(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._person_codes = [codes.DCM.Person, codes.DCM.Technologist]
+        self._institution_name = 'MGH'
+        self._person_address = '1000 Main St.'
+        self._person_telephone_numbers = ['123456789']
+        self._email = 'example@example.com'
+        self._institution_address = '123 Broadway'
+        self._institution_code = CodedConcept(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        self._department_name = 'Radiology'
+        self._department_code = codes.SCT.RadiologyDepartment
+
+    def test_construction_minimal(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+
+    def test_construction_full(self):
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            person_address=self._person_address,
+            person_telephone_numbers=self._person_telephone_numbers,
+            person_telecom_information=self._email,
+            institution_code=self._institution_code,
+            institution_address=self._institution_address,
+            institutional_department_name=self._department_name,
+            institutional_department_type_code=self._department_code,
+        )
+        assert len(creator_id) == 1
+        creator_id_item = creator_id[0]
+        assert creator_id_item.InstitutionName == self._institution_name
+        for code1, code2 in zip(
+            creator_id_item.PersonIdentificationCodeSequence,
+            self._person_codes
+        ):
+            assert code1.CodeValue == code2.value
+        assert creator_id_item.PersonAddress == self._person_address
+        assert (
+            creator_id_item.PersonTelephoneNumbers ==
+            self._person_telephone_numbers[0]
+        )
+        assert (
+            creator_id_item.PersonTelecomInformation ==
+            self._email
+        )
+        assert (
+            creator_id_item.InstitutionCodeSequence[0].CodeValue ==
+            self._institution_code.value
+        )
+        assert creator_id_item.InstitutionAddress == self._institution_address
+        assert (
+            creator_id_item.InstitutionalDepartmentName ==
+            self._department_name
+        )
+        department_code = \
+            creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
+        assert (department_code.CodeValue == self._department_code.value)
+
+
+class TestLUT(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut_data = np.arange(10, 100, dtype=np.uint8)
+        self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
+        self._explanation = 'My LUT'
+
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction(self):
+    #     first_value = 0
+    #     lut = LUT(
+    #         first_mapped_value=first_value,
+    #         lut_data=self._lut_data,
+    #     )
+    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.first_mapped_value == first_value
+    #     assert np.array_equal(lut.lut_data, self._lut_data)
+    #     assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_16bit(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.bits_per_entry == 16
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_explanation(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16,
+            lut_explanation=self._explanation
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 16]
+        assert lut.bits_per_entry == 16
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert lut.LUTExplanation == self._explanation
+
+
+class TestModalityLUT(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut_data = np.arange(10, 100, dtype=np.uint8)
+        self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
+        self._explanation = 'My LUT'
+
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction(self):
+    #     first_value = 0
+    #     lut = ModalityLUT(
+    #         lut_type=RescaleTypeValues.HU,
+    #         first_mapped_value=first_value,
+    #         lut_data=self._lut_data,
+    #     )
+    #     assert lut.ModalityLUTType == RescaleTypeValues.HU.value
+    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.first_mapped_value == first_value
+    #     assert np.array_equal(lut.lut_data, self._lut_data)
+    #     assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_16bit(self):
+        first_value = 0
+        lut = ModalityLUT(
+            lut_type=RescaleTypeValues.HU,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16
+        )
+        assert lut.ModalityLUTType == RescaleTypeValues.HU.value
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
+        assert lut.bits_per_entry == 16
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_string_type(self):
+        first_value = 0
+        lut_type = 'MY_MAPPING'
+        lut = ModalityLUT(
+            lut_type=lut_type,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16
+        )
+        assert lut.ModalityLUTType == lut_type
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert not hasattr(lut, 'LUTExplanation')
+
+    def test_construction_with_exp(self):
+        first_value = 0
+        lut = ModalityLUT(
+            lut_type=RescaleTypeValues.HU,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data_16,
+            lut_explanation=self._explanation
+        )
+        assert lut.ModalityLUTType == RescaleTypeValues.HU.value
+        assert lut.LUTDescriptor == [len(self._lut_data_16), first_value, 16]
+        assert np.array_equal(lut.lut_data, self._lut_data_16)
+        assert lut.LUTExplanation == self._explanation
+
+    def test_construction_empty_data(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                lut_type=RescaleTypeValues.HU,
+                first_mapped_value=0,
+                lut_data=np.array([]),  # empty data
+            )
+
+    def test_construction_negative_first_value(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                lut_type=RescaleTypeValues.HU,
+                first_mapped_value=-1,  # invalid
+                lut_data=self._lut_data_16,
+            )
+
+    def test_construction_wrong_dtype(self):
+        with pytest.raises(ValueError):
+            ModalityLUT(
+                lut_type=RescaleTypeValues.HU,
+                first_mapped_value=0,  # invalid
+                lut_data=np.array([0, 1, 2], dtype=np.int16),
+            )
 
 
 class TestPlanePositionSequence(TestCase):
@@ -399,6 +624,413 @@ class TestSpecimenPreparationStep(TestCase):
         assert staining_item.name == codes.SCT.UsingSubstance
         assert staining_item.value == substance
         assert staining_item.relationship_type is None
+
+
+class TestVOILUTTransformation(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut = VOILUT(
+            first_mapped_value=0,
+            lut_data=np.array([10, 11, 12], np.uint16)
+        )
+
+    def test_construction_basic(self):
+        lut = VOILUTTransformation(
+            window_center=40.0,
+            window_width=400.0
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert not hasattr(lut, 'VOILUTSequence')
+
+    def test_construction_explanation(self):
+        lut = VOILUTTransformation(
+            window_center=40.0,
+            window_width=400.0,
+            window_explanation='Soft Tissue Window'
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_multiple(self):
+        lut = VOILUTTransformation(
+            window_center=[40.0, 600.0],
+            window_width=[400.0, 1500.0],
+            window_explanation=['Soft Tissue Window', 'Lung Window'],
+        )
+        assert lut.WindowCenter == [40.0, 600.0]
+        assert lut.WindowWidth == [400.0, 1500.0]
+
+    def test_construction_multiple_mismatch1(self):
+        with pytest.raises(ValueError):
+            VOILUTTransformation(
+                window_center=40.0,
+                window_width=[400.0, 1500.0],
+            )
+
+    def test_construction_multiple_mismatch2(self):
+        with pytest.raises(TypeError):
+            VOILUTTransformation(
+                window_center=[40.0, 600.0],
+                window_width=400.0,
+            )
+
+    def test_construction_multiple_mismatch3(self):
+        with pytest.raises(ValueError):
+            VOILUTTransformation(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0, -50.0],
+            )
+
+    def test_construction_explanation_mismatch(self):
+        with pytest.raises(TypeError):
+            VOILUTTransformation(
+                window_center=[40.0, 600.0],
+                window_width=[400.0, 1500.0],
+                window_explanation='Lung Window',
+            )
+
+    def test_construction_explanation_mismatch2(self):
+        with pytest.raises(ValueError):
+            VOILUTTransformation(
+                window_center=40.0,
+                window_width=400.0,
+                window_explanation=['Soft Tissue Window', 'Lung Window'],
+            )
+
+    def test_construction_lut_function(self):
+        window_center = 40.0
+        window_width = 400.0
+        voi_lut_function = VOILUTFunctionValues.SIGMOID
+        lut = VOILUTTransformation(
+            window_center=window_center,
+            window_width=window_width,
+            voi_lut_function=voi_lut_function,
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert lut.VOILUTFunction == voi_lut_function.value
+
+    def test_construction_luts(self):
+        lut = VOILUTTransformation(voi_luts=[self._lut])
+        assert len(lut.VOILUTSequence) == 1
+        assert not hasattr(lut, 'WindowWidth')
+        assert not hasattr(lut, 'WindowCenter')
+
+    def test_construction_both(self):
+        lut = VOILUTTransformation(
+            window_center=40.0,
+            window_width=400.0,
+            voi_luts=[self._lut]
+        )
+        assert len(lut.VOILUTSequence) == 1
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+
+    def test_construction_neither(self):
+        with pytest.raises(TypeError):
+            VOILUTTransformation()
+
+
+class TestReferencedImageSequence(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._ct_series = [
+            dcmread(f)
+            for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        ]
+        self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+        self._seg = dcmread(
+            'data/test_files/seg_image_ct_binary_overlap.dcm'
+        )
+
+    def test_construction_ref_ims(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=self._ct_series
+        )
+        assert len(ref_ims) == len(self._ct_series)
+
+    def test_construction_empty(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[]
+            )
+
+    def test_construction_frame_number(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=1
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedFrameNumber == 1
+
+    def test_construction_multi_frame_numbers(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._ct_multiframe],
+            referenced_frame_number=[1, 2]
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedFrameNumber == [1, 2]
+
+    def test_construction_invalid_frame_number_1(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=0
+            )
+
+    def test_construction_invalid_frame_number_2(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=self._ct_multiframe.NumberOfFrames + 1
+            )
+
+    def test_construction_invalid_frame_number_3(self):
+        nonexistent_frame = self._ct_multiframe.NumberOfFrames + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._ct_multiframe],
+                referenced_frame_number=[1, nonexistent_frame]
+            )
+
+    def test_construction_frame_number_single_frames(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series,
+                referenced_frame_number=0
+            )
+
+    def test_construction_segment_number(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=1
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == 1
+
+    def test_construction_segment_number_non_seg(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series,
+                referenced_segment_number=1
+            )
+
+    def test_construction_segment_number_multiple(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=[1, 2]
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == [1, 2]
+
+    def test_construction_segment_number_and_frames(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._seg],
+            referenced_segment_number=1,
+            referenced_frame_number=[1, 2, 3],
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedSegmentNumber == 1
+        assert ref_ims[0].ReferencedFrameNumber == [1, 2, 3]
+
+    def test_construction_segment_number_and_frames_mismatch(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=2,
+                referenced_frame_number=[1, 2, 3],  # segment frame mismatch
+            )
+
+    def test_construction_invalid_segment_number_1(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=0
+            )
+
+    def test_construction_invalid_segment_number_2(self):
+        invalid_segment_number = len(self._seg.SegmentSequence) + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=invalid_segment_number
+            )
+
+    def test_construction_invalid_segment_number_3(self):
+        invalid_segment_number = len(self._seg.SegmentSequence) + 1
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_segment_number=[1, invalid_segment_number]
+            )
+
+    def test_construction_duplicate(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=self._ct_series * 2,
+            )
+
+
+class TestPaletteColorLUT(TestCase):
+
+    def test_construction_16bit(self):
+        lut_data = np.arange(10, 120, dtype=np.uint16)
+        first_mapped_value = 32
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='red')
+
+        assert len(lut.RedPaletteColorLookupTableDescriptor) == 3
+        assert lut.RedPaletteColorLookupTableDescriptor[0] == 110
+        assert lut.RedPaletteColorLookupTableDescriptor[1] == 32
+        assert lut.RedPaletteColorLookupTableDescriptor[2] == 16
+        assert not hasattr(lut, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.RedPaletteColorLookupTableData) == lut_data.shape[0] * 2
+        assert not hasattr(lut, 'BluePaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 16
+        assert lut.lut_data.dtype == np.uint16
+        np.array_equal(lut.lut_data, lut_data)
+
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction_8bit(self):
+    #     lut_data = np.arange(0, 256, dtype=np.uint8)
+    #     first_mapped_value = 0
+    #     lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+
+    #     assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+    #     assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+    #     assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+    #     assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+    #     assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+    #     expected_len = lut_data.shape[0] * 2
+    #     assert len(lut.BluePaletteColorLookupTableData) == expected_len
+    #     assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+    #     assert lut.number_of_entries == lut_data.shape[0]
+    #     assert lut.first_mapped_value == first_mapped_value
+    #     assert lut.bits_per_entry == 8
+    #     assert lut.lut_data.dtype == np.uint8
+    #     np.array_equal(lut.lut_data, lut_data)
+
+
+class TestPaletteColorLUTTransformation(TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+    def test_construction(self):
+        dtype = np.uint16
+        r_lut_data = np.arange(10, 120, dtype=dtype)
+        g_lut_data = np.arange(20, 130, dtype=dtype)
+        b_lut_data = np.arange(30, 140, dtype=dtype)
+        first_mapped_value = 32
+        lut_uid = UID()
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        instance = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=lut_uid,
+        )
+        assert instance.PaletteColorLookupTableUID == lut_uid
+        red_desc = [len(r_lut_data), first_mapped_value, 16]
+        r_lut_data_retrieved = np.frombuffer(
+            instance.RedPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(r_lut_data, r_lut_data_retrieved)
+        assert instance.RedPaletteColorLookupTableDescriptor == red_desc
+        green_desc = [len(g_lut_data), first_mapped_value, 16]
+        g_lut_data_retrieved = np.frombuffer(
+            instance.GreenPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(g_lut_data, g_lut_data_retrieved)
+        assert instance.GreenPaletteColorLookupTableDescriptor == green_desc
+        blue_desc = [len(b_lut_data), first_mapped_value, 16]
+        b_lut_data_retrieved = np.frombuffer(
+            instance.BluePaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(b_lut_data, b_lut_data_retrieved)
+        assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
+
+        assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
+        assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
+        assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
+
+    def test_construction_no_uid(self):
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        first_mapped_value = 32
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        instance = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+        )
+        assert not hasattr(instance, 'PaletteColorLookupTableUID')
+
+    def test_construction_different_lengths(self):
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 120, dtype=np.uint16)
+        b_lut_data = np.arange(30, 120, dtype=np.uint16)
+        first_mapped_value = 32
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        with pytest.raises(ValueError):
+            PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+            )
+
+    # Commented out until 8 bit LUTs are reimplemented
+    # def test_construction_different_dtypes(self):
+    #     r_lut_data = np.arange(10, 120, dtype=np.uint8)
+    #     g_lut_data = np.arange(20, 130, dtype=np.uint16)
+    #     b_lut_data = np.arange(30, 140, dtype=np.uint16)
+    #     first_mapped_value = 32
+    #     r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+    #     g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+    #     b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+    #     with pytest.raises(ValueError):
+    #         PaletteColorLUTTransformation(
+    #             red_lut=r_lut,
+    #             green_lut=g_lut,
+    #             blue_lut=b_lut,
+    #         )
+
+    def test_construction_different_first_values(self):
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 32
+        g_first_mapped_value = 24
+        b_first_mapped_value = 32
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        with pytest.raises(ValueError):
+            PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+            )
 
     def test_construction_staining_from_dataset(self):
         specimen_id = 'specimen id'

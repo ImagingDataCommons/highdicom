@@ -14,7 +14,9 @@ from pydicom.uid import (
     JPEGLSLossless,
 )
 
-from highdicom.content import (
+from highdicom import (
+    PaletteColorLUT,
+    PaletteColorLUTTransformation,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
@@ -413,6 +415,135 @@ class TestParametricMap(unittest.TestCase):
         assert instance.ImageType[1] == 'PRIMARY'
         assert instance.ImageType[2] == 'WHOLE_BODY'
         assert instance.ImageType[3] == 'NONE'
+        assert instance.PixelPresentation == 'MONOCHROME'
+
+    def test_multi_frame_palette_lut(self):
+        pixel_array = np.random.randint(
+            low=0,
+            high=2**8,
+            size=self._sm_image.pixel_array.shape[:3],
+            dtype=np.uint8
+        )
+        window_center = 128
+        window_width = 256
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[0, 255],
+            intercept=0,
+            slope=1
+        )
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 32
+        g_first_mapped_value = 32
+        b_first_mapped_value = 32
+        lut_uid = UID()
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=lut_uid,
+        )
+        instance = ParametricMap(
+            [self._sm_image],
+            pixel_array,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[real_world_value_mapping],
+            window_center=window_center,
+            window_width=window_width,
+            content_qualification=ContentQualificationValues.SERVICE,
+            image_flavor=ImageFlavorValues.WHOLE_BODY,
+            derived_pixel_contrast=DerivedPixelContrastValues.NONE,
+            palette_color_lut_transformation=transformation,
+        )
+        assert instance.PixelPresentation == 'COLOR_RANGE'
+        assert instance.PaletteColorLookupTableUID == lut_uid
+        red_desc = [len(r_lut_data), r_first_mapped_value, 16]
+        r_lut_data_retrieved = np.frombuffer(
+            instance.RedPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(r_lut_data, r_lut_data_retrieved)
+        assert instance.RedPaletteColorLookupTableDescriptor == red_desc
+        green_desc = [len(g_lut_data), g_first_mapped_value, 16]
+        g_lut_data_retrieved = np.frombuffer(
+            instance.GreenPaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(g_lut_data, g_lut_data_retrieved)
+        assert instance.GreenPaletteColorLookupTableDescriptor == green_desc
+        blue_desc = [len(b_lut_data), b_first_mapped_value, 16]
+        b_lut_data_retrieved = np.frombuffer(
+            instance.BluePaletteColorLookupTableData,
+            dtype=np.uint16
+        )
+        assert np.array_equal(b_lut_data, b_lut_data_retrieved)
+        assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
+
+    def test_multi_frame_sm_image_ushort_palette_lut(self):
+        pixel_array = np.random.randint(
+            low=0,
+            high=2**8,
+            size=self._sm_image.pixel_array.shape[:3],
+            dtype=np.uint8
+        )
+        window_center = 128
+        window_width = 256
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[0, 255],
+            intercept=0,
+            slope=1
+        )
+        instance = ParametricMap(
+            [self._sm_image],
+            pixel_array,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[real_world_value_mapping],
+            window_center=window_center,
+            window_width=window_width,
+            content_qualification=ContentQualificationValues.SERVICE,
+            image_flavor=ImageFlavorValues.WHOLE_BODY,
+            derived_pixel_contrast=DerivedPixelContrastValues.NONE
+        )
+        sffg_item = instance.SharedFunctionalGroupsSequence[0]
+        assert hasattr(sffg_item, 'RealWorldValueMappingSequence')
+        assert len(sffg_item.RealWorldValueMappingSequence) == 1
+        pffg_item = instance.PerFrameFunctionalGroupsSequence[0]
+        assert not hasattr(pffg_item, 'RealWorldValueMappingSequence')
+        assert instance.BitsAllocated == 8
+        assert instance.pixel_array.dtype == np.uint8
+        assert np.array_equal(instance.pixel_array, pixel_array)
+        assert instance.ContentQualification == 'SERVICE'
+        assert instance.ImageType[0] == 'DERIVED'
+        assert instance.ImageType[1] == 'PRIMARY'
+        assert instance.ImageType[2] == 'WHOLE_BODY'
+        assert instance.ImageType[3] == 'NONE'
+        assert instance.PixelPresentation == 'MONOCHROME'
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
         pixel_array = np.random.randint(

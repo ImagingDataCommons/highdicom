@@ -13,6 +13,7 @@ It currently provides tools for creating and decoding the following DICOM inform
 * Secondary Capture images
 * Key Object Selection documents
 * Legacy Converted Enhanced CT/PET/MR images (e.g., for single frame to multi-frame conversion)
+* Softcopy Presentation State instances (including Grayscale, Color, and Pseudo-Color)
 
 ## Documentation
 

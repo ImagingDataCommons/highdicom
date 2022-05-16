@@ -18,6 +18,7 @@ from highdicom.valuerep import check_person_name
 from highdicom.version import __version__
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
+from highdicom._module_utils import is_attribute_in_iod
 
 
 logger = logging.getLogger(__name__)
@@ -190,8 +191,12 @@ class SOPClass(Dataset):
                 '"instance_number" should be a positive integer.'
             )
         self.InstanceNumber = instance_number
-        self.ContentDate = DA(datetime.datetime.now().date())
-        self.ContentTime = TM(datetime.datetime.now().time())
+
+        # Content Date and Content Time are not present in all IODs
+        if is_attribute_in_iod('ContentDate', sop_class_uid):
+            self.ContentDate = DA(datetime.datetime.now().date())
+        if is_attribute_in_iod('ContentTime', sop_class_uid):
+            self.ContentTime = TM(datetime.datetime.now().time())
         if content_qualification is not None:
             content_qualification = ContentQualificationValues(
                 content_qualification

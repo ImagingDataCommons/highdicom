@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -99,7 +99,7 @@ class CodedConcept(Dataset):
 
         Returns
         -------
-        highdicom.sr.coding.CodedConcept:
+        highdicom.sr.CodedConcept:
             Coded concept representation of the dataset.
 
         Raises
@@ -127,6 +127,25 @@ class CodedConcept(Dataset):
             meaning=dataset.CodeMeaning,
             scheme_version=getattr(dataset, 'CodingSchemeVersion', None)
         )
+
+    @classmethod
+    def from_code(cls, code: Union[Code, 'CodedConcept']) -> 'CodedConcept':
+        """Construct a CodedConcept for a pydicom Code.
+
+        Parameters
+        ----------
+        code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Code.
+
+        Returns
+        -------
+        highdicom.sr.CodedConcept:
+            CodedConcept dataset for the code.
+
+        """
+        if isinstance(code, cls):
+            return code
+        return cls(*code)
 
     @property
     def value(self) -> str:

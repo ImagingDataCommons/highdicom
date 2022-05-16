@@ -79,6 +79,80 @@ class PixelRepresentationValues(Enum):
     COMPLEMENT = 1
 
 
+class RescaleTypeValues(Enum):
+
+    """Enumerated values for attribute Rescale Type.
+
+    This specifies the units of the result of the rescale operation.
+    Other values may be used, but they are not defined by the DICOM standard.
+
+    """
+
+    OD = 'OD'
+    """The number in the LUT represents thousands of optical density.
+
+    That is, a value of 2140 represents an optical density of 2.140.
+
+    """
+
+    HU = 'HU'
+    """Hounsfield Units (CT)."""
+
+    US = 'US'
+    """Unspecified."""
+
+    MGML = 'MGML'
+    """Milligrams per milliliter."""
+
+    Z_EFF = 'Z_EFF'
+    """Effective Atomic Number (i.e., Effective-Z)."""
+
+    ED = 'ED'
+    """Electron density in 1023 electrons/ml."""
+
+    EDW = 'EDW'
+    """Electron density normalized to water.
+
+    Units are N/Nw where N is number of electrons per unit volume, and Nw is
+    number of electrons in the same unit of water at standard temperature and
+    pressure.
+
+    """
+
+    HU_MOD = 'HU_MOD'
+    """Modified Hounsfield Unit."""
+
+    PCT = 'PCT'
+    """Percentage (%)"""
+
+
+class VOILUTFunctionValues(Enum):
+
+    """Enumerated values for attribute VOI LUT Function."""
+
+    LINEAR = 'LINEAR'
+    LINEAR_EXACT = 'LINEAR_EXACT'
+    SIGMOID = 'SIGMOID'
+
+
+class PresentationLUTShapeValues(Enum):
+
+    """Enumerated values for the Presentation LUT Shape attribute."""
+
+    IDENTITY = 'IDENTITY'
+    """No further translation of values is performed."""
+
+    INVERSE = 'INVERSE'
+    """
+
+    A value of INVERSE shall mean the same as a value of IDENTITY, except that
+    the minimum output value shall convey the meaning of the maximum available
+    luminance, and the maximum value shall convey the minimum available
+    luminance.
+
+    """
+
+
 class LateralityValues(Enum):
 
     """Enumerated values for Laterality attribute."""

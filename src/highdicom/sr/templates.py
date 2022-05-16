@@ -3210,7 +3210,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
     @property
     def reference_type(self) -> Code:
-        """pydicom.sr.coding.Code
+        """pydicom.sr.coding.Code:
 
         The "type" of the ROI reference as a coded concept. This will be one of
         the following coded concepts from the DCM coding scheme:
