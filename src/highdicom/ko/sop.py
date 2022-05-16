@@ -13,7 +13,7 @@ from pydicom.uid import (
     KeyObjectSelectionDocumentStorage,
 )
 
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.utils import collect_evidence
 from highdicom.sr.value_types import ContainerContentItem
 from highdicom.ko.content import KeyObjectSelection
@@ -200,6 +200,7 @@ class KeyObjectSelectionDocument(SOPClass):
         """
         if dataset.SOPClassUID != KeyObjectSelectionDocumentStorage:
             raise ValueError('Dataset is not a Key Object Selection Document.')
+        _check_little_endian(dataset)
         sop_instance = deepcopy(dataset)
         sop_instance.__class__ = cls
 

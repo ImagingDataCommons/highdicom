@@ -27,7 +27,7 @@ from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     PlaneOrientationSequence,
@@ -1145,6 +1145,7 @@ class Segmentation(SOPClass):
             raise TypeError(
                 'Dataset must be of type pydicom.dataset.Dataset.'
             )
+        _check_little_endian(dataset)
         # Checks on integrity of input dataset
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
             raise ValueError('Dataset is not a Segmentation.')

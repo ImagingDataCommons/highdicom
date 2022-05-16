@@ -21,7 +21,7 @@ from highdicom.ann.enum import (
     PixelOriginInterpretationValues,
 )
 from highdicom.ann.content import AnnotationGroup
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -409,6 +409,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             raise ValueError(
                 'Dataset is not a Microscopy Bulk Simple Annotation.'
             )
+        _check_little_endian(dataset)
         ann = deepcopy(dataset)
         ann.__class__ = MicroscopyBulkSimpleAnnotations
 

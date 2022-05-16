@@ -19,7 +19,7 @@ from pydicom.uid import (
     EnhancedSRStorage,
 )
 
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
@@ -284,6 +284,7 @@ class _SR(SOPClass):
         """
         if not hasattr(dataset, 'ContentSequence'):
             raise ValueError('Dataset is not an SR document.')
+        _check_little_endian(dataset)
         sop_instance = deepcopy(dataset)
         sop_instance.__class__ = cls
 
