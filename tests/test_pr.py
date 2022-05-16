@@ -778,11 +778,14 @@ class TestAdvancedBlending(unittest.TestCase):
         self._sm_image = dcmread(
             data_dir / 'test_files/sm_image_grayscale.dcm'
         )
+        self._sm_image_reversed = dcmread(
+            data_dir / 'test_files/sm_image_grayscale_reversed.dcm'
+        )
 
     def test_construction(self):
-        ref_image = self._sm_image
+        ref_images = [self._sm_image, self._sm_image_reversed]
         ds = AdvancedBlending(
-            referenced_images=[ref_image],
+            referenced_images=ref_images,
             blending_input_number=1,
             voi_lut_transformations=[
                 SoftcopyVOILUTTransformation(
@@ -827,11 +830,13 @@ class TestAdvancedBlending(unittest.TestCase):
             )
         )
         assert isinstance(ds, Dataset)
-        assert ds.StudyInstanceUID == ref_image.StudyInstanceUID
-        assert ds.SeriesInstanceUID == ref_image.SeriesInstanceUID
-        assert len(ds.ReferencedImageSequence) == 1
-        ref_item = ds.ReferencedImageSequence[0]
-        assert ref_item.ReferencedSOPInstanceUID == ref_image.SOPInstanceUID
+        assert ds.StudyInstanceUID == ref_images[0].StudyInstanceUID
+        assert ds.SeriesInstanceUID == ref_images[0].SeriesInstanceUID
+        assert len(ds.ReferencedImageSequence) == 2
+        for i in range(len(ds.ReferencedImageSequence)):
+            ref_im = ref_images[i]
+            ref_item = ds.ReferencedImageSequence[i]
+            assert ref_item.ReferencedSOPInstanceUID == ref_im.SOPInstanceUID
         assert ds.BlendingInputNumber == 1
         assert len(ds.SoftcopyVOILUTSequence) == 1
         assert len(ds.RedPaletteColorLookupTableDescriptor) == 3

@@ -576,11 +576,12 @@ class GraphicAnnotation(Dataset):
                 raise ValueError(
                     'All referenced images must belong to the same series.'
                 )
-            if ref_im.Columns != columns or ref_im.Rows != rows:
-                raise ValueError(
-                    'All referenced images must have the same number of rows '
-                    'and columns.'
-                )
+            if not is_tiled_image(ref_im):
+                if ref_im.Columns != columns or ref_im.Rows != rows:
+                    raise ValueError(
+                        'All referenced images must have the same number '
+                        'of rows and columns.'
+                    )
         self.ReferencedImageSequence = ReferencedImageSequence(
             referenced_images=referenced_images,
             referenced_frame_number=referenced_frame_number,
@@ -924,15 +925,6 @@ def _add_presentation_state_relationship_attributes(
             raise ValueError(
                 'All referenced images must have the same dimensions.'
             )
-        if is_tiled_image(ref_im):
-            if (
-                im.TotalPixelMatrixRows != ref_im.TotalPixelMatrixRows or
-                im.TotalPixelMatrixColumns != ref_im.TotalPixelMatrixColumns
-            ):
-                raise ValueError(
-                    'All referenced images must have the same total pixel '
-                    'matrix dimensions.'
-                )
         ref_im_item = Dataset()
         ref_im_item.ReferencedSOPClassUID = im.SOPClassUID
         ref_im_item.ReferencedSOPInstanceUID = im.SOPInstanceUID
@@ -1146,13 +1138,12 @@ def _get_modality_lut_transformation(
     """
     # Multframe images
     if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
-        if len(referenced_images) > 1:
+        im = referenced_images[0]
+        if len(referenced_images) > 1 and not is_tiled_image(im):
             raise ValueError(
                 "Attributes of Modality LUT module are not available when "
                 "multiple images are passed and any of them are multiframe."
             )
-
-        im = referenced_images[0]
 
         # Check only the Shared Groups, as PRs require all frames to have
         # the same Modality LUT
@@ -1800,18 +1791,10 @@ class AdvancedBlending(Dataset):
                 raise ValueError(
                     'All referenced images must belong to the same series.'
                 )
-            if im.Rows != ref_im.Rows or im.Columns != ref_im.Columns:
-                raise ValueError(
-                    'All referenced images must have the same dimensions.'
-                )
-            if is_tiled_image(ref_im):
-                if (
-                    im.TotalPixelMatrixRows != ref_im.TotalPixelMatrixRows or
-                    im.TotalPixelMatrixColumns != ref_im.TotalPixelMatrixColumns
-                ):
+            if not is_tiled_image(im):
+                if im.Rows != ref_im.Rows or im.Columns != ref_im.Columns:
                     raise ValueError(
-                        'All referenced images must have the same total pixel '
-                        'matrix dimensions.'
+                        'All referenced images must have the same dimensions.'
                     )
             ref_im_item = Dataset()
             ref_im_item.ReferencedSOPClassUID = im.SOPClassUID
