@@ -1,6 +1,7 @@
 [![Build Status](https://github.com/herrmannlab/highdicom/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/highdicom/actions)
 [![PyPi Distribution](https://img.shields.io/pypi/v/highdicom.svg)](https://pypi.python.org/pypi/highdicom/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/highdicom.svg)](https://pypi.org/project/highdicom/)
+[![Downloads](https://pepy.tech/badge/highdicom)](https://pepy.tech/project/highdicom)
 
 # High DICOM
 
