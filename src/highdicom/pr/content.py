@@ -913,27 +913,23 @@ def _add_presentation_state_relationship_attributes(
     """
     # Assert referenced images are from the same series and have the same size
     ref_im = referenced_images[0]
-    ref_series_uid = ref_im.SeriesInstanceUID
-    ref_im_seq = []
+    ref_im_items_mapping = defaultdict(list)
     for im in referenced_images:
-        series_uid = im.SeriesInstanceUID
-        if series_uid != ref_series_uid:
-            raise ValueError(
-                'All referenced images must belong to the same series.'
-            )
         if im.Rows != ref_im.Rows or im.Columns != ref_im.Columns:
             raise ValueError(
                 'All referenced images must have the same dimensions.'
             )
-        ref_im_item = Dataset()
-        ref_im_item.ReferencedSOPClassUID = im.SOPClassUID
-        ref_im_item.ReferencedSOPInstanceUID = im.SOPInstanceUID
-        ref_im_seq.append(ref_im_item)
+        item = Dataset()
+        item.ReferencedSOPClassUID = im.SOPClassUID
+        item.ReferencedSOPInstanceUID = im.SOPInstanceUID
+        ref_im_items_mapping[im.SeriesInstanceUID].append(item)
 
-    ref_series_item = Dataset()
-    ref_series_item.SeriesInstanceUID = ref_series_uid
-    ref_series_item.ReferencedImageSequence = ref_im_seq
-    dataset.ReferencedSeriesSequence = [ref_series_item]
+    dataset.ReferencedSeriesSequence = []
+    for series_instance_uid, ref_images in ref_im_items_mapping.items():
+        item = Dataset()
+        item.SeriesInstanceUID = series_instance_uid
+        item.ReferencedImageSequence = ref_images
+        dataset.ReferencedSeriesSequence.append(item)
 
 
 def _add_graphic_group_annotation_layer_attributes(
