@@ -1856,24 +1856,22 @@ class AdvancedBlending(Dataset):
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:
-                logger.debug(
-                    'use VOI LUT attributes from referenced images'
-                )
+                logger.debug('use VOI LUT attributes from referenced images')
                 _add_softcopy_voi_lut_attributes(
                     self,
                     referenced_images=referenced_images,
                     voi_lut_transformations=voi_lut_transformations
                 )
             else:
-                logger.debug(
-                    'no VOI LUT attributes found in referenced images'
-                )
+                logger.debug('no VOI LUT attributes found in referenced images')
 
         # Palette Color Lookup Table
+        palette_color_lut_item = Dataset()
         _add_palette_color_lookup_table_attributes(
-            self,
+            palette_color_lut_item,
             palette_color_lut_transformation=palette_color_lut_transformation
         )
+        self.PaletteColorLookupTableSequence = [palette_color_lut_item]
 
 
 class BlendingDisplayInput(Dataset):
