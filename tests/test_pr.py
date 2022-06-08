@@ -784,13 +784,16 @@ class TestAdvancedBlending(unittest.TestCase):
 
     def test_construction(self):
         ref_images = [self._sm_image, self._sm_image_reversed]
+        window_width = 24.
+        window_center = 12.
+
         ds = AdvancedBlending(
             referenced_images=ref_images,
             blending_input_number=1,
             voi_lut_transformations=[
                 SoftcopyVOILUTTransformation(
-                    window_center=12.,
-                    window_width=24.
+                    window_center=window_center,
+                    window_width=window_width
                 )
             ],
             palette_color_lut_transformation=PaletteColorLUTTransformation(
@@ -829,6 +832,7 @@ class TestAdvancedBlending(unittest.TestCase):
                 )
             )
         )
+
         assert isinstance(ds, Dataset)
         assert ds.StudyInstanceUID == ref_images[0].StudyInstanceUID
         assert ds.SeriesInstanceUID == ref_images[0].SeriesInstanceUID
@@ -838,22 +842,31 @@ class TestAdvancedBlending(unittest.TestCase):
             ref_item = ds.ReferencedImageSequence[i]
             assert ref_item.ReferencedSOPInstanceUID == ref_im.SOPInstanceUID
         assert ds.BlendingInputNumber == 1
+
         assert len(ds.SoftcopyVOILUTSequence) == 1
-        assert len(ds.RedPaletteColorLookupTableDescriptor) == 3
-        assert ds.RedPaletteColorLookupTableDescriptor[0] == 256
-        assert ds.RedPaletteColorLookupTableDescriptor[1] == 0
-        assert ds.RedPaletteColorLookupTableDescriptor[2] == 16
-        assert len(ds.GreenPaletteColorLookupTableDescriptor) == 3
-        assert ds.GreenPaletteColorLookupTableDescriptor[0] == 256
-        assert ds.GreenPaletteColorLookupTableDescriptor[1] == 0
-        assert ds.GreenPaletteColorLookupTableDescriptor[2] == 16
-        assert len(ds.BluePaletteColorLookupTableDescriptor) == 3
-        assert ds.BluePaletteColorLookupTableDescriptor[0] == 256
-        assert ds.BluePaletteColorLookupTableDescriptor[1] == 0
-        assert ds.BluePaletteColorLookupTableDescriptor[2] == 16
-        assert len(ds.SegmentedRedPaletteColorLookupTableData) == 12
-        assert len(ds.SegmentedGreenPaletteColorLookupTableData) == 12
-        assert len(ds.SegmentedBluePaletteColorLookupTableData) == 12
+        item = ds.SoftcopyVOILUTSequence[0]
+        assert item.WindowWidth == window_width
+        assert item.WindowCenter == window_center
+        assert not hasattr(item, 'VOILUTSequence')
+
+        assert len(ds.PaletteColorLookupTableSequence) == 1
+        item = ds.PaletteColorLookupTableSequence[0]
+        assert len(item.RedPaletteColorLookupTableDescriptor) == 3
+        assert item.RedPaletteColorLookupTableDescriptor[0] == 256
+        assert item.RedPaletteColorLookupTableDescriptor[1] == 0
+        assert item.RedPaletteColorLookupTableDescriptor[2] == 16
+        assert len(item.GreenPaletteColorLookupTableDescriptor) == 3
+        assert item.GreenPaletteColorLookupTableDescriptor[0] == 256
+        assert item.GreenPaletteColorLookupTableDescriptor[1] == 0
+        assert item.GreenPaletteColorLookupTableDescriptor[2] == 16
+        assert len(item.BluePaletteColorLookupTableDescriptor) == 3
+        assert item.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert item.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert item.BluePaletteColorLookupTableDescriptor[2] == 16
+        assert len(item.SegmentedRedPaletteColorLookupTableData) == 12
+        assert len(item.SegmentedGreenPaletteColorLookupTableData) == 12
+        assert len(item.SegmentedBluePaletteColorLookupTableData) == 12
+
         assert not hasattr(ds, 'ContentDescription')
         assert not hasattr(ds, 'ConceptNameCodeSequence')
         assert not hasattr(ds, 'ThresholdSequence')

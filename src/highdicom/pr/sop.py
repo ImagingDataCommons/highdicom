@@ -1,6 +1,7 @@
 """Module for SOP Classes of Presentation State (PR) IODs."""
 import logging
 import pkgutil
+from collections import defaultdict
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -1040,13 +1041,21 @@ class AdvancedBlendingPresentationState(SOPClass):
         )
 
         # Confusingly, the Advanced Blending Presentation State IOD does not
-        # include the Presentation State Relationship module. However, it
-        # includes the Common Instance Reference module, which containes the
-        # same attributes.
-        _add_presentation_state_relationship_attributes(
-            self,
-            referenced_images=referenced_images
-        )
+        # include the Presentation State Relationship module, but instead
+        # includes the Common Instance Reference module.
+        ref_im_items_mapping = defaultdict(list)
+        for im in referenced_images:
+            item = Dataset()
+            item.ReferencedSOPClassUID = im.SOPClassUID
+            item.ReferencedSOPInstanceUID = im.SOPInstanceUID
+            ref_im_items_mapping[im.SeriesInstanceUID].append(item)
+
+        self.ReferencedSeriesSequence = []
+        for series_instance_uid, ref_images in ref_im_items_mapping.items():
+            item = Dataset()
+            item.SeriesInstanceUID = series_instance_uid
+            item.ReferencedInstanceSequence = ref_images
+            self.ReferencedSeriesSequence.append(item)
 
         # Graphic Group, Graphic Annotation, and Graphic Layer
         _add_graphic_group_annotation_layer_attributes(
