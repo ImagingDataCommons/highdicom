@@ -6,6 +6,7 @@ from os import PathLike
 from typing import (
     Any, cast, Dict, List, Optional, Sequence, Union, Tuple, BinaryIO
 )
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -535,6 +536,14 @@ class Segmentation(SOPClass):
             segmentation_type
         )
         self.SegmentsOverlap = segments_overlap.value
+        if omit_empty_frames and pixel_array.sum() == 0:
+            omit_empty_frames = False
+            warnings.warn(
+                'Encoding an empty segmentation with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.',
+                UserWarning
+            )
 
         if plane_positions is None:
             if pixel_array.shape[0] != len(source_plane_positions):
