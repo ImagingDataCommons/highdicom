@@ -5,6 +5,10 @@ from pydicom import Dataset
 
 from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
+from highdicom._iods import (
+    IOD_MODULE_MAP,
+    SOP_CLASS_UID_IOD_KEY_MAP
+)
 
 
 # Allowed values for the type of an attribute
@@ -199,6 +203,7 @@ def get_module_usage(
         a module with that name is present within the IOD. None, if the module
         is not present within the IOD.
 
+
     """
     try:
         iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
@@ -211,3 +216,65 @@ def get_module_usage(
             return ModuleUsageValues(mod['usage'])
 
     return None
+
+
+def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
+    """Check whether an attribute is present within an IOD.
+
+    Parameters
+    ----------
+    attribute: str
+        Keyword for the attribute
+    sop_class_uid: str
+        SOP Class UID identifying the IOD.
+
+    Returns
+    -------
+    bool:
+        True if the attribute is present within any module within the IOD
+        specified by the sop_class_uid. False otherwise.
+
+    """
+    try:
+        iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
+    except KeyError as e:
+        msg = f'No IOD found for SOP Class UID: {sop_class_uid}.'
+        raise KeyError(msg) from e
+
+    for module in IOD_MODULE_MAP[iod_name]:
+        module_attributes = MODULE_ATTRIBUTE_MAP[module['key']]
+        for attr in module_attributes:
+            if attr['keyword'] == attribute:
+                return True
+
+    return False
+
+
+def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
+    """Check whether any pixel data attribute is present within an IOD.
+
+    This may be used to determine whether a particular SOP class represents an
+    image.
+
+    Parameters
+    ----------
+    sop_class_uid: str
+        SOP Class UID identifying the IOD.
+
+    Returns
+    -------
+    bool:
+        True if the any pixel data attribute is present within any module
+        within the IOD specified by the sop_class_uid. False otherwise. Pixel
+        data attributes include ``PixelData``, ``FloatPixelData``, and
+        ``DoubleFloatPixelData``.
+
+    """
+    pixel_attrs = [
+        'PixelData',
+        'FloatPixelData',
+        'DoubleFloatPixelData',
+    ]
+    return any(
+        is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
+    )

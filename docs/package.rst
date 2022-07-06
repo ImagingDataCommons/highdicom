@@ -113,6 +113,17 @@ highdicom.pm package
    :undoc-members:
    :show-inheritance:
 
+.. _highdicom-pr-subpackage:
+
+highdicom.pr package
+---------------------
+
+.. automodule:: highdicom.pr
+   :members:
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
 .. _highdicom-seg-subpackage:
 
 highdicom.seg package

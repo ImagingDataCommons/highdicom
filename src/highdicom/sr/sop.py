@@ -19,7 +19,7 @@ from pydicom.uid import (
     EnhancedSRStorage,
 )
 
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
@@ -229,7 +229,9 @@ class _SR(SOPClass):
             self.PredecessorDocumentsSequence = pre_items
 
         if performed_procedure_codes is not None:
-            self.PerformedProcedureCodeSequence = performed_procedure_codes
+            self.PerformedProcedureCodeSequence = [
+                CodedConcept.from_code(c) for c in performed_procedure_codes
+            ]
         else:
             self.PerformedProcedureCodeSequence = []
 
@@ -282,6 +284,7 @@ class _SR(SOPClass):
         """
         if not hasattr(dataset, 'ContentSequence'):
             raise ValueError('Dataset is not an SR document.')
+        _check_little_endian(dataset)
         sop_instance = deepcopy(dataset)
         sop_instance.__class__ = cls
 
@@ -566,12 +569,12 @@ class ComprehensiveSR(_SR):
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
-        unsopported_content = find_content_items(
+        unsupported_content = find_content_items(
             content,
             value_type=ValueTypeValues.SCOORD3D,
             recursive=True
         )
-        if len(unsopported_content) > 0:
+        if len(unsupported_content) > 0:
             raise ValueError(
                 'Comprehensive SR does not support content items with '
                 'SCOORD3D value type.'

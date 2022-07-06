@@ -107,3 +107,84 @@ def _check_code_string(value: str) -> None:
         raise ValueError(
             'Code string must not end with a space or underscore.'
         )
+
+
+def _check_long_string(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Long String.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Long String due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 64:
+        raise ValueError(
+            'Values of DICOM value representation Long String (LO) must not '
+            'exceed 64 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Long String (LO) must not '
+            'contain the backslash character.'
+        )
+
+
+def _check_short_text(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Short Text.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Short Text due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 1024:
+        raise ValueError(
+            'Values of DICOM value representation Short Text (ST) must not '
+            'exceed 1024 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Short Text (ST) must not '
+            'contain the backslash character.'
+        )
+
+
+def _check_long_text(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Long Text.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Long Text due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 10240:
+        raise ValueError(
+            'Values of DICOM value representation Long Text (LT) must not '
+            'exceed 10240 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Long Text (LT) must not '
+            'contain the backslash character.'
+        )

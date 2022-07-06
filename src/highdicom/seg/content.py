@@ -94,20 +94,10 @@ class SegmentDescription(Dataset):
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
-            CodedConcept(
-                segmented_property_category.value,
-                segmented_property_category.scheme_designator,
-                segmented_property_category.meaning,
-                segmented_property_category.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_category)
         ]
         self.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept(
-                segmented_property_type.value,
-                segmented_property_type.scheme_designator,
-                segmented_property_type.meaning,
-                segmented_property_type.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_type)
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
@@ -138,22 +128,12 @@ class SegmentDescription(Dataset):
             )
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 
@@ -555,7 +535,12 @@ class DimensionIndexSequence(DataElementSequence):
         --------
         >>> dimension_index = DimensionIndexSequence("SLIDE")
         >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
-        >>> segment_numbers = dimension_index[i]
+        >>> dimension_description = dimension_index[i]
+        >>> dimension_description
+        (0020, 9164) Dimension Organization UID          ...
+        (0020, 9165) Dimension Index Pointer             AT: (0062, 000b)
+        (0020, 9167) Functional Group Pointer            AT: (0062, 000a)
+        (0020, 9421) Dimension Description Label         LO: 'Segment Number'
 
         """
         indices = [
@@ -642,11 +627,24 @@ class DimensionIndexSequence(DataElementSequence):
 
         Examples
         --------
-        >>> dimension_index = DimensionIndexSequence("SLIDE")
-        >>> values = dimension_index.get_index_values(...)
+        >>> dimension_index = DimensionIndexSequence('SLIDE')
+        >>> plane_positions = [
+        ...     PlanePositionSequence('SLIDE', [10.0, 0.0, 0.0], [1, 1]),
+        ...     PlanePositionSequence('SLIDE', [30.0, 0.0, 0.0], [1, 2]),
+        ...     PlanePositionSequence('SLIDE', [50.0, 0.0, 0.0], [1, 3])
+        ... ]
+        >>> values, indices = dimension_index.get_index_values(plane_positions)
         >>> names = dimension_index.get_index_keywords()
+        >>> for name in names:
+        ...     print(name)
+        ColumnPositionInTotalImagePixelMatrix
+        RowPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
         >>> index = names.index("XOffsetInSlideCoordinateSystem")
         >>> print(values[:, index])
+        [10. 30. 50.]
 
         """
         return [

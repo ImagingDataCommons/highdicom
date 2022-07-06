@@ -19,16 +19,12 @@ class TestImageFileReader(unittest.TestCase):
             'test_files'
         )
 
-    def test_construct_image_file_reader(self):
-        filename = '/tmp/foo.dcm'
-        reader = ImageFileReader(filename)
-        assert reader.filename == filename
-
     def test_read_single_frame_ct_image_native(self):
         filename = str(self._test_dir.joinpath('ct_image.dcm'))
         dataset = dcmread(filename)
         pixel_array = dataset.pixel_array
         with ImageFileReader(filename) as reader:
+            assert reader.filename == filename
             assert reader.number_of_frames == 1
             frame = reader.read_frame(0)
             assert isinstance(frame, np.ndarray)

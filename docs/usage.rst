@@ -506,6 +506,97 @@ overlay a segmentation that is stored in a NumPy array called "seg_out".
 
         sc_image.save_as(os.path.join("output", 'sc_output_' + str(iz) + '.dcm'))
 
+
+Creating Grayscale Softcopy Presentation State (GSPS) Objects
+-------------------------------------------------------------
+
+A presentation state contains information about how another image should be
+rendered, and may include "annotations" in the form of basic shapes, polylines,
+and text overlays. Note that a GSPS is not recommended for storing annotations
+for any purpose except visualization. A structured report would usually be
+preferred for storing annotations for clinical or research purposes.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    import numpy as np
+    from pydicom import dcmread
+    from pydicom.valuerep import PersonName
+
+
+    # Read in an example CT image
+    image_dataset = dcmread('path/to/image.dcm')
+
+    # Create an annotation containing a polyline
+    polyline = hd.pr.GraphicObject(
+        graphic_type=hd.pr.GraphicTypeValues.POLYLINE,
+        graphic_data=np.array([
+            [10.0, 10.0],
+            [20.0, 10.0],
+            [20.0, 20.0],
+            [10.0, 20.0]]
+        ),  # coordinates of polyline vertices
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for graphic data
+        tracking_id='Finding1',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
+    )
+
+    # Create a text object annotation
+    text = hd.pr.TextObject(
+        text_value='Important Finding!',
+        bounding_box=np.array(
+            [30.0, 30.0, 40.0, 40.0]  # left, top, right, bottom
+        ),
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for bounding box
+        tracking_id='Finding1Text',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
+    )
+
+    # Create a single layer that will contain both graphics
+    # There may be multiple layers, and each GraphicAnnotation object
+    # belongs to a single layer
+    layer = hd.pr.GraphicLayer(
+        layer_name='LAYER1',
+        order=1,  # order in which layers are displayed (lower first)
+        description='Simple Annotation Layer',
+    )
+
+    # A GraphicAnnotation may contain multiple text and/or graphic objects
+    # and is rendered over all referenced images
+    annotation = hd.pr.GraphicAnnotation(
+        referenced_images=[image_dataset],
+        graphic_layer=layer,
+        graphic_objects=[polyline],
+        text_objects=[text]
+    )
+
+    # Assemble the components into a GSPS object
+    gsps = hd.pr.GrayscaleSoftcopyPresentationState(
+        referenced_images=[image_dataset],
+        series_instance_uid=hd.UID(),
+        series_number=123,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Manufacturer',
+        manufacturer_model_name='Model',
+        software_versions='v1',
+        device_serial_number='Device XYZ',
+        content_label='ANNOTATIONS',
+        graphic_layers=[layer],
+        graphic_annotations=[annotation],
+        institution_name='MGH',
+        institutional_department_name='Radiology',
+        content_creator_name=PersonName.from_named_components(
+            family_name='Doe',
+            given_name='John'
+        ),
+    )
+
+    # Save the GSPS file
+    gsps.save_as('gsps.dcm')
+
+
 .. .. _creation-legacy:
 
 .. Creating Legacy Converted Enhanced Images

@@ -153,3 +153,35 @@ In highdicom 0.15.0, the ``processing_type`` parameter was removed from the
 constructor of :class:`highdicom.content.SpecimenPreparationStep`.
 The parameter turned out to be superfluous, because the argument could be
 derived from the type of the ``processing_procedure`` argument.
+
+.. _specimen-preparation-step-refactoring:
+
+Refactoring of `SpecimenPreparationStep` class
+----------------------------------------------
+
+In highdicom 0.16.0 and later versions,
+:class:`highdicom.content.SpecimenPreparationStep` represents an item of the
+Specimen Preparation Sequence rather than the Specimen Preparation Step Content
+Item Sequence and the class is consequently derived from
+``pydicom.dataset.Dataset`` instead of ``pydicom.sequence.Sequence``.
+As a consequence, alternative construction of an instance of
+:class:`highdicom.content.SpecimenPreparationStep` needs to be performed using
+the ``from_dataset()`` instead of the ``from_sequence()`` class method.
+
+.. _big-endian-deprecation:
+
+Deprecation of Big Endian Transfer Syntaxes
+-------------------------------------------
+
+The use of "Big Endian" transfer syntaxes such as `ExplicitVRBigEndian` is
+disallowed from highdicom 0.18.0 onwards. The use of Big Endian transfer
+syntaxes has been retired in the standard for some time. To discourage the use
+of retired transfer syntaxes and to simplify the logic when encoding and
+decoding objects in which byte order is relevant, in version 0.17.0 and onwards
+passing a big endian transfer syntax to the constructor of
+:class:`highdicom.SOPClass` or any of its subclasses will result in a value
+error.
+
+Similarly, as of highdicom 0.18.0, it is no longer possible to pass datasets
+with a Big Endian transfer syntax to the `from_dataset` methods of any of the
+:class:`highdicom.SOPClass` subclasses.

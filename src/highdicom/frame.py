@@ -214,7 +214,7 @@ def encode_frame(
                 if planar_configuration is not None:
                     raise ValueError(
                         'Planar configuration must be absent for encoding of '
-                        'monochrome image frames with Lossless JPEG2000 codec.'
+                        'monochrome image frames with Lossless JPEG 2000 codec.'
                     )
                 if photometric_interpretation not in (
                         'MONOCHROME1', 'MONOCHROME2'
@@ -222,29 +222,39 @@ def encode_frame(
                     raise ValueError(
                         'Photometric intpretation must be either "MONOCHROME1" '
                         'or "MONOCHROME2" for encoding of monochrome image '
-                        'frames with Lossless JPEG2000 codec.'
+                        'frames with Lossless JPEG 2000 codec.'
+                    )
+                if bits_allocated not in (8, 16):
+                    raise ValueError(
+                        'Bits Allocated must be 8 or 16 for encoding of '
+                        'monochrome image frames with Lossless JPEG 2000 codec.'
                     )
             elif samples_per_pixel == 3:
                 if photometric_interpretation != 'YBR_FULL':
                     raise ValueError(
                         'Photometric interpretation must be "YBR_FULL" for '
                         'encoding of color image frames with '
-                        'Lossless JPEG2000 codec.'
+                        'Lossless JPEG 2000 codec.'
                     )
                 if planar_configuration != 0:
                     raise ValueError(
                         'Planar configuration must be 0 for encoding of '
-                        'color image frames with Lossless JPEG2000 codec.'
+                        'color image frames with Lossless JPEG 2000 codec.'
+                    )
+                if bits_allocated != 8:
+                    raise ValueError(
+                        'Bits Allocated must be 8 for encoding of '
+                        'color image frames with Lossless JPEG 2000 codec.'
                     )
             else:
                 raise ValueError(
                     'Samples per pixel must be 1 or 3 for '
-                    'encoding of image frames with Lossless JPEG2000 codec.'
+                    'encoding of image frames with Lossless JPEG 2000 codec.'
                 )
             if pixel_representation != 0:
                 raise ValueError(
                     'Pixel representation must be 0 for '
-                    'encoding of image frames with Lossless JPEG2000 codec.'
+                    'encoding of image frames with Lossless JPEG 2000 codec.'
                 )
 
         elif transfer_syntax_uid == JPEGLSLossless:
@@ -262,6 +272,11 @@ def encode_frame(
                         'Photometric intpretation must be either "MONOCHROME1" '
                         'or "MONOCHROME2" for encoding of monochrome image '
                         'frames with Lossless JPEG-LS codec.'
+                    )
+                if bits_allocated not in (8, 16):
+                    raise ValueError(
+                        'Bits Allocated must be 8 or 16 for encoding of '
+                        'monochrome image frames with Lossless JPEG-LS codec.'
                     )
             elif samples_per_pixel == 3:
                 if photometric_interpretation != 'YBR_FULL':
