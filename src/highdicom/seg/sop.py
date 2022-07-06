@@ -363,6 +363,17 @@ class Segmentation(SOPClass):
                     "Source images have no Frame Of Reference UID, but it is "
                     "required by the IOD."
                 )
+
+            # It may be possible to generalize this, but for now only a single
+            # source frame is permitted when no frame of reference exists
+            if (
+                len(source_images) > 1 or
+                (is_multiframe and src_img.NumberOfFrames > 1)
+            ):
+                raise ValueError(
+                    "Only a single frame is supported when the source "
+                    "image has no Frame of Reference UID."
+                )
             if plane_positions is not None:
                 raise TypeError(
                     "If source images have no Frame Of Reference UID, the "

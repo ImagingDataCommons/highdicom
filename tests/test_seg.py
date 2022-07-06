@@ -2036,6 +2036,7 @@ class TestSegmentation(unittest.TestCase):
                 content_label=self._content_label,
                 plane_orientation=plane_orientation
             )
+
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
             Segmentation(
