@@ -346,8 +346,8 @@ class Segmentation(SOPClass):
                 'PositionReferenceIndicator',
                 None
             )
-            # Using Container Type Code Sequence attribute would be more elegant,
-            # but unfortunately it is a type 2 attribute.
+            # Using Container Type Code Sequence attribute would be more
+            # elegant, but unfortunately it is a type 2 attribute.
             if (hasattr(src_img, 'ImageOrientationSlide') or
                     hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
                 self._coordinate_system: Optional[CoordinateSystemNames] = \
@@ -362,6 +362,20 @@ class Segmentation(SOPClass):
                 raise ValueError(
                     "Source images have no Frame Of Reference UID, but it is "
                     "required by the IOD."
+                )
+            if plane_positions is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_positions" may not be specified since the '
+                    "segmentation pixel array must be spatially aligned with "
+                    "the source images."
+                )
+            if plane_orientation is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_orientation" may not be specified since '
+                    "the segmentation pixel array must be spatially aligned "
+                    "with the source images."
                 )
             self._coordinate_system = None
 

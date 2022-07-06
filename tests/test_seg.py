@@ -1984,6 +1984,58 @@ class TestSegmentation(unittest.TestCase):
                 device_serial_number=self._device_serial_number
             )
 
+    def test_construction_plane_positions_no_frame_of_reference(self):
+        # A chest X-ray with no frame of reference -> cannot have plane
+        # positions
+        plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT,
+                image_position=(0.0, 0.0, 0.0)
+            ),
+        ]
+        with pytest.raises(TypeError):
+            Segmentation(
+                [self._cr_image],
+                self._cr_pixel_array,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                content_label=self._content_label,
+                plane_positions=plane_positions
+            )
+
+    def test_construction_plane_orientation_no_frame_of_reference(self):
+        # A chest X-ray with no frame of reference -> cannot have plane
+        # orientation
+        image_orientation = (-1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
+        plane_orientation = PlaneOrientationSequence(
+            coordinate_system=CoordinateSystemNames.PATIENT,
+            image_orientation=image_orientation
+        )
+        with pytest.raises(TypeError):
+            Segmentation(
+                [self._cr_image],
+                self._cr_pixel_array,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                content_label=self._content_label,
+                plane_orientation=plane_orientation
+            )
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
             Segmentation(
