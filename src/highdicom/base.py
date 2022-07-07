@@ -32,10 +32,10 @@ class SOPClass(Dataset):
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        series_number: int,
+        series_number: Optional[int],
         sop_instance_uid: str,
         sop_class_uid: str,
-        instance_number: int,
+        instance_number: Optional[int],
         modality: str,
         manufacturer: Optional[str] = None,
         transfer_syntax_uid: Optional[str] = None,
@@ -67,7 +67,7 @@ class SOPClass(Dataset):
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
-        instance_number: int
+        instance_number: Union[int, None]
             Number that should be assigned to the instance
         modality: str
             Name of the modality
@@ -171,10 +171,11 @@ class SOPClass(Dataset):
 
         # Series
         self.SeriesInstanceUID = str(series_instance_uid)
-        if series_number < 1:
-            raise ValueError(
-                '"series_number" should be a positive integer.'
-            )
+        if series_number is not None:
+            if series_number < 1:
+                raise ValueError(
+                    'Argument "series_number" should be a positive integer.'
+                )
         self.SeriesNumber = series_number
         self.Modality = modality
         if series_description is not None:
@@ -186,10 +187,11 @@ class SOPClass(Dataset):
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
-        if instance_number < 1:
-            raise ValueError(
-                '"instance_number" should be a positive integer.'
-            )
+        if instance_number is not None:
+            if instance_number < 1:
+                raise ValueError(
+                    'Argument "instance_number" should be a positive integer.'
+                )
         self.InstanceNumber = instance_number
 
         # Content Date and Content Time are not present in all IODs

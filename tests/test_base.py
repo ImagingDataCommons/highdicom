@@ -14,6 +14,21 @@ from highdicom.base import _check_little_endian
 
 class TestBase(unittest.TestCase):
 
+    def test_series_and_instance_number(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=None,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=None,
+            modality='SR',
+            manufacturer='highdicom',
+            transfer_syntax_uid=ExplicitVRBigEndian,
+        )
+        assert instance.SeriesNumber is None
+        assert instance.InstanceNumber is None
+
     def test_big_endian(self):
         with pytest.raises(ValueError):
             SOPClass(
