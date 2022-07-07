@@ -1,7 +1,7 @@
 import logging
 import datetime
 from io import BytesIO
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -54,7 +54,10 @@ class SOPClass(Dataset):
         coding_schemes: Optional[
             Sequence[CodingSchemeIdentificationItem]
         ] = None,
-        series_description: Optional[str] = None
+        series_description: Optional[str] = None,
+        manufacturer_model_name: Optional[str] = None,
+        software_versions: Union[str, Tuple[str], None] = None,
+        device_serial_number: Optional[str] = None,
     ):
         """
         Parameters
@@ -103,6 +106,13 @@ class SOPClass(Dataset):
             DICOM standard
         series_description: Union[str, None], optional
             Human readable description of the series
+        manufacturer_model_name: Union[str, None], optional
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        device_serial_number: str
+            Manufacturer's serial number of the device
 
         Note
         ----
@@ -183,6 +193,12 @@ class SOPClass(Dataset):
 
         # Equipment
         self.Manufacturer = manufacturer
+        if manufacturer_model_name is not None:
+            self.ManufacturerModelName = manufacturer_model_name
+        if device_serial_number is not None:
+            self.DeviceSerialNumber = device_serial_number
+        if software_versions is not None:
+            self.SoftwareVersions = software_versions
 
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
