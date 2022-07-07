@@ -15,28 +15,41 @@ from highdicom.base import _check_little_endian
 class TestBase(unittest.TestCase):
 
     def test_type_2_attributes(self):
-        instance = SOPClass(
-            study_instance_uid=UID(),
-            series_instance_uid=UID(),
-            series_number=None,
-            sop_instance_uid=UID(),
-            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
-            instance_number=None,
-            modality='SR',
-            manufacturer='highdicom',
-            transfer_syntax_uid=ExplicitVRLittleEndian,
-        )
-        assert instance.SeriesNumber is None
-        assert instance.InstanceNumber is None
+        # Series Number and Instance Number are type 1 for several IODs.
+        # Therefore, we decided that we require them even on the base class.
+        with pytest.raises(TypeError):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=None,
+                modality='SR',
+                manufacturer='highdicom',
+                transfer_syntax_uid=ExplicitVRLittleEndian,
+            )
+        with pytest.raises(TypeError):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=None,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                transfer_syntax_uid=ExplicitVRLittleEndian,
+            )
 
     def test_type_3_attributes(self):
         instance = SOPClass(
             study_instance_uid=UID(),
             series_instance_uid=UID(),
-            series_number=None,
+            series_number=1,
             sop_instance_uid=UID(),
             sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
-            instance_number=None,
+            instance_number=1,
             modality='SR',
             manufacturer='highdicom',
             manufacturer_model_name='foo-bar',

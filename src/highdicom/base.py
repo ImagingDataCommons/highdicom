@@ -32,10 +32,10 @@ class SOPClass(Dataset):
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        series_number: Optional[int],
+        series_number: int,
         sop_instance_uid: str,
         sop_class_uid: str,
-        instance_number: Optional[int],
+        instance_number: int,
         modality: str,
         manufacturer: Optional[str] = None,
         transfer_syntax_uid: Optional[str] = None,
@@ -68,11 +68,11 @@ class SOPClass(Dataset):
             UID of the study
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
-        instance_number: Union[int, None]
+        instance_number: int
             Number that should be assigned to the instance
         modality: str
             Name of the modality
@@ -189,11 +189,12 @@ class SOPClass(Dataset):
 
         # Series
         self.SeriesInstanceUID = str(series_instance_uid)
-        if series_number is not None:
-            if series_number < 1:
-                raise ValueError(
-                    'Argument "series_number" should be a positive integer.'
-                )
+        if series_number is None:
+            raise TypeError('Argument "series_number" is required.')
+        if series_number < 1:
+            raise ValueError(
+                'Argument "series_number" should be a positive integer.'
+            )
         self.SeriesNumber = series_number
         self.Modality = modality
         if series_description is not None:
@@ -215,11 +216,12 @@ class SOPClass(Dataset):
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
-        if instance_number is not None:
-            if instance_number < 1:
-                raise ValueError(
-                    'Argument "instance_number" should be a positive integer.'
-                )
+        if instance_number is None:
+            raise TypeError('Argument "instance_number" is required.')
+        if instance_number < 1:
+            raise ValueError(
+                'Argument "instance_number" should be a positive integer.'
+            )
         self.InstanceNumber = instance_number
 
         # Content Date and Content Time are not present in all IODs
