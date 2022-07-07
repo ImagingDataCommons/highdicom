@@ -26,7 +26,6 @@ from highdicom.content import (
 from highdicom.enum import PresentationLUTShapeValues
 from highdicom.pr.content import (
     _add_displayed_area_attributes,
-    _add_equipment_attributes,
     _add_graphic_group_annotation_layer_attributes,
     _add_icc_profile_attributes,
     _add_modality_lut_attributes,
@@ -185,7 +184,6 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=GrayscaleSoftcopyPresentationStateStorage,
             instance_number=instance_number,
-            manufacturer=manufacturer,
             modality='PR',
             patient_id=ref_im.PatientID,
             transfer_syntax_uid=transfer_syntax_uid,
@@ -199,21 +197,16 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             referring_physician_name=getattr(
                 ref_im, 'ReferringPhysicianName', None
             ),
-            **kwargs
-        )
-        self.copy_patient_and_study_information(ref_im)
-        self.copy_specimen_information(ref_im)
-
-        # General Equipment
-        _add_equipment_attributes(
-            self,
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             software_versions=software_versions,
             device_serial_number=device_serial_number,
             institution_name=institution_name,
-            institutional_department_name=institutional_department_name
+            institutional_department_name=institutional_department_name,
+            **kwargs
         )
+        self.copy_patient_and_study_information(ref_im)
+        self.copy_specimen_information(ref_im)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -463,7 +456,6 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=PseudoColorSoftcopyPresentationStateStorage,
             instance_number=instance_number,
-            manufacturer=manufacturer,
             modality='PR',
             patient_id=ref_im.PatientID,
             transfer_syntax_uid=transfer_syntax_uid,
@@ -477,21 +469,16 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             referring_physician_name=getattr(
                 ref_im, 'ReferringPhysicianName', None
             ),
-            **kwargs
-        )
-        self.copy_patient_and_study_information(ref_im)
-        self.copy_specimen_information(ref_im)
-
-        # General Equipment
-        _add_equipment_attributes(
-            self,
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             software_versions=software_versions,
             device_serial_number=device_serial_number,
             institution_name=institution_name,
-            institutional_department_name=institutional_department_name
+            institutional_department_name=institutional_department_name,
+            **kwargs
         )
+        self.copy_patient_and_study_information(ref_im)
+        self.copy_specimen_information(ref_im)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -730,7 +717,6 @@ class ColorSoftcopyPresentationState(SOPClass):
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=ColorSoftcopyPresentationStateStorage,
             instance_number=instance_number,
-            manufacturer=manufacturer,
             modality='PR',
             patient_id=ref_im.PatientID,
             transfer_syntax_uid=transfer_syntax_uid,
@@ -744,21 +730,16 @@ class ColorSoftcopyPresentationState(SOPClass):
             referring_physician_name=getattr(
                 ref_im, 'ReferringPhysicianName', None
             ),
-            **kwargs
-        )
-        self.copy_patient_and_study_information(ref_im)
-        self.copy_specimen_information(ref_im)
-
-        # General Equipment
-        _add_equipment_attributes(
-            self,
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             software_versions=software_versions,
             device_serial_number=device_serial_number,
             institution_name=institution_name,
-            institutional_department_name=institutional_department_name
+            institutional_department_name=institutional_department_name,
+            **kwargs
         )
+        self.copy_patient_and_study_information(ref_im)
+        self.copy_specimen_information(ref_im)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -935,7 +916,6 @@ class AdvancedBlendingPresentationState(SOPClass):
             sop_instance_uid=sop_instance_uid,
             sop_class_uid=AdvancedBlendingPresentationStateStorage,
             instance_number=instance_number,
-            manufacturer=manufacturer,
             modality='PR',
             patient_id=ref_im.PatientID,
             transfer_syntax_uid=transfer_syntax_uid,
@@ -949,6 +929,12 @@ class AdvancedBlendingPresentationState(SOPClass):
             referring_physician_name=getattr(
                 ref_im, 'ReferringPhysicianName', None
             ),
+            manufacturer=manufacturer,
+            manufacturer_model_name=manufacturer_model_name,
+            software_versions=software_versions,
+            device_serial_number=device_serial_number,
+            institution_name=institution_name,
+            institutional_department_name=institutional_department_name,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)
@@ -1018,17 +1004,6 @@ class AdvancedBlendingPresentationState(SOPClass):
                 'argument "blending_display" must be unique.'
             )
         self.BlendingDisplaySequence = blending_display
-
-        # General Equipment
-        _add_equipment_attributes(
-            self,
-            manufacturer=manufacturer,
-            manufacturer_model_name=manufacturer_model_name,
-            software_versions=software_versions,
-            device_serial_number=device_serial_number,
-            institution_name=institution_name,
-            institutional_department_name=institutional_department_name
-        )
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(

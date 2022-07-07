@@ -79,7 +79,7 @@ class GraphicTypeValues(Enum):
     """
 
     ELLIPSE = 'ELLIPSE'
-    """An ellipse defined by four pixel (Column,Row) pairs.
+    """An ellipse defined by four coordinates.
 
     The first two coordinates specify the endpoints of the major axis and
     the second two coordinates specify the endpoints of the minor axis.

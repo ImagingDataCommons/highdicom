@@ -58,6 +58,8 @@ class SOPClass(Dataset):
         manufacturer_model_name: Optional[str] = None,
         software_versions: Union[str, Tuple[str], None] = None,
         device_serial_number: Optional[str] = None,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
     ):
         """
         Parameters
@@ -113,6 +115,12 @@ class SOPClass(Dataset):
             Version(s) of the software that creates the instance
         device_serial_number: str
             Manufacturer's serial number of the device
+        institution_name: Union[str, None], optional
+            Name of the institution of the person or device that creates the
+            SR document instance.
+        institutional_department_name: Union[str, None], optional
+            Name of the department of the person or device that creates the
+            SR document instance.
 
         Note
         ----
@@ -199,6 +207,10 @@ class SOPClass(Dataset):
             self.DeviceSerialNumber = device_serial_number
         if software_versions is not None:
             self.SoftwareVersions = software_versions
+        if institution_name is not None:
+            self.InstitutionName = institution_name
+            if institutional_department_name is not None:
+                self.InstitutionalDepartmentName = institutional_department_name
 
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
