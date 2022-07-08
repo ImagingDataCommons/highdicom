@@ -770,49 +770,6 @@ class SoftcopyVOILUTTransformation(VOILUTTransformation):
             self.ReferencedImageSequence = referenced_images
 
 
-def _add_equipment_attributes(
-    dataset: Dataset,
-    manufacturer: str,
-    manufacturer_model_name: str,
-    software_versions: Union[str, Tuple[str]],
-    device_serial_number: str,
-    institution_name: Optional[str] = None,
-    institutional_department_name: Optional[str] = None,
-) -> None:
-    """Add attributes of module General Equipment.
-
-    Parameters
-    ----------
-    dataset: pydicom.Dataset
-        Dataset to which attributes should be added
-    manufacturer: str
-        Name of the manufacturer of the device (developer of the software)
-        that creates the instance
-    manufacturer_model_name: str
-        Name of the device model (name of the software library or
-        application) that creates the instance
-    software_versions: Union[str, Tuple[str]]
-        Version(s) of the software that creates the instance
-    device_serial_number: Union[str, None]
-        Manufacturer's serial number of the device
-    institution_name: Union[str, None], optional
-        Name of the institution of the person or device that creates the
-        SR document instance.
-    institutional_department_name: Union[str, None], optional
-        Name of the department of the person or device that creates the
-        SR document instance.
-
-    """
-    dataset.Manufacturer = manufacturer
-    if institution_name is not None:
-        dataset.InstitutionName = institution_name
-        if institutional_department_name is not None:
-            dataset.InstitutionalDepartmentName = institutional_department_name
-    dataset.DeviceSerialNumber = device_serial_number
-    dataset.ManufacturerModelName = manufacturer_model_name
-    dataset.SoftwareVersions = software_versions
-
-
 def _add_presentation_state_identification_attributes(
     dataset: Dataset,
     content_label: str,

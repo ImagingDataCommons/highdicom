@@ -185,7 +185,7 @@ class Segmentation(SOPClass):
             with the corresponding segment number is used to describe each segment.
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -332,6 +332,9 @@ class Segmentation(SOPClass):
             referring_physician_name=getattr(
                 src_img, 'ReferringPhysicianName', None
             ),
+            manufacturer_model_name=manufacturer_model_name,
+            device_serial_number=device_serial_number,
+            software_versions=software_versions,
             **kwargs
         )
 
@@ -350,11 +353,6 @@ class Segmentation(SOPClass):
             'PositionReferenceIndicator',
             None
         )
-
-        # (Enhanced) General Equipment
-        self.DeviceSerialNumber = device_serial_number
-        self.ManufacturerModelName = manufacturer_model_name
-        self.SoftwareVersions = software_versions
 
         # General Reference
         self.SourceImageSequence: List[Dataset] = []

@@ -51,7 +51,7 @@ class KeyObjectSelectionDocument(SOPClass):
             Content items that should be included in the document
         series_instance_uid: str
             Series Instance UID of the document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the document series
         sop_instance_uid: str
             SOP Instance UID that should be assigned to the document instance

@@ -1,7 +1,7 @@
 import logging
 import datetime
 from io import BytesIO
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -54,7 +54,12 @@ class SOPClass(Dataset):
         coding_schemes: Optional[
             Sequence[CodingSchemeIdentificationItem]
         ] = None,
-        series_description: Optional[str] = None
+        series_description: Optional[str] = None,
+        manufacturer_model_name: Optional[str] = None,
+        software_versions: Union[str, Tuple[str], None] = None,
+        device_serial_number: Optional[str] = None,
+        institution_name: Optional[str] = None,
+        institutional_department_name: Optional[str] = None,
     ):
         """
         Parameters
@@ -63,7 +68,7 @@ class SOPClass(Dataset):
             UID of the study
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -103,6 +108,19 @@ class SOPClass(Dataset):
             DICOM standard
         series_description: Union[str, None], optional
             Human readable description of the series
+        manufacturer_model_name: Union[str, None], optional
+            Name of the device model (name of the software library or
+            application) that creates the instance
+        software_versions: Union[str, Tuple[str]]
+            Version(s) of the software that creates the instance
+        device_serial_number: str
+            Manufacturer's serial number of the device
+        institution_name: Union[str, None], optional
+            Name of the institution of the person or device that creates the
+            SR document instance.
+        institutional_department_name: Union[str, None], optional
+            Name of the department of the person or device that creates the
+            SR document instance.
 
         Note
         ----
@@ -171,9 +189,11 @@ class SOPClass(Dataset):
 
         # Series
         self.SeriesInstanceUID = str(series_instance_uid)
+        if series_number is None:
+            raise TypeError('Argument "series_number" is required.')
         if series_number < 1:
             raise ValueError(
-                '"series_number" should be a positive integer.'
+                'Argument "series_number" should be a positive integer.'
             )
         self.SeriesNumber = series_number
         self.Modality = modality
@@ -182,13 +202,25 @@ class SOPClass(Dataset):
 
         # Equipment
         self.Manufacturer = manufacturer
+        if manufacturer_model_name is not None:
+            self.ManufacturerModelName = manufacturer_model_name
+        if device_serial_number is not None:
+            self.DeviceSerialNumber = device_serial_number
+        if software_versions is not None:
+            self.SoftwareVersions = software_versions
+        if institution_name is not None:
+            self.InstitutionName = institution_name
+            if institutional_department_name is not None:
+                self.InstitutionalDepartmentName = institutional_department_name
 
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
+        if instance_number is None:
+            raise TypeError('Argument "instance_number" is required.')
         if instance_number < 1:
             raise ValueError(
-                '"instance_number" should be a positive integer.'
+                'Argument "instance_number" should be a positive integer.'
             )
         self.InstanceNumber = instance_number
 
