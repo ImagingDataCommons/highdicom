@@ -185,7 +185,7 @@ class Segmentation(SOPClass):
             with the corresponding segment number is used to describe each segment.
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance

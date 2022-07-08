@@ -125,7 +125,7 @@ class ParametricMap(SOPClass):
 
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -324,7 +324,6 @@ class ParametricMap(SOPClass):
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
             sop_class_uid='1.2.840.10008.5.1.4.1.1.30',
-            manufacturer=manufacturer,
             modality='OT',
             transfer_syntax_uid=transfer_syntax_uid,
             patient_id=src_img.PatientID,
@@ -338,6 +337,7 @@ class ParametricMap(SOPClass):
             referring_physician_name=getattr(
                 src_img, 'ReferringPhysicianName', None
             ),
+            manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,

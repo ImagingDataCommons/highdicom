@@ -77,7 +77,7 @@ class _SR(SOPClass):
             SR document
         series_instance_uid: str
             Series Instance UID of the SR document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SR document series
         sop_instance_uid: str
             SOP Instance UID that should be assigned to the SR document instance
@@ -363,7 +363,7 @@ class EnhancedSR(_SR):
             SR document
         series_instance_uid: str
             Series Instance UID of the SR document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SR document series
         sop_instance_uid: str
             SOP Instance UID that should be assigned to the SR document instance
@@ -493,7 +493,7 @@ class ComprehensiveSR(_SR):
             SR document
         series_instance_uid: str
             Series Instance UID of the SR document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SR document series
         sop_instance_uid: str
             SOP Instance UID that should be assigned to the SR document instance
@@ -646,7 +646,7 @@ class Comprehensive3DSR(_SR):
             SR document
         series_instance_uid: str
             Series Instance UID of the SR document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SR document series
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SR document instance

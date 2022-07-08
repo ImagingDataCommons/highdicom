@@ -120,7 +120,7 @@ class SCImage(SOPClass):
             Study Instance UID
         series_instance_uid: str
             Series Instance UID of the SC image series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SC image series
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SC image instance
@@ -463,7 +463,7 @@ class SCImage(SOPClass):
             imaging
         series_instance_uid: str
             Series Instance UID of the SC image series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SC image series
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SC image instance

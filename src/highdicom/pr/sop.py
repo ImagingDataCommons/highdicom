@@ -102,7 +102,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             Images that should be referenced
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -372,7 +372,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             Images that should be referenced.
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -643,7 +643,7 @@ class ColorSoftcopyPresentationState(SOPClass):
             Images that should be referenced
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -841,7 +841,7 @@ class AdvancedBlendingPresentationState(SOPClass):
             which may reused in a following step.
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
