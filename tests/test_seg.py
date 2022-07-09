@@ -639,6 +639,10 @@ class TestSegmentation(unittest.TestCase):
             dtype=bool
         )
         self._cr_pixel_array[1:5, 10:15] = True
+        self._cr_multisegment_pixel_array = np.stack(
+            [self._cr_pixel_array, np.logical_not(self._cr_pixel_array)],
+            axis=2
+        )[None, :]
 
         # A microscopy image
         self._sm_image = dcmread(
@@ -1268,6 +1272,96 @@ class TestSegmentation(unittest.TestCase):
         assert frame_content_item['DimensionIndexValues'].VM == 1
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
+        assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
+            SegmentsOverlapValues.NO
+
+    def test_construction_7(self):
+        # A chest X-ray with no frame of reference and multiple segments
+        instance = Segmentation(
+            [self._cr_image],
+            self._cr_multisegment_pixel_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert instance.SeriesInstanceUID == self._series_instance_uid
+        assert instance.SeriesNumber == self._series_number
+        assert instance.SOPInstanceUID == self._sop_instance_uid
+        assert instance.InstanceNumber == self._instance_number
+        assert instance.Manufacturer == self._manufacturer
+        assert instance.ManufacturerModelName == self._manufacturer_model_name
+        assert instance.SoftwareVersions == self._software_versions
+        assert instance.DeviceSerialNumber == self._device_serial_number
+        assert instance.Modality == 'SEG'
+        assert instance.file_meta.TransferSyntaxUID == '1.2.840.10008.1.2.1'
+        assert instance.PatientID == self._cr_image.PatientID
+        assert instance.AccessionNumber == self._cr_image.AccessionNumber
+        assert instance.LossyImageCompression == '00'
+        assert instance.BitsAllocated == 8
+        assert instance.HighBit == 7
+        assert instance.BitsStored == 8
+        assert instance.ImageType == ['DERIVED', 'PRIMARY']
+        assert instance.SamplesPerPixel == 1
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        assert instance.PixelRepresentation == 0
+        assert instance.SegmentationType == 'FRACTIONAL'
+        assert instance.SegmentationFractionalType == 'PROBABILITY'
+        assert instance.MaximumFractionalValue == 255
+        assert instance.ContentLabel == self._content_label
+        assert instance.ContentDescription is None
+        assert instance.ContentCreatorName is None
+        with pytest.raises(AttributeError):
+            instance.LossyImageCompressionRatio
+        with pytest.raises(AttributeError):
+            instance.LossyImageCompressionMethod
+        with pytest.raises(AttributeError):
+            instance.ImageOrientationSlide
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixOriginSequence
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixRows
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixColumns
+        assert len(instance.SegmentSequence) == 2
+        assert instance.SegmentSequence[0].SegmentNumber == 1
+        assert instance.SegmentSequence[1].SegmentNumber == 2
+        assert len(instance.SourceImageSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 1
+        ref_item = instance.SourceImageSequence[0]
+        assert ref_item.ReferencedSOPInstanceUID == \
+            self._cr_image.SOPInstanceUID
+        assert instance.Rows == self._cr_multisegment_pixel_array.shape[1]
+        assert instance.Columns == self._cr_multisegment_pixel_array.shape[2]
+        assert len(instance.SharedFunctionalGroupsSequence) == 1
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert not hasattr(shared_item, 'PixelMeasuresSequence')
+        assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert len(instance.DimensionOrganizationSequence) == 1
+        assert len(instance.DimensionIndexSequence) == 1
+        assert instance.NumberOfFrames == 2
+        assert len(instance.PerFrameFunctionalGroupsSequence) == 2
+        for i, frame_item in enumerate(
+            instance.PerFrameFunctionalGroupsSequence, 1
+        ):
+            seg_id = frame_item.SegmentIdentificationSequence
+            assert len(seg_id) == 1
+            assert seg_id[0].ReferencedSegmentNumber == i
+            frame_content = frame_item.FrameContentSequence
+            assert len(frame_content) == 1
+            assert frame_content[0].DimensionIndexValues == i
+            assert len(frame_item.DerivationImageSequence) == 1
+            assert not hasattr(frame_item, 'PlanePositionSequence')
+            assert not hasattr(frame_item, 'PlanePositionSlideSequence')
+            for derivation_image_item in frame_item.DerivationImageSequence:
+                assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
 
@@ -1967,6 +2061,27 @@ class TestSegmentation(unittest.TestCase):
                 manufacturer_model_name=self._manufacturer_model_name,
                 software_versions=self._software_versions,
                 device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_multislice_no_frame_of_reference(self):
+        # A chest X-ray with no frame of reference -> cannot have multiple
+        # images
+        multislice_seg = np.tile(self._cr_pixel_array, (2, 1, 1))
+        with pytest.raises(ValueError):
+            Segmentation(
+                [self._cr_image] * 2,
+                multislice_seg,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                content_label=self._content_label,
             )
 
     def test_construction_plane_positions_no_frame_of_reference(self):
