@@ -2481,6 +2481,10 @@ class TestSegmentationParsing(unittest.TestCase):
             self._ct_true_fractional_seg
         ]
 
+        self._cr_binary_seg_ds = dcmread(
+            'data/test_files/seg_image_cr_binary.dcm'
+        )
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 

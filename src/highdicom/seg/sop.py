@@ -1241,17 +1241,16 @@ class Segmentation(SOPClass):
         seg.__class__ = Segmentation
 
         sf_groups = seg.SharedFunctionalGroupsSequence[0]
-        plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
-        if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
-            seg._coordinate_system = CoordinateSystemNames.SLIDE
-        elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
-            seg._coordinate_system = CoordinateSystemNames.PATIENT
+        if hasattr(seg, 'PlaneOrientationSequence'):
+            plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
+            if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
+                seg._coordinate_system = CoordinateSystemNames.SLIDE
+            elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
+                seg._coordinate_system = CoordinateSystemNames.PATIENT
+            else:
+                seg._coordinate_system = None
         else:
-            raise AttributeError(
-                'Expected Plane Orientation Sequence to have either '
-                'ImageOrientationSlide or ImageOrientationPatient '
-                'attribute.'
-            )
+            seg._coordinate_system = None
 
         for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
