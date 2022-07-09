@@ -1244,7 +1244,7 @@ class TestSegmentation(unittest.TestCase):
         assert len(instance.SegmentSequence) == 1
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
-        assert len(instance.DimensionIndexSequence) == 2
+        assert len(instance.DimensionIndexSequence) == 1
         ref_item = instance.SourceImageSequence[0]
         assert ref_item.ReferencedSOPInstanceUID == \
             self._cr_image.SOPInstanceUID
@@ -1252,39 +1252,24 @@ class TestSegmentation(unittest.TestCase):
         assert instance.Columns == self._cr_image.pixel_array.shape[1]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
-        assert len(shared_item.PixelMeasuresSequence) == 1
-        pm_item = shared_item.PixelMeasuresSequence[0]
-        assert pm_item.PixelSpacing == self._cr_image.PixelSpacing
-        assert pm_item.SliceThickness == self._cr_image.SliceThickness
-        assert len(shared_item.PlaneOrientationSequence) == 1
-        po_item = shared_item.PlaneOrientationSequence[0]
-        assert po_item.ImageOrientationPatient == \
-            self._cr_image.ImageOrientationPatient
+        assert not hasattr(shared_item, 'PixelMeasuresSequence')
+        assert not hasattr(shared_item, 'PlaneOrientationSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
-        assert len(instance.DimensionIndexSequence) == 2
+        assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert len(frame_item.SegmentIdentificationSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
-        assert len(frame_item.PlanePositionSequence) == 1
+        assert not hasattr(frame_item, 'PlanePositionSequence')
+        assert not hasattr(frame_item, 'PlanePositionSlideSequence')
         frame_content_item = frame_item.FrameContentSequence[0]
-        assert len(frame_content_item.DimensionIndexValues) == 2
-        for i, frame_item in enumerate(
-            instance.PerFrameFunctionalGroupsSequence, 1
-        ):
-            frame_content_item = frame_item.FrameContentSequence[0]
-            # The slice location index values should be consecutive, starting
-            # at 1
-            assert frame_content_item.DimensionIndexValues[1] == i
+        assert frame_content_item['DimensionIndexValues'].VM == 1
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
-        with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence
-        self.check_dimension_index_vals(instance)
 
     def test_pixel_types(self):
         # A series of tests on different types of image
