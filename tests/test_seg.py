@@ -2484,6 +2484,9 @@ class TestSegmentationParsing(unittest.TestCase):
         self._cr_binary_seg_ds = dcmread(
             'data/test_files/seg_image_cr_binary.dcm'
         )
+        self._cr_binary_seg = Segmentation.from_dataset(
+            self._cr_binary_seg_ds
+        )
 
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
@@ -2907,6 +2910,36 @@ class TestSegmentationParsing(unittest.TestCase):
             len(source_sop_uids),
             self._ct_binary_seg.Rows,
             self._ct_binary_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_cr(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in self._cr_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        pixels = self._cr_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._cr_binary_seg.Rows,
+            self._cr_binary_seg.Columns,
+            self._cr_binary_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        pixels = self._cr_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._cr_binary_seg.Rows,
+            self._cr_binary_seg.Columns,
         )
         assert pixels.shape == out_shape
 
