@@ -2611,7 +2611,7 @@ class Segmentation(SOPClass):
 
         This is intended for retrieving segmentation masks using the index
         values within the segmentation object, without referring to the
-        source images from which the segmentation as derived.
+        source images from which the segmentation was derived.
 
         The output array will have 4 dimensions under the default behavior, and
         3 dimensions if ``combine_segments`` is set to ``True``.  The first
