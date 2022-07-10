@@ -176,10 +176,10 @@ Binary and Fractional SEGs
 --------------------------
 
 One particularly important characteristic of a segmentation image is its
-"Segmentation Type" (0062,0001), which may take the value of either ``"BINARY"``
-or ``"FRACTIONAL"`` and describes the values that a given segment may take.
-Segments in a ``"BINARY"`` segmentation image may only take values 0 or 1, i.e.
-each pixel either belongs to the segment or does not.
+"Segmentation Type" (0062,0001), which may take the value of either
+``"BINARY"`` or ``"FRACTIONAL"`` and describes the values that pixels within the
+segmentation may take.  Pixels in a ``"BINARY"`` segmentation image may only
+take values 0 or 1, i.e.  each pixel either belongs to the segment or does not.
 
 By contrast, pixels in a ``"FRACTIONAL"`` segmentation image lie in the range 0
 to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
