@@ -1,7 +1,7 @@
 from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from pydicom.datadict import tag_for_keyword
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
@@ -9,6 +9,7 @@ from pydicom.sr.coding import Code
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.sr.coding import CodedConcept
+from highdicom.sr.value_types import CodeContentItem
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
 
@@ -25,6 +26,7 @@ class RealWorldValueMapping(Dataset):
         slope: Optional[Union[int, float]] = None,
         intercept: Optional[Union[int, float]] = None,
         lut_data: Optional[Sequence[float]] = None,
+        quantity_definition: Optional[Union[CodedConcept, Code]] = None
     ) -> None:
         """
         Parameters
@@ -62,6 +64,10 @@ class RealWorldValueMapping(Dataset):
             ``len(sequence) == value_range[1] - value_range[0] + 1``.
             For example, in case of a value range of ``(0, 255)``, the sequence
             shall have ``256`` entries - one for each value in the given range.
+        quantity_definition: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
+            Description of the quantity represented by real world values
+            (see :dcm:`CID 7180 <part16/sect_CID_7180.html>`
+            "Abstract Multi-dimensional Image Model Component Semantics")
 
         Note
         ----
@@ -73,7 +79,7 @@ class RealWorldValueMapping(Dataset):
         integers. Values stored as floating-point numbers must map linearly to
         real-world values.
 
-        """
+        """  # noqa: E501
         super().__init__()
 
         if len(lut_label) > 16:
@@ -133,6 +139,17 @@ class RealWorldValueMapping(Dataset):
         if isinstance(unit, Code):
             unit = CodedConcept(*unit)
         self.MeasurementUnitsCodeSequence = [unit]
+
+        if quantity_definition is not None:
+            quantity_item = CodeContentItem(
+                name=CodedConcept(
+                    value='246205007',
+                    scheme_designator='SCT',
+                    meaning='Quantity'
+                ),
+                value=quantity_definition
+            )
+            self.QuantityDefinitionSequence = [quantity_item]
 
 
 class DimensionIndexSequence(DataElementSequence):
@@ -367,3 +384,49 @@ class DimensionIndexSequence(DataElementSequence):
         )
 
         return (plane_position_values, plane_sort_indices)
+
+    def get_index_position(self, pointer: str) -> int:
+        """Get relative position of a given dimension in the dimension index.
+
+        Parameters
+        ----------
+        pointer: str
+            Name of the dimension (keyword of the attribute),
+            e.g., ``"XOffsetInSlideCoordinateSystem"``
+
+        Returns
+        -------
+        int
+            Zero-based relative position
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence("SLIDE")
+        >>> i = dimension_index.get_index_position("XOffsetInSlideCoordinateSystem")
+        >>> x_offsets = dimension_index[i]
+
+        """  # noqa: E501
+        indices = [
+            i
+            for i, indexer in enumerate(self)
+            if indexer.DimensionIndexPointer == tag_for_keyword(pointer)
+        ]
+        if len(indices) == 0:
+            raise ValueError(
+                f'Dimension index does not contain a dimension "{pointer}".'
+            )
+        return indices[0]
+
+    def get_index_keywords(self) -> List[str]:
+        """Get keywords of attributes that specify the position of planes.
+
+        Returns
+        -------
+        List[str]
+            Keywords of indexed attributes
+
+        """
+        return [
+            keyword_for_tag(indexer.DimensionIndexPointer)
+            for indexer in self
+        ]

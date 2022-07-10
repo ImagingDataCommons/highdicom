@@ -14,7 +14,7 @@ from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid
 from pydicom.valuerep import DA, DS, DT, TM, PersonName
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import SegmentationStorage
 
 from highdicom.sr import CodedConcept
 from highdicom.sr import (
@@ -47,6 +47,7 @@ from highdicom.sr import (
     ObserverContext,
     PersonObserverIdentifyingAttributes,
     PixelOriginInterpretationValues,
+    MeasurementsAndQualitativeEvaluations,
     PlanarROIMeasurementsAndQualitativeEvaluations,
     PnameContentItem,
     QualitativeEvaluation,
@@ -57,6 +58,7 @@ from highdicom.sr import (
     Scoord3DContentItem,
     ScoordContentItem,
     SourceImageForMeasurement,
+    SourceImageForMeasurementGroup,
     SourceImageForRegion,
     SourceImageForSegmentation,
     SourceSeriesForSegmentation,
@@ -257,7 +259,6 @@ class TestVolumeSurface(unittest.TestCase):
         )
         assert surface.graphic_type == GraphicTypeValues3D.ELLIPSOID
         graphic_data = surface.graphic_data
-        print(graphic_data)
         assert np.array_equal(graphic_data, self._ellipsoid)
 
         assert surface.frame_of_reference_uid == self._frame_of_reference_uid
@@ -861,7 +862,7 @@ class TestContentItem(unittest.TestCase):
     def test_pname_content_item_invalid_name(self):
         name = codes.DCM.PersonObserverName
         value = 'John Doe'  # invalid name format
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PnameContentItem(
                 name=name,
                 value=value,
@@ -1189,6 +1190,10 @@ class TestContentSequence(unittest.TestCase):
     def test_construct_root_item(self):
         ContentSequence([self._root_item], is_root=True)
 
+    def test_construct_root_item_not_sr_iod(self):
+        with pytest.raises(ValueError):
+            ContentSequence([self._root_item], is_root=True, is_sr=False)
+
     def test_append_root_item_with_relationship(self):
         seq = ContentSequence([], is_root=True)
         with pytest.raises(AttributeError):
@@ -1363,7 +1368,7 @@ class TestPersonObserverIdentifyingAttributes(unittest.TestCase):
         assert seq[4].ConceptCodeSequence[0] == self._role_in_procedure
 
     def test_construction_invalid(self):
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             PersonObserverIdentifyingAttributes(
                 name=self._invalid_name
             )
@@ -1679,6 +1684,119 @@ class TestSourceImageForRegion(unittest.TestCase):
             )
 
 
+class TestSourceImage(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._src_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        self._src_dataset_multiframe = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
+        )
+        self._invalid_src_dataset_sr = dcmread(
+            get_testdata_file('reportsi.dcm')
+        )
+        self._invalid_src_dataset_seg = dcmread(
+            str(data_dir.joinpath('test_files', 'seg_image_sm_dots.dcm'))
+        )
+        self._ref_frames = [1, 2]
+        self._ref_frames_invalid = [
+            self._src_dataset_multiframe.NumberOfFrames + 1
+        ]
+
+    def test_construction(self):
+        src_image = SourceImageForMeasurementGroup(
+            self._src_dataset.SOPClassUID,
+            self._src_dataset.SOPInstanceUID
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+        assert src_image.value_type == ValueTypeValues.IMAGE
+        assert src_image.relationship_type == RelationshipTypeValues.CONTAINS
+
+    def test_construction_with_frame_reference(self):
+        src_image = SourceImageForMeasurementGroup(
+            self._src_dataset_multiframe.SOPClassUID,
+            self._src_dataset_multiframe.SOPInstanceUID,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image(self):
+        src_image = SourceImageForMeasurementGroup.from_source_image(
+            self._src_dataset
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset.SOPInstanceUID
+        )
+
+    def test_from_source_image_with_referenced_frames(self):
+        src_image = SourceImageForMeasurementGroup.from_source_image(
+            self._src_dataset_multiframe,
+            self._ref_frames
+        )
+        assert len(src_image.ReferencedSOPSequence) == 1
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPClassUID ==
+            self._src_dataset_multiframe.SOPClassUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedSOPInstanceUID ==
+            self._src_dataset_multiframe.SOPInstanceUID
+        )
+        assert (
+            src_image.ReferencedSOPSequence[0].ReferencedFrameNumber ==
+            self._ref_frames
+        )
+
+    def test_from_source_image_with_invalid_referenced_frames(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurementGroup.from_source_image(
+                self._src_dataset_multiframe,
+                self._ref_frames_invalid
+            )
+
+    def test_from_invalid_source_image_sr(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurementGroup.from_source_image(
+                self._invalid_src_dataset_sr
+            )
+
+    def test_from_invalid_source_image_seg(self):
+        with pytest.raises(ValueError):
+            SourceImageForMeasurement.from_source_image(
+                self._invalid_src_dataset_seg
+            )
+
+
 class TestSourceImageForMeasurement(unittest.TestCase):
 
     def setUp(self):
@@ -1872,7 +1990,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -1941,7 +2059,7 @@ class TestReferencedSegment(unittest.TestCase):
         )
         assert (
             ref_seg[0].ReferencedSOPSequence[0].ReferencedFrameNumber ==
-            [self._ref_frame_number]
+            self._ref_frame_number
         )
         assert (
             ref_seg[1].ReferencedSOPSequence[0].ReferencedSOPClassUID ==
@@ -2361,6 +2479,12 @@ class TestMeasurement(unittest.TestCase):
             graphic_data=np.array([[1.0, 1.0]]),
             source_image=self._image
         )
+        self._ref_images = [
+            SourceImageForMeasurement(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=generate_uid()
+            ) for _ in range(3)
+        ]
 
     def test_construction_with_required_parameters(self):
         measurement = Measurement(
@@ -2412,7 +2536,8 @@ class TestMeasurement(unittest.TestCase):
             tracking_identifier=self._tracking_identifier,
             method=self._method,
             derivation=self._derivation,
-            finding_sites=[self._finding_site, ]
+            finding_sites=[self._finding_site, ],
+            referenced_images=self._ref_images
         )
 
         subitem = measurement[0].ContentSequence[0]
@@ -2437,6 +2562,18 @@ class TestMeasurement(unittest.TestCase):
         # Laterality and topological modifier were not specified
         assert not hasattr(subitem, 'ContentSequence')
 
+        sites = measurement.finding_sites
+        assert len(sites) == 1
+        assert sites[0] == self._finding_site
+
+        assert measurement.derivation == self._derivation
+        assert measurement.method == self._method
+        ref_images = measurement.referenced_images
+        assert len(ref_images) == len(self._ref_images)
+        for retrieved, original in zip(ref_images, self._ref_images):
+            assert isinstance(retrieved, SourceImageForMeasurement)
+            assert retrieved == original
+
 
 class TestQualitativeEvaluation(unittest.TestCase):
 
@@ -2453,6 +2590,57 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(evaluation) == 1
         assert evaluation.name == self._name
         assert evaluation.value == self._value
+
+
+class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._tracking_identifier = TrackingIdentifier(
+            uid=generate_uid(),
+            identifier='planar roi measurements'
+        )
+        self._measurements = [
+            Measurement(
+                name=codes.SCT.Area,
+                value=5,
+                unit=codes.UCUM.SquareCentimeter
+            ),
+        ]
+        self._src_instance_uid = UID()
+        self._source_images = [
+            SourceImageForMeasurementGroup(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=self._src_instance_uid
+            )
+        ]
+
+    def test_construction(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1501'
+        assert len(template.source_images) == 0
+
+    def test_construction_with_source_images(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+            source_images=self._source_images,
+        )
+        root_item = template[0]
+        assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1501'
+
+        source_images = template.source_images
+        assert len(source_images) == 1
+        src_image = source_images[0]
+        assert isinstance(src_image, SourceImageForMeasurementGroup)
+        print(src_image)
+        sop_class_uid = src_image.referenced_sop_class_uid
+        assert sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
+        assert src_image.referenced_sop_instance_uid == self._src_instance_uid
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -2499,6 +2687,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         self._real_world_value_map = RealWorldValueMap(
             referenced_sop_instance_uid=generate_uid()
         )
+        self._finding_category = codes.SCT.MorphologicallyAbnormalStructure
         self._finding_type = codes.SCT.Nodule
         self._method = codes.DCM.RECIST1Point1
         self._algo_id = AlgorithmIdentification(
@@ -2604,7 +2793,7 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         )
 
     def test_construction_all_parameters(self):
-        PlanarROIMeasurementsAndQualitativeEvaluations(
+        group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
             referenced_real_world_value_map=self._real_world_value_map,
@@ -2615,8 +2804,12 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             session=self._session,
             measurements=self._measurements,
             qualitative_evaluations=self._qualitative_evaluations,
-            geometric_purpose=self._geometric_purpose
+            geometric_purpose=self._geometric_purpose,
+            finding_category=self._finding_category
         )
+        assert group.finding_type == self._finding_type
+        assert group.finding_category == self._finding_category
+        assert group.finding_sites == self._finding_sites
 
     def test_constructed_without_human_readable_tracking_identifier(self):
         tracking_identifier = TrackingIdentifier(
@@ -2919,6 +3112,13 @@ class TestMeasurementReport(unittest.TestCase):
             uid=generate_uid(),
             identifier='planar roi measurements'
         )
+        self._source_image_uid = generate_uid()
+        self._source_images = [
+            SourceImageForMeasurementGroup(
+                referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+                referenced_sop_instance_uid=self._source_image_uid
+            )
+        ]
         self._source_image_region_uid = generate_uid()
         self._image = SourceImageForRegion(
             referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
@@ -2953,6 +3153,14 @@ class TestMeasurementReport(unittest.TestCase):
                 value=codes.SCT.Lung
             ),
         ]
+        self._image_group = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            finding_type=self._finding_type,
+            finding_sites=[self._finding_site],
+            measurements=self._measurements,
+            qualitative_evaluations=self._qualitative_evaluations,
+            source_images=self._source_images,
+        )
         self._roi_group = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
             referenced_region=self._region,
@@ -2970,7 +3178,103 @@ class TestMeasurementReport(unittest.TestCase):
             qualitative_evaluations=self._qualitative_evaluations,
         )
 
-    def test_construction(self):
+    def test_construction_image(self):
+        measurement_report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=self._procedure_reported,
+            imaging_measurements=[self._image_group]
+        )
+        item = measurement_report[0]
+        assert len(item.ContentSequence) == 13
+
+        template_item = item.ContentTemplateSequence[0]
+        assert template_item.TemplateIdentifier == '1500'
+
+        content_item_expectations = [
+            # Observation context
+            (0, '121049'),
+            # Observer context - Person
+            (1, '121005'),
+            (2, '121008'),
+            # Observer context - Device
+            (3, '121005'),
+            (4, '121012'),
+            # Subject context - Specimen
+            (5, '121024'),
+            (6, '121039'),
+            (7, '121041'),
+            (8, '371439000'),
+            (9, '111700'),
+            # Procedure reported
+            (10, '121058'),
+            # Image library
+            (11, '111028'),
+            # Imaging measurements
+            (12, '126010'),
+        ]
+        for index, value in content_item_expectations:
+            content_item = item.ContentSequence[index]
+            assert content_item.ConceptNameCodeSequence[0].CodeValue == value
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_type=self._finding_type
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_type=codes.SCT.Tissue
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_site=self._finding_site.value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            finding_site=codes.SCT.Colon
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            tracking_uid=self._tracking_identifier[1].value
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=self._source_image_uid,
+        )
+        assert len(matches) == 1
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.1',
+        )
+        assert len(matches) == 0
+
+        matches = measurement_report.get_image_measurement_groups(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2.2',
+            referenced_sop_instance_uid=UID(),
+        )
+        assert len(matches) == 0
+
+    def test_construction_planar(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
@@ -3048,7 +3352,7 @@ class TestMeasurementReport(unittest.TestCase):
         )
         assert len(matches) == 0
 
-    def test_construction_3d(self):
+    def test_construction_volumetric(self):
         measurement_report = MeasurementReport(
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
@@ -3249,6 +3553,7 @@ class TestEnhancedSR(unittest.TestCase):
         self._institution_name = 'institute'
         self._department_name = 'department'
         self._manufacturer = 'manufacturer'
+        self._performed_procedures = [codes.LN.CTUnspecifiedBodyRegion]
 
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
@@ -3330,7 +3635,8 @@ class TestEnhancedSR(unittest.TestCase):
             instance_number=self._instance_number,
             institution_name=self._institution_name,
             institutional_department_name=self._department_name,
-            manufacturer=self._manufacturer
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures
         )
         assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
 
@@ -3367,6 +3673,7 @@ class TestComprehensiveSR(unittest.TestCase):
         self._department_name = 'department'
         self._manufacturer = 'manufacturer'
         self._procedure_reported = codes.LN.CTUnspecifiedBodyRegion
+        self._performed_procedures = [codes.LN.CTUnspecifiedBodyRegion]
 
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
@@ -3448,7 +3755,8 @@ class TestComprehensiveSR(unittest.TestCase):
             instance_number=self._instance_number,
             institution_name=self._institution_name,
             institutional_department_name=self._department_name,
-            manufacturer=self._manufacturer
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
         )
         assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
 
@@ -3574,6 +3882,7 @@ class TestComprehensive3DSR(unittest.TestCase):
         self._institution_name = 'institute'
         self._department_name = 'department'
         self._manufacturer = 'manufacturer'
+        self._performed_procedures = [codes.LN.CTUnspecifiedBodyRegion]
 
         observer_person_context = ObserverContext(
             observer_type=codes.DCM.Person,
@@ -3652,7 +3961,8 @@ class TestComprehensive3DSR(unittest.TestCase):
             instance_number=self._instance_number,
             institution_name=self._institution_name,
             institutional_department_name=self._department_name,
-            manufacturer=self._manufacturer
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
         )
         assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
         assert report.PatientID == self._ref_dataset.PatientID

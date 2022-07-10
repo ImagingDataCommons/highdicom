@@ -1,5 +1,4 @@
 from collections import defaultdict
-from io import BytesIO
 import unittest
 from pathlib import Path
 
@@ -14,15 +13,15 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
-    JPEG2000Lossless
+    JPEG2000Lossless,
+    JPEGLSLossless,
 )
 
-from highdicom import (
+from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
-    UID,
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg import (
@@ -37,6 +36,9 @@ from highdicom.seg import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
+from highdicom.uid import UID
+
+from .utils import write_and_read_dataset
 
 
 class TestAlgorithmIdentificationSequence(unittest.TestCase):
@@ -692,11 +694,7 @@ class TestSegmentation(unittest.TestCase):
     @staticmethod
     def get_array_after_writing(instance):
         # Write DICOM object to buffer, read it again and reconstruct the mask
-        with BytesIO() as fp:
-            instance.save_as(fp)
-            fp.seek(0)
-            instance_reread = dcmread(fp)
-
+        instance_reread = write_and_read_dataset(instance)
         return instance_reread.pixel_array
 
     @staticmethod
@@ -1249,9 +1247,11 @@ class TestSegmentation(unittest.TestCase):
                 ExplicitVRLittleEndian,
                 ImplicitVRLittleEndian,
                 RLELossless,
-                JPEG2000Lossless
+                JPEG2000Lossless,
+                JPEGLSLossless,
             ]
 
+            max_fractional_value = 255
             for transfer_syntax_uid in valid_transfer_syntaxes:
                 for pix_type in [np.bool_, np.uint8, np.uint16, np.float_]:
                     instance = Segmentation(
@@ -1267,15 +1267,21 @@ class TestSegmentation(unittest.TestCase):
                         self._manufacturer_model_name,
                         self._software_versions,
                         self._device_serial_number,
-                        max_fractional_value=1,
+                        max_fractional_value=max_fractional_value,
                         transfer_syntax_uid=transfer_syntax_uid
                     )
 
                     # Ensure the recovered pixel array matches what is expected
-                    assert np.array_equal(
-                        self.get_array_after_writing(instance),
-                        expected_encoding
-                    ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    if pix_type in (np.bool_, np.float_):
+                        assert np.array_equal(
+                            self.get_array_after_writing(instance),
+                            expected_encoding * max_fractional_value
+                        ), f'{sources[0].Modality} {transfer_syntax_uid}'
+                    else:
+                        assert np.array_equal(
+                            self.get_array_after_writing(instance),
+                            expected_encoding
+                        ), f'{sources[0].Modality} {transfer_syntax_uid}'
                     self.check_dimension_index_vals(instance)
 
                     # Multi-segment (exclusive)
@@ -2122,7 +2128,7 @@ class TestSegmentation(unittest.TestCase):
         assert po_item.ImageOrientationPatient == list(image_orientation)
         self.check_dimension_index_vals(instance)
 
-    def test_construction_optional_arguments_3(self):
+    def test_spatial_positions_not_preserved(self):
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(

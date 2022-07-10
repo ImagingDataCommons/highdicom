@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from pydicom.datadict import tag_for_keyword
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
@@ -14,6 +14,7 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
+from highdicom.spatial import map_pixel_into_coordinate_system
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
@@ -93,20 +94,10 @@ class SegmentDescription(Dataset):
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
-            CodedConcept(
-                segmented_property_category.value,
-                segmented_property_category.scheme_designator,
-                segmented_property_category.meaning,
-                segmented_property_category.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_category)
         ]
         self.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept(
-                segmented_property_type.value,
-                segmented_property_type.scheme_designator,
-                segmented_property_type.meaning,
-                segmented_property_type.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_type)
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
@@ -137,22 +128,12 @@ class SegmentDescription(Dataset):
             )
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 
@@ -500,13 +481,39 @@ class DimensionIndexSequence(DataElementSequence):
                 'Argument "images" must be a series of single-frame images.'
             )
 
-        plane_positions = [
-            PlanePositionSequence(
-                coordinate_system=CoordinateSystemNames.PATIENT,
-                image_position=img.ImagePositionPatient
-            )
-            for img in images
-        ]
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            plane_positions = []
+            for img in images:
+                # Unfortunately, the image position is not specified relative to
+                # the top left corner but to the center of the image.
+                # Therefore, we need to compute the offset and subtract it.
+                center_item = img.ImageCenterPointCoordinatesSequence[0]
+                x_center = center_item.XOffsetInSlideCoordinateSystem
+                y_center = center_item.YOffsetInSlideCoordinateSystem
+                z_center = center_item.ZOffsetInSlideCoordinateSystem
+                offset_coordinate = map_pixel_into_coordinate_system(
+                    index=((img.Columns / 2, img.Rows / 2)),
+                    image_position=(x_center, y_center, z_center),
+                    image_orientation=img.ImageOrientationSlide,
+                    pixel_spacing=img.PixelSpacing
+                )
+                center_coordinate = np.array((0., 0., 0.), dtype=float)
+                origin_coordinate = center_coordinate - offset_coordinate
+                plane_positions.append(
+                    PlanePositionSequence(
+                        coordinate_system=CoordinateSystemNames.SLIDE,
+                        image_position=origin_coordinate,
+                        pixel_matrix_position=(1, 1)
+                    )
+                )
+        else:
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system=CoordinateSystemNames.PATIENT,
+                    image_position=img.ImagePositionPatient
+                )
+                for img in images
+            ]
 
         return plane_positions
 
@@ -528,7 +535,12 @@ class DimensionIndexSequence(DataElementSequence):
         --------
         >>> dimension_index = DimensionIndexSequence("SLIDE")
         >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
-        >>> segment_numbers = dimension_index[i]
+        >>> dimension_description = dimension_index[i]
+        >>> dimension_description
+        (0020, 9164) Dimension Organization UID          ...
+        (0020, 9165) Dimension Index Pointer             AT: (0062, 000b)
+        (0020, 9167) Functional Group Pointer            AT: (0062, 000a)
+        (0020, 9421) Dimension Description Label         LO: 'Segment Number'
 
         """
         indices = [
@@ -546,7 +558,7 @@ class DimensionIndexSequence(DataElementSequence):
         self,
         plane_positions: Sequence[PlanePositionSequence]
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Get the values of indexed attributes.
+        """Get values of indexed attributes that specify position of planes.
 
         Parameters
         ----------
@@ -561,6 +573,13 @@ class DimensionIndexSequence(DataElementSequence):
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index
+
+        Note
+        ----
+        Includes only values of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes values of the Referenced Segment Number
+        attribute.
 
         """
         # For each dimension other than the Referenced Segment Number,
@@ -590,3 +609,45 @@ class DimensionIndexSequence(DataElementSequence):
         )
 
         return (plane_position_values, plane_sort_indices)
+
+    def get_index_keywords(self) -> List[str]:
+        """Get keywords of attributes that specify the position of planes.
+
+        Returns
+        -------
+        List[str]
+            Keywords of indexed attributes
+
+        Note
+        ----
+        Includes only keywords of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes the keyword of the Referenced Segment Number
+        attribute.
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence('SLIDE')
+        >>> plane_positions = [
+        ...     PlanePositionSequence('SLIDE', [10.0, 0.0, 0.0], [1, 1]),
+        ...     PlanePositionSequence('SLIDE', [30.0, 0.0, 0.0], [1, 2]),
+        ...     PlanePositionSequence('SLIDE', [50.0, 0.0, 0.0], [1, 3])
+        ... ]
+        >>> values, indices = dimension_index.get_index_values(plane_positions)
+        >>> names = dimension_index.get_index_keywords()
+        >>> for name in names:
+        ...     print(name)
+        ColumnPositionInTotalImagePixelMatrix
+        RowPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
+        >>> index = names.index("XOffsetInSlideCoordinateSystem")
+        >>> print(values[:, index])
+        [10. 30. 50.]
+
+        """
+        return [
+            keyword_for_tag(indexer.DimensionIndexPointer)
+            for indexer in self[1:]
+        ]

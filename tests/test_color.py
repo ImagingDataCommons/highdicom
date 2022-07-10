@@ -4,7 +4,37 @@ import numpy as np
 import pytest
 from PIL.ImageCms import ImageCmsProfile, createProfile
 
-from highdicom.color import ColorManager
+from highdicom.color import ColorManager, CIELabColor
+
+
+@pytest.mark.parametrize(
+    'l_in,a_in,b_in,out',
+    [
+        [0.0, -128.0, -128.0, (0x0000, 0x0000, 0x0000)],
+        [100.0, -128.0, -128.0, (0xFFFF, 0x0000, 0x0000)],
+        [100.0, 0.0, 0.0, (0xFFFF, 0x8080, 0x8080)],
+        [100.0, 0.0, 0.0, (0xFFFF, 0x8080, 0x8080)],
+        [100.0, 127.0, 127.0, (0xFFFF, 0xFFFF, 0xFFFF)],
+        [100.0, -128.0, 127.0, (0xFFFF, 0x0000, 0xFFFF)],
+    ]
+)
+def test_cielab(l_in, a_in, b_in, out):
+    color = CIELabColor(l_in, a_in, b_in)
+    assert color.value == out
+
+
+@pytest.mark.parametrize(
+    'l_in,a_in,b_in',
+    [
+        (-1.0, -128.0, -128.0),
+        (100.1, -128.0, -128.0),
+        (100.0, -128.1, 127.0),
+        (100.0, -128.0, 127.1),
+    ]
+)
+def test_cielab_invalid(l_in, a_in, b_in):
+    with pytest.raises(ValueError):
+        CIELabColor(l_in, a_in, b_in)
 
 
 class TestColorManager(unittest.TestCase):

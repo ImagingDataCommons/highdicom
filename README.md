@@ -1,17 +1,20 @@
-[![Build Status](https://travis-ci.com/mghcomputationalpathology/highdicom.svg?branch=master)](https://travis-ci.com/mghcomputationalpathology/highdicom)
+[![Build Status](https://github.com/herrmannlab/highdicom/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/highdicom/actions)
 [![PyPi Distribution](https://img.shields.io/pypi/v/highdicom.svg)](https://pypi.python.org/pypi/highdicom/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/highdicom.svg)](https://pypi.org/project/highdicom/)
+[![Downloads](https://pepy.tech/badge/highdicom)](https://pepy.tech/project/highdicom)
 
 # High DICOM
 
 A library that provides high-level DICOM abstractions for the Python programming language to facilitate the creation and handling of DICOM objects for image-derived information, including image annotations, and image analysis results.
 It currently provides tools for creating and decoding the following DICOM information object definitions (IODs):
 * Annotations
-* Parametric Maps
+* Parametric Map images
 * Segmentation images
-* Structured Reports
+* Structured Report documents
 * Secondary Capture images
-* Legacy Converted Enhanced CT/PET/MR images (e.g. for single frame to multi-frame conversion)
+* Key Object Selection documents
+* Legacy Converted Enhanced CT/PET/MR images (e.g., for single frame to multi-frame conversion)
+* Softcopy Presentation State instances (including Grayscale, Color, and Pseudo-Color)
 
 ## Documentation
 

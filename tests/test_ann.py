@@ -185,6 +185,13 @@ class TestAnnotationGroup(unittest.TestCase):
         assert len(group.PrimaryAnatomicStructureSequence) == 1
         assert group.primary_anatomic_structures[0] == self._anatomic_structure
 
+        decoded_graphic_data = group.get_graphic_data(coordinate_type='3D')
+        assert len(decoded_graphic_data) == len(graphic_data)
+        for i in range(len(decoded_graphic_data)):
+            np.testing.assert_allclose(
+                decoded_graphic_data[i],
+                graphic_data[i]
+            )
         np.testing.assert_allclose(
             group.get_coordinates(annotation_number=1, coordinate_type='3D'),
             graphic_data[0]
@@ -367,6 +374,7 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             version='1.0'
         )
 
+        annotation_coordinate_type = '3D'
         first_property_type = Code('4421005', 'SCT', 'Cell')
         first_label = 'cells'
         first_uid = UID()
@@ -422,7 +430,7 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
         ]
         annotations = MicroscopyBulkSimpleAnnotations(
             source_images=[self._sm_image],
-            annotation_coordinate_type='3D',
+            annotation_coordinate_type=annotation_coordinate_type,
             annotation_groups=groups,
             series_instance_uid=UID(),
             series_number=2,
@@ -443,6 +451,31 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
 
         retrieved_groups = annotations.get_annotation_groups()
         assert len(retrieved_groups) == 2
+
+        first_retrieved_group = retrieved_groups[0]
+        first_retrieved_graphic_data = first_retrieved_group.get_graphic_data(
+            coordinate_type=annotation_coordinate_type
+        )
+        assert len(first_retrieved_graphic_data) == len(first_graphic_data)
+        for i in range(len(first_retrieved_graphic_data)):
+            np.testing.assert_allclose(
+                first_retrieved_graphic_data[i],
+                first_graphic_data[i]
+            )
+
+        second_retrieved_group = retrieved_groups[1]
+        second_retrieved_graphic_data = second_retrieved_group.get_graphic_data(
+            coordinate_type=annotation_coordinate_type
+        )
+        assert len(second_retrieved_graphic_data) == len(second_graphic_data)
+        for i in range(len(second_retrieved_graphic_data)):
+            np.testing.assert_allclose(
+                second_retrieved_graphic_data[i],
+                second_graphic_data[i]
+            )
+
+        with pytest.raises(ValueError):
+            second_retrieved_group.get_graphic_data(coordinate_type='2D')
 
         retrieved_groups = annotations.get_annotation_groups(
             graphic_type=GraphicTypeValues.POINT
@@ -475,5 +508,3 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
         assert isinstance(retrieved_group, AnnotationGroup)
         assert retrieved_group.number == 1
         assert retrieved_group.label == first_label
-
-        annotations.save_as('/tmp/ann.dcm')

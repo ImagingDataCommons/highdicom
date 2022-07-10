@@ -54,13 +54,13 @@ def test_valid_person_name_objects(name):
 
 @pytest.mark.parametrize('name', invalid_test_names)
 def test_invalid_person_name_strings(name):
-    with pytest.raises(ValueError):
+    with pytest.warns(UserWarning):
         check_person_name(name)
 
 
 @pytest.mark.parametrize('name', invalid_test_names)
 def test_invalid_person_name_objects(name):
-    with pytest.raises(ValueError):
+    with pytest.warns(UserWarning):
         check_person_name(PersonName(name))
 
 

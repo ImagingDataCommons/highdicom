@@ -1,6 +1,7 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
 from typing import Any, cast, List, Optional, Sequence, Tuple, Union
+from copy import deepcopy
 
 from pydicom.dataset import Dataset
 from pydicom.uid import (
@@ -8,11 +9,11 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     KeyObjectSelectionDocumentStorage,
 )
 
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.utils import collect_evidence
 from highdicom.sr.value_types import ContainerContentItem
 from highdicom.ko.content import KeyObjectSelection
@@ -50,7 +51,7 @@ class KeyObjectSelectionDocument(SOPClass):
             Content items that should be included in the document
         series_instance_uid: str
             Series Instance UID of the document series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the document series
         sop_instance_uid: str
             SOP Instance UID that should be assigned to the document instance
@@ -163,8 +164,8 @@ class KeyObjectSelectionDocument(SOPClass):
     def resolve_reference(self, sop_instance_uid: str) -> Tuple[str, str, str]:
         """Resolve reference for an object included in the document content.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         sop_instance_uid: str
             SOP Instance UID of a referenced object
 
@@ -182,7 +183,8 @@ class KeyObjectSelectionDocument(SOPClass):
                 f'"{sop_instance_uid}" in KOS document.'
             )
 
-    def from_dataset(self, dataset: Dataset) -> 'KeyObjectSelectionDocument':
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'KeyObjectSelectionDocument':
         """Construct object from an existing dataset.
 
         Parameters
@@ -198,13 +200,15 @@ class KeyObjectSelectionDocument(SOPClass):
         """
         if dataset.SOPClassUID != KeyObjectSelectionDocumentStorage:
             raise ValueError('Dataset is not a Key Object Selection Document.')
-        sop_instance = super().from_dataset(dataset)
-        sop_instance.__class__ = KeyObjectSelectionDocument
+        _check_little_endian(dataset)
+        sop_instance = deepcopy(dataset)
+        sop_instance.__class__ = cls
 
         # Cache copy of the content to facilitate subsequent access
         root_item = Dataset()
         root_item.ConceptNameCodeSequence = dataset.ConceptNameCodeSequence
         root_item.ContentSequence = dataset.ContentSequence
+        root_item.ContentTemplateSequence = dataset.ContentTemplateSequence
         root_item.ValueType = dataset.ValueType
         root_item.ContinuityOfContent = dataset.ContinuityOfContent
         content_item = ContainerContentItem.from_dataset(root_item)
@@ -214,7 +218,7 @@ class KeyObjectSelectionDocument(SOPClass):
         )
 
         sop_instance._reference_lut = {}
-        for study_item in self.CurrentRequestedProcedureEvidenceSequence:
+        for study_item in sop_instance.CurrentRequestedProcedureEvidenceSequence:  # noqa: E501
             for series_item in study_item.ReferencedSeriesSequence:
                 for instance_item in series_item.ReferencedSOPSequence:
                     sop_instance_uid = instance_item.ReferencedSOPInstanceUID

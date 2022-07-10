@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+from typing import Tuple
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -14,6 +15,56 @@ from PIL.ImageCms import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class CIELabColor(object):
+
+    """Class to represent a color value in CIELab color space."""
+
+    def __init__(
+        self,
+        l_star: float,
+        a_star: float,
+        b_star: float
+    ):
+        """
+
+        Parameters
+        ----------
+        l_star: float
+            Lightness value in the range 0.0 (black) to 100.0 (white).
+        a_star: float
+            Red-green value from -128.0 (red) to 127.0 (green).
+        b_star: float
+            Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
+
+        """
+        if l_star < 0.0 or l_star > 100.0:
+            raise ValueError(
+                'Value for "l_star" must lie between 0.0 (black) and 100.0'
+                ' (white).'
+            )
+        if a_star < -128.0 or a_star > 127.0:
+            raise ValueError(
+                'Value for "a_star" must lie between -128.0 (red) and 127.0'
+                ' (green).'
+            )
+        if b_star < -128.0 or b_star > 127.0:
+            raise ValueError(
+                'Value for "b_star" must lie between -128.0 (blue) and 127.0'
+                ' (yellow).'
+            )
+        l_val = int(l_star * 0xFFFF / 100.0)
+        a_val = int((a_star + 128.0) * 0xFFFF / 255.0)
+        b_val = int((b_star + 128.0) * 0xFFFF / 255.0)
+        self._value = (l_val, a_val, b_val)
+
+    @property
+    def value(self) -> Tuple[int, int, int]:
+        """Tuple[int]:
+            Value formatted as a triplet of 16 bit unsigned integers.
+        """
+        return self._value
 
 
 class ColorManager(object):

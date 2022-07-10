@@ -2,7 +2,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from operator import eq
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -21,7 +21,7 @@ from highdicom.ann.enum import (
     PixelOriginInterpretationValues,
 )
 from highdicom.ann.content import AnnotationGroup
-from highdicom.base import SOPClass
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -68,7 +68,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             measurements)
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -122,7 +122,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
             sop_class_uid='1.2.840.10008.5.1.4.1.1.91.1',
-            manufacturer=manufacturer,
             modality='ANN',
             transfer_syntax_uid=transfer_syntax_uid,
             patient_id=src_img.PatientID,
@@ -136,6 +135,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             referring_physician_name=getattr(
                 src_img, 'ReferringPhysicianName', None
             ),
+            manufacturer=manufacturer,
+            manufacturer_model_name=manufacturer_model_name,
+            device_serial_number=device_serial_number,
+            software_versions=software_versions,
             **kwargs
         )
         self.copy_specimen_information(src_img)
@@ -174,11 +177,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 'Argument "annotation_coordinate_type" has an unexpected '
                 'value.'
             )
-
-        # (Enhanced) General Equipment
-        self.DeviceSerialNumber = device_serial_number
-        self.ManufacturerModelName = manufacturer_model_name
-        self.SoftwareVersions = software_versions
 
         # Common Instance Reference
         self.ReferencedImageSequence: List[Dataset] = []
@@ -409,6 +407,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             raise ValueError(
                 'Dataset is not a Microscopy Bulk Simple Annotation.'
             )
+        _check_little_endian(dataset)
         ann = deepcopy(dataset)
         ann.__class__ = MicroscopyBulkSimpleAnnotations
 
@@ -417,4 +416,4 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             for item in ann.AnnotationGroupSequence
         ]
 
-        return ann
+        return cast(MicroscopyBulkSimpleAnnotations, ann)

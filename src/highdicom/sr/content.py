@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     SegmentationStorage,
     VLWholeSlideMicroscopyImageStorage
 )
@@ -182,6 +182,114 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         return cast(LongitudinalTemporalOffsetFromEvent, item)
 
 
+class SourceImageForMeasurementGroup(ImageContentItem):
+
+    """Content item representing a reference to an image that was used as a
+    source.
+    """
+
+    def __init__(
+        self,
+        referenced_sop_class_uid: str,
+        referenced_sop_instance_uid: str,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ):
+        """
+        Parameters
+        ----------
+        referenced_sop_class_uid: str
+            SOP Class UID of the referenced image object
+        referenced_sop_instance_uid: str
+            SOP Instance UID of the referenced image object
+        referenced_frame_numbers: Union[Sequence[int], None], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Raises
+        ------
+        ValueError
+            If any referenced frame number is not a positive integer
+
+        """
+        if referenced_frame_numbers is not None:
+            if any(f < 1 for f in referenced_frame_numbers):
+                raise ValueError(
+                    'Referenced frame numbers must be >= 1. Frame indexing is '
+                    '1-based.'
+                )
+        super().__init__(
+            name=CodedConcept(
+                value='260753009',
+                scheme_designator='SCT',
+                meaning='Source',
+            ),
+            referenced_sop_class_uid=referenced_sop_class_uid,
+            referenced_sop_instance_uid=referenced_sop_instance_uid,
+            referenced_frame_numbers=referenced_frame_numbers,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+
+    @classmethod
+    def from_source_image(
+        cls,
+        image: Dataset,
+        referenced_frame_numbers: Optional[Sequence[int]] = None
+    ) -> 'SourceImageForMeasurementGroup':
+        """Construct the content item directly from an image dataset
+
+        Parameters
+        ----------
+        image: pydicom.dataset.Dataset
+            Dataset representing the image to be referenced
+        referenced_frame_numbers: Union[Sequence[int], None], optional
+            numbers of the frames to which the reference applies in case the
+            referenced image is a multi-frame image
+
+        Returns
+        -------
+        highdicom.sr.SourceImageForMeasurementGroup
+            Content item representing a reference to the image dataset
+
+        """
+        # Check the dataset and referenced frames are valid
+        _check_valid_source_image_dataset(image)
+        _check_frame_numbers_valid_for_dataset(
+            image,
+            referenced_frame_numbers
+        )
+        return cls(
+            referenced_sop_class_uid=image.SOPClassUID,
+            referenced_sop_instance_uid=image.SOPInstanceUID,
+            referenced_frame_numbers=referenced_frame_numbers
+        )
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurementGroup':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type IMAGE
+
+        Returns
+        -------
+        highdicom.sr.SourceImageForMeasurementGroup
+            Constructed object
+
+        """
+        dataset_copy = deepcopy(dataset)
+        return cls._from_dataset(dataset_copy)
+
+    @classmethod
+    def _from_dataset(
+        cls,
+        dataset: Dataset
+    ) -> 'SourceImageForMeasurementGroup':
+        item = super()._from_dataset_base(dataset)
+        return cast(SourceImageForMeasurementGroup, item)
+
+
 class SourceImageForMeasurement(ImageContentItem):
 
     """Content item representing a reference to an image that was used as a
@@ -270,7 +378,7 @@ class SourceImageForMeasurement(ImageContentItem):
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
+            Dataset representing an SR Content Item with value type IMAGE
 
         Returns
         -------
@@ -1172,6 +1280,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def topographical_modifier(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.TopographicalModifier,
@@ -1188,6 +1298,8 @@ class FindingSite(CodeContentItem):
 
     @property
     def laterality(self) -> Union[CodedConcept, None]:
+        if not hasattr(self, 'ContentSequence'):
+            return None
         matches = find_content_items(
             self,
             name=codes.SCT.Laterality,
@@ -1345,7 +1457,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
-        return new_seq
+        return cast(ReferencedSegmentationFrame, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -1434,7 +1546,7 @@ class ReferencedSegmentationFrame(ContentSequence):
             if isinstance(frame_number, int):
                 frame_numbers = [frame_number]
             else:
-                frame_numbers = frame_number
+                frame_numbers = list(frame_number)
 
         number_of_frames = int(segmentation.NumberOfFrames)
         segment_numbers = []

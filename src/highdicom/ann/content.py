@@ -1,6 +1,6 @@
 """Content that is specific to Annotation IODs."""
 from copy import deepcopy
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import cast, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -24,7 +24,7 @@ class Measurements(Dataset):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        values: np.array,
+        values: np.ndarray,
         unit: Union[Code, CodedConcept]
     ) -> None:
         """
@@ -45,11 +45,11 @@ class Measurements(Dataset):
         super().__init__()
 
         if isinstance(name, Code):
-            name = CodedConcept(*name)
+            name = CodedConcept.from_code(name)
         self.ConceptNameCodeSequence = [name]
 
         if isinstance(unit, Code):
-            unit = CodedConcept(*unit)
+            unit = CodedConcept.from_code(unit)
         self.MeasurementUnitsCodeSequence = [unit]
 
         is_nan = np.isnan(values)
@@ -68,7 +68,7 @@ class Measurements(Dataset):
 
     @property
     def unit(self) -> CodedConcept:
-        """highdicom.sr.coding.CodedConcept: coded unit"""
+        """highdicom.sr.CodedConcept: coded unit"""
         return self.MeasurementUnitsCodeSequence[0]
 
     def get_values(self, number_of_annotations: int) -> np.ndarray:
@@ -95,7 +95,7 @@ class Measurements(Dataset):
         """
         item = self.MeasurementValuesSequence[0]
         values = np.zeros((number_of_annotations, ), np.float32)
-        values[:] = np.nan
+        values[:] = np.float32(np.nan)
         stored_values = np.frombuffer(item.FloatingPointValues, np.float32)
         if hasattr(item, 'AnnotationIndexList'):
             stored_indices = np.frombuffer(item.AnnotationIndexList, np.int32)
@@ -152,7 +152,7 @@ class Measurements(Dataset):
             )
         ]
 
-        return measurements
+        return cast(Measurements, measurements)
 
 
 class AnnotationGroup(Dataset):
@@ -257,7 +257,7 @@ class AnnotationGroup(Dataset):
 
         if isinstance(annotated_property_category, Code):
             self.AnnotationPropertyCategoryCodeSequence = [
-                CodedConcept(*annotated_property_category)
+                CodedConcept.from_code(annotated_property_category)
             ]
         else:
             self.AnnotationPropertyCategoryCodeSequence = [
@@ -265,7 +265,7 @@ class AnnotationGroup(Dataset):
             ]
         if isinstance(annotated_property_type, Code):
             self.AnnotationPropertyTypeCodeSequence = [
-                CodedConcept(*annotated_property_type),
+                CodedConcept.from_code(annotated_property_type),
             ]
         else:
             self.AnnotationPropertyTypeCodeSequence = [
@@ -338,11 +338,16 @@ class AnnotationGroup(Dataset):
                 'Items of argument "graphic_data" must be two-dimensional '
                 'arrays.'
             )
+
         if coordinates.shape[1] not in (2, 3):
             raise ValueError(
                 'Items of argument "graphic_data" must be two-dimensional '
                 'arrays where the second array dimension has size 2 or 3.'
             )
+        coordinate_type = AnnotationCoordinateTypeValues.SCOORD
+        if coordinates.shape[1] == 3:
+            coordinate_type = AnnotationCoordinateTypeValues.SCOORD3D
+
         if not np.all(np.isfinite(coordinates)):
             raise ValueError(
                 'Items of argument "graphic_data" must be arrays of finite '
@@ -367,6 +372,8 @@ class AnnotationGroup(Dataset):
             self.DoublePointCoordinatesData = coordinates_data.tobytes()
         else:
             self.PointCoordinatesData = coordinates_data.tobytes()
+
+        self._graphic_data = {coordinate_type: graphic_data}
 
         if graphic_type in (
             GraphicTypeValues.POLYGON,
@@ -406,22 +413,12 @@ class AnnotationGroup(Dataset):
 
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 
@@ -496,6 +493,112 @@ class AnnotationGroup(Dataset):
             return []
         return list(self.PrimaryAnatomicStructureSequence)
 
+    def get_graphic_data(
+        self,
+        coordinate_type: Union[str, AnnotationCoordinateTypeValues]
+    ) -> List[np.ndarray]:
+        """Get spatial coordinates of all graphical annotations.
+
+        Parameters
+        ----------
+        coordinate_type: Union[str, highdicom.ann.AnnotationCoordinateTypeValues]
+            Coordinate type of annotation
+
+        Returns
+        -------
+        List[numpy.ndarray]
+            Two-dimensional array of floating-point values representing either
+            2D or 3D spatial coordinates for each graphical annotation
+
+        """  # noqa: E501
+        coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
+        if self._graphic_data:
+            if coordinate_type not in self._graphic_data:
+                raise ValueError(
+                    'Graphic data is not available for Annotation Coordinate '
+                    f'Type "{coordinate_type.value}".'
+                )
+        else:
+            if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+                coordinate_dimensionality = 2
+            else:
+                coordinate_dimensionality = 3
+
+            try:
+                coordinates_data = getattr(self, 'DoublePointCoordinatesData')
+                coordinates_dtype = np.float64
+            except AttributeError:
+                coordinates_data = getattr(self, 'PointCoordinatesData')
+                coordinates_dtype = np.float32
+            decoded_coordinates_data = np.frombuffer(
+                coordinates_data,
+                coordinates_dtype
+            )
+
+            if hasattr(self, 'CommonZCoordinateValue'):
+                stored_coordinate_dimensionality = 2
+            else:
+                stored_coordinate_dimensionality = coordinate_dimensionality
+
+            # Reshape array to stack of points
+            decoded_coordinates_data = decoded_coordinates_data.reshape(
+                -1,
+                stored_coordinate_dimensionality
+            )
+
+            if hasattr(self, 'CommonZCoordinateValue'):
+                # Add in a column for the shared z coordinate
+                z_values = np.full(
+                    shape=(decoded_coordinates_data.shape[0], 1),
+                    fill_value=self.CommonZCoordinateValue,
+                    dtype=coordinates_dtype
+                )
+                decoded_coordinates_data = np.concatenate(
+                    [decoded_coordinates_data, z_values],
+                    axis=1
+                )
+
+            # Split into objects down the first dimension
+            graphic_type = self.graphic_type
+            if graphic_type in (
+                GraphicTypeValues.RECTANGLE,
+                GraphicTypeValues.ELLIPSE,
+            ):
+                # Fixed 4 coordinates per object
+                split_param: Union[
+                    int,
+                    Sequence[int]
+                ] = len(decoded_coordinates_data) // 4
+            elif graphic_type == GraphicTypeValues.POINT:
+                # Fixed 1 coordinate per object
+                split_param = len(decoded_coordinates_data)
+            elif graphic_type in (
+                GraphicTypeValues.POLYLINE,
+                GraphicTypeValues.POLYGON,
+            ):
+                # Variable number of coordinates per point
+                point_indices = np.frombuffer(
+                    self.LongPrimitivePointIndexList,
+                    dtype=np.int32
+                ) - 1
+                split_param = (
+                    point_indices // stored_coordinate_dimensionality
+                )[1:]
+            else:
+                raise ValueError(
+                    'Encountered unexpected graphic type '
+                    f'"{graphic_type.value}".'
+                )
+
+            graphic_data = np.split(
+                decoded_coordinates_data,
+                indices_or_sections=split_param
+            )
+
+            self._graphic_data[coordinate_type] = graphic_data
+
+        return self._graphic_data[coordinate_type]
+
     def get_coordinates(
         self,
         annotation_number: int,
@@ -517,36 +620,9 @@ class AnnotationGroup(Dataset):
             2D or 3D spatial coordinates of a graphical annotation
 
         """  # noqa: E501
-        coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
-        if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
-            coordinate_dimensionality = 2
-        else:
-            coordinate_dimensionality = 3
-
-        try:
-            coordinates_data = getattr(self, 'DoublePointCoordinatesData')
-            coordinates = np.frombuffer(coordinates_data, np.float64)
-        except AttributeError:
-            coordinates_data = getattr(self, 'PointCoordinatesData')
-            coordinates = np.frombuffer(coordinates_data, np.float32)
-
-        coordinate_index = self._get_coordinate_index(
-            annotation_number,
-            coordinate_dimensionality=coordinate_dimensionality,
-            number_of_coordinates=coordinates.shape[0],
-        )
-        coordinates = coordinates[coordinate_index]
-
-        if hasattr(self, 'CommonZCoordinateValue'):
-            coordinates = coordinates.reshape(-1, 2)
-            if coordinates.dtype == np.double:
-                z_values = np.zeros((coordinates.shape[0], 1), np.float64)
-            else:
-                z_values = np.zeros((coordinates.shape[0], 1), np.float32)
-            z_values[:] = float(self.CommonZCoordinateValue)
-            return np.concatenate([coordinates, z_values], axis=1)
-        else:
-            return coordinates.reshape(-1, coordinate_dimensionality)
+        graphic_data = self.get_graphic_data(coordinate_type)
+        annotation_index = annotation_number - 1
+        return graphic_data[annotation_index]
 
     @property
     def number_of_annotations(self) -> int:
@@ -588,9 +664,9 @@ class AnnotationGroup(Dataset):
                 if name is None or item.name == name
             ]
             if len(values) > 0:
-                values = np.vstack(values).T
+                value_array = np.vstack(values).T
             else:
-                values = np.empty((number_of_annotations, 0), np.float32)
+                value_array = np.empty((number_of_annotations, 0), np.float32)
             names = [
                 item.name for item in self.MeasurementsSequence
                 if name is None or item.name == name
@@ -600,10 +676,10 @@ class AnnotationGroup(Dataset):
                 if name is None or item.name == name
             ]
         else:
-            values = np.empty((number_of_annotations, 0), np.float32)
+            value_array = np.empty((number_of_annotations, 0), np.float32)
             names = []
             units = []
-        return (names, values, units)
+        return (names, value_array, units)
 
     def _get_coordinate_index(
         self,
@@ -694,6 +770,7 @@ class AnnotationGroup(Dataset):
         )
         group = deepcopy(dataset)
         group.__class__ = cls
+        group._graphic_data = {}
 
         group.AnnotationPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
@@ -726,4 +803,4 @@ class AnnotationGroup(Dataset):
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
-        return group
+        return cast(AnnotationGroup, group)
