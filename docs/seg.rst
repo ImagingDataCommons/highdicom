@@ -762,7 +762,75 @@ circumstances.
 Reconstructing Segmentation Masks From DICOM SEGs
 -------------------------------------------------
 
-TODO
+Highdicom provides the `Segmentation.get_pixels_by_source_instance()` and
+`Segmentation.get_pixels_by_source_frame()` methods to handle reconstruction of
+segmentation masks from SEG objects in which each frame in the SEG object is
+derived from a single source frame. The only difference between the two methods
+is that the `get_pixels_by_source_instance()` is used when the segmentation is
+derived from a source series consisting of multiple single-frame instances,
+while `get_pixels_by_source_frame` is used when the segmentation is derived
+from a single multiframe source instances.
+
+When reconstructing a segmentation mask using `get_pixels_by_source_instance()`,
+the user must provide a list of SOP Instance UIDs of the source images for which
+the segmentation mask should be constructed. Whatever order is chosen here will
+be used to order the frames of the output segmentation mask, so it is up to the
+user to sort them according to how their needs. The default behavior is that the
+output pixel array is of shape (*F* x *H* x *W* x *S*), where *F* is the number
+of source instance UIDs, *H* and *W* are the height and width of the frames, and
+*S* is the number of segments included in the segmentation. In this way, the
+output of this method matches the input `pixel_array` to the constructor that
+would create the SEG object if it were created with highdicom.
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+
+    # List the source images for this segmentation:
+    for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
+        print(sop_uid)
+    # 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93
+    # 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94
+    # 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95
+    # 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_instance(
+        source_sop_instance_uids=[
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93',
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94'
+        ]
+    )
+    print(pixels.shape)
+    # (2, 16, 16, 1)
+    print(np.unique(pixels))
+    # [0, 1]
+
+However, if the segments do not overlap, it is possible to combine the multiple
+segments into a simple "label map" style mask, as described above. This can be
+achieved by specifying the `combine_segments` parameter as `True`. In this
+case, the output will have shape (*F* x *H* x *W*), and a pixel value of *i*
+represents that the pixel belongs to segment *i* or a pixel value of 0
+represents that the pixel belongs to none of the requested segments. If the
+segments overlap, highdicom will raise a `RuntimeError`. Note that combining
+segments is only possible when the segmentation type is `BINARY`, or the
+segmentation type is `FRACTIONAL` but the only two values are actually present
+in the image.
+
+A further optional parameter, `segment_numbers`, allows the user to request
+only a subset of the segments available within the SEG object by providing a
+list of segment numbers.
+
+For `FRACTIONAL` SEG objects, highdicom will rescale the pixel values in the
+segmentation masks from the integer values as which they are stored back down
+to the range `0.0` to `1.0` as floating point values by scaling by the
+"MaximumFractionalValue" attribute. If desired, this behavior can be disabled
+by specifying `rescale_fractional=False`, in which case the raw integer array
+as stored in the SEG will be returned.
+
 
 Viewing DICOM SEG Images
 ------------------------
