@@ -292,19 +292,39 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames]
+        coordinate_system: Union[str, CoordinateSystemNames, None]
     ) -> None:
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames, None]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
+            imaging. If None, the imaging does not belong within a frame of
+            reference.
 
         """
         super().__init__()
-        self._coordinate_system = CoordinateSystemNames(coordinate_system)
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if coordinate_system is None:
+            self._coordinate_system = None
+        else:
+            self._coordinate_system = CoordinateSystemNames(coordinate_system)
+
+        if self._coordinate_system is None:
+            dim_uid = UID()
+
+            segment_number_index = Dataset()
+            segment_number_index.DimensionIndexPointer = tag_for_keyword(
+                'ReferencedSegmentNumber'
+            )
+            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
+                'SegmentIdentificationSequence'
+            )
+            segment_number_index.DimensionOrganizationUID = dim_uid
+            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
+
+            self.append(segment_number_index)
+
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = UID()
 
             segment_number_index = Dataset()
@@ -440,7 +460,12 @@ class DimensionIndexSequence(DataElementSequence):
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
                 plane_positions = [
                     item.PlanePositionSlideSequence
@@ -481,7 +506,12 @@ class DimensionIndexSequence(DataElementSequence):
                 'Argument "images" must be a series of single-frame images.'
             )
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             plane_positions = []
             for img in images:
                 # Unfortunately, the image position is not specified relative to
@@ -582,6 +612,13 @@ class DimensionIndexSequence(DataElementSequence):
         attribute.
 
         """
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                'Cannot calculate index values for multiple plane '
+                'positions when images do not exist within a frame of '
+                'reference.'
+            )
+
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
         # points to in the element of the Plane Position Sequence or

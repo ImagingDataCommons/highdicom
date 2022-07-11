@@ -1,8 +1,9 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom import Dataset
 
+from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
 from highdicom._iods import (
     IOD_MODULE_MAP,
@@ -20,6 +21,15 @@ class AttributeTypeValues(Enum):
     REQUIRED_EMPTY_IF_UNKNOWN = '2'
     CONDITIONALLY_REQUIRED_EMPTY_IF_UNKNOWN = '2C'
     OPTIONAL = '3'
+
+
+class ModuleUsageValues(Enum):
+
+    """Enumerated values for the usage of a module."""
+
+    MANDATORY = 'M'
+    CONDITIONAL = 'U'
+    USER_OPTIONAL = 'C'
 
 
 def check_required_attributes(
@@ -171,6 +181,41 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
             'type': AttributeTypeValues(item['type'])
         }
     return tree
+
+
+def get_module_usage(
+    module_key: str,
+    sop_class_uid: str
+) -> Union[ModuleUsageValues, None]:
+    """Get the usage (M/C/U) of a module within an IOD.
+
+    Parameters
+    ----------
+    module_key: str
+        Key for the module.
+    sop_class_uid: str
+        SOP Class UID identifying the IOD.
+
+    Returns
+    -------
+    Union[ModuleUsageValues, None]:
+        Usage of the module within the IOD identified by the SOP Class UID, if
+        a module with that name is present within the IOD. None, if the module
+        is not present within the IOD.
+
+
+    """
+    try:
+        iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
+    except KeyError as e:
+        msg = f'No IOD found for SOP Class UID: {sop_class_uid}.'
+        raise KeyError(msg) from e
+
+    for mod in IOD_MODULE_MAP[iod_name]:
+        if mod['key'] == module_key:
+            return ModuleUsageValues(mod['usage'])
+
+    return None
 
 
 def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:

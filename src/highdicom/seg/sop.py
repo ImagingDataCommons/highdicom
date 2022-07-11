@@ -27,6 +27,7 @@ from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
+from highdicom._module_utils import ModuleUsageValues, get_module_usage
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -279,6 +280,7 @@ class Segmentation(SOPClass):
                 image.SeriesInstanceUID,
                 image.Rows,
                 image.Columns,
+                getattr(image, 'FrameOfReferenceUID', None),
             )
             for image in source_images
         )
@@ -338,21 +340,58 @@ class Segmentation(SOPClass):
             **kwargs
         )
 
-        # Using Container Type Code Sequence attribute would be more elegant,
-        # but unfortunately it is a type 2 attribute.
-        if (hasattr(src_img, 'ImageOrientationSlide') or
-                hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
-            self._coordinate_system = CoordinateSystemNames.SLIDE
-        else:
-            self._coordinate_system = CoordinateSystemNames.PATIENT
-
         # Frame of Reference
-        self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
-        self.PositionReferenceIndicator = getattr(
-            src_img,
-            'PositionReferenceIndicator',
-            None
-        )
+        has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
+        if has_ref_frame_uid:
+            self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
+            self.PositionReferenceIndicator = getattr(
+                src_img,
+                'PositionReferenceIndicator',
+                None
+            )
+            # Using Container Type Code Sequence attribute would be more
+            # elegant, but unfortunately it is a type 2 attribute.
+            if (hasattr(src_img, 'ImageOrientationSlide') or
+                    hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
+                self._coordinate_system: Optional[CoordinateSystemNames] = \
+                    CoordinateSystemNames.SLIDE
+            else:
+                self._coordinate_system = CoordinateSystemNames.PATIENT
+        else:
+            # Only allow missing FrameOfReferenceUID if it is not required
+            # for this IOD
+            usage = get_module_usage('frame-of-reference', src_img.SOPClassUID)
+            if usage == ModuleUsageValues.MANDATORY:
+                raise ValueError(
+                    "Source images have no Frame Of Reference UID, but it is "
+                    "required by the IOD."
+                )
+
+            # It may be possible to generalize this, but for now only a single
+            # source frame is permitted when no frame of reference exists
+            if (
+                len(source_images) > 1 or
+                (is_multiframe and src_img.NumberOfFrames > 1)
+            ):
+                raise ValueError(
+                    "Only a single frame is supported when the source "
+                    "image has no Frame of Reference UID."
+                )
+            if plane_positions is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_positions" may not be specified since the '
+                    "segmentation pixel array must be spatially aligned with "
+                    "the source images."
+                )
+            if plane_orientation is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_orientation" may not be specified since '
+                    "the segmentation pixel array must be spatially aligned "
+                    "with the source images."
+                )
+            self._coordinate_system = None
 
         # General Reference
         self.SourceImageSequence: List[Dataset] = []
@@ -452,34 +491,52 @@ class Segmentation(SOPClass):
                 src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
                 pixel_measures = src_shared_fg.PixelMeasuresSequence
             else:
-                pixel_measures = PixelMeasuresSequence(
-                    pixel_spacing=src_img.PixelSpacing,
-                    slice_thickness=src_img.SliceThickness,
-                    spacing_between_slices=src_img.get(
-                        'SpacingBetweenSlices',
-                        None
+                if has_ref_frame_uid:
+                    pixel_measures = PixelMeasuresSequence(
+                        pixel_spacing=src_img.PixelSpacing,
+                        slice_thickness=src_img.SliceThickness,
+                        spacing_between_slices=src_img.get(
+                            'SpacingBetweenSlices',
+                            None
+                        )
                     )
-                )
+                else:
+                    pixel_spacing = getattr(src_img, 'PixelSpacing', None)
+                    if pixel_spacing is not None:
+                        pixel_measures = PixelMeasuresSequence(
+                            pixel_spacing=pixel_spacing,
+                            slice_thickness=src_img.get(
+                                'SliceThickness',
+                                None
+                            ),
+                            spacing_between_slices=src_img.get(
+                                'SpacingBetweenSlices',
+                                None
+                            )
+                        )
+                    else:
+                        pixel_measures = None
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=self._coordinate_system,
-                image_orientation=src_img.ImageOrientationSlide
-            )
-        else:
-            if is_multiframe:
-                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = deepcopy(
-                    src_sfg.PlaneOrientationSequence
-                )
-            else:
+        if has_ref_frame_uid:
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationPatient
+                    image_orientation=src_img.ImageOrientationSlide
                 )
+            else:
+                if is_multiframe:
+                    src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+                    source_plane_orientation = deepcopy(
+                        src_sfg.PlaneOrientationSequence
+                    )
+                else:
+                    source_plane_orientation = PlaneOrientationSequence(
+                        coordinate_system=self._coordinate_system,
+                        image_orientation=src_img.ImageOrientationPatient
+                    )
 
-        if plane_orientation is None:
-            plane_orientation = source_plane_orientation
+            if plane_orientation is None:
+                plane_orientation = source_plane_orientation
 
         self.DimensionIndexSequence = DimensionIndexSequence(
             coordinate_system=self._coordinate_system
@@ -489,19 +546,22 @@ class Segmentation(SOPClass):
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
 
-        if is_multiframe:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_image(
-                    src_img
-                )
-        else:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_series(
-                    source_images
-                )
+        if has_ref_frame_uid:
+            if is_multiframe:
+                source_plane_positions = \
+                    self.DimensionIndexSequence.get_plane_positions_of_image(
+                        src_img
+                    )
+            else:
+                source_plane_positions = \
+                    self.DimensionIndexSequence.get_plane_positions_of_series(
+                        source_images
+                    )
 
-        sffg_item.PixelMeasuresSequence = pixel_measures
-        sffg_item.PlaneOrientationSequence = plane_orientation
+        if pixel_measures is not None:
+            sffg_item.PixelMeasuresSequence = pixel_measures
+        if plane_orientation is not None:
+            sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
         # Information about individual frames will be updated below
@@ -534,34 +594,46 @@ class Segmentation(SOPClass):
         )
         self.SegmentsOverlap = segments_overlap.value
 
-        if plane_positions is None:
-            if pixel_array.shape[0] != len(source_plane_positions):
-                raise ValueError(
-                    'Number of plane positions in source image(s) does not '
-                    'match size of first dimension of "pixel_array" argument.'
-                )
-            plane_positions = source_plane_positions
-        else:
-            if pixel_array.shape[0] != len(plane_positions):
-                raise ValueError(
-                    'Number of PlanePositionSequence items provided via '
-                    '"plane_positions" argument does not match size of '
-                    'first dimension of "pixel_array" argument.'
-                )
+        if has_ref_frame_uid:
+            if plane_positions is None:
+                if pixel_array.shape[0] != len(source_plane_positions):
+                    raise ValueError(
+                        'Number of plane positions in source image(s) does not '
+                        'match size of first dimension of "pixel_array" '
+                        'argument.'
+                    )
+                plane_positions = source_plane_positions
+            else:
+                if pixel_array.shape[0] != len(plane_positions):
+                    raise ValueError(
+                        'Number of PlanePositionSequence items provided via '
+                        '"plane_positions" argument does not match size of '
+                        'first dimension of "pixel_array" argument.'
+                    )
 
-        are_spatial_locations_preserved = (
-            all(
-                plane_positions[i] == source_plane_positions[i]
-                for i in range(len(plane_positions))
-            ) and
-            plane_orientation == source_plane_orientation
-        )
+            are_spatial_locations_preserved = (
+                all(
+                    plane_positions[i] == source_plane_positions[i]
+                    for i in range(len(plane_positions))
+                ) and
+                plane_orientation == source_plane_orientation
+            )
+
+            plane_position_values, plane_sort_index = \
+                self.DimensionIndexSequence.get_index_values(plane_positions)
+        else:
+            # Only one spatial location supported
+            plane_positions = [None]
+            plane_position_values = [None]
+            plane_sort_index = np.array([0])
+            are_spatial_locations_preserved = True
 
         plane_position_names = self.DimensionIndexSequence.get_index_keywords()
-        plane_position_values, plane_sort_index = \
-            self.DimensionIndexSequence.get_index_values(plane_positions)
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if (
+            has_ref_frame_uid and
+            self._coordinate_system == CoordinateSystemNames.SLIDE
+        ):
             self.ImageOrientationSlide = deepcopy(
                 plane_orientation[0].ImageOrientationSlide
             )
@@ -647,22 +719,26 @@ class Segmentation(SOPClass):
         else:
             source_image_indices = list(range(pixel_array.shape[0]))
 
-        plane_position_values = plane_position_values[source_image_indices]
-        _, plane_sort_index = np.unique(
-            plane_position_values,
-            axis=0,
-            return_index=True
-        )
+        if has_ref_frame_uid:
+            plane_position_values = plane_position_values[source_image_indices]
+            _, plane_sort_index = np.unique(
+                plane_position_values,
+                axis=0,
+                return_index=True
+            )
 
-        # Get unique values of attributes in the Plane Position Sequence or
-        # Plane Position Slide Sequence, which define the position of the plane
-        # with respect to the three dimensional patient or slide coordinate
-        # system, respectively. These can subsequently be used to look up the
-        # relative position of a plane relative to the indexed dimension.
-        dimension_position_values = [
-            np.unique(plane_position_values[:, index], axis=0)
-            for index in range(plane_position_values.shape[1])
-        ]
+            # Get unique values of attributes in the Plane Position Sequence or
+            # Plane Position Slide Sequence, which define the position of the
+            # plane with respect to the three dimensional patient or slide
+            # coordinate system, respectively. These can subsequently be used
+            # to look up the relative position of a plane relative to the
+            # indexed dimension.
+            dimension_position_values = [
+                np.unique(plane_position_values[:, index], axis=0)
+                for index in range(plane_position_values.shape[1])
+            ]
+        else:
+            dimension_position_values = [None]
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
         if is_encaps:
@@ -735,43 +811,55 @@ class Segmentation(SOPClass):
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
 
-                # Look up the position of the plane relative to the indexed
-                # dimension.
-                try:
-                    if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                        index_values = [
-                            np.where(
-                                (dimension_position_values[idx] == pos)
-                            )[0][0] + 1
-                            for idx, pos in enumerate(plane_position_values[j])
-                        ]
-                    else:
-                        # In case of the patient coordinate system, the
-                        # value of the attribute the Dimension Index Sequence
-                        # points to (Image Position Patient) has a value
-                        # multiplicity greater than one.
-                        index_values = [
-                            np.where(
-                                (dimension_position_values[idx] == pos).all(
-                                    axis=1
+                if not has_ref_frame_uid:
+                    index_values = []
+                else:
+                    # Look up the position of the plane relative to the indexed
+                    # dimension.
+                    try:
+                        if (
+                            self._coordinate_system ==
+                            CoordinateSystemNames.SLIDE
+                        ):
+                            index_values = [
+                                np.where(
+                                    (dimension_position_values[idx] == pos)
+                                )[0][0] + 1
+                                for idx, pos in enumerate(
+                                    plane_position_values[j]
                                 )
-                            )[0][0] + 1
-                            for idx, pos in enumerate(plane_position_values[j])
-                        ]
-                except IndexError as error:
-                    raise IndexError(
-                        'Could not determine position of plane #{} in '
-                        'three dimensional coordinate system based on '
-                        'dimension index values: {}'.format(j, error)
-                    )
+                            ]
+                        else:
+                            # In case of the patient coordinate system, the
+                            # value of the attribute the Dimension Index
+                            # Sequence points to (Image Position Patient) has a
+                            # value multiplicity greater than one.
+                            index_values = [
+                                np.where(
+                                    (dimension_position_values[idx] == pos).all(
+                                        axis=1
+                                    )
+                                )[0][0] + 1
+                                for idx, pos in enumerate(
+                                    plane_position_values[j]
+                                )
+                            ]
+                    except IndexError as error:
+                        raise IndexError(
+                            'Could not determine position of plane #{} in '
+                            'three dimensional coordinate system based on '
+                            'dimension index values: {}'.format(j, error)
+                        )
                 frame_content_item.DimensionIndexValues = (
                     [segment_number] + index_values
                 )
                 pffp_item.FrameContentSequence = [frame_content_item]
-                if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                    pffp_item.PlanePositionSlideSequence = plane_positions[j]
-                else:
-                    pffp_item.PlanePositionSequence = plane_positions[j]
+                if has_ref_frame_uid:
+                    pos = plane_positions[j]
+                    if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                        pffp_item.PlanePositionSlideSequence = pos
+                    else:
+                        pffp_item.PlanePositionSequence = pos
 
                 # Determining the source images that map to the frame is not
                 # always trivial. Since DerivationImageSequence is a type 2
@@ -1034,8 +1122,8 @@ class Segmentation(SOPClass):
     @staticmethod
     def _omit_empty_frames(
         pixel_array: np.ndarray,
-        plane_positions: Sequence[PlanePositionSequence]
-    ) -> Tuple[np.ndarray, Sequence[PlanePositionSequence], List[int]]:
+        plane_positions: Sequence[Optional[PlanePositionSequence]]
+    ) -> Tuple[np.ndarray, List[Optional[PlanePositionSequence]], List[int]]:
         """Remove empty frames from the pixel array.
 
         Empty frames (without any positive pixels) do not need to be included
@@ -1046,14 +1134,14 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             Segmentation pixel array
-        plane_positions: Sequence[highdicom.PlanePositionSequence]
+        plane_positions: Sequence[Optional[highdicom.PlanePositionSequence]]
             Plane positions for each of the frames
 
         Returns
         -------
         pixel_array: numpy.ndarray
             Pixel array with empty frames removed
-        plane_positions: Sequence[highdicom.PlanePositionSequence]
+        plane_positions: List[Optional[highdicom.PlanePositionSequence]]
             Plane positions with entries corresponding to empty frames removed.
         source_image_indices: List[int]
             List giving for each frame in the output pixel array the index of
@@ -1151,17 +1239,16 @@ class Segmentation(SOPClass):
         seg.__class__ = Segmentation
 
         sf_groups = seg.SharedFunctionalGroupsSequence[0]
-        plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
-        if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
-            seg._coordinate_system = CoordinateSystemNames.SLIDE
-        elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
-            seg._coordinate_system = CoordinateSystemNames.PATIENT
+        if hasattr(seg, 'PlaneOrientationSequence'):
+            plane_ori_seq = sf_groups.PlaneOrientationSequence[0]
+            if hasattr(plane_ori_seq, 'ImageOrientationSlide'):
+                seg._coordinate_system = CoordinateSystemNames.SLIDE
+            elif hasattr(plane_ori_seq, 'ImageOrientationPatient'):
+                seg._coordinate_system = CoordinateSystemNames.PATIENT
+            else:
+                seg._coordinate_system = None
         else:
-            raise AttributeError(
-                'Expected Plane Orientation Sequence to have either '
-                'ImageOrientationSlide or ImageOrientationPatient '
-                'attribute.'
-            )
+            seg._coordinate_system = None
 
         for i, segment in enumerate(seg.SegmentSequence, 1):
             if segment.SegmentNumber != i:
@@ -1305,6 +1392,9 @@ class Segmentation(SOPClass):
 
             # Get dimension indices for this frame
             indices = frame_item.FrameContentSequence[0].DimensionIndexValues
+            if not isinstance(indices, (MultiValue, list)):
+                # In case there is a single dimension index
+                indices = [indices]
             if len(indices) != len(self._dim_ind_pointers) + 1:
                 # (+1 because referenced segment number is ignored)
                 raise RuntimeError(
@@ -2518,7 +2608,7 @@ class Segmentation(SOPClass):
 
         This is intended for retrieving segmentation masks using the index
         values within the segmentation object, without referring to the
-        source images from which the segmentation as derived.
+        source images from which the segmentation was derived.
 
         The output array will have 4 dimensions under the default behavior, and
         3 dimensions if ``combine_segments`` is set to ``True``.  The first
