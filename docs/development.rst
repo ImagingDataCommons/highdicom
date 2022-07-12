@@ -7,7 +7,7 @@ Source code is available at Github and can be cloned via git:
 
 .. code-block:: none
 
-    git clone https://github.com/mghcomputationalpathology/highdicom ~/highdicom
+    git clone https://github.com/herrmannlab/highdicom ~/highdicom
 
 The :mod:`highdicom` package can be installed in *develop* mode for local development:
 
