@@ -3674,22 +3674,14 @@ class ImageLibraryEntryDescriptors(Template):
                 'is not a DICOM image')
 
         modality_item = CodeContentItem(
-            name=CodedConcept(
-                value='121139',
-                meaning='Modality',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.Modality,
             value=modality,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(modality_item)
         if 'FrameOfReferenceUID' in image:
             frame_of_reference_uid_item = UIDRefContentItem(
-                name=CodedConcept(
-                    value='112227',
-                    meaning='Frame of Reference UID',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.FrameOfReferenceUID,
                 value=image.FrameOfReferenceUID,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
             )
@@ -3706,11 +3698,7 @@ class ImageLibraryEntryDescriptors(Template):
         )
         self.append(pixel_data_rows_item)
         pixel_data_cols_item = NumContentItem(
-            name=CodedConcept(
-                value='110911',
-                meaning='Pixel Data Columns',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.PixelDataColumns,
             value=image.Columns,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
@@ -3765,29 +3753,17 @@ class ImageLibraryEntryDescriptors(Template):
         pixel_spacing = dataset.ImagerPixelSpacing
         descriptors = [
             TextContentItem(
-                name=CodedConcept(
-                    value='111044',
-                    meaning='Patient Orientation Row',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.PatientOrientationRow,
                 value=patient_orientation[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             ),
             TextContentItem(
-                name=CodedConcept(
-                    value='111043',
-                    meaning='Patient Orientation Column',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.PatientOrientationColumn,
                 value=patient_orientation[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='111026',
-                    meaning='Horizontal Pixel Spacing',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.HorizontalPixelSpacing,
                 value=pixel_spacing[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3797,11 +3773,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='111066',
-                    meaning='Vertical Pixel Spacing',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.VerticalPixelSpacing,
                 value=pixel_spacing[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3838,11 +3810,7 @@ class ImageLibraryEntryDescriptors(Template):
 
         descriptors = [
             NumContentItem(
-                name=CodedConcept(
-                    value='111026',
-                    meaning='Horizontal Pixel Spacing',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.HorizontalPixelSpacing,
                 value=pixel_spacing[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3852,11 +3820,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='111066',
-                    meaning='Vertical Pixel Spacing',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.VerticalPixelSpacing,
                 value=pixel_spacing[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3866,11 +3830,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='112226',
-                    meaning='Spacing between slices',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.SpacingBetweenSlices,
                 value=dataset.SpacingBetweenSlices,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3880,11 +3840,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='112225',
-                    meaning='Slice Thickness',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.SliceThickness,
                 value=dataset.SliceThickness,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3894,11 +3850,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110901',
-                    meaning='Image Position (Patient) X',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImagePositionPatientX,
                 value=image_position[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3908,11 +3860,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110902',
-                    meaning='Image Position (Patient) Y',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImagePositionPatientY,
                 value=image_position[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3922,11 +3870,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110903',
-                    meaning='Image Position (Patient) Z',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImagePositionPatientZ,
                 value=image_position[2],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3936,11 +3880,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110904',
-                    meaning='Image Orientation (Patient) Row X',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientRowX,
                 value=image_orientation[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3950,11 +3890,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110905',
-                    meaning='Image Orientation (Patient) Row Y',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientRowY,
                 value=image_orientation[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3964,11 +3900,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110906',
-                    meaning='Image Orientation (Patient) Row Z',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientRowZ,
                 value=image_orientation[2],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3978,11 +3910,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110907',
-                    meaning='Image Orientation (Patient) Column X',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientColumnX,
                 value=image_orientation[3],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -3992,11 +3920,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110908',
-                    meaning='Image Orientation (Patient) Column Y',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientColumnY,
                 value=image_orientation[4],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -4006,11 +3930,7 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             ),
             NumContentItem(
-                name=CodedConcept(
-                    value='110909',
-                    meaning='Image Orientation (Patient) Column Z',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImageOrientationPatientColumnZ,
                 value=image_orientation[5],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
                 unit=CodedConcept(
@@ -4104,11 +4024,7 @@ class MeasurementReport(Template):
             procedure_reported = [procedure_reported]
         for procedure in procedure_reported:
             procedure_item = CodeContentItem(
-                name=CodedConcept(
-                    value='121058',
-                    meaning='Procedure reported',
-                    scheme_designator='DCM',
-                ),
+                name=codes.DCM.ProcedureReported,
                 value=procedure,
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
@@ -4129,11 +4045,7 @@ class MeasurementReport(Template):
                 MeasurementsAndQualitativeEvaluations,
             )
             container_item = ContainerContentItem(
-                name=CodedConcept(
-                    value='126010',
-                    meaning='Imaging Measurements',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImagingMeasurements,
                 relationship_type=RelationshipTypeValues.CONTAINS
             )
             container_item.ContentSequence = ContentSequence()
@@ -4922,11 +4834,7 @@ class ImageLibraryEntry(Template):
 
         library_item_entry = ImageLibraryEntryDescriptors(dataset)
         group_item = ContainerContentItem(
-            name=CodedConcept(
-                value='126200',
-                meaning='Image Library Group',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.ImageLibraryGroup,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
 
@@ -4952,11 +4860,7 @@ class ImageLibrary(Template):
         """
         super().__init__()
         library_item = ContainerContentItem(
-            name=CodedConcept(
-                value='111028',
-                meaning='Image Library',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.ImageLibrary,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         library_item.ContentSequence = ContentSequence()
@@ -4993,21 +4897,13 @@ class ImageLibrary(Template):
             for shared_descriptors, image_items in groups.items():
                 image = image_items[0]
                 group_item = ContainerContentItem(
-                    name=CodedConcept(
-                        value='126200',
-                        meaning='Image Library Group',
-                        scheme_designator='DCM'
-                    ),
+                    name=codes.DCM.ImageLibraryGroup,
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 group_item.ContentSequence = ContentSequence()
                 group_item.ContentSequence.append(
                     CodeContentItem(
-                        name=CodedConcept(
-                            value='121139',
-                            scheme_designator='DCM',
-                            meaning='Modality'
-                        ),
+                        name=codes.DCM.Modality,
                         value=shared_descriptors[0],
                         relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
                     )
@@ -5016,11 +4912,7 @@ class ImageLibrary(Template):
                 if 'FrameOfReferenceUID' in image:
                     group_item.ContentSequence.append(
                         UIDRefContentItem(
-                            name=CodedConcept(
-                                value='112227',
-                                scheme_designator='DCM',
-                                meaning='Frame of Reference UID'
-                            ),
+                            name=codes.DCM.FrameOfReferenceUID,
                             value=shared_descriptors[1],
                             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT  # noqa: E501
                         )
