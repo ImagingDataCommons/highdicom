@@ -1382,6 +1382,14 @@ class TestSegmentation(unittest.TestCase):
             [self._sm_grayscale],
             self._sm_grayscale_mask_array,
             SegmentationTypeValues.LABELED.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
             self._device_serial_number
         )
         assert instance.Rows == self._sm_grayscale.pixel_array.shape[1]
