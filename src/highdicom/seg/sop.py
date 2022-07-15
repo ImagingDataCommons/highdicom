@@ -273,6 +273,8 @@ class Segmentation(SOPClass):
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
 
+        segmentation_type = SegmentationTypeValues(segmentation_type)
+
         uniqueness_criteria = set(
             (
                 image.StudyInstanceUID,
@@ -296,17 +298,49 @@ class Segmentation(SOPClass):
                 'are multi-frame images.'
             )
         is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
-        supported_transfer_syntaxes = {
-            ImplicitVRLittleEndian,
-            ExplicitVRLittleEndian,
+
+        supported_compressed_transfer_syntaxes = {
             JPEG2000Lossless,
             JPEGLSLossless,
             RLELossless,
         }
+        supported_native_transfer_syntaxes = {
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+        }
+        supported_transfer_syntaxes = set()
+        supported_transfer_syntaxes.update(
+            supported_compressed_transfer_syntaxes
+        )
+        supported_transfer_syntaxes.update(
+            supported_native_transfer_syntaxes
+        )
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
+        if segmentation_type == SegmentationTypeValues.BINARY:
+            if transfer_syntax_uid not in supported_native_transfer_syntaxes:
+                raise ValueError(
+                    f'Transfer syntax "{transfer_syntax_uid}" is not supported '
+                    'for segmentation type BINARY.'
+                    'Supported are "{}"'.format(
+                       '", "'.join(supported_native_transfer_syntaxes)
+                    )
+                )
+        if segmentation_type == SegmentationTypeValues.LABELED:
+            if (
+                pixel_array.dtype.itemsize > 2 and
+                transfer_syntax_uid not in supported_native_transfer_syntaxes
+            ):
+                raise ValueError(
+                    f'Transfer syntax "{transfer_syntax_uid}" is not supported '
+                    'for segmentation type LABELED with more than 16 bits '
+                    'allocated per sample.'
+                    'Supported are "{}"'.format(
+                       '", "'.join(supported_native_transfer_syntaxes)
+                    )
+                )
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
@@ -405,11 +439,9 @@ class Segmentation(SOPClass):
             self.ContentCreatorIdentificationCodeSequence = \
                 content_creator_identification
 
-        segmentation_type = SegmentationTypeValues(segmentation_type)
         self.SegmentationType = segmentation_type.value
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
-            self.HighBit = 0
             if self.file_meta.TransferSyntaxUID.is_encapsulated:
                 raise ValueError(
                     'The chosen transfer syntax '
@@ -418,22 +450,31 @@ class Segmentation(SOPClass):
                 )
         elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
             self.BitsAllocated = 8
-            self.HighBit = 7
             segmentation_fractional_type = SegmentationFractionalTypeValues(
                 fractional_type
             )
             self.SegmentationFractionalType = segmentation_fractional_type.value
             if max_fractional_value > 2**8:
                 raise ValueError(
-                    'Maximum fractional value must not exceed image bit depth.'
+                    'Maximum fractional value must not exceed '
+                    'the number allocated bits.'
                 )
             self.MaximumFractionalValue = max_fractional_value
+        elif self.SegmentationType == SegmentationTypeValues.LABELED.value:
+            bit_depth = pixel_array.dtype.itemsize * 8
+            if bit_depth not in (8, 16, 32):
+                raise ValueError(
+                    'The number of allocated bits must be a multiple of 8 and '
+                    'less than or equal to 32.'
+                )
+            self.BitsAllocated = bit_depth
         else:
             raise ValueError(
-                'Unknown segmentation type "{}"'.format(segmentation_type)
+                f'Unknown segmentation type "{segmentation_type}".'
             )
 
         self.BitsStored = self.BitsAllocated
+        self.HighBit = self.BitsAllocated - 1
         self.LossyImageCompression = getattr(
             src_img,
             'LossyImageCompression',
@@ -679,7 +720,7 @@ class Segmentation(SOPClass):
 
         for i, segment_number in enumerate(described_segment_numbers):
             # Pixel array for just this segment
-            if pixel_array.dtype in (np.float_, np.float32, np.float64):
+            if pixel_array.dtype.kind == 'f':
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 if pixel_array.ndim == 4:
@@ -690,27 +731,34 @@ class Segmentation(SOPClass):
                     segment_array * float(self.MaximumFractionalValue)
                 )
                 planes = planes.astype(np.uint8)
-            elif pixel_array.dtype in (np.uint8, np.uint16):
-                # Note that integer arrays with segments stacked down the last
-                # dimension will already have been converted to bool, leaving
-                # only "label maps" here, which must be converted to binary
-                # masks.
-                planes = np.zeros(pixel_array.shape, dtype=np.uint8)
-                planes[pixel_array == segment_number] = 1
-            elif pixel_array.dtype == np.bool_:
+            elif pixel_array.dtype.kind in 'u' or pixel_array.dtype == np.bool_:
                 if pixel_array.ndim == 4:
                     planes = pixel_array[:, :, :, segment_number - 1]
                 else:
-                    planes = pixel_array
-                planes = planes.astype(np.uint8)
-                # It may happen that a boolean array is passed that should be
-                # interpreted as fractional segmentation type. In this case, we
-                # also need to stretch pixel valeus to 8-bit unsigned integer
-                # range by multiplying with the maximum fractional value.
+                    if segmentation_type == SegmentationTypeValues.BINARY:
+                        # Note that integer arrays with segments stacked down
+                        # the last dimension will already have been converted
+                        # to bool, leaving only "label maps" here, which must
+                        # be converted to binary masks.
+                        planes = np.zeros(pixel_array.shape, dtype=np.uint8)
+                        planes[pixel_array == segment_number] = 1
+                    else:
+                        planes = pixel_array
                 if segmentation_type == SegmentationTypeValues.FRACTIONAL:
-                    planes *= int(self.MaximumFractionalValue)
+                    # It may happen that a boolean array is passed that
+                    # should be interpreted as fractional segmentation
+                    # type. In this case, we also need to stretch pixel
+                    # values to 8-bit unsigned integer range by multiplying
+                    # with the maximum fractional value.
+                    planes = planes.astype(np.float32)
+                    planes *= np.float32(self.MaximumFractionalValue)
+                    planes = planes.astype(np.uint8)
             else:
-                raise TypeError('Pixel array has an invalid data type.')
+                raise TypeError(
+                    'Pixel array has an invalid data type. '
+                    'Data type must be either np.bool_, numpy.float32, '
+                    'numpy.float64, numpy.uint8, numpy.uint16, or numpy.uint32.'
+                )
 
             contained_plane_index = []
             for j in plane_sort_index:
@@ -952,48 +1000,58 @@ class Segmentation(SOPClass):
                     f'({len(described_segment_numbers)}).'
                 )
 
-        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
+        if pixel_array.dtype.kind == 'u' or pixel_array.dtype == np.bool_:
             if pixel_array.ndim == 3:
-                # A label-map style array where pixel values represent
-                # segment associations
-                segments_present = np.unique(
-                    pixel_array[pixel_array > 0].astype(np.uint16)
-                )
-
-                # The pixel values in the pixel array must all belong to
-                # a described segment
-                if not np.all(
+                if segmentation_type == SegmentationTypeValues.BINARY:
+                    # A label-map style array where pixel values represent
+                    # segment associations
+                    segments_present = np.unique(
+                        pixel_array[pixel_array > 0].astype(np.uint16)
+                    )
+                    # The pixel values in the pixel array must all belong to
+                    # a described segment
+                    if not np.all(
                         np.in1d(segments_present, described_segment_numbers)
                     ):
-                    raise ValueError(
-                        'Pixel array contains segments that lack '
-                        'descriptions.'
-                    )
+                        raise ValueError(
+                            'Pixel array contains segments that lack '
+                            'descriptions.'
+                        )
+                elif segmentation_type == SegmentationTypeValues.LABELED:
+                    if pixel_array.max() >= 2 ** 32:
+                        raise ValueError(
+                            'When passing segments for segmentation type '
+                            'LABELED with an integer data type, '
+                            'pixels must not exceed 32-bit depth.'
+                        )
 
                 # By construction of the pixel array, we know that the segments
                 # cannot overlap
                 segments_overlap = SegmentsOverlapValues.NO
+
             else:
-                # Pixel array is 4D where each segment is stacked down
-                # the last dimension
-                # In this case, each segment of the pixel array should be binary
-                if pixel_array.max() > 1:
-                    raise ValueError(
-                        'When passing a 4D stack of segments with an integer '
-                        'pixel type, the pixel array must be binary.'
-                    )
-                pixel_array = pixel_array.astype(np.bool_)
+                if segmentation_type == SegmentationTypeValues.BINARY:
+                    # Pixel array is 4D where each segment is stacked down the
+                    # last dimension. In this case, each segment of the pixel
+                    # array should be binary.
+                    if pixel_array.max() > 1:
+                        raise ValueError(
+                            'When passing a 4D stack of segments for '
+                            'segmentation type BINARY with an integer data '
+                            'type, the pixel array must be binary.'
+                        )
+                    pixel_array = pixel_array.astype(np.bool_)
 
                 # Need to check whether or not segments overlap
                 if pixel_array.shape[-1] == 1:
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
-                elif pixel_array.sum(axis=-1).max() > 1:
+                elif (pixel_array > 0).sum(axis=-1).max() > 1:
                     segments_overlap = SegmentsOverlapValues.YES
                 else:
                     segments_overlap = SegmentsOverlapValues.NO
 
-        elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
+        elif pixel_array.dtype.kind == 'f':
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
