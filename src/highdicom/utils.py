@@ -54,9 +54,8 @@ def compute_plane_position_tiled_full(
     spacing_between_slices: Optional[float] = None,
     slice_index: Optional[int] = None
 ) -> PlanePositionSequence:
-    """Computes the absolute position of a Frame (image plane) in the
-    Frame of Reference defined by the three-dimensional slide coordinate
-    system given their relative position in the Total Pixel Matrix.
+    """Compute the position of a frame (image plane) in the frame of reference
+    defined by the three-dimensional slide coordinate system.
 
     This information is not provided in image instances with Dimension
     Orientation Type TILED_FULL and therefore needs to be computed.
@@ -98,8 +97,8 @@ def compute_plane_position_tiled_full(
     spacing_between_slices: Union[float, None], optional
         Distance between neighboring focal planes in micrometers
     slice_index: Union[int, None], optional
-        Relative one-based index of the slice in the array of slices
-        within the volume
+        Relative one-based index of the focal plane in the array of focal
+        planes within the imaged volume from the slide to the coverslip
 
     Returns
     -------
@@ -112,10 +111,8 @@ def compute_plane_position_tiled_full(
         When only one of `slice_index` and `spacing_between_slices` is provided
 
     """
-    # Offset values are one-based, i.e., the top left pixel in the Total Pixel
-    # Matrix has offset (1, 1) rather than (0, 0)
-    row_offset_frame = ((row_index - 1) * rows) + 1
-    column_offset_frame = ((column_index - 1) * columns) + 1
+    row_offset_frame = ((row_index - 1) * rows)
+    column_offset_frame = ((column_index - 1) * columns)
 
     provided_3d_params = (
         slice_index is not None,
@@ -134,7 +131,7 @@ def compute_plane_position_tiled_full(
 
     # We should only be dealing with planar rotations.
     x, y, z = map_pixel_into_coordinate_system(
-        coordinate=(column_offset_frame, row_offset_frame),
+        index=(column_offset_frame, row_offset_frame),
         image_position=(x_offset, y_offset, z_offset),
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
@@ -143,7 +140,9 @@ def compute_plane_position_tiled_full(
     return PlanePositionSequence(
         coordinate_system=CoordinateSystemNames.SLIDE,
         image_position=(x, y, z),
-        pixel_matrix_position=(column_offset_frame, row_offset_frame)
+        # Position of plane (tile) in Total Pixel Matrix:
+        # First tile has position (1, 1)
+        pixel_matrix_position=(column_offset_frame + 1, row_offset_frame + 1)
     )
 
 
@@ -189,8 +188,13 @@ def compute_plane_position_slide_per_frame(
     )
     num_focal_planes = getattr(
         dataset,
-        'NumberOfFocalPlanes',
+        'TotalPixelMatrixFocalPlanes',
         1
+    )
+    num_optical_paths = getattr(
+        dataset,
+        'NumberOfOpticalPaths',
+        len(dataset.OpticalPathSequence)
     )
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
@@ -224,9 +228,28 @@ def compute_plane_position_slide_per_frame(
             spacing_between_slices=spacing_between_slices,
             slice_index=s,
         )
-        for s, r, c in itertools.product(
+        for _, s, r, c in itertools.product(
+            range(num_optical_paths),
             range(1, num_focal_planes + 1),
             range(1, tiles_per_column + 1),  # column direction, top to bottom
             range(1, tiles_per_row + 1),  # row direction, left to right
         )
     ]
+
+
+def is_tiled_image(dataset: Dataset) -> bool:
+    """Determine whether a dataset represents a tiled image.
+
+    Returns
+    -------
+    bool:
+        True if the dataset is a tiled image. False otherwise.
+
+    """
+    if (
+        hasattr(dataset, 'TotalPixelMatrixRows') and
+        hasattr(dataset, 'TotalPixelMatrixColumns') and
+        hasattr(dataset, 'NumberOfFrames')
+    ):
+        return True
+    return False

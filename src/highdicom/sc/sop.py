@@ -5,7 +5,7 @@ import datetime
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from pydicom._storage_sopclass_uids import SecondaryCaptureImageStorage
+from pydicom.uid import SecondaryCaptureImageStorage
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate
 from pydicom.sr.codedict import codes
@@ -120,7 +120,7 @@ class SCImage(SOPClass):
             Study Instance UID
         series_instance_uid: str
             Series Instance UID of the SC image series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SC image series
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SC image instance
@@ -463,7 +463,7 @@ class SCImage(SOPClass):
             imaging
         series_instance_uid: str
             Series Instance UID of the SC image series
-        series_number: Union[int, None]
+        series_number: int
             Series Number of the SC image series
         sop_instance_uid: str
             SOP instance UID that should be assigned to the SC image instance

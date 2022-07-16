@@ -3,3 +3,4 @@ include src/highdicom/legacy/*
 include src/highdicom/sc/*
 include src/highdicom/seg/*
 include src/highdicom/sr/*
+include src/highdicom/_icc_profiles/*

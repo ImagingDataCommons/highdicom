@@ -4,7 +4,8 @@ import unittest
 
 import numpy as np
 import pytest
-from pydicom import dcmread
+from pydicom.encaps import generate_pixel_data_frame
+from pydicom.filereader import dcmread
 from pydicom.uid import (
     RLELossless,
     JPEGBaseline8Bit,
@@ -16,6 +17,7 @@ from pydicom.valuerep import DA, TM
 from highdicom import SpecimenDescription
 from highdicom.sc import SCImage
 from highdicom import UID
+from highdicom.frame import decode_frame
 
 
 class TestSCImage(unittest.TestCase):
@@ -48,9 +50,26 @@ class TestSCImage(unittest.TestCase):
         with BytesIO() as fp:
             instance.save_as(fp)
             fp.seek(0)
-            instance_reread = dcmread(fp)
+            ds = dcmread(fp)
 
-        return instance_reread.pixel_array
+        decoded_frame_arrays = [
+            decode_frame(
+                value,
+                transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
+                rows=ds.Rows,
+                columns=ds.Columns,
+                samples_per_pixel=ds.SamplesPerPixel,
+                bits_allocated=ds.BitsAllocated,
+                bits_stored=ds.BitsStored,
+                photometric_interpretation=ds.PhotometricInterpretation,
+                pixel_representation=ds.PixelRepresentation,
+                planar_configuration=getattr(ds, 'PlanarConfiguration', None)
+            )
+            for value in generate_pixel_data_frame(instance.PixelData)
+        ]
+        if len(decoded_frame_arrays) > 1:
+            return np.stack(decoded_frame_arrays)
+        return decoded_frame_arrays[0]
 
     def test_construct_rgb_patient(self):
         bits_allocated = 8
@@ -351,8 +370,8 @@ class TestSCImage(unittest.TestCase):
 
         assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
-        reread = self.get_array_after_writing(instance)
-        assert np.abs(frame - reread).mean() < 1.0  # tolerance for lossyness
+        reread_frame = self.get_array_after_writing(instance)
+        np.testing.assert_allclose(frame, reread_frame, rtol=1.2)
 
     def test_monochrome_jpeg2000(self):
         bits_allocated = 8
@@ -461,7 +480,6 @@ class TestSCImage(unittest.TestCase):
             self.get_array_after_writing(instance),
             frame
         )
-
 
     def test_construct_rgb_from_ref_dataset(self):
         bits_allocated = 8

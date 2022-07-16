@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 from pydicom.datadict import tag_for_keyword
@@ -171,10 +172,9 @@ def _convert_legacy_to_enhanced(
         # Frame Content (M)
         frame_content_item = Dataset()
         if 'AcquisitionDate' in ds and 'AcquisitionTime' in ds:
-            frame_content_item.FrameAcquisitionDateTime = '{}{}'.format(
-                ds.AcquisitionDate,
-                ds.AcquisitionTime
-            )
+            frame_content_item.FrameAcquisitionDateTime = datetime.combine(
+                ds.AcquisitionDate, ds.AcquisitionTime
+            ).strftime('%Y%m%d%H%M%S')
         frame_content_item.FrameAcquisitionNumber = ds.InstanceNumber
         perframe_item.FrameContentSequence = [
             frame_content_item,
@@ -436,7 +436,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             be converted
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -529,7 +529,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             be converted
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -608,7 +608,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             be converted
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance

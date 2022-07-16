@@ -26,6 +26,6 @@ Source code available at Github:
 
 .. code-block:: none
 
-    git clone https://github.com/mghcomputationalpathology/highdicom ~/highdicom
+    git clone https://github.com/herrmannlab/highdicom ~/highdicom
     pip install ~/highdicom
 

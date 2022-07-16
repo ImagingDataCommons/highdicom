@@ -6,6 +6,8 @@ import numpy as np
 from pydicom.encaps import encapsulate
 from highdicom.base import SOPClass
 from highdicom.content import (
+    ContentCreatorIdentificationCodeSequence,
+    PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -82,6 +84,12 @@ class ParametricMap(SOPClass):
             str,
             DerivedPixelContrastValues
         ] = DerivedPixelContrastValues.QUANTITY,
+        content_creator_identification: Optional[
+            ContentCreatorIdentificationCodeSequence
+        ] = None,
+        palette_color_lut_transformation: Optional[
+            PaletteColorLUTTransformation
+        ] = None,
         **kwargs,
     ):
         """
@@ -117,7 +125,7 @@ class ParametricMap(SOPClass):
 
         series_instance_uid: str
             UID of the series
-        series_number: Union[int, None]
+        series_number: int
             Number of the series within the study
         sop_instance_uid: str
             UID that should be assigned to the instance
@@ -210,6 +218,12 @@ class ParametricMap(SOPClass):
         derived_pixel_contrast: Union[str, highdicom.pm.DerivedPixelContrast], optional
             Contrast created by combining or processing source images with the
             same geometry
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this parametric map.
+        palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
+            Description of the Palette Color LUT Transformation for tranforming
+            grayscale into RGB color pixel values
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -310,7 +324,6 @@ class ParametricMap(SOPClass):
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
             sop_class_uid='1.2.840.10008.5.1.4.1.1.30',
-            manufacturer=manufacturer,
             modality='OT',
             transfer_syntax_uid=transfer_syntax_uid,
             patient_id=src_img.PatientID,
@@ -324,6 +337,10 @@ class ParametricMap(SOPClass):
             referring_physician_name=getattr(
                 src_img, 'ReferringPhysicianName', None
             ),
+            manufacturer=manufacturer,
+            manufacturer_model_name=manufacturer_model_name,
+            device_serial_number=device_serial_number,
+            software_versions=software_versions,
             **kwargs,
         )
 
@@ -339,11 +356,6 @@ class ParametricMap(SOPClass):
         self.PositionReferenceIndicator = getattr(
             src_img, 'PositionReferenceIndicator', None
         )
-
-        # (Enhanced) General Equipment
-        self.DeviceSerialNumber = device_serial_number
-        self.ManufacturerModelName = manufacturer_model_name
-        self.SoftwareVersions = software_versions
 
         # General Reference
         self.SourceImageSequence: List[Dataset] = []
@@ -408,6 +420,18 @@ class ParametricMap(SOPClass):
         if content_creator_name is not None:
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
+        if content_creator_identification is not None:
+            if not isinstance(
+                content_creator_identification,
+                ContentCreatorIdentificationCodeSequence
+            ):
+                raise TypeError(
+                    'Argument "content_creator_identification" must be of type '
+                    'ContentCreatorIdentificationCodeSequence.'
+                )
+            self.ContentCreatorIdentificationCodeSequence = \
+                content_creator_identification
+
         self.PresentationLUTShape = 'IDENTITY'
 
         self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
@@ -644,6 +668,48 @@ class ParametricMap(SOPClass):
             self.BitsAllocated = 64
         else:
             raise ValueError('Encountered unexpected pixel data type.')
+
+        # Palette color lookup table
+        if palette_color_lut_transformation is not None:
+            if pixel_data_type != _PixelDataType.USHORT:
+                raise ValueError(
+                    'Use of palette_color_lut is only supported with integer-'
+                    'valued pixel data.'
+                )
+            if not isinstance(
+                palette_color_lut_transformation,
+                PaletteColorLUTTransformation
+            ):
+                raise TypeError(
+                    'Argument "palette_color_lut_transformation" should be of '
+                    'type PaletteColorLookupTable.'
+                )
+            self.PixelPresentation = 'COLOR_RANGE'
+
+            colors = ['Red', 'Green', 'Blue']
+            for color in colors:
+                desc_kw = f'{color}PaletteColorLookupTableDescriptor'
+                data_kw = f'{color}PaletteColorLookupTableData'
+                desc = getattr(palette_color_lut_transformation, desc_kw)
+                lut = getattr(palette_color_lut_transformation, data_kw)
+
+                setattr(self, desc_kw, desc)
+                setattr(self, data_kw, lut)
+
+            if hasattr(
+                palette_color_lut_transformation,
+                'PaletteColorLookupTableUID'
+            ):
+                setattr(
+                    self,
+                    'PaletteColorLookupTableUID',
+                    getattr(
+                        palette_color_lut_transformation,
+                        'PaletteColorLookupTableUID'
+                    )
+                )
+        else:
+            self.PixelPresentation = 'MONOCHROME'
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)

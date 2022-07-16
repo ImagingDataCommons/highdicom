@@ -1,12 +1,13 @@
 """Functions for working with DICOM value representations."""
 import re
 from typing import Union
+import warnings
 
 from pydicom.valuerep import PersonName
 
 
 def check_person_name(person_name: Union[str, PersonName]) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "person name".
 
     The DICOM Person Name (PN) value representation has a specific format with
     multiple components (family name, given name, middle name, prefix, suffix)
@@ -50,7 +51,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
         'sect_6.2.html#sect_6.2.1.2'
     )
     if '^' not in person_name and person_name != '':  # empty string is allowed
-        raise ValueError(
+        warnings.warn(
             f'The string "{person_name}" is unlikely to represent the '
             'intended person name since it contains only a single component. '
             'Construct a person name according to the format in described '
@@ -58,12 +59,13 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
             'pydicom.valuerep.PersonName.from_named_components() method '
             'to construct the person name correctly. If a single-component '
             'name is really intended, add a trailing caret character to '
-            'disambiguate the name.'
+            'disambiguate the name.',
+            UserWarning
         )
 
 
 def _check_code_string(value: str) -> None:
-    """Check the value representation person name strings.
+    """Check value is valid for the value representation "code string".
 
     Parameters
     ----------
@@ -104,4 +106,85 @@ def _check_code_string(value: str) -> None:
     if re.match(r'.*[_ ]$', value) is not None:
         raise ValueError(
             'Code string must not end with a space or underscore.'
+        )
+
+
+def _check_long_string(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Long String.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Long String due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 64:
+        raise ValueError(
+            'Values of DICOM value representation Long String (LO) must not '
+            'exceed 64 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Long String (LO) must not '
+            'contain the backslash character.'
+        )
+
+
+def _check_short_text(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Short Text.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Short Text due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 1024:
+        raise ValueError(
+            'Values of DICOM value representation Short Text (ST) must not '
+            'exceed 1024 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Short Text (ST) must not '
+            'contain the backslash character.'
+        )
+
+
+def _check_long_text(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Long Text.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Long Text due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 10240:
+        raise ValueError(
+            'Values of DICOM value representation Long Text (LT) must not '
+            'exceed 10240 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Long Text (LT) must not '
+            'contain the backslash character.'
         )

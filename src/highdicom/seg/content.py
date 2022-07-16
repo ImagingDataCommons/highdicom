@@ -14,6 +14,7 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
+from highdicom.spatial import map_pixel_into_coordinate_system
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
@@ -93,20 +94,10 @@ class SegmentDescription(Dataset):
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
-            CodedConcept(
-                segmented_property_category.value,
-                segmented_property_category.scheme_designator,
-                segmented_property_category.meaning,
-                segmented_property_category.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_category)
         ]
         self.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept(
-                segmented_property_type.value,
-                segmented_property_type.scheme_designator,
-                segmented_property_type.meaning,
-                segmented_property_type.scheme_version
-            ),
+            CodedConcept.from_code(segmented_property_type)
         ]
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
@@ -137,22 +128,12 @@ class SegmentDescription(Dataset):
             )
         if anatomic_regions is not None:
             self.AnatomicRegionSequence = [
-                CodedConcept(
-                    region.value,
-                    region.scheme_designator,
-                    region.meaning,
-                    region.scheme_version
-                )
+                CodedConcept.from_code(region)
                 for region in anatomic_regions
             ]
         if primary_anatomic_structures is not None:
             self.PrimaryAnatomicStructureSequence = [
-                CodedConcept(
-                    structure.value,
-                    structure.scheme_designator,
-                    structure.meaning,
-                    structure.scheme_version
-                )
+                CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
 
@@ -311,19 +292,39 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames]
+        coordinate_system: Union[str, CoordinateSystemNames, None]
     ) -> None:
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames, None]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
+            imaging. If None, the imaging does not belong within a frame of
+            reference.
 
         """
         super().__init__()
-        self._coordinate_system = CoordinateSystemNames(coordinate_system)
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if coordinate_system is None:
+            self._coordinate_system = None
+        else:
+            self._coordinate_system = CoordinateSystemNames(coordinate_system)
+
+        if self._coordinate_system is None:
+            dim_uid = UID()
+
+            segment_number_index = Dataset()
+            segment_number_index.DimensionIndexPointer = tag_for_keyword(
+                'ReferencedSegmentNumber'
+            )
+            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
+                'SegmentIdentificationSequence'
+            )
+            segment_number_index.DimensionOrganizationUID = dim_uid
+            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
+
+            self.append(segment_number_index)
+
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = UID()
 
             segment_number_index = Dataset()
@@ -459,7 +460,12 @@ class DimensionIndexSequence(DataElementSequence):
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
                 plane_positions = [
                     item.PlanePositionSlideSequence
@@ -500,13 +506,44 @@ class DimensionIndexSequence(DataElementSequence):
                 'Argument "images" must be a series of single-frame images.'
             )
 
-        plane_positions = [
-            PlanePositionSequence(
-                coordinate_system=CoordinateSystemNames.PATIENT,
-                image_position=img.ImagePositionPatient
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
             )
-            for img in images
-        ]
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
+            plane_positions = []
+            for img in images:
+                # Unfortunately, the image position is not specified relative to
+                # the top left corner but to the center of the image.
+                # Therefore, we need to compute the offset and subtract it.
+                center_item = img.ImageCenterPointCoordinatesSequence[0]
+                x_center = center_item.XOffsetInSlideCoordinateSystem
+                y_center = center_item.YOffsetInSlideCoordinateSystem
+                z_center = center_item.ZOffsetInSlideCoordinateSystem
+                offset_coordinate = map_pixel_into_coordinate_system(
+                    index=((img.Columns / 2, img.Rows / 2)),
+                    image_position=(x_center, y_center, z_center),
+                    image_orientation=img.ImageOrientationSlide,
+                    pixel_spacing=img.PixelSpacing
+                )
+                center_coordinate = np.array((0., 0., 0.), dtype=float)
+                origin_coordinate = center_coordinate - offset_coordinate
+                plane_positions.append(
+                    PlanePositionSequence(
+                        coordinate_system=CoordinateSystemNames.SLIDE,
+                        image_position=origin_coordinate,
+                        pixel_matrix_position=(1, 1)
+                    )
+                )
+        else:
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system=CoordinateSystemNames.PATIENT,
+                    image_position=img.ImagePositionPatient
+                )
+                for img in images
+            ]
 
         return plane_positions
 
@@ -528,7 +565,12 @@ class DimensionIndexSequence(DataElementSequence):
         --------
         >>> dimension_index = DimensionIndexSequence("SLIDE")
         >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
-        >>> segment_numbers = dimension_index[i]
+        >>> dimension_description = dimension_index[i]
+        >>> dimension_description
+        (0020, 9164) Dimension Organization UID          ...
+        (0020, 9165) Dimension Index Pointer             AT: (0062, 000b)
+        (0020, 9167) Functional Group Pointer            AT: (0062, 000a)
+        (0020, 9421) Dimension Description Label         LO: 'Segment Number'
 
         """
         indices = [
@@ -570,6 +612,13 @@ class DimensionIndexSequence(DataElementSequence):
         attribute.
 
         """
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                'Cannot calculate index values for multiple plane '
+                'positions when images do not exist within a frame of '
+                'reference.'
+            )
+
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
         # points to in the element of the Plane Position Sequence or
@@ -615,11 +664,24 @@ class DimensionIndexSequence(DataElementSequence):
 
         Examples
         --------
-        >>> dimension_index = DimensionIndexSequence("SLIDE")
-        >>> values = dimension_index.get_index_values(...)
+        >>> dimension_index = DimensionIndexSequence('SLIDE')
+        >>> plane_positions = [
+        ...     PlanePositionSequence('SLIDE', [10.0, 0.0, 0.0], [1, 1]),
+        ...     PlanePositionSequence('SLIDE', [30.0, 0.0, 0.0], [1, 2]),
+        ...     PlanePositionSequence('SLIDE', [50.0, 0.0, 0.0], [1, 3])
+        ... ]
+        >>> values, indices = dimension_index.get_index_values(plane_positions)
         >>> names = dimension_index.get_index_keywords()
+        >>> for name in names:
+        ...     print(name)
+        ColumnPositionInTotalImagePixelMatrix
+        RowPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
         >>> index = names.index("XOffsetInSlideCoordinateSystem")
         >>> print(values[:, index])
+        [10. 30. 50.]
 
         """
         return [

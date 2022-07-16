@@ -4,18 +4,29 @@ import io
 import re
 
 import setuptools
+from pathlib import Path
 
-with io.open('src/highdicom/version.py', 'rt', encoding='utf8') as f:
-    version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
+root_directory = Path(__file__).parent
+readme_filepath = root_directory.joinpath('README.md')
+long_description = readme_filepath.read_text()
+
+
+def get_version():
+    version_filepath = Path('src', 'highdicom', 'version.py')
+    with io.open(version_filepath, 'rt', encoding='utf8') as f:
+        version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
+    return version
 
 
 setuptools.setup(
     name='highdicom',
-    version=version,
+    version=get_version(),
     description='High-level DICOM abstractions.',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/mghcomputationalpathology/highdicom',
+    url='https://github.com/herrmannlab/highdicom',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
@@ -40,12 +51,12 @@ setuptools.setup(
     package_dir={'': 'src'},
     python_requires='>=3.6',
     install_requires=[
-        'pydicom>=2.2.2',
+        'pydicom>=2.3.0',
         'numpy>=1.19',
         'pillow>=8.3',
         'pillow-jpls>=1.0',
-        'pylibjpeg>=1.3',
-        'pylibjpeg-libjpeg>=1.2',
-        'pylibjpeg-openjpeg>=1.1',
+        'pylibjpeg>=1.4',
+        'pylibjpeg-libjpeg>=1.3',
+        'pylibjpeg-openjpeg>=1.2',
     ],
 )
