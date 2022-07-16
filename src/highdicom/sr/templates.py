@@ -577,7 +577,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.1': codes.cid29.OphthalmicPhotography,
         '1.2.840.10008.5.1.4.1.1.77.1.5.2': codes.cid29.OphthalmicPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,
+        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.4': codes.cid29.OphthalmicTomography,
         '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
@@ -586,7 +586,6 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.78.4': codes.cid29.SubjectiveRefraction,
         '1.2.840.10008.5.1.4.1.1.78.5': codes.cid29.VisualAcuity,
         '1.2.840.10008.5.1.4.1.1.78.7': codes.cid29.OphthalmicAxialMeasurements,
-        '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
         '1.2.840.10008.5.1.4.1.1.78.8': codes.cid32.IntraocularLensCalculation,
         '1.2.840.10008.5.1.4.1.1.80.1': codes.cid29.OphthalmicVisualField,
         '1.2.840.10008.5.1.4.1.1.81.1': codes.cid29.OphthalmicMapping,
