@@ -3855,22 +3855,14 @@ class ImageLibraryEntryDescriptors(Template):
             name=codes.DCM.PixelDataRows,
             value=image.Rows,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
+            unit=codes.UCUM.NoUnits
         )
         self.append(pixel_data_rows_item)
         pixel_data_cols_item = NumContentItem(
             name=codes.DCM.PixelDataColumns,
             value=image.Columns,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=CodedConcept(
-                value='{pixels}',
-                meaning='Pixels',
-                scheme_designator='UCUM'
-            )
+            unit=codes.UCUM.NoUnits
         )
         self.append(pixel_data_cols_item)
 
@@ -3931,21 +3923,13 @@ class ImageLibraryEntryDescriptors(Template):
                 name=codes.DCM.HorizontalPixelSpacing,
                 value=pixel_spacing[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.VerticalPixelSpacing,
                 value=pixel_spacing[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             )]
 
         return descriptors
@@ -3978,71 +3962,43 @@ class ImageLibraryEntryDescriptors(Template):
                 name=codes.DCM.HorizontalPixelSpacing,
                 value=pixel_spacing[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.VerticalPixelSpacing,
                 value=pixel_spacing[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.SpacingBetweenSlices,
                 value=dataset.SpacingBetweenSlices,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.SliceThickness,
                 value=dataset.SliceThickness,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.ImagePositionPatientX,
                 value=image_position[0],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.ImagePositionPatientY,
                 value=image_position[1],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.ImagePositionPatientZ,
                 value=image_position[2],
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=CodedConcept(
-                    value='mm',
-                    meaning='millimeter',
-                    scheme_designator='UCUM'
-                )
+                unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
                 name=codes.DCM.ImageOrientationPatientRowX,
