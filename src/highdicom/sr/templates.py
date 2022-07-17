@@ -47,7 +47,7 @@ from highdicom.sr.value_types import (
     UIDRefContentItem,
 )
 
-
+from highdicom._module_utils import does_iod_have_pixel_data
 # Codes missing from pydicom
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',
@@ -629,32 +629,6 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
             'SOP Class UID does not identify a SOP Class '
             'for storage of an image information entity.'
         )
-
-
-def _is_image(dataset: Dataset) -> bool:
-    """Check whether data set represents an image.
-
-    Parameters
-    ----------
-    dataset: pydicom.dataset.Dataset
-        Dataset
-
-    Returns
-    -------
-    bool
-        ``True`` if `dataset` is an image, ``False`` otherwise
-
-    """
-    if all(key in dataset for key in (
-        'Rows',
-        'Columns',
-        'SamplesPerPixel',
-        'PhotometricInterpretation',
-        'BitsAllocated'
-    )):
-        return True
-    else:
-        return False
 
 
 class Template(ContentSequence):
@@ -3833,7 +3807,7 @@ class ImageLibraryEntryDescriptors(Template):
         """  # noqa: E501
         super().__init__()
         modality = _get_coded_modality(image.SOPClassUID)
-        if not _is_image(image):
+        if not does_iod_have_pixel_data(image.SOPClassUID):
             raise ValueError(
                 f'Dataset with SOPInstanceUID {image.SOPInstanceUID}'
                 'is not a DICOM image')

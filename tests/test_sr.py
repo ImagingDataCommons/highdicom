@@ -5011,7 +5011,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
     def test_bad_ct_construction(self):
         # Test failure of ImageLibraryDescriptors with 'bad' image.
         del self._ref_ct_dataset.Rows
-        with pytest.raises(ValueError):
+        with pytest.raises(AttributeError):
             ImageLibraryEntryDescriptors(
                 image=self._ref_ct_dataset,
             )
