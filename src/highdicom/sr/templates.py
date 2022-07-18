@@ -3829,14 +3829,22 @@ class ImageLibraryEntryDescriptors(Template):
             name=codes.DCM.PixelDataRows,
             value=image.Rows,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=codes.UCUM.NoUnits
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
         )
         self.append(pixel_data_rows_item)
         pixel_data_cols_item = NumContentItem(
             name=codes.DCM.PixelDataColumns,
             value=image.Columns,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-            unit=codes.UCUM.NoUnits
+            unit=CodedConcept(
+                value='{pixels}',
+                meaning='Pixels',
+                scheme_designator='UCUM'
+            )
         )
         self.append(pixel_data_cols_item)
 
@@ -5015,13 +5023,6 @@ class ImageLibrary(Template):
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
                 group_item.ContentSequence = ContentSequence()
-                group_item.ContentSequence.append(
-                    CodeContentItem(
-                        name=codes.DCM.Modality,
-                        value=shared_descriptors[0],
-                        relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-                    )
-                )
 
                 if 'FrameOfReferenceUID' in image:
                     group_item.ContentSequence.append(
