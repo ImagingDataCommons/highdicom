@@ -218,6 +218,7 @@ class ImageFileReader(object):
     Examples
     --------
     >>> from pydicom.data import get_testdata_file
+    >>> from highdicom.io import ImageFileReader
     >>> test_filepath = get_testdata_file('eCT_Supplemental.dcm')
     >>>
     >>> with ImageFileReader(test_filepath) as image:
