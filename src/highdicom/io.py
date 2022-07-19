@@ -438,9 +438,9 @@ class ImageFileReader(object):
         # Build the ICC Transformation object. This takes some time and should
         # be done only once to speedup subsequent color corrections.
 
-        if self.metadata.SamplesPerPixel == 1:
-            self._color_manager = None
-        else:
+        icc_profile: Union[bytes, None] = None
+        self._color_manager: Union[ColorManager, None] = None
+        if self.metadata.SamplesPerPixel > 1:
             try:
                 icc_profile = self.metadata.ICCProfile
             except AttributeError:
@@ -453,14 +453,13 @@ class ImageFileReader(object):
                     optical_path_item = self.metadata.OpticalPathSequence[0]
                     icc_profile = optical_path_item.ICCProfile
                 except (IndexError, AttributeError):
-                    raise AttributeError(
-                        'No ICC Profile found in image metadata.'
-                    )
-            try:
-                self._color_manager = ColorManager(icc_profile)
-            except ValueError:
-                logger.warning('could not read ICC Profile')
-                self._color_manager = None
+                    logger.warning('no ICC Profile found in image metadata.')
+
+            if icc_profile is not None:
+                try:
+                    self._color_manager = ColorManager(icc_profile)
+                except ValueError:
+                    logger.warning('could not read ICC Profile')
 
     @property
     def metadata(self) -> Dataset:
@@ -601,7 +600,16 @@ class ImageFileReader(object):
 
         # We don't use the color_correct_frame() function here, since we cache
         # the ICC transform on the reader instance for improved performance.
-        if correct_color and self._color_manager is not None:
+        if correct_color and self.metadata.SamplesPerPixel > 1:
+            if self._color_manager is None:
+                raise ValueError(
+                    f'Cannot correct color of frame #{index} '
+                    'because the image does either not contain an ICC Profile '
+                    'or contains a malformatted ICC Profile. '
+                    'See logged warning messages for details. '
+                    'To read the frame without color correction set '
+                    '"correct_color" to False.'
+                )
             logger.debug(f'correct color of frame #{index}')
             return self._color_manager.transform_frame(frame_array)
 
