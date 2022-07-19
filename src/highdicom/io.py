@@ -557,7 +557,7 @@ class ImageFileReader(object):
         correct_color: bool, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
-            ICC Profile.
+            ICC Profile. Default = True.
 
         Returns
         -------
