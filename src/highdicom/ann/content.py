@@ -308,7 +308,7 @@ class AnnotationGroup(Dataset):
                         f'Graphic data of annotation #{i + 1} of graphic type '
                         '"POLYGON" must be at least three coordinates.'
                     )
-                if np.allclose(graphic_data[i][0], graphic_data[i][-1]):
+                if np.array_equal(graphic_data[i][0], graphic_data[i][-1]):
                     raise ValueError(
                         'The first and last coordinate of graphic data of '
                         f'annotation #{i + 1} of graphic type "POLYGON" '
