@@ -6,7 +6,10 @@ from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
-from highdicom.spatial import map_pixel_into_coordinate_system
+from highdicom.spatial import (
+    map_pixel_into_coordinate_system,
+    PixelToReferenceTransformer,
+)
 
 
 def tile_pixel_matrix(
@@ -203,30 +206,94 @@ def compute_plane_position_slide_per_frame(
         float(pixel_measures.PixelSpacing[0]),
         float(pixel_measures.PixelSpacing[1]),
     )
-    slice_thickness = getattr(
-        pixel_measures,
-        'SliceThickness',
-        1.0
+    spacing_between_slices = float(
+        getattr(
+            pixel_measures,
+            'SpacingBetweenSlices',
+            1.0
+        )
     )
-    spacing_between_slices = getattr(
-        pixel_measures,
-        'SpacingBetweenSlices',
-        1.0
-    )
+    x_offset = image_origin.XOffsetInSlideCoordinateSystem
+    y_offset = image_origin.YOffsetInSlideCoordinateSystem
+
+    transformer_lut = {}
+    for slice_index in range(1, num_focal_planes + 1):
+        # These checks are needed for mypy to determine the correct type
+        z_offset = float(slice_index - 1) * spacing_between_slices
+        transformer_lut[slice_index] = PixelToReferenceTransformer(
+            image_position=(x_offset, y_offset, z_offset),
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing
+        )
+
+    def _compute_plane_position_tiled_full_efficiently(
+        row_index: int,
+        column_index: int,
+        rows: int,
+        columns: int,
+        transformer: PixelToReferenceTransformer
+    ) -> PlanePositionSequence:
+        """More efficient implementation of `compute_plane_position_tiled_full`.
+
+        Function re-uses an existing `transformer` instance instead of creating
+        one for every function call. This can hurt performance if the number
+        of frames in an image is large.
+
+        Parameters
+        ----------
+        row_index: int
+            One-based Row index value for a given frame (tile) along the column
+            direction of the tiled Total Pixel Matrix, which is defined by
+            the second triplet in `image_orientation` (values should be in the
+            range [1, *n*], where *n* is the number of tiles per column)
+        column_index: int
+            One-based Column index value for a given frame (tile) along the row
+            direction of the tiled Total Pixel Matrix, which is defined by
+            the first triplet in `image_orientation` (values should be in the
+            range [1, *n*], where *n* is the number of tiles per row)
+        rows: int
+            Number of rows per Frame (tile)
+        columns: int
+            Number of columns per Frame (tile)
+        transformer: highdicom.spatial.PixelToReferenceTransformer
+            Callable transformer instance to map pixel indices into reference
+            slide coordinates
+
+        Returns
+        -------
+        highdicom.PlanePositionSequence
+            Positon of the plane in the slide coordinate system
+
+        """
+        row_offset_frame = ((row_index - 1) * rows)
+        column_offset_frame = ((column_index - 1) * columns)
+
+        # We should only be dealing with planar rotations.
+        transformed_coordinates = transformer(
+            np.array([(column_offset_frame, row_offset_frame)], dtype=int)
+        )
+        x = transformed_coordinates[0, 0]
+        y = transformed_coordinates[0, 1]
+        z = transformed_coordinates[0, 2]
+
+        return PlanePositionSequence(
+            coordinate_system=CoordinateSystemNames.SLIDE,
+            image_position=(x, y, z),
+            # Position of plane (tile) in Total Pixel Matrix:
+            # First tile has position (1, 1)
+            pixel_matrix_position=(
+                column_offset_frame + 1,
+                row_offset_frame + 1,
+            )
+        )
 
     return [
-        compute_plane_position_tiled_full(
+        _compute_plane_position_tiled_full_efficiently(
             row_index=r,
             column_index=c,
-            x_offset=image_origin.XOffsetInSlideCoordinateSystem,
-            y_offset=image_origin.YOffsetInSlideCoordinateSystem,
             rows=dataset.Rows,
             columns=dataset.Columns,
-            image_orientation=image_orientation,
-            pixel_spacing=pixel_spacing,
-            slice_thickness=slice_thickness,
-            spacing_between_slices=spacing_between_slices,
-            slice_index=s,
+            transformer=transformer_lut[s],
         )
         for _, s, r, c in itertools.product(
             range(num_optical_paths),
