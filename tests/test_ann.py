@@ -11,6 +11,7 @@ from pydicom.sr.coding import Code
 
 from highdicom.ann.content import Measurements, AnnotationGroup
 from highdicom.ann.enum import (
+    AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
     GraphicTypeValues,
 )
@@ -231,6 +232,10 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.shape == (2, 0)
 
     def test_alternative_construction_from_dataset(self):
+        coordinates_data = np.array(
+            [1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
+            dtype=np.double
+        )
         dataset = Dataset()
         dataset.AnnotationGroupNumber = 1
         dataset.AnnotationGroupUID = str(UID())
@@ -249,18 +254,33 @@ class TestAnnotationGroup(unittest.TestCase):
         dataset.AnnotationPropertyTypeCodeSequence = [annotated_type]
         dataset.NumberOfAnnotations = 3
         dataset.GraphicType = 'POINT'
-        dataset.DoublePointCoordinatesData = [1.0, 1.0, 2.0, 2.0, 3.0, 3.0]
+        dataset.DoublePointCoordinatesData = coordinates_data.tobytes()
         dataset.AnnotationAppliesToAllZPlanes = 'NO'
         dataset.AnnotationAppliesToAllOpticalPaths = 'YES'
 
         group = AnnotationGroup.from_dataset(dataset)
         assert isinstance(group, AnnotationGroup)
         assert isinstance(group.graphic_type, GraphicTypeValues)
-        assert isinstance(group.algorithm_type,
-                          AnnotationGroupGenerationTypeValues)
+        assert isinstance(
+            group.algorithm_type,
+            AnnotationGroupGenerationTypeValues
+        )
         assert group.algorithm_identification is None
         assert isinstance(group.annotated_property_category, CodedConcept)
         assert isinstance(group.annotated_property_type, CodedConcept)
+
+        graphic_data = group.get_graphic_data(
+            coordinate_type=AnnotationCoordinateTypeValues.SCOORD
+        )
+        assert isinstance(graphic_data, list)
+        assert len(graphic_data) == 3
+        assert graphic_data[0].dtype == np.double
+        assert graphic_data[0].shape[1] == 2
+        assert graphic_data[0].shape[0] == 1
+        assert np.array_equal(
+            graphic_data[0],
+            np.array([[1.0, 1.0]], dtype=np.double)
+        )
 
         names, values, units = group.get_measurements()
         assert names == []

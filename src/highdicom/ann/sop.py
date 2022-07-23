@@ -405,7 +405,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             )
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.91.1':
             raise ValueError(
-                'Dataset is not a Microscopy Bulk Simple Annotation.'
+                'Dataset is not a Microscopy Bulk Simple Annotations '
+                'instance.'
             )
         _check_little_endian(dataset)
         ann = deepcopy(dataset)
