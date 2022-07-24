@@ -99,12 +99,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
         """  # noqa: E501
         src_img = source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if is_multiframe and len(source_images) > 1:
-            raise ValueError(
-                'Only one source image should be provided in case images '
-                'are multi-frame images.'
-            )
 
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
