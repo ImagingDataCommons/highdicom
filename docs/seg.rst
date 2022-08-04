@@ -23,8 +23,8 @@ as convolutional neural networks.
 
 The DICOM standard provides a highly flexible object definition for Segmentation
 images that is able to cover a large variety of possible use cases.
-Unfortunately, this flexibility comes with complexity that can make Segmentation
-images difficult to understand and work with.
+Unfortunately, this flexibility comes with complexity that may make Segmentation
+images difficult to understand and work with at first.
 
 Segments
 --------
