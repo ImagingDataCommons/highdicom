@@ -121,7 +121,7 @@ def compute_plane_position_tiled_full(
         slice_index is not None,
         spacing_between_slices is not None,
     )
-    if not(sum(provided_3d_params) == 0 or sum(provided_3d_params) == 2):
+    if not (sum(provided_3d_params) == 0 or sum(provided_3d_params) == 2):
         raise TypeError(
             'None or both of the following parameters need to be provided: '
             '"slice_index", "spacing_between_slices"'

@@ -57,7 +57,11 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         Parameters
         ----------
         source_images: Sequence[pydicom.dataset.Dataset]
-            Image instances from which annotations were derived
+            Image instances from which annotations were derived. In case of
+            "2D" Annotation Coordinate Type, only one source image shall be
+            provided. In case of "3D" Annotation Coordinate Type, one or more
+            source images may be provided. All images shall have the same
+            Frame of Reference UID.
         annotation_coordinate_type: Union[str, highdicom.ann.AnnotationCoordinateTypeValues]
             Type of coordinates (two-dimensional coordinates relative to origin
             of Total Pixel Matrix in pixel unit or three-dimensional
@@ -98,13 +102,22 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
-        src_img = source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
-        if is_multiframe and len(source_images) > 1:
+        coordinate_type = AnnotationCoordinateTypeValues(
+            annotation_coordinate_type
+        )
+        if len({img.FrameOfReferenceUID for img in source_images}) > 1:
             raise ValueError(
-                'Only one source image should be provided in case images '
-                'are multi-frame images.'
+                'All source images must have the same Frame of Reference UID.'
             )
+        if len(source_images) == 0:
+            raise ValueError('At least one source image must be provided.')
+        elif len(source_images) > 1:
+            if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+                raise ValueError(
+                    'Only one source image should be provided '
+                    'if Annotation Coordinate Type is "2D".'
+                )
+        src_img = source_images[0]
 
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
@@ -155,9 +168,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             check_person_name(content_creator_name)
         self.ContentCreatorName = content_creator_name
 
-        coordinate_type = AnnotationCoordinateTypeValues(
-            annotation_coordinate_type
-        )
         self.AnnotationCoordinateType = coordinate_type.value
         if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
             pixel_origin_interpretation = PixelOriginInterpretationValues(
@@ -178,15 +188,19 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 'value.'
             )
 
+        ref = Dataset()
+        ref.ReferencedSOPClassUID = src_img.SOPClassUID
+        ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
+        self.ReferencedImageSequence = [ref]
+
         # Common Instance Reference
         self.ReferencedImageSequence: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
-        for s_img in source_images:
+        for img in source_images:
             ref = Dataset()
-            ref.ReferencedSOPClassUID = s_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
-            self.ReferencedImageSequence.append(ref)
-            referenced_series[s_img.SeriesInstanceUID].append(ref)
+            ref.ReferencedSOPClassUID = img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = img.SOPInstanceUID
+            referenced_series[img.SeriesInstanceUID].append(ref)
 
         self.ReferencedSeriesSequence: List[Dataset] = []
         for series_instance_uid, referenced_images in referenced_series.items():
