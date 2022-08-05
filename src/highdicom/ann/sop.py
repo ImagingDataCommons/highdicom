@@ -105,7 +105,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         coordinate_type = AnnotationCoordinateTypeValues(
             annotation_coordinate_type
         )
-        if len(set([img.FrameOfReferenceUID for img in source_images])) > 1:
+        if len({img.FrameOfReferenceUID for img in source_images}) > 1:
             raise ValueError(
                 'All source images must have the same Frame of Reference UID.'
             )
