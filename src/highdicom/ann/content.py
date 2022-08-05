@@ -95,12 +95,12 @@ class Measurements(Dataset):
         return self.MeasurementUnitsCodeSequence[0]
 
     @property
-    def referenced_images(self) -> ReferencedImageSequence:
-        """highdicom.ReferencedImageSequence: referenced images"""
+    def referenced_images(self) -> Union[ReferencedImageSequence, None]:
+        """Union[highdicom.ReferencedImageSequence, None]: referenced images"""
         if hasattr(self, 'ReferencedImageSequence'):
             return self.ReferencedImageSequence
         else:
-            return []
+            return None
 
     def get_values(self, number_of_annotations: int) -> np.ndarray:
         """Get measured values for annotations.
@@ -675,7 +675,10 @@ class AnnotationGroup(Dataset):
         self,
         name: Optional[Union[Code, CodedConcept]] = None
     ) -> Tuple[
-        List[CodedConcept], np.ndarray, List[CodedConcept]
+        List[CodedConcept],
+        np.ndarray,
+        List[CodedConcept],
+        List[Union[ReferencedImageSequence, None]]
     ]:
         """Get measurements.
 
@@ -696,6 +699,8 @@ class AnnotationGroup(Dataset):
             given annotation.
         units: List[highdicom.sr.CodedConcept]
             Units of measurements
+        referenced_images: List[highdicom.ReferencedImageSequence, None]
+            Referenced images
 
         """  # noqa: E501
         number_of_annotations = self.number_of_annotations
@@ -717,11 +722,16 @@ class AnnotationGroup(Dataset):
                 item.unit for item in self.MeasurementsSequence
                 if name is None or item.name == name
             ]
+            referenced_images = [
+                item.referenced_images for item in self.MeasurementsSequence
+                if name is None or item.name == name
+            ]
         else:
             value_array = np.empty((number_of_annotations, 0), np.float32)
             names = []
             units = []
-        return (names, value_array, units)
+            referenced_images = []
+        return (names, value_array, units, referenced_images)
 
     def _get_coordinate_index(
         self,
