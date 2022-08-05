@@ -233,7 +233,7 @@ class TestAnnotationGroup(unittest.TestCase):
             graphic_data[1]
         )
 
-        names, values, units = group.get_measurements()
+        names, values, units, ref_images = group.get_measurements()
         assert len(names) == 1
         assert names[0] == measurement_names[0]
         assert len(units) == 1
@@ -241,8 +241,10 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.dtype == np.float32
         assert values.shape == (2, 1)
         np.testing.assert_allclose(values, measurement_values)
+        assert len(ref_images) == 1
+        assert ref_images[0] is None
 
-        names, values, units = group.get_measurements(
+        names, values, units, ref_images = group.get_measurements(
             name=measurement_names[0]
         )
         assert len(names) == 1
@@ -252,8 +254,10 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.dtype == np.float32
         assert values.shape == (2, 1)
         np.testing.assert_allclose(values, measurement_values)
+        assert len(ref_images) == 1
+        assert ref_images[0] is None
 
-        names, values, units = group.get_measurements(
+        names, values, units, ref_images = group.get_measurements(
             name=codes.SCT.Volume
         )
         assert names == []
@@ -261,6 +265,7 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.size == 0
         assert values.dtype == np.float32
         assert values.shape == (2, 0)
+        assert ref_images == []
 
     def test_alternative_construction_from_dataset(self):
         coordinates_data = np.array(
@@ -313,7 +318,7 @@ class TestAnnotationGroup(unittest.TestCase):
             np.array([[1.0, 1.0]], dtype=np.double)
         )
 
-        names, values, units = group.get_measurements()
+        names, values, units, ref_images = group.get_measurements()
         assert names == []
         assert units == []
         assert values.size == 0
