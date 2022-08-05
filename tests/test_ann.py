@@ -8,6 +8,7 @@ from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
+from pydicom.uid import VLWholeSlideMicroscopyImageStorage
 
 from highdicom.ann.content import Measurements, AnnotationGroup
 from highdicom.ann.enum import (
@@ -16,7 +17,10 @@ from highdicom.ann.enum import (
     GraphicTypeValues,
 )
 from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations
-from highdicom.content import AlgorithmIdentificationSequence
+from highdicom.content import (
+    AlgorithmIdentificationSequence,
+    ReferencedImageSequence,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 
@@ -60,6 +64,26 @@ class TestMeasurements(unittest.TestCase):
             retrieved_values,
             values[stored_indices]
         )
+
+    def test_construction_with_referenced_image(self):
+        optical_path_item = Dataset()
+        optical_path_item.OpticalPathIdentifier = '1'
+        image = Dataset()
+        image.SOPInstanceUID = '1.2.3.4'
+        image.SOPClassUID = VLWholeSlideMicroscopyImageStorage
+        image.OpticalPathSequence = [optical_path_item]
+
+        measurements = Measurements(
+            name=Code('Q4LE', 'SBSI', 'Mean intensity'),
+            values=np.ones((10, ), dtype=np.float32),
+            unit=Code('{counts}', 'UCUM', 'Counts'),
+            referenced_images=ReferencedImageSequence(
+                referenced_images=[image],
+                referenced_optical_path_identifier='1'
+            )
+        )
+        assert hasattr(measurements, 'ReferencedImageSequence')
+        assert len(measurements.ReferencedImageSequence) == 1
 
     def test_construction_missing_name(self):
         with pytest.raises(TypeError):

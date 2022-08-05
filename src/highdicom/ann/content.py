@@ -11,7 +11,10 @@ from highdicom.ann.enum import (
     AnnotationGroupGenerationTypeValues,
     GraphicTypeValues,
 )
-from highdicom.content import AlgorithmIdentificationSequence
+from highdicom.content import (
+    AlgorithmIdentificationSequence,
+    ReferencedImageSequence,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom._module_utils import check_required_attributes
@@ -25,7 +28,8 @@ class Measurements(Dataset):
         self,
         name: Union[Code, CodedConcept],
         values: np.ndarray,
-        unit: Union[Code, CodedConcept]
+        unit: Union[Code, CodedConcept],
+        referenced_images: Optional[ReferencedImageSequence] = None
     ) -> None:
         """
         Parameters
@@ -40,6 +44,9 @@ class Measurements(Dataset):
         unit: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code], optional
             Coded units of measurement (see :dcm:`CID 7181 <part16/sect_CID_7181.html>`
             "Abstract Multi-dimensional Image Model Component Units")
+        referenced_images: Union[highdicom.ReferencedImageSequence, None], optional
+            Referenced image to which the measurement applies. Should only be
+            provided for intensity measurements.
 
         """  # noqa: E501
         super().__init__()
@@ -60,6 +67,22 @@ class Measurements(Dataset):
             stored_indices = (np.where(~is_nan)[0] + 1).astype(np.int32)
             item.AnnotationIndexList = stored_indices.tobytes()
         self.MeasurementValuesSequence = [item]
+
+        if referenced_images is not None:
+            if len(referenced_images) == 0:
+                raise ValueError(
+                    'Argument "referenced_images" must contain one item.'
+                )
+            elif len(referenced_images) > 1:
+                raise ValueError(
+                    'Argument "referenced_images" must contain only one item.'
+                )
+            if not isinstance(referenced_images, ReferencedImageSequence):
+                raise TypeError(
+                    'Argument "referenced_images" must have type '
+                    'ReferencedImageSequence.'
+                )
+            self.ReferencedImageSequence = referenced_images
 
     @property
     def name(self) -> CodedConcept:
@@ -520,6 +543,12 @@ class AnnotationGroup(Dataset):
                 )
         else:
             if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+                if hasattr(self, 'CommonZCoordinateValue'):
+                    raise ValueError(
+                        'The annotation group contains the '
+                        '"Common Z Coordinate Value" element and therefore '
+                        'cannot have Annotation Coordinate Type "2D".'
+                    )
                 coordinate_dimensionality = 2
             else:
                 coordinate_dimensionality = 3
