@@ -124,12 +124,19 @@ class TestMeasurements(unittest.TestCase):
         measurement_values.FloatingPointValues = values.tobytes()
         measurement_values.AnnotationIndexList = index.tobytes()
         dataset.MeasurementValuesSequence = [measurement_values]
+        referenced_image = Dataset()
+        referenced_image.ReferencedOpticalPathIdentifier = '1'
+        referenced_image.ReferencedSOPInstanceUID = '1.2.3'
+        referenced_image.ReferencedSOPClassUID = \
+            VLWholeSlideMicroscopyImageStorage
+        dataset.ReferencedImageSequence = [referenced_image]
 
         measurements = Measurements.from_dataset(dataset)
 
         assert measurements.name == CodedConcept.from_dataset(name)
         assert measurements.unit == CodedConcept.from_dataset(unit)
         np.testing.assert_allclose(measurements.get_values(3), values)
+        assert len(measurements.referenced_images) == 1
 
 
 class TestAnnotationGroup(unittest.TestCase):

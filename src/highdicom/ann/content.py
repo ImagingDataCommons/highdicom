@@ -94,6 +94,14 @@ class Measurements(Dataset):
         """highdicom.sr.CodedConcept: coded unit"""
         return self.MeasurementUnitsCodeSequence[0]
 
+    @property
+    def referenced_images(self) -> ReferencedImageSequence:
+        """highdicom.ReferencedImageSequence: referenced images"""
+        if hasattr(self, 'ReferencedImageSequence'):
+            return self.ReferencedImageSequence
+        else:
+            return []
+
     def get_values(self, number_of_annotations: int) -> np.ndarray:
         """Get measured values for annotations.
 
@@ -174,6 +182,11 @@ class Measurements(Dataset):
                 measurements.MeasurementUnitsCodeSequence[0]
             )
         ]
+        if hasattr(measurements, 'ReferencedImageSequence'):
+            measurements.ReferencedImageSequence = \
+                ReferencedImageSequence.from_sequence(
+                    measurements.ReferencedImageSequence
+                )
 
         return cast(Measurements, measurements)
 

@@ -108,7 +108,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
         Returns
         -------
-        highdicom.seg.content.AlgorithmIdentificationSequence
+        highdicom.AlgorithmIdentificationSequence
             Algorithm Identification Sequence
 
         """
@@ -1549,6 +1549,43 @@ class ReferencedImageSequence(DataElementSequence):
             if referenced_frame_number is not None:
                 ref_im.ReferencedFrameNumber = referenced_frame_number
             self.append(ref_im)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'ReferencedImageSequence':
+        """Construct instance from an existing data element sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Data element sequence representing the
+            Algorithm Identification Sequence
+
+        Returns
+        -------
+        highdicom.ReferencedImageSequence
+            Referenced Image Sequence
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence should be of type pydicom.sequence.Sequence.'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence should contain a single item.')
+        check_required_attributes(
+            sequence[0],
+            module='advanced-blending-presentation-state',
+            base_path=[
+                'AdvancedBlendingSequence',
+                'ReferencedImageSequence',
+            ]
+        )
+        ref_img_sequence = deepcopy(sequence)
+        ref_img_sequence.__class__ = ReferencedImageSequence
+        return cast(ReferencedImageSequence, ref_img_sequence)
 
 
 class LUT(Dataset):
