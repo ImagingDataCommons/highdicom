@@ -1,5 +1,5 @@
-mypy==0.910
-pytest==6.2.4
-pytest-cov==2.12.1
-pytest-flake8==1.0.7
+mypy==0.971
+pytest==7.1.2
+pytest-cov==3.0.0
+pytest-flake8==1.1.1
 git+https://github.com/numpy/numpy-stubs@201115370a0c011d879d69068b60509accc7f750#egg=numpy-stubs

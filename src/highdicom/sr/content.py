@@ -842,8 +842,8 @@ class ImageRegion3D(Scoord3DContentItem):
 
 class VolumeSurface(ContentSequence):
 
-    """Content sequence representing a volume surface in the the three-dimensional
-    patient/slide coordinate system in millimeter unit.
+    """Content sequence representing a volume surface in the the
+    three-dimensional patient/slide coordinate system in millimeter unit.
     """
 
     def __init__(
