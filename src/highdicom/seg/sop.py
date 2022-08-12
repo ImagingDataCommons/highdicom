@@ -501,8 +501,7 @@ class Segmentation(SOPClass):
             bit_depth = pixel_array.dtype.itemsize * 8
             if bit_depth not in (8, 16, 32):
                 raise ValueError(
-                    'The number of allocated bits must be a multiple of 8 and '
-                    'less than or equal to 32.'
+                    'The number of allocated bits must be either 8, 16, or 32.'
                 )
             self.BitsAllocated = bit_depth
         else:
