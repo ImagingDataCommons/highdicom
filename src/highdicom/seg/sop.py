@@ -310,13 +310,10 @@ class Segmentation(SOPClass):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
         }
-        supported_transfer_syntaxes = set()
-        supported_transfer_syntaxes.update(
-            supported_compressed_transfer_syntaxes
-        )
-        supported_transfer_syntaxes.update(
-            supported_native_transfer_syntaxes
-        )
+        supported_transfer_syntaxes = {
+            *supported_compressed_transfer_syntaxes,
+            *supported_native_transfer_syntaxes
+        }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
