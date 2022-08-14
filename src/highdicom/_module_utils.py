@@ -3,13 +3,6 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydicom import Dataset
 
-from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
-from highdicom._modules import MODULE_ATTRIBUTE_MAP
-from highdicom._iods import (
-    IOD_MODULE_MAP,
-    SOP_CLASS_UID_IOD_KEY_MAP
-)
-
 
 # Allowed values for the type of an attribute
 class AttributeTypeValues(Enum):
@@ -168,6 +161,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
         dictionary that forms an item in the next level of the tree structure.
 
     """
+    from highdicom._modules import MODULE_ATTRIBUTE_MAP
     if module not in MODULE_ATTRIBUTE_MAP:
         raise AttributeError(f"No such module found: '{module}'.")
     tree: Dict[str, Any] = {'attributes': {}}
@@ -205,6 +199,10 @@ def get_module_usage(
 
 
     """
+    from highdicom._iods import (
+        IOD_MODULE_MAP,
+        SOP_CLASS_UID_IOD_KEY_MAP
+    )
     try:
         iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
     except KeyError as e:
@@ -235,6 +233,11 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
         specified by the sop_class_uid. False otherwise.
 
     """
+    from highdicom._iods import (
+        IOD_MODULE_MAP,
+        SOP_CLASS_UID_IOD_KEY_MAP
+    )
+    from highdicom._modules import MODULE_ATTRIBUTE_MAP
     try:
         iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
     except KeyError as e:

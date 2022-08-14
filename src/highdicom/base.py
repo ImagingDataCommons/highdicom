@@ -16,8 +16,6 @@ from highdicom.enum import (
 )
 from highdicom.valuerep import check_person_name
 from highdicom.version import __version__
-from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
-from highdicom._modules import MODULE_ATTRIBUTE_MAP
 from highdicom._module_utils import is_attribute_in_iod
 
 
@@ -289,6 +287,8 @@ class SOPClass(Dataset):
             DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
+        from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
+        from highdicom._modules import MODULE_ATTRIBUTE_MAP
         logger.info(
             'copy {}-related attributes from dataset "{}"'.format(
                 ie, dataset.SOPInstanceUID
