@@ -312,6 +312,8 @@ class Segmentation(SOPClass):
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
+        if pixel_array.ndim not in [3, 4]:
+            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
@@ -567,17 +569,6 @@ class Segmentation(SOPClass):
         # Information about individual frames will be updated below
         self.NumberOfFrames = 0
         self.PerFrameFunctionalGroupsSequence: List[Dataset] = []
-
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
-        if pixel_array.ndim not in [3, 4]:
-            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
-
-        if pixel_array.shape[1:3] != (self.Rows, self.Columns):
-            raise ValueError(
-                'Pixel array representing segments has the wrong number of '
-                'rows and columns.'
-            )
 
         # Check segment numbers
         described_segment_numbers = np.array([

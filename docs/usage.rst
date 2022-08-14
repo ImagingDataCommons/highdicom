@@ -121,7 +121,7 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     )
 
     # Create the Segmentation instance
-    seg_dataset = Segmentation(
+    seg_dataset = hd.seg.Segmentation(
         source_images=[image_dataset],
         pixel_array=mask,
         segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
