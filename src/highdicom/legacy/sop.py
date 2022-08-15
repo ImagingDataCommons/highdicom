@@ -17,8 +17,6 @@ from pydicom.uid import (
 
 from highdicom.base import SOPClass
 from highdicom.frame import encode_frame
-from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
-from highdicom._modules import MODULE_ATTRIBUTE_MAP
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +58,8 @@ def _convert_legacy_to_enhanced(
     which instances are provided via `sf_datasets`.
 
     """
+    from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
+    from highdicom._modules import MODULE_ATTRIBUTE_MAP
     try:
         ref_ds = sf_datasets[0]
     except IndexError:
