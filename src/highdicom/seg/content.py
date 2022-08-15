@@ -77,7 +77,7 @@ class SegmentDescription(Dataset):
             "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>`
             "Common Anatomic Regions", as as well as other CIDs for
             domain-specific anatomic regions)
-        primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
+        primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 
