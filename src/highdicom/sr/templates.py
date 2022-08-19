@@ -3783,6 +3783,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             instance
         )
 
+
 class ImageLibraryEntryDescriptors(Template):
 
     """:dcm:`TID 1602 Image Library Entry Descriptors
