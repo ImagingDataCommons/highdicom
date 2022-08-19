@@ -3783,11 +3783,11 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             instance
         )
 
-
 class ImageLibraryEntryDescriptors(Template):
 
-    """:dcm:`TID 1602 <part16/chapter_A.html#sect_TID_1602>`
-     Image Library Entry Descriptors"""
+    """:dcm:`TID 1602 Image Library Entry Descriptors
+    <part16/chapter_A.html#sect_TID_1602>`
+     """  # noqa: E501
 
     def __init__(
         self,
@@ -3798,7 +3798,7 @@ class ImageLibraryEntryDescriptors(Template):
 
         Parameters
         ----------
-        image: pydicom.Dataset
+        image: pydicom.dataset.Dataset
             Metadata of a referenced image instance
         additional_descriptors: Union[Sequence[highdicom.sr.ContentItem], None], optional
             Optional additional SR Content Items that should be included
@@ -3872,7 +3872,6 @@ class ImageLibraryEntryDescriptors(Template):
         self,
         dataset: Dataset
     ) -> Sequence[ContentItem]:
-
         """Generate descriptors for projection radiography modalities.
         :dcm:`TID 1603 <part16/chapter_A.html#sect_TID_1603>`
         Image Library Entry Descriptors for Projection Radiography
@@ -4948,10 +4947,10 @@ class ImageLibraryEntry(Template):
         """
         Parameters
         ----------
-        dataset: Dataset
-            Image to include in ImageLibrary
+        dataset: pydicom.dataset.Dataset
+            Image to include in image library
 
-        """  # noqa
+        """
         super().__init__()
 
         library_item_entry = ImageLibraryEntryDescriptors(dataset)
@@ -4977,7 +4976,8 @@ class ImageLibrary(Template):
         Parameters
         ----------
         datasets: Sequence[pydicom.dataset.Dataset]
-            Datasets to include in ImageLibrary
+            Image Datasets to include in image library. Non-image
+            objects will throw an exception.
 
         """
         super().__init__()
