@@ -1268,7 +1268,7 @@ class FindingSite(CodeContentItem):
             modifier_item = CodeContentItem(
                 name=CodedConcept(
                     value='106233006',
-                    meaning='Topographical Modifier',
+                    meaning='Topographical modifier',
                     scheme_designator='SCT'
                 ),
                 value=topographical_modifier,

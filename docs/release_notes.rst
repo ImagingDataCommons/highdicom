@@ -185,3 +185,19 @@ error.
 Similarly, as of highdicom 0.18.0, it is no longer possible to pass datasets
 with a Big Endian transfer syntax to the `from_dataset` methods of any of the
 :class:`highdicom.SOPClass` subclasses.
+
+.. _update-image-library:
+
+Change in MeasurementReport constructor for TID 1601 enhancement
+----------------------------------------------------------------
+
+A breaking change was made after highdicom 0.18.4 in the creation of Image 
+Library TID 1601 objects. 
+Previously the Imag Library was constructed by explicitly
+passing a `pydicom.sequence.Sequence` of `ImageLibraryEntryDescriptors`
+objects to the :class:`highdicom.sr.MeasurementReport` constructor in the `image_library_groups`
+argument.
+Now a `pydicom.sequence.Sequence` of `pydicom.dataset.Dataset` 
+objects is passed in the `referenced_images` argument and the 
+ImageLibrary components are created internally by highdicom.
+This standardizes the content of the Image Library subcomponents.

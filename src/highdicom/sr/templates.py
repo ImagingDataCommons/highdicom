@@ -1,7 +1,8 @@
 """DICOM structured reporting templates."""
+import collections
 import logging
 from copy import deepcopy
-from typing import cast, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import cast, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -22,6 +23,7 @@ from highdicom.sr.content import (
     SourceImageForSegmentation,
     SourceSeriesForSegmentation
 )
+
 from highdicom.sr.enum import (
     GraphicTypeValues,
     GraphicTypeValues3D,
@@ -29,7 +31,10 @@ from highdicom.sr.enum import (
     ValueTypeValues,
 )
 from highdicom.uid import UID
-from highdicom.sr.utils import find_content_items, get_coded_name
+from highdicom.sr.utils import (
+    find_content_items,
+    get_coded_name
+)
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContainerContentItem,
@@ -42,7 +47,7 @@ from highdicom.sr.value_types import (
     UIDRefContentItem,
 )
 
-
+from highdicom._module_utils import does_iod_have_pixel_data
 # Codes missing from pydicom
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',
@@ -487,6 +492,143 @@ def _contains_image_items(
                     continue
         return True
     return False
+
+
+def _get_coded_modality(sop_class_uid: str) -> Code:
+    """Get the coded modality for a SOP Class UID of an Image.
+
+    Parameters
+    ----------
+    sop_class_uid: str
+        SOP Class UID
+
+    Returns
+    -------
+    pydicom.sr.coding.Code
+        Coded Acquisition Modality
+        (see :dcm:`CID 29 Acquisition Modality <part16/sect_CID_29.html>`)
+
+     Raises
+     ------
+     ValueError
+         if the SOP Class UID does not identify a SOP Class
+         for storage of an Image information entity
+
+    """  # noqa: E501
+    sopclass_to_modality_map: Dict[str, Code] = {
+        '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
+        '1.2.840.10008.5.1.4.1.1.1.1': codes.cid29.DigitalRadiography,
+        '1.2.840.10008.5.1.4.1.1.1.1.1': codes.cid29.DigitalRadiography,
+        '1.2.840.10008.5.1.4.1.1.1.2': codes.cid29.Mammography,
+        '1.2.840.10008.5.1.4.1.1.1.2.1': codes.cid29.Mammography,
+        '1.2.840.10008.5.1.4.1.1.1.3': codes.cid29.IntraOralRadiography,
+        '1.2.840.10008.5.1.4.1.1.1.3.1': codes.cid29.IntraOralRadiography,
+        '1.2.840.10008.5.1.4.1.1.2': codes.cid29.ComputedTomography,
+        '1.2.840.10008.5.1.4.1.1.2.1': codes.cid29.ComputedTomography,
+        '1.2.840.10008.5.1.4.1.1.2.2': codes.cid29.ComputedTomography,
+        '1.2.840.10008.5.1.4.1.1.3.1': codes.cid29.Ultrasound,
+        '1.2.840.10008.5.1.4.1.1.4': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.4.1': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.4.2': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.4.3': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.4.4': codes.cid29.MagneticResonance,
+        '1.2.840.10008.5.1.4.1.1.6.1': codes.cid29.Ultrasound,
+        '1.2.840.10008.5.1.4.1.1.6.2': codes.cid29.Ultrasound,
+        '1.2.840.10008.5.1.4.1.1.7': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.1': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.2': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.3': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.7.4': codes.cid32.Other,
+        '1.2.840.10008.5.1.4.1.1.9.1.1': codes.cid29.Electrocardiography,
+        '1.2.840.10008.5.1.4.1.1.9.1.2': codes.cid29.Electrocardiography,
+        '1.2.840.10008.5.1.4.1.1.9.1.3': codes.cid29.Electrocardiography,
+        '1.2.840.10008.5.1.4.1.1.9.2.1': codes.cid29.HemodynamicWaveform,
+        '1.2.840.10008.5.1.4.1.1.9.3.1': codes.cid29.Electrocardiography,
+        '1.2.840.10008.5.1.4.1.1.9.4.1': codes.cid32.BasicVoiceAudio,
+        '1.2.840.10008.5.1.4.1.1.9.5.1': codes.cid29.HemodynamicWaveform,
+        '1.2.840.10008.5.1.4.1.1.9.6.1': codes.cid29.RespiratoryWaveform,
+        '1.2.840.10008.5.1.4.1.1.11.1': codes.cid32.PresentationState,
+        '1.2.840.10008.5.1.4.1.1.11.2': codes.cid32.PresentationState,
+        '1.2.840.10008.5.1.4.1.1.11.3': codes.cid32.PresentationState,
+        '1.2.840.10008.5.1.4.1.1.11.4': codes.cid32.PresentationState,
+        '1.2.840.10008.5.1.4.1.1.12.1': codes.cid29.XRayAngiography,
+        '1.2.840.10008.5.1.4.1.1.12.1.1': codes.cid29.XRayAngiography,
+        '1.2.840.10008.5.1.4.1.1.12.2': codes.cid29.Radiofluoroscopy,
+        '1.2.840.10008.5.1.4.1.1.12.2.1': codes.cid29.Radiofluoroscopy,
+        '1.2.840.10008.5.1.4.1.1.13.1.1': codes.cid29.XRayAngiography,
+        '1.2.840.10008.5.1.4.1.1.13.1.2': codes.cid29.DigitalRadiography,
+        '1.2.840.10008.5.1.4.1.1.13.1.3': codes.cid29.Mammography,
+        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
+        '1.2.840.10008.5.1.4.1.1.66.1': codes.cid32.Registration,
+        '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducials,
+        '1.2.840.10008.5.1.4.1.1.66.3': codes.cid32.Registration,
+        '1.2.840.10008.5.1.4.1.1.66.4': codes.cid32.Segmentation,
+        '1.2.840.10008.5.1.4.1.1.67': codes.cid32.RealWorldValueMap,
+        '1.2.840.10008.5.1.4.1.1.68.1': codes.cid29.OpticalSurfaceScanner,
+        '1.2.840.10008.5.1.4.1.1.68.2': codes.cid29.OpticalSurfaceScanner,
+        '1.2.840.10008.5.1.4.1.1.77.1.1': codes.cid29.Endoscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.1.1': codes.cid29.Endoscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.2': codes.cid29.GeneralMicroscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.2.1': codes.cid29.GeneralMicroscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.3': codes.cid29.SlideMicroscopy,
+        '1.2.840.10008.5.1.4.1.1.77.1.4': codes.cid29.ExternalCameraPhotography,
+        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.5.1': codes.cid29.OphthalmicPhotography,
+        '1.2.840.10008.5.1.4.1.1.77.1.5.2': codes.cid29.OphthalmicPhotography,
+        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.5.4': codes.cid29.OphthalmicTomography,
+        '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy,
+        '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
+        '1.2.840.10008.5.1.4.1.1.78.2': codes.cid29.Autorefraction,
+        '1.2.840.10008.5.1.4.1.1.78.3': codes.cid29.Keratometry,
+        '1.2.840.10008.5.1.4.1.1.78.4': codes.cid29.SubjectiveRefraction,
+        '1.2.840.10008.5.1.4.1.1.78.5': codes.cid29.VisualAcuity,
+        '1.2.840.10008.5.1.4.1.1.78.7': codes.cid29.OphthalmicAxialMeasurements,
+        '1.2.840.10008.5.1.4.1.1.78.8': codes.cid32.IntraocularLensCalculation,
+        '1.2.840.10008.5.1.4.1.1.80.1': codes.cid29.OphthalmicVisualField,
+        '1.2.840.10008.5.1.4.1.1.81.1': codes.cid29.OphthalmicMapping,
+        '1.2.840.10008.5.1.4.1.1.82.1': codes.cid29.OphthalmicMapping,
+        '1.2.840.10008.5.1.4.1.1.88.11': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.22': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.33': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.34': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.35': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.50': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.59': codes.cid32.KeyObjectSelection,
+        '1.2.840.10008.5.1.4.1.1.88.65': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.67': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.68': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.70': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.71': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.72': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.73': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.74': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.75': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.88.76': codes.cid32.StructuredReportDocument,
+        '1.2.840.10008.5.1.4.1.1.90.1': codes.cid32.ContentAssessmentResult,
+        '1.2.840.10008.5.1.4.1.1.128': codes.cid29.PositronEmissionTomography,
+        '1.2.840.10008.5.1.4.1.1.130': codes.cid29.PositronEmissionTomography,
+        '1.2.840.10008.5.1.4.1.1.128.1': codes.cid29.PositronEmissionTomography,
+        '1.2.840.10008.5.1.4.1.1.200.2': codes.cid32.CTProtocol,
+        '1.2.840.10008.5.1.4.1.1.481.1': codes.cid29.RTImage,
+        '1.2.840.10008.5.1.4.1.1.481.2': codes.cid32.RTDose,
+        '1.2.840.10008.5.1.4.1.1.481.3': codes.cid32.RTStructureSet,
+        '1.2.840.10008.5.1.4.1.1.481.4': codes.cid32.RTTreatmentRecord,
+        '1.2.840.10008.5.1.4.1.1.481.5': codes.cid32.RTPlan,
+        '1.2.840.10008.5.1.4.1.1.481.6': codes.cid32.RTTreatmentRecord,
+        '1.2.840.10008.5.1.4.1.1.481.7': codes.cid32.RTTreatmentRecord,
+        '1.2.840.10008.5.1.4.1.1.481.8': codes.cid32.RTPlan,
+        '1.2.840.10008.5.1.4.1.1.481.9': codes.cid32.RTTreatmentRecord,
+    }
+    try:
+        return sopclass_to_modality_map[sop_class_uid]
+    except KeyError:
+        raise ValueError(
+            'SOP Class UID does not identify a SOP Class '
+            'for storage of an image information entity.'
+        )
 
 
 class Template(ContentSequence):
@@ -3644,60 +3786,49 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
 class ImageLibraryEntryDescriptors(Template):
 
-    """`TID 1602 <http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1602>`_
-     Image Library Entry Descriptors"""  # noqa: E501
+    """:dcm:`TID 1602 Image Library Entry Descriptors
+    <part16/chapter_A.html#sect_TID_1602>`
+     """  # noqa: E501
 
     def __init__(
         self,
-        modality: Union[Code, CodedConcept],
-        frame_of_reference_uid: str,
-        pixel_data_rows: int,
-        pixel_data_columns: int,
+        image: Dataset,
         additional_descriptors: Optional[Sequence[ContentItem]] = None
     ) -> None:
         """
+
         Parameters
         ----------
-        modality: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
-            Modality
-        frame_of_reference_uid: str
-            Frame of Reference UID
-        pixel_data_rows: int
-            Number of rows in pixel data frames
-        pixel_data_columns: int
-            Number of rows in pixel data frames
+        image: pydicom.dataset.Dataset
+            Metadata of a referenced image instance
         additional_descriptors: Union[Sequence[highdicom.sr.ContentItem], None], optional
-            Additional SR Content Items that should be included
+            Optional additional SR Content Items that should be included
+            for description of the referenced image
 
         """  # noqa: E501
         super().__init__()
+        modality = _get_coded_modality(image.SOPClassUID)
+        if not does_iod_have_pixel_data(image.SOPClassUID):
+            raise ValueError(
+                f'Dataset with SOPInstanceUID {image.SOPInstanceUID}'
+                'is not a DICOM image')
+
         modality_item = CodeContentItem(
-            name=CodedConcept(
-                value='121139',
-                meaning='Modality',
-                scheme_designator='DCM'
-            ),
+            name=codes.DCM.Modality,
             value=modality,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
         )
         self.append(modality_item)
-        frame_of_reference_uid_item = UIDRefContentItem(
-            name=CodedConcept(
-                value='112227',
-                meaning='Frame of Reference UID',
-                scheme_designator='DCM'
-            ),
-            value=frame_of_reference_uid,
-            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
-        )
-        self.append(frame_of_reference_uid_item)
+        if 'FrameOfReferenceUID' in image:
+            frame_of_reference_uid_item = UIDRefContentItem(
+                name=codes.DCM.FrameOfReferenceUID,
+                value=image.FrameOfReferenceUID,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT
+            )
+            self.append(frame_of_reference_uid_item)
         pixel_data_rows_item = NumContentItem(
-            name=CodedConcept(
-                value='110910',
-                meaning='Pixel Data Rows',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_rows,
+            name=codes.DCM.PixelDataRows,
+            value=image.Rows,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
@@ -3707,12 +3838,8 @@ class ImageLibraryEntryDescriptors(Template):
         )
         self.append(pixel_data_rows_item)
         pixel_data_cols_item = NumContentItem(
-            name=CodedConcept(
-                value='110911',
-                meaning='Pixel Data Columns',
-                scheme_designator='DCM'
-            ),
-            value=pixel_data_columns,
+            name=codes.DCM.PixelDataColumns,
+            value=image.Columns,
             relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
             unit=CodedConcept(
                 value='{pixels}',
@@ -3721,6 +3848,16 @@ class ImageLibraryEntryDescriptors(Template):
             )
         )
         self.append(pixel_data_cols_item)
+
+        if self._is_cross_sectional(image):
+            modality_descriptors = \
+                self._generate_cross_sectional_descriptors(image)
+            self.extend(modality_descriptors)
+        elif self._is_projection_radiography(image):
+            modality_descriptors = \
+                self._generate_projection_radiography_descriptors(image)
+            self.extend(modality_descriptors)
+
         if additional_descriptors is not None:
             for item in additional_descriptors:
                 if not isinstance(item, ContentItem):
@@ -3731,6 +3868,188 @@ class ImageLibraryEntryDescriptors(Template):
                 relationship_type = RelationshipTypeValues.HAS_ACQ_CONTEXT
                 item.RelationshipType = relationship_type.value
                 self.append(item)
+
+    def _generate_projection_radiography_descriptors(
+        self,
+        dataset: Dataset
+    ) -> Sequence[ContentItem]:
+        """Generate descriptors for projection radiography modalities.
+        :dcm:`TID 1603 <part16/chapter_A.html#sect_TID_1603>`
+        Image Library Entry Descriptors for Projection Radiography
+
+        Parameters
+        ----------
+        pydicom.Dataset
+            Metadata of a projection radiology image
+
+        Returns
+        -------
+        Sequence[highdicom.sr.ContentItem]
+            SR Content Items describing the image
+
+        """  # noqa: E501
+        patient_orientation = dataset.PatientOrientation
+        pixel_spacing = dataset.ImagerPixelSpacing
+        descriptors = [
+            TextContentItem(
+                name=codes.DCM.PatientOrientationRow,
+                value=patient_orientation[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+            ),
+            TextContentItem(
+                name=codes.DCM.PatientOrientationColumn,
+                value=patient_orientation[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+            ),
+            NumContentItem(
+                name=codes.DCM.HorizontalPixelSpacing,
+                value=pixel_spacing[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.VerticalPixelSpacing,
+                value=pixel_spacing[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            )]
+
+        return descriptors
+
+    def _generate_cross_sectional_descriptors(
+        self,
+        dataset: Dataset
+    ) -> Sequence[ContentItem]:
+        """Generate descriptors for cross-sectional modalities.
+
+        :dcm:`TID 1604 Image Library Entry Descriptors for Cross-Sectional Modalities <part16/chapter_A.html#sect_TID_1604>`
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            A pydicom Dataset of a cross-sectional image.
+
+        Returns
+        -------
+        Sequence[highdicom.sr.ContentItem]
+            SR Content Items describing the image.
+
+        """  # noqa: E501
+        pixel_spacing = dataset.PixelSpacing
+        image_orientation = dataset.ImageOrientationPatient
+        image_position = dataset.ImagePositionPatient
+
+        descriptors = [
+            NumContentItem(
+                name=codes.DCM.HorizontalPixelSpacing,
+                value=pixel_spacing[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.VerticalPixelSpacing,
+                value=pixel_spacing[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.SpacingBetweenSlices,
+                value=dataset.SpacingBetweenSlices,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.SliceThickness,
+                value=dataset.SliceThickness,
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.ImagePositionPatientX,
+                value=image_position[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.ImagePositionPatientY,
+                value=image_position[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.ImagePositionPatientZ,
+                value=image_position[2],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=codes.UCUM.Millimeter
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientRowX,
+                value=image_orientation[0],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientRowY,
+                value=image_orientation[1],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientRowZ,
+                value=image_orientation[2],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientColumnX,
+                value=image_orientation[3],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientColumnY,
+                value=image_orientation[4],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            ),
+            NumContentItem(
+                name=codes.DCM.ImageOrientationPatientColumnZ,
+                value=image_orientation[5],
+                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                unit=CodedConcept(
+                    value='{-1:1}',
+                    meaning='{-1:1}',
+                    scheme_designator='UCUM'
+                )
+            )
+        ]
+        return descriptors
+
+    def _is_cross_sectional(self, ds: Dataset) -> bool:
+        return ds.Modality in ['CT', 'MR', 'PT']
+
+    def _is_projection_radiography(self, ds: Dataset) -> bool:
+        return ds.Modality in ['CR', 'DX', 'IO', 'MG', 'PX', 'RF', 'RG', 'XA']
 
 
 class MeasurementReport(Template):
@@ -3759,8 +4078,8 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Optional[
             LanguageOfContentItemAndDescendants
         ] = None,
-        image_library_groups: Optional[
-            Sequence[ImageLibraryEntryDescriptors]
+        referenced_images: Optional[
+            Sequence[Dataset]
         ] = None
     ):
         """
@@ -3782,8 +4101,8 @@ class MeasurementReport(Template):
         language_of_content_item_and_descendants: Union[highdicom.sr.LanguageOfContentItemAndDescendants, None], optional
             specification of the language of report content items
             (defaults to English)
-        image_library_groups: Union[Sequence[highdicom.sr.ImageLibraryEntry], None], optional
-            Entry descriptors for each image library group
+        referenced_images: Union[Sequence[pydicom.Dataset], None], optional
+            Images that should be included in the library
 
         """  # noqa: E501
         if title is None:
@@ -3808,18 +4127,14 @@ class MeasurementReport(Template):
             procedure_reported = [procedure_reported]
         for procedure in procedure_reported:
             procedure_item = CodeContentItem(
-                name=CodedConcept(
-                    value='121058',
-                    meaning='Procedure reported',
-                    scheme_designator='DCM',
-                ),
+                name=codes.DCM.ProcedureReported,
                 value=procedure,
                 relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             item.ContentSequence.append(procedure_item)
-
-        image_library_item = ImageLibrary(image_library_groups)
-        item.ContentSequence.extend(image_library_item)
+        if referenced_images:
+            image_library = ImageLibrary(referenced_images)
+            item.ContentSequence.extend(image_library)
 
         measurements: Union[
             MeasurementsAndQualitativeEvaluations,
@@ -3833,11 +4148,7 @@ class MeasurementReport(Template):
                 MeasurementsAndQualitativeEvaluations,
             )
             container_item = ContainerContentItem(
-                name=CodedConcept(
-                    value='126010',
-                    meaning='Imaging Measurements',
-                    scheme_designator='DCM'
-                ),
+                name=codes.DCM.ImagingMeasurements,
                 relationship_type=RelationshipTypeValues.CONTAINS
             )
             container_item.ContentSequence = ContentSequence()
@@ -4625,51 +4936,105 @@ class MeasurementReport(Template):
         return sequences
 
 
-class ImageLibrary(Template):
+class ImageLibraryEntry(Template):
 
-    """:dcm:`TID 1600 <part16/chapter_A.html#sect_TID_1600>` Image Library"""
+    """:dcm:`TID 1601 Image Library Entry <part16/chapter_A.html#sect_TID_1601>`
+    """  # noqa: E501
 
     def __init__(
         self,
-        groups: Optional[Sequence[ImageLibraryEntryDescriptors]] = None
+        dataset: Dataset,
     ) -> None:
         """
         Parameters
         ----------
-        groups: Union[Sequence[Sequence[highdicom.sr.ImageLibraryEntryDescriptors]], None], optional
-            Entry descriptors for each image library group
+        dataset: pydicom.dataset.Dataset
+            Image to include in image library
 
-        """  # noqa: E501
+        """
         super().__init__()
-        library_item = ContainerContentItem(
-            name=CodedConcept(
-                value='111028',
-                meaning='Image Library',
-                scheme_designator='DCM'
-            ),
+
+        library_item_entry = ImageLibraryEntryDescriptors(dataset)
+        group_item = ContainerContentItem(
+            name=codes.DCM.ImageLibraryGroup,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
-        content = ContentSequence()
-        if groups is not None:
-            for descriptor_items in groups:
-                group_item = ContainerContentItem(
+
+        group_item.ContentSequence = library_item_entry
+        self.append(group_item)
+
+
+class ImageLibrary(Template):
+
+    """:dcm:`TID 1600 Image Library <part16/chapter_A.html#sect_TID_1600>`
+    """  # noqa: E501
+
+    def __init__(
+        self,
+        datasets: Sequence[Dataset]
+    ) -> None:
+        """
+        Parameters
+        ----------
+        datasets: Sequence[pydicom.dataset.Dataset]
+            Image Datasets to include in image library. Non-image
+            objects will throw an exception.
+
+        """
+        super().__init__()
+        library_item = ContainerContentItem(
+            name=codes.DCM.ImageLibrary,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        library_item.ContentSequence = ContentSequence()
+        if datasets is not None:
+            groups = collections.defaultdict(list)
+            for ds in datasets:
+                modality = _get_coded_modality(ds.SOPClassUID)
+                image_item = ImageContentItem(
                     name=CodedConcept(
-                        value='126200',
-                        meaning='Image Library Group',
-                        scheme_designator='DCM'
+                        value='260753009',
+                        meaning='Source',
+                        scheme_designator='SCT'
                     ),
+                    referenced_sop_instance_uid=ds.SOPInstanceUID,
+                    referenced_sop_class_uid=ds.SOPClassUID,
                     relationship_type=RelationshipTypeValues.CONTAINS
                 )
-                group_item.ContentSequence = descriptor_items
-                # The Image Library Entry template contains the individual
-                # Image Library Entry Descriptors content items.
-                if not isinstance(descriptor_items,
-                                  ImageLibraryEntryDescriptors):
-                    raise TypeError(
-                        'Image library group items must have type '
-                        '"ImageLibraryEntry".'
+                descriptors = ImageLibraryEntryDescriptors(ds)
+
+                image_item.ContentSequence = ContentSequence()
+                image_item.ContentSequence.extend(descriptors)
+                if 'FrameOfReferenceUID' in ds:
+                    # Only type 1 attributes
+                    shared_descriptors = (
+                        modality,
+                        ds.FrameOfReferenceUID,
                     )
-                content.append(group_item)
-        if len(content) > 0:
-            library_item.ContentSequence = content
+                else:
+                    shared_descriptors = (
+                        modality,
+                    )
+                groups[shared_descriptors].append(image_item)
+
+            for shared_descriptors, image_items in groups.items():
+                image = image_items[0]
+                group_item = ContainerContentItem(
+                    name=codes.DCM.ImageLibraryGroup,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+                group_item.ContentSequence = ContentSequence()
+
+                if 'FrameOfReferenceUID' in image:
+                    group_item.ContentSequence.append(
+                        UIDRefContentItem(
+                            name=codes.DCM.FrameOfReferenceUID,
+                            value=shared_descriptors[1],
+                            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT  # noqa: E501
+                        )
+                    )
+                group_item.ContentSequence.extend(image_items)
+            if len(group_item) > 0:
+                library_item.ContentSequence.append(group_item)
+
         self.append(library_item)
