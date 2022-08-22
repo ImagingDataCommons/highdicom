@@ -1033,7 +1033,7 @@ class MeasurementProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=normality,
-                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             self.append(normality_item)
         if measurement_statistical_properties is not None:
@@ -1060,7 +1060,7 @@ class MeasurementProperties(Template):
                     scheme_designator='DCM'
                 ),
                 value=level_of_significance,
-                relationship_type=RelationshipTypeValues.HAS_PROPERTIES
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
             )
             self.append(level_of_significance_item)
         if selection_status is not None:
