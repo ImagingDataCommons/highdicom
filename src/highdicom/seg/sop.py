@@ -797,17 +797,11 @@ class Segmentation(SOPClass):
                 # absent. Such frames should be removed
                 if omit_empty_frames and np.sum(planes[j]) == 0:
                     logger.info(
-                        'skip empty plane {} of segment #{}'.format(
-                            j, segment_number
-                        )
+                        f'skip empty plane {j} of segment #{segment_number}'
                     )
                     continue
                 contained_plane_index.append(j)
-                logger.info(
-                    'add plane #{} for segment #{}'.format(
-                        j, segment_number
-                    )
-                )
+                logger.info(f'add plane #{j} for segment #{segment_number}')
 
                 pffp_item = Dataset()
                 frame_content_item = Dataset()
@@ -847,9 +841,9 @@ class Segmentation(SOPClass):
                             ]
                     except IndexError as error:
                         raise IndexError(
-                            'Could not determine position of plane #{} in '
+                            f'Could not determine position of plane #{j} in '
                             'three dimensional coordinate system based on '
-                            'dimension index values: {}'.format(j, error)
+                            f'dimension index values: {error}'
                         )
                 frame_content_item.DimensionIndexValues = (
                     [segment_number] + index_values
