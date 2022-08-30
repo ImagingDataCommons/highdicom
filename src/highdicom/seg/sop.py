@@ -274,9 +274,12 @@ class Segmentation(SOPClass):
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
 
-        if len(set([image.SOPInstanceUID for image in source_images])) > 1:
+        unique_sop_instance_uids = set(
+            [image.SOPInstanceUID for image in source_images]
+        )
+        if len(source_images) != len(unique_sop_instance_uids):
             raise ValueError(
-                'Source images must all have unique SOP Instance UID values.'
+                'Source images must all have a unique SOP Instance UID.'
             )
 
         uniqueness_criteria = set(
