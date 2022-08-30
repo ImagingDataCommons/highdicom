@@ -280,14 +280,29 @@ class Segmentation(SOPClass):
                 image.SeriesInstanceUID,
                 image.Rows,
                 image.Columns,
+                int(getattr(image, 'NumberOfFrames', '1')),
+                hasattr(image, 'FrameOfReferenceUID'),
                 getattr(image, 'FrameOfReferenceUID', None),
+                hasattr(image, 'TotalPixelMatrixRows'),
+                getattr(image, 'TotalPixelMatrixRows', None),
+                hasattr(image, 'TotalPixelMatrixColumns'),
+                getattr(image, 'TotalPixelMatrixColumns', None),
+                hasattr(image, 'TotalPixelMatrixFocalPlanes'),
+                getattr(image, 'TotalPixelMatrixFocalPlanes', None),
+                tuple(getattr(image, 'ImageOrientation', [])),
+                tuple(getattr(image, 'ImageOrientationSlide', [])),
+                hasattr(image, 'DimensionOrganizationType'),
+                getattr(image, 'DimensionOrganizationType', None),
+                len(getattr(image, 'PerFrameFunctionalGroupsSequence', [])),
+                len(getattr(image, 'SharedFunctionalGroupsSequence', [])),
             )
             for image in source_images
         )
         if len(uniqueness_criteria) > 1:
             raise ValueError(
-                'Source images must all be part of the same series and must '
-                'have the same image dimensions (number of rows/columns).'
+                'Source images must all be part of the same series, must '
+                'have the same image dimensions (number of rows/columns), and '
+                'must have the same image orientation.'
             )
 
         src_img = source_images[0]
