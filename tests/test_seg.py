@@ -1,6 +1,7 @@
 from collections import defaultdict
 import unittest
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import pytest
@@ -644,7 +645,7 @@ class TestSegmentation(unittest.TestCase):
             axis=2
         )[None, :]
 
-        # A microscopy image
+        # A microscopy (color) image
         self._sm_image = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
@@ -655,6 +656,16 @@ class TestSegmentation(unittest.TestCase):
             dtype=bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
+
+        # A microscopy (grayscale) image
+        self._sm_image_grayscale = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image_grayscale.dcm'))
+        )
+        self._sm_pixel_array_grayscale = np.zeros(
+            self._sm_image_grayscale.pixel_array.shape,
+            dtype=bool
+        )
+        self._sm_pixel_array_grayscale[2:3, 1:5, 7:9] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -1364,6 +1375,90 @@ class TestSegmentation(unittest.TestCase):
                 assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+
+    def test_construction_8(self):
+        sm_image_one = deepcopy(self._sm_image_grayscale)
+        sm_image_two = deepcopy(self._sm_image_grayscale)
+        sm_image_two.SOPInstanceUID = UID()
+        instance = Segmentation(
+            [sm_image_one, sm_image_two],
+            self._sm_pixel_array_grayscale,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        assert len(instance.SegmentSequence) == 1
+        assert len(instance.SourceImageSequence) == 2
+        ref_item_one = instance.SourceImageSequence[0]
+        assert ref_item_one.ReferencedSOPInstanceUID == \
+            sm_image_one.SOPInstanceUID
+        ref_item_two = instance.SourceImageSequence[1]
+        assert ref_item_two.ReferencedSOPInstanceUID == \
+            sm_image_two.SOPInstanceUID
+
+        num_frames = (self._sm_pixel_array.sum(axis=(1, 2)) > 0).sum()
+        assert instance.NumberOfFrames == num_frames
+        assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
+        frame_item = instance.PerFrameFunctionalGroupsSequence[0]
+        for derivation_image_item in frame_item.DerivationImageSequence:
+            assert len(derivation_image_item.SourceImageSequence) == 2
+            source_image_item_one = derivation_image_item.SourceImageSequence[0]
+            assert source_image_item_one.ReferencedSOPInstanceUID == \
+                sm_image_one.SOPInstanceUID
+            assert hasattr(source_image_item_one, 'ReferencedFrameNumber')
+            source_image_item_two = derivation_image_item.SourceImageSequence[1]
+            assert source_image_item_two.ReferencedSOPInstanceUID == \
+                sm_image_two.SOPInstanceUID
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_9(self):
+        sm_image_one = deepcopy(self._sm_image_grayscale)
+        sm_image_two = deepcopy(self._sm_image_grayscale)
+        sm_image_two.SOPInstanceUID = UID()
+        sm_image_two.Rows = sm_image_one.Rows - 1
+        with pytest.raises(ValueError):
+            Segmentation(
+                [sm_image_one, sm_image_two],
+                self._sm_pixel_array_grayscale,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number
+            )
+
+    def test_construction_10(self):
+        sm_image_one = deepcopy(self._sm_image_grayscale)
+        sm_image_two = deepcopy(self._sm_image_grayscale)
+        sm_image_two.SOPInstanceUID = UID()
+        sm_image_two.NumberOfFrames = str(int(sm_image_one.NumberOfFrames) + 5)
+        with pytest.raises(ValueError):
+            Segmentation(
+                [sm_image_one, sm_image_two],
+                self._sm_pixel_array_grayscale,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number
+            )
 
     def test_pixel_types(self):
         # A series of tests on different types of image
