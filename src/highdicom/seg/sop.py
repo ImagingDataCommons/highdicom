@@ -867,38 +867,51 @@ class Segmentation(SOPClass):
                     derivation_image_item.DerivationCodeSequence = [
                         CodedConcept.from_code(derivation_code)
                     ]
+                    derivation_image_item.SourceImageSequence = []
 
-                    derivation_src_img_item = Dataset()
-                    if hasattr(source_images[0], 'NumberOfFrames'):
-                        # A single multi-frame source image
-                        src_img_item = self.SourceImageSequence[0]
-                        # Frame numbers are one-based
-                        derivation_src_img_item.ReferencedFrameNumber = (
-                            source_image_index + 1
-                        )
+                    purpose_code = \
+                        codes.cid7202.SourceImageForImageProcessingOperation
+                    if is_multiframe:
+                        for src_img_item in self.SourceImageSequence:
+                            drv_src_img_item = Dataset()
+                            drv_src_img_item.ReferencedFrameNumber = (
+                                source_image_index + 1
+                            )
+                            drv_src_img_item.ReferencedSOPClassUID = \
+                                src_img_item.ReferencedSOPClassUID
+                            drv_src_img_item.ReferencedSOPInstanceUID = \
+                                src_img_item.ReferencedSOPInstanceUID
+                            drv_src_img_item.PurposeOfReferenceCodeSequence = [
+                                CodedConcept.from_code(purpose_code)
+                            ]
+                            drv_src_img_item.SpatialLocationsPreserved = 'YES'
+                            derivation_image_item.SourceImageSequence.append(
+                                drv_src_img_item
+                            )
                     else:
-                        # Multiple single-frame source images
                         src_img_item = self.SourceImageSequence[
                             source_image_index
                         ]
-                    derivation_src_img_item.ReferencedSOPClassUID = \
-                        src_img_item.ReferencedSOPClassUID
-                    derivation_src_img_item.ReferencedSOPInstanceUID = \
-                        src_img_item.ReferencedSOPInstanceUID
-                    purpose_code = \
-                        codes.cid7202.SourceImageForImageProcessingOperation
-                    derivation_src_img_item.PurposeOfReferenceCodeSequence = [
-                        CodedConcept.from_code(purpose_code)
-                    ]
-                    derivation_src_img_item.SpatialLocationsPreserved = 'YES'
-                    derivation_image_item.SourceImageSequence = [
-                        derivation_src_img_item,
-                    ]
+                        drv_src_img_item = Dataset()
+                        drv_src_img_item.ReferencedFrameNumber = (
+                            source_image_index + 1
+                        )
+                        drv_src_img_item.ReferencedSOPClassUID = \
+                            src_img_item.ReferencedSOPClassUID
+                        drv_src_img_item.ReferencedSOPInstanceUID = \
+                            src_img_item.ReferencedSOPInstanceUID
+                        drv_src_img_item.PurposeOfReferenceCodeSequence = [
+                            CodedConcept.from_code(purpose_code)
+                        ]
+                        drv_src_img_item.SpatialLocationsPreserved = 'YES'
+                        derivation_image_item.SourceImageSequence.append(
+                            drv_src_img_item
+                        )
                     pffp_item.DerivationImageSequence.append(
                         derivation_image_item
                     )
                 else:
-                    logger.warning('spatial locations not preserved')
+                    logger.warning('spatial locations are not preserved')
 
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
