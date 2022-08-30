@@ -274,6 +274,11 @@ class Segmentation(SOPClass):
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
 
+        if len(set([image.SOPInstanceUID for image in source_images])) > 1:
+            raise ValueError(
+                'Source images must all have unique SOP Instance UID values.'
+            )
+
         uniqueness_criteria = set(
             (
                 image.StudyInstanceUID,
@@ -752,6 +757,8 @@ class Segmentation(SOPClass):
             # bitpacking at the end
             full_pixel_array = np.array([], np.bool_)
 
+        derivation_code = codes.cid7203.Segmentation
+        purpose_code = codes.cid7202.SourceImageForImageProcessingOperation
         for i, segment_number in enumerate(described_segment_numbers):
             # Pixel array for just this segment
             if pixel_array.dtype in (np.float_, np.float32, np.float64):
@@ -862,53 +869,46 @@ class Segmentation(SOPClass):
                 pffp_item.DerivationImageSequence = []
 
                 if are_spatial_locations_preserved:
-                    derivation_image_item = Dataset()
-                    derivation_code = codes.cid7203.Segmentation
-                    derivation_image_item.DerivationCodeSequence = [
+                    derivation_img_item = Dataset()
+                    derivation_img_item.DerivationCodeSequence = [
                         CodedConcept.from_code(derivation_code)
                     ]
-                    derivation_image_item.SourceImageSequence = []
+                    derivation_img_item.SourceImageSequence = []
 
-                    purpose_code = \
-                        codes.cid7202.SourceImageForImageProcessingOperation
-                    if is_multiframe:
-                        for src_img_item in self.SourceImageSequence:
-                            drv_src_img_item = Dataset()
-                            drv_src_img_item.ReferencedFrameNumber = (
-                                source_image_index + 1
-                            )
-                            drv_src_img_item.ReferencedSOPClassUID = \
-                                src_img_item.ReferencedSOPClassUID
-                            drv_src_img_item.ReferencedSOPInstanceUID = \
-                                src_img_item.ReferencedSOPInstanceUID
-                            drv_src_img_item.PurposeOfReferenceCodeSequence = [
+                    for _, referenced_images in referenced_series.items():
+                        if is_multiframe:
+                            for src_item in referenced_images:
+                                drv_src_item = Dataset()
+                                drv_src_item.ReferencedFrameNumber = (
+                                    source_image_index + 1
+                                )
+                                drv_src_item.ReferencedSOPClassUID = \
+                                    src_item.ReferencedSOPClassUID
+                                drv_src_item.ReferencedSOPInstanceUID = \
+                                    src_item.ReferencedSOPInstanceUID
+                                drv_src_item.PurposeOfReferenceCodeSequence = [
+                                    CodedConcept.from_code(purpose_code)
+                                ]
+                                drv_src_item.SpatialLocationsPreserved = 'YES'
+                                derivation_img_item.SourceImageSequence.append(
+                                    drv_src_item
+                                )
+                        else:
+                            src_item = referenced_images[source_image_index]
+                            drv_src_item = Dataset()
+                            drv_src_item.ReferencedSOPClassUID = \
+                                src_item.ReferencedSOPClassUID
+                            drv_src_item.ReferencedSOPInstanceUID = \
+                                src_item.ReferencedSOPInstanceUID
+                            drv_src_item.PurposeOfReferenceCodeSequence = [
                                 CodedConcept.from_code(purpose_code)
                             ]
-                            drv_src_img_item.SpatialLocationsPreserved = 'YES'
-                            derivation_image_item.SourceImageSequence.append(
-                                drv_src_img_item
+                            drv_src_item.SpatialLocationsPreserved = 'YES'
+                            derivation_img_item.SourceImageSequence.append(
+                                drv_src_item
                             )
-                    else:
-                        src_img_item = self.SourceImageSequence[
-                            source_image_index
-                        ]
-                        drv_src_img_item = Dataset()
-                        drv_src_img_item.ReferencedFrameNumber = (
-                            source_image_index + 1
-                        )
-                        drv_src_img_item.ReferencedSOPClassUID = \
-                            src_img_item.ReferencedSOPClassUID
-                        drv_src_img_item.ReferencedSOPInstanceUID = \
-                            src_img_item.ReferencedSOPInstanceUID
-                        drv_src_img_item.PurposeOfReferenceCodeSequence = [
-                            CodedConcept.from_code(purpose_code)
-                        ]
-                        drv_src_img_item.SpatialLocationsPreserved = 'YES'
-                        derivation_image_item.SourceImageSequence.append(
-                            drv_src_img_item
-                        )
                     pffp_item.DerivationImageSequence.append(
-                        derivation_image_item
+                        derivation_img_item
                     )
                 else:
                     logger.warning('spatial locations are not preserved')
