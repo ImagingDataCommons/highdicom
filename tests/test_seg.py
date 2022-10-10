@@ -1379,6 +1379,7 @@ class TestSegmentation(unittest.TestCase):
     def test_construction_8(self):
         sm_image_one = deepcopy(self._sm_image_grayscale)
         sm_image_two = deepcopy(self._sm_image_grayscale)
+        sm_image_one.SOPInstanceUID = UID()
         sm_image_two.SOPInstanceUID = UID()
         instance = Segmentation(
             [sm_image_one, sm_image_two],

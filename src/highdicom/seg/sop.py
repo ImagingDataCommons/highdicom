@@ -285,7 +285,6 @@ class Segmentation(SOPClass):
         uniqueness_criteria = set(
             (
                 image.StudyInstanceUID,
-                image.SeriesInstanceUID,
                 image.Rows,
                 image.Columns,
                 int(getattr(image, 'NumberOfFrames', '1')),
@@ -308,10 +307,16 @@ class Segmentation(SOPClass):
         )
         if len(uniqueness_criteria) > 1:
             raise ValueError(
-                'Source images must all be part of the same series, must '
-                'have the same image dimensions (number of rows/columns), and '
-                'must have the same image orientation.'
+                'Source images must all have the same image dimensions '
+                '(number of rows/columns) and image orientation, '
+                'have the same frame of reference, '
+                'and contain the same number of frames.'
             )
+
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ...]
+        if pixel_array.ndim not in [3, 4]:
+            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         src_img = source_images[0]
         is_multiframe = hasattr(src_img, 'NumberOfFrames')
@@ -327,11 +332,6 @@ class Segmentation(SOPClass):
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
-
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
-        if pixel_array.ndim not in [3, 4]:
-            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
@@ -359,6 +359,56 @@ class Segmentation(SOPClass):
             software_versions=software_versions,
             **kwargs
         )
+
+        # General Reference
+        self.SourceImageSequence: List[Dataset] = []
+        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
+        for s_img in source_images:
+            ref = Dataset()
+            ref.ReferencedSOPClassUID = s_img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
+            self.SourceImageSequence.append(ref)
+            referenced_series[s_img.SeriesInstanceUID].append(ref)
+
+        if len(referenced_series) > 1:
+            if is_multiframe and not is_tiled:
+                raise ValueError(
+                    'If source images are multiple-frame images that are '
+                    'not tiled, then only a single source image from a single '
+                    'series must be provided.'
+                )
+            elif not is_multiframe:
+                raise ValueError(
+                    'If source images are single-frame images, then all '
+                    'source images must be from a single series.'
+                )
+
+        # Common Instance Reference
+        self.ReferencedSeriesSequence: List[Dataset] = []
+        for series_instance_uid, referenced_images in referenced_series.items():
+            if is_multiframe and not is_tiled:
+                if len(referenced_images) > 1:
+                    raise ValueError(
+                        'If source images are multiple-frame images that are '
+                        'not tiled, then only a single source image must be '
+                        f'provided. However, n={len(referenced_images)} images '
+                        f'were provided for series "{series_instance_uid}".'
+                    )
+            elif not is_multiframe:
+                if len(referenced_images) != pixel_array.shape[0]:
+                    raise ValueError(
+                        'If source images are single-frame images, then '
+                        f'then n={pixel_array.shape[0]} source images must be '
+                        'provided per series. '
+                        f'However, n={len(referenced_images)} images were '
+                        f'provided for series "{series_instance_uid}".'
+                    )
+
+            ref = Dataset()
+            ref.SeriesInstanceUID = series_instance_uid
+            ref.ReferencedInstanceSequence = list(referenced_images)
+            self.ReferencedSeriesSequence.append(ref)
+
 
         # Frame of Reference
         has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
@@ -412,24 +462,6 @@ class Segmentation(SOPClass):
                     "with the source images."
                 )
             self._coordinate_system = None
-
-        # General Reference
-        self.SourceImageSequence: List[Dataset] = []
-        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
-        for s_img in source_images:
-            ref = Dataset()
-            ref.ReferencedSOPClassUID = s_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
-            self.SourceImageSequence.append(ref)
-            referenced_series[s_img.SeriesInstanceUID].append(ref)
-
-        # Common Instance Reference
-        self.ReferencedSeriesSequence: List[Dataset] = []
-        for series_instance_uid, referenced_images in referenced_series.items():
-            ref = Dataset()
-            ref.SeriesInstanceUID = series_instance_uid
-            ref.ReferencedInstanceSequence = referenced_images
-            self.ReferencedSeriesSequence.append(ref)
 
         # Image Pixel
         self.Rows = pixel_array.shape[1]
