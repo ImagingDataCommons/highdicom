@@ -8,7 +8,7 @@ Installation guide
 Requirements
 ------------
 
-* `Python <https://www.python.org/>`_ (version 3.5 or higher)
+* `Python <https://www.python.org/>`_ (version 3.6 or higher)
 * Python package manager `pip <https://pip.pypa.io/en/stable/>`_
 
 .. _installation:
