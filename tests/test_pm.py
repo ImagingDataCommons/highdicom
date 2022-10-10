@@ -584,6 +584,7 @@ class TestParametricMap(unittest.TestCase):
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpegls(self):
+        pytest.importorskip("libjpeg")
         pixel_array = np.random.randint(
             low=0,
             high=2**8,

@@ -258,7 +258,18 @@ def encode_frame(
                 )
 
         elif transfer_syntax_uid == JPEGLSLossless:
-            import pillow_jpls  # noqa
+            try:
+                import pillow_jpls  # noqa
+            except ImportError as e:
+                raise ImportError(
+                    'In order to encode images using the JPEGLSLossless '
+                    'transfer syntax, highdicom requires the '
+                    '"pylibjpeg-libjpeg" package to be installed. This package '
+                    'is not installed by default as it uses a copyleft GPL v3 '
+                    'license. To accept the terms of the GPL v3 license and '
+                    'install highdicom with the "pylibjpeg-libjpeg" package, '
+                    'use "pip install highdicom[libjpeg]".'
+                ) from e
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
