@@ -99,9 +99,14 @@ class Segmentation(SOPClass):
         """
         Parameters
         ----------
-        source_images: Sequence[Dataset]
+        source_images: Sequence[pydicom.dataset.Dataset]
             One or more single- or multi-frame images (or metadata of images)
-            from which the segmentation was derived
+            from which the segmentation was derived. The images must have the
+            same dimensions (rows, columns) and orientation, have the same frame
+            of reference, and contain the same number of frames.
+            In case of multi-frame images that are tiled (e.g., VL Whole Slide
+            Microscopy Image instances), the images may be from more multiple
+            series as long as the other requirements are satisfied.
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. The array may
