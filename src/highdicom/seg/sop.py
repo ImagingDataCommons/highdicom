@@ -409,7 +409,6 @@ class Segmentation(SOPClass):
             ref.ReferencedInstanceSequence = list(referenced_images)
             self.ReferencedSeriesSequence.append(ref)
 
-
         # Frame of Reference
         has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
         if has_ref_frame_uid:
