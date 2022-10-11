@@ -99,61 +99,53 @@ class Segmentation(SOPClass):
         """
         Parameters
         ----------
-        source_images: Sequence[pydicom.dataset.Dataset]
+        source_images: Union[Sequence[pydicom.dataset.Dataset], Sequence[Sequence[pydicom.dataset.Dataset]]
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived. The images must have the
             same dimensions (rows, columns) and orientation, have the same frame
             of reference, and contain the same number of frames.
-            In case of multi-frame images that are tiled (e.g., VL Whole Slide
-            Microscopy Image instances), the images may be from more multiple
-            series as long as the other requirements are satisfied.
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. The array may
             be a 2D, 3D or 4D numpy array.
 
-            If it is a 2D numpy array, it represents the segmentation of a
-            single frame image, such as a planar x-ray or single instance from
-            a CT or MR series.
+            If it is a 2D numpy array, it represents the segmentation of an
+            individual image frame (such as a planar x-ray image, a single
+            plane of a CT or MR image, or a single tile of a SM image).
 
             If it is a 3D array, it represents the segmentation of either a
-            series of source images (such as a series of CT or MR images) a
-            single 3D multi-frame image (such as a multi-frame CT/MR image), or
-            a single 2D tiled image (such as a slide microscopy image).
+            series of single-frame images or a multi-frame image (such as a 3D
+            CT/MR image or a 2D tiled SM image).  If it represents the
+            segmentation of a 3D image, the first dimension represents
+            individual 2D planes.  Similarly, if it represents the segmentation
+            of a tiled 2D image, the first dimension represents individual 2D
+            tiles.  Unless the ``plane_positions`` parameter is provided, the
+            frame in ``pixel_array[i, ...]`` should correspond to either
+            ``source_images[i]`` (if `source_images` contains single-frame
+            images) or ``source_images[0].pixel_array[i, ...]`` (if
+            `source_images` contains multi-frame images).
 
-            If ``pixel_array`` represents the segmentation of a 3D image, the
-            first dimension represents individual 2D planes. Unless the
-            ``plane_positions`` parameter is provided, the frame in
-            ``pixel_array[i, ...]`` should correspond to either
-            ``source_images[i]`` (if ``source_images`` is a list of single
-            frame instances) or source_images[0].pixel_array[i, ...] if
-            ``source_images`` is a single multiframe instance.
-
-            Similarly, if ``pixel_array`` is a 3D array representing the
-            segmentation of a tiled 2D image, the first dimension represents
-            individual 2D tiles (for one channel and z-stack) and these tiles
-            correspond to the frames in the source image dataset.
-
-            If ``pixel_array`` is an unsigned integer or boolean array with
+            If `pixel_array` is an unsigned integer or boolean array with
             binary data (containing only the values ``True`` and ``False`` or
             ``0`` and ``1``) or a floating-point array, it represents a single
             segment. In the case of a floating-point array, values must be in
             the range 0.0 to 1.0.
 
-            Otherwise, if ``pixel_array`` is a 2D or 3D array containing multiple
-            unsigned integer values, each value is treated as a different
-            segment whose segment number is that integer value. This is
-            referred to as a *label map* style segmentation.  In this case, all
-            segments from 1 through ``pixel_array.max()`` (inclusive) must be
-            described in `segment_descriptions`, regardless of whether they are
-            present in the image.  Note that this is valid for segmentations
-            encoded using the ``"BINARY"`` or ``"FRACTIONAL"`` methods.
+            Otherwise, if `pixel_array` is a 2D or 3D array containing
+            multiple unsigned integer values, each value is treated as a
+            different segment whose segment number is that integer value. This
+            is referred to as a *label map* style segmentation.  In this case,
+            all segments from 1 through ``pixel_array.max()`` (inclusive) must
+            be described in `segment_descriptions`, regardless of whether they
+            are present in the image.  Note that this is valid for
+            segmentations encoded using the ``"BINARY"`` or ``"FRACTIONAL"``
+            methods.
 
             Note that that a 2D numpy array and a 3D numpy array with a
             single frame along the first dimension may be used interchangeably
             as segmentations of a single frame, regardless of their data type.
 
-            If ``pixel_array`` is a 4D numpy array, the first three dimensions
+            If `pixel_array` is a 4D numpy array, the first three dimensions
             are used in the same way as the 3D case and the fourth dimension
             represents multiple segments. In this case
             ``pixel_array[:, :, :, i]`` represents segment number ``i + 1``
@@ -264,6 +256,7 @@ class Segmentation(SOPClass):
                   and series.
                 * Items of `source_images` have different number of rows and
                   columns.
+                * Items of `source_images` have different image orientation.
                 * Length of `plane_positions` does not match number of segments
                   encoded in `pixel_array`.
                 * Length of `plane_positions` does not match number of 2D planes
@@ -368,21 +361,24 @@ class Segmentation(SOPClass):
         # General Reference
         self.SourceImageSequence: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
-        for s_img in source_images:
+        for img in source_images:
+            if is_multiframe:
+                num_frames = int(getattr(img, 'NumberOfFrames', '1'))
+                if num_frames != pixel_array.shape[0]:
+                    raise ValueError(
+                        'If source images are multiple-frame images, then '
+                        f'each image must contain n={pixel_array.shape[0]} '
+                        f'frames. However, image "{img.SOPInstanceUID}" '
+                        f'contains n={num_frames} frames.'
+                    )
             ref = Dataset()
-            ref.ReferencedSOPClassUID = s_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
+            ref.ReferencedSOPClassUID = img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = img.SOPInstanceUID
             self.SourceImageSequence.append(ref)
-            referenced_series[s_img.SeriesInstanceUID].append(ref)
+            referenced_series[img.SeriesInstanceUID].append(ref)
 
         if len(referenced_series) > 1:
-            if is_multiframe and not is_tiled:
-                raise ValueError(
-                    'If source images are multiple-frame images that are '
-                    'not tiled, then only a single source image from a single '
-                    'series must be provided.'
-                )
-            elif not is_multiframe:
+            if not is_multiframe:
                 raise ValueError(
                     'If source images are single-frame images, then all '
                     'source images must be from a single series.'
@@ -391,15 +387,7 @@ class Segmentation(SOPClass):
         # Common Instance Reference
         self.ReferencedSeriesSequence: List[Dataset] = []
         for series_instance_uid, referenced_images in referenced_series.items():
-            if is_multiframe and not is_tiled:
-                if len(referenced_images) > 1:
-                    raise ValueError(
-                        'If source images are multiple-frame images that are '
-                        'not tiled, then only a single source image must be '
-                        f'provided. However, n={len(referenced_images)} images '
-                        f'were provided for series "{series_instance_uid}".'
-                    )
-            elif not is_multiframe:
+            if not is_multiframe:
                 if len(referenced_images) != pixel_array.shape[0]:
                     raise ValueError(
                         'If source images are single-frame images, then '
@@ -408,7 +396,6 @@ class Segmentation(SOPClass):
                         f'However, n={len(referenced_images)} images were '
                         f'provided for series "{series_instance_uid}".'
                     )
-
             ref = Dataset()
             ref.SeriesInstanceUID = series_instance_uid
             ref.ReferencedInstanceSequence = list(referenced_images)
