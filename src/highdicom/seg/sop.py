@@ -99,7 +99,7 @@ class Segmentation(SOPClass):
         """
         Parameters
         ----------
-        source_images: Union[Sequence[pydicom.dataset.Dataset], Sequence[Sequence[pydicom.dataset.Dataset]]
+        source_images: Sequence[pydicom.dataset.Dataset]
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived. The images must have the
             same dimensions (rows, columns) and orientation, have the same frame
