@@ -55,10 +55,13 @@ setuptools.setup(
         'numpy>=1.19',
         'pillow>=8.3',
         'pillow-jpls>=1.0',
-        'pylibjpeg>=1.4',
         'pylibjpeg-openjpeg>=1.2',
     ],
     extras_requires={
-        'libjpeg': ['pylibjpeg-libjpeg>=1.3'],
+        'libjpeg': [
+            'pylibjpeg>=1.4',
+            'pylibjpeg-libjpeg>=1.3',
+            'pylibjpeg-openjpeg>=1.2'
+        ],
     },
 )
