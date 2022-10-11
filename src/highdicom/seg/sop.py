@@ -105,7 +105,7 @@ class Segmentation(SOPClass):
             same dimensions (rows, columns) and orientation, have the same frame
             of reference, and contain the same number of frames.
             In case of multi-frame images that are tiled (e.g., VL Whole Slide
-            Microscopy Image instances), the images may be from more multiple
+            Microscopy Image instances), the images may be from multiple
             series as long as the other requirements are satisfied.
         pixel_array: numpy.ndarray
             Array of segmentation pixel data of boolean, unsigned integer or
