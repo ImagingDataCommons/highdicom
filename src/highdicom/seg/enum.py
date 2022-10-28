@@ -17,6 +17,7 @@ class SegmentationTypeValues(Enum):
 
     BINARY = 'BINARY'
     FRACTIONAL = 'FRACTIONAL'
+    LABELED = 'LABELED'
 
 
 class SegmentationFractionalTypeValues(Enum):
