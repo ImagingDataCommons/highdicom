@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite our paper."
+authors:
+- family-names: "Herrmann"
+  given-names: "Markus D."
+- family-names: "Bridge"
+  given-names: "Christopher P."
+- family-names: "Fedorov"
+  given-names: "Andriy Y."
+- family-names: "Pieper"
+  given-names: "Steven"
+- family-names: "Doyle"
+  given-names: "Sean W."
+- family-names: "Gorman"
+  given-names: "Chris"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Bridge"
+      given-names: "Christopher P."
+      orcid: "https://orcid.org/0000-0002-2242-351X"
+    - family-names: "Gorman"
+      given-names: "Chris"
+    - family-names: "Pieper"
+      given-names: "Steven"
+    - family-names: "Doyle"
+      given-names: "Sean W."
+    - family-names: "Lennerz"
+      given-names: "Jochen K."
+    - family-names: "Kalpathy-Cramer"
+      given-names: "Jayashree "
+    - family-names: "Clunie"
+      given-names: "David A."
+    - family-names: "Fedorov"
+      given-names: "Andriy Y."
+    - family-names: "Herrmann"
+      given-names: "Markus D."
+      orcid: "https://orcid.org/0000-0002-7257-9205"
+  title: "Highdicom: a Python Library for Standardized Encoding of Image Annotations and Machine Learning Model Outputs in Pathology and Radiology"
+  journal: "J Digit Imaging"
+  year: 2022
+  doi: 10.1007/s10278-022-00683-y
