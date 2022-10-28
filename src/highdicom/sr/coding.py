@@ -1,3 +1,4 @@
+from copy import deepcopy
 import logging
 from typing import Any, Optional, Union
 
@@ -64,13 +65,15 @@ class CodedConcept(Dataset):
             whether `self` and `other` are considered equal
 
         """
-        this = Code(
-            self.value,
-            self.scheme_designator,
-            self.meaning,
-            self.scheme_version
-        )
-        return Code.__eq__(this, other)
+        if isinstance(other, (Code, CodedConcept)):
+            this = Code(
+                self.value,
+                self.scheme_designator,
+                self.meaning,
+                self.scheme_version
+            )
+            return Code.__eq__(this, other)
+        return super().__eq__(other)
 
     def __ne__(self, other: Any) -> bool:
         """Compares `self` and `other` for inequality.
@@ -121,12 +124,9 @@ class CodedConcept(Dataset):
                     'Dataset does not contain the following attribute '
                     f'required for coded concepts: {kw}.'
                 )
-        return cls(
-            value=dataset.CodeValue,
-            scheme_designator=dataset.CodingSchemeDesignator,
-            meaning=dataset.CodeMeaning,
-            scheme_version=getattr(dataset, 'CodingSchemeVersion', None)
-        )
+        concept = deepcopy(dataset)
+        concept.__class__ = cls
+        return concept
 
     @classmethod
     def from_code(cls, code: Union[Code, 'CodedConcept']) -> 'CodedConcept':
