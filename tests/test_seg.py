@@ -1870,6 +1870,51 @@ class TestSegmentation:
                 device_serial_number=self._device_serial_number
             )
 
+    def test_construction_empty_source_seg_sparse(self):
+        # Can encoding an empty segmentation with omit_empty_frames=True issues
+        # a warning and encodes the full segmentation
+        empty_pixel_array = np.zeros_like(self._ct_pixel_array)
+        seg = Segmentation(
+            source_images=[self._ct_image],
+            pixel_array=empty_pixel_array,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+            segment_descriptions=(
+                self._segment_descriptions
+            ),
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            omit_empty_frames=True,
+        )
+
+        assert seg.pixel_array.shape == empty_pixel_array.shape
+
+    def test_construction_empty_seg_image(self):
+        # Can encode an empty segmentation with omit_empty_frames=False
+        empty_pixel_array = np.zeros_like(self._ct_pixel_array)
+        Segmentation(
+            source_images=[self._ct_image],
+            pixel_array=empty_pixel_array,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+            segment_descriptions=(
+                self._segment_descriptions
+            ),
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            omit_empty_frames=False,
+        )
+
     def test_construction_invalid_content_label(self):
         with pytest.raises(ValueError):
             Segmentation(

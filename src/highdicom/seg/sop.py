@@ -584,6 +584,13 @@ class Segmentation(SOPClass):
             segmentation_type
         )
         self.SegmentsOverlap = segments_overlap.value
+        if omit_empty_frames and pixel_array.sum() == 0:
+            omit_empty_frames = False
+            logger.warning(
+                'Encoding an empty segmentation with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.'
+            )
 
         if has_ref_frame_uid:
             if plane_positions is None:
