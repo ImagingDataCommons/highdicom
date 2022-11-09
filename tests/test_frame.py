@@ -215,6 +215,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpegls_rgb(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         frame = np.ones((16, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
         frame *= 255
@@ -244,6 +245,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpegls_monochrome(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 16
         frame = np.zeros((16, 32), dtype=np.dtype(f'uint{bits_allocated}'))
         compressed_frame = encode_frame(
