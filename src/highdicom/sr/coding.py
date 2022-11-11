@@ -92,13 +92,21 @@ class CodedConcept(Dataset):
         return not (self == other)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'CodedConcept':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'CodedConcept':
         """Construct a CodedConcept from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a coded concept.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -124,7 +132,10 @@ class CodedConcept(Dataset):
                     'Dataset does not contain the following attribute '
                     f'required for coded concepts: {kw}.'
                 )
-        concept = deepcopy(dataset)
+        if copy:
+            concept = deepcopy(dataset)
+        else:
+            concept = dataset
         concept.__class__ = cls
         return concept
 
