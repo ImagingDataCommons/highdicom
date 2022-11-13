@@ -3996,6 +3996,15 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert isinstance(report, Comprehensive3DSR)
         assert isinstance(report.content, ContentSequence)
         assert isinstance(report.content, MeasurementReport)
+        assert report is not self._sr_document
+
+    def test_from_dataset_no_copy(self):
+        tmp = deepcopy(self._sr_document)
+        report = Comprehensive3DSR.from_dataset(tmp, copy=False)
+        assert isinstance(report, Comprehensive3DSR)
+        assert isinstance(report.content, ContentSequence)
+        assert isinstance(report.content, MeasurementReport)
+        assert report is tmp
 
     def test_evidence_duplication(self):
         report = Comprehensive3DSR(

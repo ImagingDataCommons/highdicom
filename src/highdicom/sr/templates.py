@@ -4189,7 +4189,8 @@ class MeasurementReport(Template):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset],
-        is_root: bool = True
+        is_root: bool = True,
+        copy: bool = True,
     ) -> 'MeasurementReport':
         """Construct object from a sequence of datasets.
 
@@ -4202,6 +4203,10 @@ class MeasurementReport(Template):
             Whether the sequence is used to contain SR Content Items that are
             intended to be added to an SR document at the root of the document
             content tree
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -4226,7 +4231,11 @@ class MeasurementReport(Template):
                 'Item #1 of sequence is not an appropriate SR Content Item '
                 'because it does not have Template Identifier "1500".'
             )
-        instance = ContentSequence.from_sequence(sequence, is_root=True)
+        instance = ContentSequence.from_sequence(
+            sequence,
+            is_root=True,
+            copy=copy
+        )
         instance.__class__ = MeasurementReport
         return cast(MeasurementReport, instance)
 
