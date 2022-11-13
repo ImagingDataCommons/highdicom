@@ -177,7 +177,10 @@ class ContentItem(Dataset):
         """
         value_type = ValueTypeValues(dataset.ValueType)
         content_item_cls = _get_content_item_class(value_type)
-        return content_item_cls.from_dataset(dataset, copy=False)  # type: ignore
+        return content_item_cls.from_dataset(
+            dataset,
+            copy=False
+        )  # type: ignore
 
     @classmethod
     def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
