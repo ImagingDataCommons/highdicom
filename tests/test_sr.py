@@ -577,6 +577,14 @@ class TestContentItem(unittest.TestCase):
         assert isinstance(item.name, CodedConcept)
         assert item.name == name
         assert item.TextValue == dataset.TextValue
+        assert item is not dataset
+
+        item = TextContentItem.from_dataset(dataset, copy=False)
+        assert isinstance(item, TextContentItem)
+        assert isinstance(item.name, CodedConcept)
+        assert item.name == name
+        assert item.TextValue == dataset.TextValue
+        assert item is dataset
 
     def test_text_item_from_dataset_with_missing_name(self):
         dataset = Dataset()
