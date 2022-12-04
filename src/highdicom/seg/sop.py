@@ -1506,7 +1506,7 @@ class Segmentation(SOPClass):
             ]
 
         # Build LUT from columns
-        self._frame_lut = np.array(col_data).T
+        self._frame_lut = np.array(col_data, dtype=np.int16).T
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -1791,7 +1791,7 @@ class Segmentation(SOPClass):
     def segmented_property_types(self) -> List[CodedConcept]:
         """Get all unique segmented property types in this SEG image.
 
-        Returns
+        Returnsgt
         -------
         List[CodedConcept]
             All unique segmented property types referenced in segment
@@ -1819,7 +1819,8 @@ class Segmentation(SOPClass):
         segment_numbers: np.ndarray,
         combine_segments: bool = False,
         relabel: bool = False,
-        rescale_fractional: bool = True
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -1858,6 +1859,12 @@ class Segmentation(SOPClass):
             each pixel lies in the range 0.0 to 1.0. If False, the raw integer
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlay between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlay. However, this reduces performance significantly. If checks
+            are skipped and multiple segments do overlap, the segment with the
+            highest segment number will be placed into the output array.
 
         Returns
         -------
@@ -1898,42 +1905,6 @@ class Segmentation(SOPClass):
                 'Segment numbers array contains invalid values.'
             )
 
-        # Initialize empty pixel array
-        pixel_array = np.zeros(
-            (
-                seg_frames_matrix.shape[0],
-                self.Rows,
-                self.Columns,
-                seg_frames_matrix.shape[1]
-            ),
-            self.pixel_array.dtype
-        )
-
-        # Loop through output frames
-        for out_frm, frm_row in enumerate(seg_frames_matrix):
-            # Loop through segmentation frames
-            for out_seg, seg_frame_num in enumerate(frm_row):
-                if seg_frame_num >= 1:
-                    seg_frame_ind = seg_frame_num.item() - 1
-                    # Copy data to to output array
-                    if self.pixel_array.ndim == 2:
-                        # Special case with a single segmentation frame
-                        pixel_array[out_frm, :, :, out_seg] = \
-                            self.pixel_array
-                    else:
-                        pixel_array[out_frm, :, :, out_seg] = \
-                            self.pixel_array[seg_frame_ind, :, :]
-
-        if rescale_fractional:
-            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
-                if pixel_array.max() > self.MaximumFractionalValue:
-                    raise RuntimeError(
-                        'Segmentation image contains values greater than the '
-                        'MaximumFractionalValue recorded in the dataset.'
-                    )
-                max_val = self.MaximumFractionalValue
-                pixel_array = pixel_array.astype(np.float32) / max_val
-
         if combine_segments:
             # Check whether segmentation is binary, or fractional with only
             # binary values
@@ -1945,34 +1916,111 @@ class Segmentation(SOPClass):
                         'set to True.'
                     )
                 is_binary = np.isin(
-                    np.unique(pixel_array),
+                    np.unique(self.pixel_array),
                     np.array([0.0, 1.0]),
                     assume_unique=True
                 )
                 if not is_binary.all():
                     raise ValueError(
-                        'Cannot combine segments if the segmentation is not'
+                        'Cannot combine segments if the segmentation is not '
                         'binary'
                     )
 
-            # Check for overlap by summing over the segments dimension
-            if np.any(pixel_array.sum(axis=-1) > 1):
-                raise RuntimeError(
-                    'Segments cannot be combined because they overlap'
-                )
-
-            # Scale the array by the segment number using broadcasting
-            if relabel:
-                pixel_value_map = np.arange(1, len(segment_numbers) + 1)
+            # Initialize empty pixel array
+            # TODO check dtype is OK???
+            # TODO apply fractional scaling before
+            if self.pixel_array.ndim == 2:
+                frames = 1
+                h, w = self.pixel_array.shape
             else:
-                pixel_value_map = segment_numbers
-            scaled_array = pixel_array * pixel_value_map.reshape(1, 1, 1, -1)
+                frames, h, w = self.pixel_array.shape
 
-            # Combine segments by taking maximum down final dimension
-            max_array = scaled_array.max(axis=-1)
-            pixel_array = max_array
+            out_array = np.zeros(
+                (seg_frames_matrix.shape[0], h, w),
+                dtype=np.uint16
+            )
+            # Pre-scale the array by the segment number. This may not make
+            # sense for a small number of segments
+            if self.pixel_array.ndim == 2:
+                # Special case with a single segmentation frame
+                frm_seg_nums = self._frame_lut[
+                    0,
+                    self._lut_seg_col
+                ].astype(np.uint16)
+                scaled_array = self.pixel_array[None, :, :] * frm_seg_nums
+            else:
+                if relabel:
+                    pixel_value_map = np.array(
+                        [
+                            (
+                                np.where(segment_numbers == v)[0].item() + 1
+                                if v in segment_numbers else 0
+                            )
+                            for v in self._frame_lut[:, self._lut_seg_col]
+                        ],
+                        np.uint16
+                    )
+                else:
+                    pixel_value_map = self._frame_lut[
+                        :,
+                        self._lut_seg_col
+                    ].astype(np.uint16)
 
-        return pixel_array
+                # Scale each frame by its output ID using broadcasting
+                scaled_array = self.pixel_array * pixel_value_map[:, None, None]
+
+            # Loop through output frames
+            for out_frm, frm_row in enumerate(seg_frames_matrix):
+                seg_frames = frm_row[frm_row > 0] - 1
+                if seg_frames.shape[0] > 0:
+                    frame_arr = scaled_array[seg_frames, :, :]
+                    max_frame_arr = frame_arr.max(axis=0)
+                    if not skip_overlap_checks:
+                        if (frame_arr.sum(axis=0) > max_frame_arr).any():
+                            raise RuntimeError(
+                                "Cannot combine segments because they overlap."
+                             )
+                    out_array[out_frm, :, :] = max_frame_arr
+
+        else:
+            # Initialize empty pixel array
+            out_array = np.zeros(
+                (
+                    seg_frames_matrix.shape[0],
+                    self.Rows,
+                    self.Columns,
+                    seg_frames_matrix.shape[1]
+                ),
+                self.pixel_array.dtype
+            )
+
+            # Loop through output frames
+            for out_frm, frm_row in enumerate(seg_frames_matrix):
+                # Loop through segmentation frames
+                for out_seg, seg_frame_num in enumerate(frm_row):
+                    if seg_frame_num >= 1:
+                        seg_frame_ind = seg_frame_num.item() - 1
+                        # Copy data to to output array
+                        if self.pixel_array.ndim == 2:
+                            # Special case with a single segmentation frame
+                            out_array[out_frm, :, :, out_seg] = \
+                                self.pixel_array
+                        else:
+                            out_array[out_frm, :, :, out_seg] = \
+                                self.pixel_array[seg_frame_ind, :, :]
+
+            if rescale_fractional:
+                if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    if out_array.max() > self.MaximumFractionalValue:
+                        raise RuntimeError(
+                            'Segmentation image contains values greater than '
+                            'the MaximumFractionalValue recorded in the '
+                            'dataset.'
+                        )
+                    max_val = self.MaximumFractionalValue
+                    out_array = out_array.astype(np.float32) / max_val
+
+        return out_array
 
     def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
         """Get UIDs for all source SOP instances referenced in the dataset.
