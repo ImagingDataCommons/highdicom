@@ -1946,7 +1946,7 @@ class Segmentation(SOPClass):
 
             # Initialize empty pixel array
             # TODO check dtype is OK???
-            out_array = np.zeros((nfo, h, w), pixel_array.dtype)
+            out_array = np.zeros((nfo, h, w), np.uint16)
 
             # Loop over output frames
             for fo in range(nfo):
@@ -2649,7 +2649,8 @@ class Segmentation(SOPClass):
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
-            rescale_fractional=rescale_fractional
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
         )
 
     def get_pixels_by_dimension_index_values(
