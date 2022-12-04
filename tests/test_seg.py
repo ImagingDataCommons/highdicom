@@ -3145,6 +3145,7 @@ class TestSegmentationParsing(unittest.TestCase):
             )
 
     def test_get_pixels_by_source_instances_overlap(self):
+        # Test that overlapping segments are detected
         all_source_sop_uids = [
             tup[-1] for tup in
             self._ct_binary_overlap_seg.get_source_image_uids()
@@ -3168,6 +3169,38 @@ class TestSegmentationParsing(unittest.TestCase):
                 source_sop_instance_uids=source_sop_uids,
                 combine_segments=True
             )
+
+    def test_get_pixels_by_source_instances_overlap_no_checks(self):
+        # Test that skipping overlapping tests works as expected
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_overlap_seg.Rows,
+            self._ct_binary_overlap_seg.Columns,
+            self._ct_binary_overlap_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        out = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True,
+            skip_overlap_checks=True,
+        )
+        raw_pix_arr = self._ct_binary_overlap_seg.pixel_array
+        expected_array = np.maximum(
+            raw_pix_arr[:4, ...],
+            raw_pix_arr[4:, ...] * 2
+        )
+        assert np.array_equal(expected_array, out)
 
 
 class TestSegUtilities(unittest.TestCase):

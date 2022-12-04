@@ -1905,94 +1905,75 @@ class Segmentation(SOPClass):
                 'Segment numbers array contains invalid values.'
             )
 
+        nfo, nseg = seg_frames_matrix.shape
+        if self.pixel_array.ndim == 2:
+            nfi = 1
+            h, w = self.pixel_array.shape
+        else:
+            nfi, h, w = self.pixel_array.shape
+
         if combine_segments:
             # Check whether segmentation is binary, or fractional with only
             # binary values
-            if self.segmentation_type != SegmentationTypeValues.BINARY:
+            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
                 if not rescale_fractional:
                     raise ValueError(
                         'In order to combine segments of a FRACTIONAL '
                         'segmentation image, rescale_fractional must be '
                         'set to True.'
                     )
+                # Combining fractional segs is only possible if there are
+                # two unique values in the array: 0 and MaximumFractionalValue
                 is_binary = np.isin(
                     np.unique(self.pixel_array),
-                    np.array([0.0, 1.0]),
+                    np.array([0, self.MaximumFractionalValue]),
                     assume_unique=True
                 )
                 if not is_binary.all():
                     raise ValueError(
-                        'Cannot combine segments if the segmentation is not '
-                        'binary'
+                        'Combining segments of a FRACTIONAL segmentation is '
+                        'only possible if the pixel array contains only 0s '
+                        'and the specified MaximumFractionalValue '
+                        f'({self.MaximumFractionalValue}).'
                     )
+                pixel_array = self.pixel_array // self.MaximumFractionalValue
+                pixel_array = pixel_array.astype(np.uint8)
+            else:
+                pixel_array = self.pixel_array
+
+            if pixel_array.ndim == 2:
+                pixel_array = pixel_array[None, :, :]
 
             # Initialize empty pixel array
             # TODO check dtype is OK???
-            # TODO apply fractional scaling before
-            if self.pixel_array.ndim == 2:
-                frames = 1
-                h, w = self.pixel_array.shape
-            else:
-                frames, h, w = self.pixel_array.shape
+            out_array = np.zeros((nfo, h, w), pixel_array.dtype)
 
-            out_array = np.zeros(
-                (seg_frames_matrix.shape[0], h, w),
-                dtype=np.uint16
-            )
-            # Pre-scale the array by the segment number. This may not make
-            # sense for a small number of segments
-            if self.pixel_array.ndim == 2:
-                # Special case with a single segmentation frame
-                frm_seg_nums = self._frame_lut[
-                    0,
-                    self._lut_seg_col
-                ].astype(np.uint16)
-                scaled_array = self.pixel_array[None, :, :] * frm_seg_nums
-            else:
-                if relabel:
-                    pixel_value_map = np.array(
-                        [
-                            (
-                                np.where(segment_numbers == v)[0].item() + 1
-                                if v in segment_numbers else 0
-                            )
-                            for v in self._frame_lut[:, self._lut_seg_col]
-                        ],
-                        np.uint16
-                    )
-                else:
-                    pixel_value_map = self._frame_lut[
-                        :,
-                        self._lut_seg_col
-                    ].astype(np.uint16)
-
-                # Scale each frame by its output ID using broadcasting
-                scaled_array = self.pixel_array * pixel_value_map[:, None, None]
-
-            # Loop through output frames
-            for out_frm, frm_row in enumerate(seg_frames_matrix):
-                seg_frames = frm_row[frm_row > 0] - 1
-                if seg_frames.shape[0] > 0:
-                    frame_arr = scaled_array[seg_frames, :, :]
-                    max_frame_arr = frame_arr.max(axis=0)
-                    if not skip_overlap_checks:
-                        if (frame_arr.sum(axis=0) > max_frame_arr).any():
-                            raise RuntimeError(
-                                "Cannot combine segments because they overlap."
-                             )
-                    out_array[out_frm, :, :] = max_frame_arr
+            # Loop over output frames
+            for fo in range(nfo):
+                # Loop over segmentation indices
+                for seg_ind, seg_n in enumerate(segment_numbers):
+                    fi = seg_frames_matrix[fo, seg_ind] - 1
+                    pix_value = seg_ind + 1 if relabel else seg_n
+                    if fi >= 0:
+                        if seg_ind > 0 and not skip_overlap_checks:
+                            if np.any(
+                                np.logical_and(
+                                    pixel_array[fi, :, :] > 0,
+                                    out_array[fo, :, :] > 0
+                                )
+                            ):
+                                raise RuntimeError(
+                                    "Cannot combine segments because segments "
+                                    "overlap."
+                                )
+                        out_array[fo, :, :] = np.maximum(
+                            pixel_array[fi, :, :] * pix_value,
+                            out_array[fo, :, :]
+                        )
 
         else:
             # Initialize empty pixel array
-            out_array = np.zeros(
-                (
-                    seg_frames_matrix.shape[0],
-                    self.Rows,
-                    self.Columns,
-                    seg_frames_matrix.shape[1]
-                ),
-                self.pixel_array.dtype
-            )
+            out_array = np.zeros((nfo, h, w, nseg), self.pixel_array.dtype)
 
             # Loop through output frames
             for out_frm, frm_row in enumerate(seg_frames_matrix):
@@ -2164,7 +2145,8 @@ class Segmentation(SOPClass):
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
         assert_missing_frames_are_empty: bool = False,
-        rescale_fractional: bool = True
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -2258,6 +2240,12 @@ class Segmentation(SOPClass):
             each pixel lies in the range 0.0 to 1.0. If False, the raw integer
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlay between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlay. However, this reduces performance significantly. If checks
+            are skipped and multiple segments do overlap, the segment with the
+            highest segment number will be placed into the output array.
 
         Returns
         -------
@@ -2333,7 +2321,8 @@ class Segmentation(SOPClass):
                 'uniquely identify frames of the segmentation image.'
             )
 
-        # Build the segmentation frame matrix
+        # Get a list of numerical indices for requested SOPInstanceUIDS
+        frame_indices = np.zeros(len(source_sop_instance_uids), np.uint32)
         for r, sop_uid in enumerate(source_sop_instance_uids):
             # Check whether this source UID exists in the LUT
             try:
@@ -2341,41 +2330,49 @@ class Segmentation(SOPClass):
             except KeyError as e:
                 if assert_missing_frames_are_empty:
                     continue
-                else:
-                    msg = (
-                        f'SOP Instance UID {sop_uid} does not match any '
-                        'referenced source frames. To return an empty '
-                        'segmentation mask in this situation, use the '
-                        "'assert_missing_frames_are_empty' parameter."
-                    )
-                    raise KeyError(msg) from e
+                msg = (
+                    f'SOP Instance UID {sop_uid} does not match any '
+                    'referenced source frames. To return an empty '
+                    'segmentation mask in this situation, use the '
+                    "'assert_missing_frames_are_empty' parameter."
+                )
+                raise KeyError(msg) from e
+            frame_indices[r] = src_uid_ind
 
-            # Iterate over segment numbers for this source instance
-            for c, seg_num in enumerate(segment_numbers):
-                # Use LUT to find the segmentation frame containing
-                # the source frame and segment number
-                qry = np.array([src_uid_ind, seg_num])
-                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
-                if len(seg_frm_indices) == 1:
-                    seg_frames[r, c] = seg_frm_indices[0] + 1
-                elif len(seg_frm_indices) > 0:
-                    # This should never happen due to earlier checks
-                    # on unique rows
-                    raise RuntimeError(
-                        'An unexpected error was encountered during '
-                        'indexing of the segmentation image. Please '
-                        'file a bug report with the highdicom repository.'
-                    )
-                # else no segmentation frame found for this segment number,
-                # assume this frame is empty and leave the entry in seg_frames
-                # as -1
+        # Loop through each row of the LUT and determine whether the
+        # corresponding segmentation frame is required in the output, and if so,
+        # where
+        for seg_frm, lut_row in enumerate(lut):
+            # Source frame index and segment number for this LUT row
+            lut_src, lut_segno = lut_row.ravel()
+
+            # Find indices (if any) of these value in the lists of required
+            # output source frames and segments
+            out_frm_inds = np.where(frame_indices == lut_src)[0]
+            out_seg_inds = np.where(segment_numbers == lut_segno)[0]
+
+            if len(out_frm_inds) > 1:
+                # This should never happen due to earlier checks
+                # on unique rows
+                raise RuntimeError(
+                    'An unexpected error was encountered during '
+                    'indexing of the segmentation image. Please '
+                    'file a bug report with the highdicom repository.'
+                )
+
+            # Frame is only required if there is an index for both
+            if len(out_frm_inds) > 0 and len(out_seg_inds) > 0:
+                r = out_frm_inds[0]
+                c = out_seg_inds[0]
+                seg_frames[r, c] = seg_frm + 1
 
         return self._get_pixels_by_seg_frame(
             seg_frames_matrix=seg_frames,
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
-            rescale_fractional=rescale_fractional
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
         )
 
     def get_pixels_by_source_frame(
@@ -2387,7 +2384,8 @@ class Segmentation(SOPClass):
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
         assert_missing_frames_are_empty: bool = False,
-        rescale_fractional: bool = True
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -2486,6 +2484,12 @@ class Segmentation(SOPClass):
             each pixel lies in the range 0.0 to 1.0. If False, the raw integer
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlay between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlay. However, this reduces performance significantly. If checks
+            are skipped and multiple segments do overlap, the segment with the
+            highest segment number will be placed into the output array.
 
         Returns
         -------
@@ -2602,35 +2606,43 @@ class Segmentation(SOPClass):
             if src_frm_num not in lut[:, 0]:
                 if assert_missing_frames_are_empty:
                     continue
-                else:
-                    msg = (
-                        f'Source frame number {src_frm_num} does not '
-                        'match any referenced source frame. To return '
-                        'an empty segmentation mask in this situation, '
-                        "use the 'assert_missing_frames_are_empty' "
-                        'parameter.'
-                    )
-                    raise ValueError(msg)
+                msg = (
+                    f'Source frame number {src_frm_num} does not '
+                    'match any referenced source frame. To return '
+                    'an empty segmentation mask in this situation, '
+                    "use the 'assert_missing_frames_are_empty' "
+                    'parameter.'
+                )
+                raise ValueError(msg)
 
-            # Iterate over segment numbers for this source frame
-            for c, seg_num in enumerate(segment_numbers):
-                # Use LUT to find the segmentation frame containing
-                # the source frame and segment number
-                qry = np.array([src_frm_num, seg_num])
-                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
-                if len(seg_frm_indices) == 1:
-                    seg_frames[r, c] = seg_frm_indices[0] + 1
-                elif len(seg_frm_indices) > 0:
-                    # This should never happen due to earlier checks
-                    # on unique rows
-                    raise RuntimeError(
-                        'An unexpected error was encountered during '
-                        'indexing of the segmentation image. Please '
-                        'file a bug report with the highdicom repository.'
-                    )
-                # else no segmentation frame found for this segment number,
-                # assume this frame is empty and leave the entry in seg_frames
-                # as -1
+        source_frame_numbers_arr = np.array(source_frame_numbers, np.uint)
+
+        # Loop through each row of the LUT and determine whether the
+        # corresponding segmentation frame is required in the output, and if so,
+        # where
+        for seg_frm, lut_row in enumerate(lut):
+            # Source frame index and segment number for this LUT row
+            lut_src, lut_segno = lut_row.ravel()
+
+            # Find indices (if any) of these value in the lists of required
+            # output source frames and segments
+            out_frm_inds = np.where(source_frame_numbers_arr == lut_src)[0]
+            out_seg_inds = np.where(segment_numbers == lut_segno)[0]
+
+            if len(out_frm_inds) > 1:
+                # This should never happen due to earlier checks
+                # on unique rows
+                raise RuntimeError(
+                    'An unexpected error was encountered during '
+                    'indexing of the segmentation image. Please '
+                    'file a bug report with the highdicom repository.'
+                )
+
+            # Frame is only required if there is an index for both
+            if len(out_frm_inds) > 0 and len(out_seg_inds) > 0:
+                r = out_frm_inds[0]
+                c = out_seg_inds[0]
+                seg_frames[r, c] = seg_frm + 1
 
         return self._get_pixels_by_seg_frame(
             seg_frames_matrix=seg_frames,
