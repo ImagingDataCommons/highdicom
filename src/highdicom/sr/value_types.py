@@ -177,7 +177,10 @@ class ContentItem(Dataset):
         """
         value_type = ValueTypeValues(dataset.ValueType)
         content_item_cls = _get_content_item_class(value_type)
-        return content_item_cls._from_dataset(dataset)  # type: ignore
+        return content_item_cls.from_dataset(
+            dataset,
+            copy=False
+        )  # type: ignore
 
     @classmethod
     def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
@@ -212,11 +215,15 @@ class ContentItem(Dataset):
         item = dataset
         item.__class__ = cls
         if hasattr(item, 'ContentSequence'):
-            item.ContentSequence = ContentSequence._from_sequence(
-                item.ContentSequence
+            item.ContentSequence = ContentSequence.from_sequence(
+                item.ContentSequence,
+                copy=False
             )
         item.ConceptNameCodeSequence = [
-            CodedConcept.from_dataset(item.ConceptNameCodeSequence[0])
+            CodedConcept.from_dataset(
+                item.ConceptNameCodeSequence[0],
+                copy=False
+            )
         ]
         return cast(ContentItem, item)
 
@@ -550,7 +557,8 @@ class ContentSequence(DataElementSequence):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False,
-        is_sr: bool = True
+        is_sr: bool = True,
+        copy: bool = True,
     ) -> 'ContentSequence':
         """Construct object from a sequence of datasets.
 
@@ -567,6 +575,10 @@ class ContentSequence(DataElementSequence):
             intended to be added to an SR document as opposed to other types
             of IODs based on an acquisition, protocol or workflow context
             template
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -582,49 +594,11 @@ class ContentSequence(DataElementSequence):
                 is_sr=is_sr,
                 index=i
             )
-            dataset_copy = deepcopy(dataset)
+            if copy:
+                dataset_copy = deepcopy(dataset)
+            else:
+                dataset_copy = dataset
             item = ContentItem._from_dataset_derived(dataset_copy)
-            content_items.append(item)
-        return ContentSequence(content_items, is_root=is_root, is_sr=is_sr)
-
-    @classmethod
-    def _from_sequence(
-        cls,
-        sequence: Sequence[Dataset],
-        is_root: bool = False,
-        is_sr: bool = True
-    ) -> 'ContentSequence':
-        """Construct object from a sequence of datasets.
-
-        Parameters
-        ----------
-        sequence: Sequence[pydicom.dataset.Dataset]
-            Datasets representing SR Content Items
-        is_root: bool, optional
-            Whether the sequence is used to contain SR Content Items that are
-            intended to be added to an SR document at the root of the document
-            content tree
-        is_sr: bool, optional
-            Whether the sequence is use to contain SR Content Items that are
-            intended to be added to an SR document as opposed to other types
-            of IODs based on an acquisition, protocol or workflow context
-            template
-
-        Returns
-        -------
-        highdicom.sr.ContentSequence
-            Content Sequence containing SR Content Items
-
-        """
-        content_items = []
-        for i, dataset in enumerate(sequence, 1):
-            cls._check_dataset(
-                dataset,
-                is_root=is_root,
-                is_sr=is_sr,
-                index=i
-            )
-            item = ContentItem._from_dataset_derived(dataset)
             content_items.append(item)
         return ContentSequence(content_items, is_root=is_root, is_sr=is_sr)
 
@@ -713,13 +687,21 @@ class CodeContentItem(ContentItem):
         return self.ConceptCodeSequence[0]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'CodeContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type CODE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -727,32 +709,14 @@ class CodeContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'CodeContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type CODE
-
-        Returns
-        -------
-        highdicom.sr.CodeContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.CODE)
-        item = super(CodeContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.CODE)
+        item = super(CodeContentItem, cls)._from_dataset_base(dataset_copy)
         item.ConceptCodeSequence = DataElementSequence([
-            CodedConcept.from_dataset(item.ConceptCodeSequence[0])
+            CodedConcept.from_dataset(item.ConceptCodeSequence[0], copy=False)
         ])
         return cast(CodeContentItem, item)
 
@@ -790,13 +754,21 @@ class PnameContentItem(ContentItem):
         return PersonName(self.PersonName)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'PnameContentItem':
         """Construct object from existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type PNAME
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -804,30 +776,12 @@ class PnameContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'PnameContentItem':
-        """Construct object from existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type PNAME
-
-        Returns
-        -------
-        highdicom.sr.PnameContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.PNAME)
-        item = super(PnameContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.PNAME)
+        item = super(PnameContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(PnameContentItem, item)
 
 
@@ -863,13 +817,21 @@ class TextContentItem(ContentItem):
         return self.TextValue
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'TextContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'TextContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type TEXT
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -877,30 +839,12 @@ class TextContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'TextContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type TEXT
-
-        Returns
-        -------
-        highdicom.sr.TextContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.TEXT)
-        item = super(TextContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.TEXT)
+        item = super(TextContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(TextContentItem, item)
 
 
@@ -948,13 +892,21 @@ class TimeContentItem(ContentItem):
         raise ValueError(f'Could not decode time value "{self.Time}"')
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'TimeContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'TimeContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type TIME
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -962,30 +914,12 @@ class TimeContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'TimeContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type TIME
-
-        Returns
-        -------
-        highdicom.sr.TimeContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.TIME)
-        item = super(TimeContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.TIME)
+        item = super(TimeContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(TimeContentItem, item)
 
 
@@ -1022,13 +956,21 @@ class DateContentItem(ContentItem):
         return datetime.datetime.strptime(self.Date.isoformat(), fmt).date()
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'DateContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'DateContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type DATE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1036,30 +978,12 @@ class DateContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'DateContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type DATE
-
-        Returns
-        -------
-        highdicom.sr.DateContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.DATE)
-        item = super(DateContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.DATE)
+        item = super(DateContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(DateContentItem, item)
 
 
@@ -1114,13 +1038,21 @@ class DateTimeContentItem(ContentItem):
         raise ValueError(f'Could not decode datetime value "{self.DateTime}"')
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'DateTimeContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'DateTimeContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type DATETIME
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1128,30 +1060,12 @@ class DateTimeContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'DateTimeContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type DATETIME
-
-        Returns
-        -------
-        highdicom.sr.DateTimeContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.DATETIME)
-        item = super(DateTimeContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.DATETIME)
+        item = super(DateTimeContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(DateTimeContentItem, item)
 
 
@@ -1187,13 +1101,21 @@ class UIDRefContentItem(ContentItem):
         return UID(self.UID)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'UIDRefContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type UIDREF
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1201,30 +1123,12 @@ class UIDRefContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'UIDRefContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type UIDREF
-
-        Returns
-        -------
-        highdicom.sr.UIDRefContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.UIDREF)
-        item = super(UIDRefContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.UIDREF)
+        item = super(UIDRefContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(UIDRefContentItem, item)
 
 
@@ -1316,13 +1220,21 @@ class NumContentItem(ContentItem):
             return None
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'NumContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type NUM
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1330,42 +1242,24 @@ class NumContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'NumContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type NUM
-
-        Returns
-        -------
-        highdicom.sr.NumContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.NUM)
-        item = super(NumContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.NUM)
+        item = super(NumContentItem, cls)._from_dataset_base(dataset_copy)
         unit_item = (
             item
             .MeasuredValueSequence[0]
             .MeasurementUnitsCodeSequence[0]
         )
         item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
-            CodedConcept.from_dataset(unit_item)
+            CodedConcept.from_dataset(unit_item, copy=False)
         ]
         if hasattr(item, 'NumericValueQualifierCodeSequence'):
             qualifier_item = item.NumericValueQualifierCodeSequence[0]
             item.NumericValueQualifierCodeSequence = DataElementSequence([
-                CodedConcept.from_dataset(qualifier_item)
+                CodedConcept.from_dataset(qualifier_item, copy=False)
             ])
         return cast(NumContentItem, item)
 
@@ -1418,13 +1312,21 @@ class ContainerContentItem(ContentItem):
             return None
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ContainerContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ContainerContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type CONTAINER
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1432,30 +1334,12 @@ class ContainerContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ContainerContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type CONTAINER
-
-        Returns
-        -------
-        highdicom.sr.ContainerContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.CONTAINER)
-        item = super(ContainerContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.CONTAINER)
+        item = super(ContainerContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(ContainerContentItem, item)
 
 
@@ -1513,13 +1397,21 @@ class CompositeContentItem(ContentItem):
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'CompositeContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type COMPOSITE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1527,30 +1419,12 @@ class CompositeContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'CompositeContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type COMPOSITE
-
-        Returns
-        -------
-        highdicom.sr.CompositeContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.COMPOSITE)
-        item = super(CompositeContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.COMPOSITE)
+        item = super(CompositeContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(CompositeContentItem, item)
 
 
@@ -1660,13 +1534,21 @@ class ImageContentItem(ContentItem):
             return [int(val)]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ImageContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type IMAGE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1674,30 +1556,12 @@ class ImageContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ImageContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type IMAGE
-
-        Returns
-        -------
-        highdicom.sr.ImageContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.IMAGE)
-        item = super(ImageContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
+        item = super(ImageContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(ImageContentItem, item)
 
 
@@ -1800,13 +1664,21 @@ class ScoordContentItem(ContentItem):
         return GraphicTypeValues(self.GraphicType)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ScoordContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1814,30 +1686,12 @@ class ScoordContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ScoordContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD
-
-        Returns
-        -------
-        highdicom.sr.ScoordContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.SCOORD)
-        item = super(ScoordContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.SCOORD)
+        item = super(ScoordContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(ScoordContentItem, item)
 
 
@@ -1936,13 +1790,21 @@ class Scoord3DContentItem(ContentItem):
         return UID(self.ReferencedFrameOfReferenceUID)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'Scoord3DContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD3D
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1950,30 +1812,12 @@ class Scoord3DContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'Scoord3DContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type SCOORD3D
-
-        Returns
-        -------
-        highdicom.sr.Scoord3DContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.SCOORD3D)
-        item = super(Scoord3DContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.SCOORD3D)
+        item = super(Scoord3DContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(Scoord3DContentItem, item)
 
 
@@ -2054,13 +1898,21 @@ class TcoordContentItem(ContentItem):
         return TemporalRangeTypeValues(self.TemporalRangeType)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'TcoordContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type TCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -2068,30 +1920,12 @@ class TcoordContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'TcoordContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type TCOORD
-
-        Returns
-        -------
-        highdicom.sr.TcoordContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.TCOORD)
-        item = super(TcoordContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.TCOORD)
+        item = super(TcoordContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(TcoordContentItem, item)
 
 
@@ -2186,13 +2020,21 @@ class WaveformContentItem(ContentItem):
         ]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'WaveformContentItem':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'WaveformContentItem':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type WAVEFORM
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -2200,28 +2042,10 @@ class WaveformContentItem(ContentItem):
             Content Item
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'WaveformContentItem':
-        """Construct object from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing an SR Content Item with value type WAVEFORM
-
-        Returns
-        -------
-        highdicom.sr.WaveformContentItem
-            Content Item
-
-        Note
-        ----
-        Does not create a copy, but modifies `dataset`.
-
-        """
-        _assert_value_type(dataset, ValueTypeValues.IMAGE)
-        item = super(WaveformContentItem, cls)._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
+        item = super(WaveformContentItem, cls)._from_dataset_base(dataset_copy)
         return cast(WaveformContentItem, item)

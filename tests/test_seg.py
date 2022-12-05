@@ -2591,6 +2591,13 @@ class TestSegmentationParsing():
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
+    def test_from_dataset_copy_false(self):
+        seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control.dcm'
+        )
+        seg = Segmentation.from_dataset(seg_ds, copy=False)
+        assert seg is seg_ds
+
     def test_segread(self):
         seg = segread('data/test_files/seg_image_ct_true_fractional.dcm')
         assert isinstance(seg, Segmentation)
