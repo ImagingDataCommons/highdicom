@@ -2675,7 +2675,7 @@ class Segmentation(SOPClass):
         ...     combine_segments=True
         ... )
         >>> pixels.shape, np.unique(pixels)
-        ((3, 10, 10), array([ 0,  6,  8, 10], np.uint8))
+        ((3, 10, 10), array([ 0,  6,  8, 10], dtype=uint8))
 
         Now relabel the segments to give a pixel map with values between 0
         and 3 (inclusive):
