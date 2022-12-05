@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 _NO_FRAME_REF_VALUE = -1
 
 
-def _get_unsigned_dtype(max_val: int):
+def _get_unsigned_dtype(max_val: int) -> type:
     """Get the smallest unsigned numpy datatype to accommodate a value.
 
     Parameters
@@ -75,13 +75,44 @@ def _get_unsigned_dtype(max_val: int):
         The selected np dtype.
 
     """
-    if max_val < 8:
+    if max_val < 256:
         dtype = np.uint8
     elif max_val < 65536:
         dtype = np.uint16
     else:
         dtype = np.uint32  # should be extremely unlikely
     return dtype
+
+
+def _check_dtype(max_val: int, dtype: type) -> None:
+    """Check whether a given maximum value can be represented by a given dtype.
+
+    Parameters
+    ----------
+    max_val: int
+        The largest non-negative integer that must be accommodated.
+    dtype: type
+        Data type of the array to be checked
+
+    Raises
+    ------
+    ValueError
+        If the given maximum value is too large to be represented by dtype.
+
+    """
+    raise_error = False
+    if np.dtype(dtype).kind == 'f':
+        if max_val > np.finfo(dtype).max:
+            raise_error = True
+    elif np.dtype(dtype).kind in ('i', 'u'):
+        if max_val > np.iinfo(dtype).max:
+            raise_error = True
+    if raise_error:
+        raise ValueError(
+            "The maximum output value of the segmentation array is "
+            f"{max_val}, which is too large be represented using dtype "
+            f"{dtype}."
+        )
 
 
 class Segmentation(SOPClass):
@@ -1943,15 +1974,33 @@ class Segmentation(SOPClass):
         else:
             max_output_val = 1
 
-        if dtype is None:
-            dtype = _get_unsigned_dtype(max_output_val)
-        if (
+        will_be_rescaled = (
             rescale_fractional and
-            self.segmentation_type == SegmentationTypeValues.FRACTIONAL
-        ):
+            self.segmentation_type == SegmentationTypeValues.FRACTIONAL and
+            not combine_segments
+        )
+        if dtype is None:
+            if will_be_rescaled:
+                dtype = np.float32
+            else:
+                dtype = _get_unsigned_dtype(max_output_val)
+
+        # Check dtype is suitable
+        if np.dtype(dtype).kind not in ('u', 'i', 'f'):
+            raise ValueError(
+                f"Dtype {dtype} is not suitable."
+            )
+
+        if will_be_rescaled:
             intermediate_dtype = np.uint8
+            if np.dtype(dtype).kind != 'f':
+                raise ValueError(
+                    "If rescaling a fractional segmentation, the output dtype "
+                    "must be a floating-point type."
+                )
         else:
             intermediate_dtype = dtype
+        _check_dtype(max_output_val, dtype)
 
         nfo, nseg = seg_frames_matrix.shape
         if self.pixel_array.ndim == 2:
@@ -1984,11 +2033,13 @@ class Segmentation(SOPClass):
                         'and the specified MaximumFractionalValue '
                         f'({self.MaximumFractionalValue}).'
                     )
-
-            if self.pixel_array.ndim == 2:
-                pixel_array = self.pixel_array[None, :, :]
+                pixel_array = self.pixel_array // self.MaximumFractionalValue
+                pixel_array = pixel_array.astype(np.uint8)
             else:
                 pixel_array = self.pixel_array
+
+            if pixel_array.ndim == 2:
+                pixel_array = pixel_array[None, :, :]
 
             # Initialize empty pixel array
             out_array = np.zeros((nfo, h, w), dtype=intermediate_dtype)
@@ -1998,7 +2049,9 @@ class Segmentation(SOPClass):
                 # Loop over segmentation indices
                 for seg_ind, seg_n in enumerate(segment_numbers):
                     fi = seg_frames_matrix[fo, seg_ind] - 1
-                    pix_value = dtype(seg_ind + 1 if relabel else seg_n)
+                    pix_value = intermediate_dtype(
+                        seg_ind + 1 if relabel else seg_n
+                    )
                     if fi >= 0:
                         if seg_ind > 0 and not skip_overlap_checks:
                             if np.any(
@@ -2035,16 +2088,16 @@ class Segmentation(SOPClass):
                             out_array[out_frm, :, :, out_seg] = \
                                 self.pixel_array[seg_frame_ind, :, :]
 
-        if rescale_fractional:
-            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
-                if out_array.max() > self.MaximumFractionalValue:
-                    raise RuntimeError(
-                        'Segmentation image contains values greater than '
-                        'the MaximumFractionalValue recorded in the '
-                        'dataset.'
-                    )
-                max_val = self.MaximumFractionalValue
-                out_array = out_array.astype(dtype) / max_val
+            if rescale_fractional:
+                if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    if out_array.max() > self.MaximumFractionalValue:
+                        raise RuntimeError(
+                            'Segmentation image contains values greater than '
+                            'the MaximumFractionalValue recorded in the '
+                            'dataset.'
+                        )
+                    max_val = self.MaximumFractionalValue
+                    out_array = out_array.astype(dtype) / max_val
 
         return out_array
 
