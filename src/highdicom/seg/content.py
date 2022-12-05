@@ -138,13 +138,21 @@ class SegmentDescription(Dataset):
             ]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SegmentDescription':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'SegmentDescription':
         """Construct instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an item of the Segment Sequence.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -161,33 +169,39 @@ class SegmentDescription(Dataset):
             module='segmentation-image',
             base_path=['SegmentSequence']
         )
-        desc = deepcopy(dataset)
+        if copy:
+            desc = deepcopy(dataset)
+        else:
+            desc = dataset
         desc.__class__ = cls
 
         # Convert sub sequences to highdicom types
         desc.SegmentedPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
-                desc.SegmentedPropertyCategoryCodeSequence[0]
+                desc.SegmentedPropertyCategoryCodeSequence[0],
+                copy=False,
             )
         ]
         desc.SegmentedPropertyTypeCodeSequence = [
             CodedConcept.from_dataset(
-                desc.SegmentedPropertyTypeCodeSequence[0]
+                desc.SegmentedPropertyTypeCodeSequence[0],
+                copy=False,
             )
         ]
         if hasattr(desc, 'SegmentationAlgorithmIdentificationSequence'):
             desc.SegmentationAlgorithmIdentificationSequence = \
                 AlgorithmIdentificationSequence.from_sequence(
-                    desc.SegmentationAlgorithmIdentificationSequence
+                    desc.SegmentationAlgorithmIdentificationSequence,
+                    copy=False,
                 )
         if hasattr(desc, 'AnatomicRegionSequence'):
             desc.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.AnatomicRegionSequence
             ]
         if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
             desc.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
         return cast(SegmentDescription, desc)

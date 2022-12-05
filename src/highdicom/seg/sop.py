@@ -1210,13 +1210,21 @@ class Segmentation(SOPClass):
                 return planes.flatten().tobytes()
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'Segmentation':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'Segmentation':
         """Create instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Segmentation image.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1233,7 +1241,10 @@ class Segmentation(SOPClass):
         # Checks on integrity of input dataset
         if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
             raise ValueError('Dataset is not a Segmentation.')
-        seg = deepcopy(dataset)
+        if copy:
+            seg = deepcopy(dataset)
+        else:
+            seg = dataset
         seg.__class__ = Segmentation
 
         sf_groups = seg.SharedFunctionalGroupsSequence[0]
@@ -1265,23 +1276,27 @@ class Segmentation(SOPClass):
         # Convert contained items to highdicom types
         # Segment descriptions
         seg.SegmentSequence = [
-            SegmentDescription.from_dataset(ds) for ds in seg.SegmentSequence
+            SegmentDescription.from_dataset(ds, copy=False)
+            for ds in seg.SegmentSequence
         ]
 
         # Shared functional group elements
         if hasattr(sf_groups, 'PlanePositionSequence'):
             plane_pos = PlanePositionSequence.from_sequence(
-                sf_groups.PlanePositionSequence
+                sf_groups.PlanePositionSequence,
+                copy=False,
             )
             sf_groups.PlanePositionSequence = plane_pos
         if hasattr(sf_groups, 'PlaneOrientationSequence'):
             plane_ori = PlaneOrientationSequence.from_sequence(
-                sf_groups.PlaneOrientationSequence
+                sf_groups.PlaneOrientationSequence,
+                copy=False,
             )
             sf_groups.PlaneOrientationSequence = plane_ori
         if hasattr(sf_groups, 'PixelMeasuresSequence'):
             pixel_measures = PixelMeasuresSequence.from_sequence(
-                sf_groups.PixelMeasuresSequence
+                sf_groups.PixelMeasuresSequence,
+                copy=False,
             )
             sf_groups.PixelMeasuresSequence = pixel_measures
 
@@ -1289,17 +1304,20 @@ class Segmentation(SOPClass):
         for pffg_item in seg.PerFrameFunctionalGroupsSequence:
             if hasattr(pffg_item, 'PlanePositionSequence'):
                 plane_pos = PlanePositionSequence.from_sequence(
-                    pffg_item.PlanePositionSequence
+                    pffg_item.PlanePositionSequence,
+                    copy=False
                 )
                 pffg_item.PlanePositionSequence = plane_pos
             if hasattr(pffg_item, 'PlaneOrientationSequence'):
                 plane_ori = PlaneOrientationSequence.from_sequence(
-                    pffg_item.PlaneOrientationSequence
+                    pffg_item.PlaneOrientationSequence,
+                    copy=False,
                 )
                 pffg_item.PlaneOrientationSequence = plane_ori
             if hasattr(pffg_item, 'PixelMeasuresSequence'):
                 pixel_measures = PixelMeasuresSequence.from_sequence(
-                    pffg_item.PixelMeasuresSequence
+                    pffg_item.PixelMeasuresSequence,
+                    copy=False,
                 )
                 pffg_item.PixelMeasuresSequence = pixel_measures
 
@@ -2866,4 +2884,4 @@ def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
         Segmentation image read from the file.
 
     """
-    return Segmentation.from_dataset(dcmread(fp))
+    return Segmentation.from_dataset(dcmread(fp), copy=False)

@@ -93,7 +93,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'AlgorithmIdentificationSequence':
         """Construct instance from an existing data element sequence.
 
@@ -102,6 +103,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         sequence: pydicom.sequence.Sequence
             Data element sequence representing the
             Algorithm Identification Sequence
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -123,7 +128,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 'SegmentationAlgorithmIdentificationSequence'
             ]
         )
-        algo_id_sequence = deepcopy(sequence)
+        if copy:
+            algo_id_sequence = deepcopy(sequence)
+        else:
+            algo_id_sequence = sequence
         algo_id_sequence.__class__ = AlgorithmIdentificationSequence
         return cast(AlgorithmIdentificationSequence, algo_id_sequence)
 
@@ -331,7 +339,8 @@ class PixelMeasuresSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PixelMeasuresSequence':
         """Create a PixelMeasuresSequence from an existing Sequence.
 
@@ -339,6 +348,10 @@ class PixelMeasuresSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -369,7 +382,10 @@ class PixelMeasuresSequence(DataElementSequence):
                 'a Pixel Measures Sequence.'
             )
 
-        pixel_measures = deepcopy(sequence)
+        if copy:
+            pixel_measures = deepcopy(sequence)
+        else:
+            pixel_measures = sequence
         pixel_measures.__class__ = PixelMeasuresSequence
         return cast(PixelMeasuresSequence, pixel_measures)
 
@@ -480,7 +496,8 @@ class PlanePositionSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PlanePositionSequence':
         """Create a PlanePositionSequence from an existing Sequence.
 
@@ -490,6 +507,10 @@ class PlanePositionSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -523,7 +544,10 @@ class PlanePositionSequence(DataElementSequence):
                 ]
             )
 
-        plane_position = deepcopy(sequence)
+        if copy:
+            plane_position = deepcopy(sequence)
+        else:
+            plane_position = sequence
         plane_position.__class__ = PlanePositionSequence
         return cast(PlanePositionSequence, plane_position)
 
@@ -612,7 +636,8 @@ class PlaneOrientationSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PlaneOrientationSequence':
         """Create a PlaneOrientationSequence from an existing Sequence.
 
@@ -622,6 +647,10 @@ class PlaneOrientationSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -652,7 +681,10 @@ class PlaneOrientationSequence(DataElementSequence):
                     'either the PATIENT or SLIDE coordinate system.'
                 )
 
-        plane_orientation = deepcopy(sequence)
+        if copy:
+            plane_orientation = deepcopy(sequence)
+        else:
+            plane_orientation = sequence
         plane_orientation.__class__ = PlaneOrientationSequence
         return cast(PlaneOrientationSequence, plane_orientation)
 

@@ -268,13 +268,17 @@ class _SR(SOPClass):
         return _create_references(group)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> Dataset:
+    def from_dataset(cls, dataset: Dataset, copy: bool = True) -> Dataset:
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -285,7 +289,10 @@ class _SR(SOPClass):
         if not hasattr(dataset, 'ContentSequence'):
             raise ValueError('Dataset is not an SR document.')
         _check_little_endian(dataset)
-        sop_instance = deepcopy(dataset)
+        if copy:
+            sop_instance = deepcopy(dataset)
+        else:
+            sop_instance = dataset
         sop_instance.__class__ = cls
 
         root_item = Dataset()
@@ -298,15 +305,20 @@ class _SR(SOPClass):
             tid_item = dataset.ContentTemplateSequence[0]
             if tid_item.TemplateIdentifier == '1500':
                 sop_instance._content = MeasurementReport.from_sequence(
-                    [root_item]
+                    [root_item],
+                    copy=False,
                 )
             else:
                 sop_instance._content = ContentSequence.from_sequence(
-                    [root_item], is_root=True
+                    [root_item],
+                    is_root=True,
+                    copy=False,
                 )
         except AttributeError:
             sop_instance._content = ContentSequence.from_sequence(
-                [root_item], is_root=True
+                [root_item],
+                is_root=True,
+                copy=False,
             )
 
         return sop_instance
@@ -581,13 +593,21 @@ class ComprehensiveSR(_SR):
             )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ComprehensiveSR':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ComprehensiveSR':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -597,7 +617,7 @@ class ComprehensiveSR(_SR):
         """
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
-        sop_instance = super().from_dataset(dataset)
+        sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = ComprehensiveSR
         return cast(ComprehensiveSR, sop_instance)
 
@@ -723,13 +743,21 @@ class Comprehensive3DSR(_SR):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'Comprehensive3DSR':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'Comprehensive3DSR':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive 3D SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -739,6 +767,6 @@ class Comprehensive3DSR(_SR):
         """
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
-        sop_instance = super().from_dataset(dataset)
+        sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = Comprehensive3DSR
         return cast(Comprehensive3DSR, sop_instance)
