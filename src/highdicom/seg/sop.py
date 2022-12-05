@@ -1814,7 +1814,7 @@ class Segmentation(SOPClass):
     def segmented_property_types(self) -> List[CodedConcept]:
         """Get all unique segmented property types in this SEG image.
 
-        Returnsgt
+        Returns
         -------
         List[CodedConcept]
             All unique segmented property types referenced in segment
@@ -1884,11 +1884,11 @@ class Segmentation(SOPClass):
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
         skip_overlap_checks: bool
-            If True, skip checks for overlay between different segments. By
+            If True, skip checks for overlap between different segments. By
             default, checks are performed to ensure that the segments do not
-            overlay. However, this reduces performance significantly. If checks
-            are skipped and multiple segments do overlap, the segment with the
-            highest segment number will be placed into the output array.
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number will be placed into the output array.
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -2287,11 +2287,11 @@ class Segmentation(SOPClass):
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
         skip_overlap_checks: bool
-            If True, skip checks for overlay between different segments. By
+            If True, skip checks for overlap between different segments. By
             default, checks are performed to ensure that the segments do not
-            overlay. However, this reduces performance significantly. If checks
-            are skipped and multiple segments do overlap, the segment with the
-            highest segment number will be placed into the output array.
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number will be placed into the output array.
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -2539,11 +2539,11 @@ class Segmentation(SOPClass):
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
         skip_overlap_checks: bool
-            If True, skip checks for overlay between different segments. By
+            If True, skip checks for overlap between different segments. By
             default, checks are performed to ensure that the segments do not
-            overlay. However, this reduces performance significantly. If checks
-            are skipped and multiple segments do overlap, the segment with the
-            highest segment number will be placed into the output array.
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number will be placed into the output array.
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -2822,11 +2822,11 @@ class Segmentation(SOPClass):
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
         skip_overlap_checks: bool
-            If True, skip checks for overlay between different segments. By
+            If True, skip checks for overlap between different segments. By
             default, checks are performed to ensure that the segments do not
-            overlay. However, this reduces performance significantly. If checks
-            are skipped and multiple segments do overlap, the segment with the
-            highest segment number will be placed into the output array.
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number will be placed into the output array.
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
