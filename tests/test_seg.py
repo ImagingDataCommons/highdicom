@@ -2513,7 +2513,9 @@ class TestSegmentation:
         self.check_dimension_index_vals(instance)
 
 
-class TestSegmentationParsing(unittest.TestCase):
+class TestSegmentationParsing():
+
+    @pytest.fixture(autouse=True)
     def setUp(self):
         self._sm_control_seg_ds = dcmread(
             'data/test_files/seg_image_sm_control.dcm'
@@ -2561,6 +2563,30 @@ class TestSegmentationParsing(unittest.TestCase):
         self._cr_binary_seg = Segmentation.from_dataset(
             self._cr_binary_seg_ds
         )
+
+    # Fixtures to use to parametrize segmentation creation
+    # Using this fixture mechanism, we can parametrize class methods
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            np.int8,
+            np.uint8,
+            np.int16,
+            np.uint16,
+            np.int32,
+            np.uint32,
+            np.int64,
+            np.uint64,
+            np.float32,
+            np.float64,
+        ])
+    def numpy_dtype(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture( params=[False, True])
+    def combine_segments(request):
+        return request.param
 
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
@@ -2792,6 +2818,19 @@ class TestSegmentationParsing(unittest.TestCase):
         )
         assert pixels.shape == out_shape
         assert np.all(np.unique(pixels) == np.arange(len(segments_valid) + 1))
+
+    def test_get_pixels_with_dtype(self, numpy_dtype, combine_segments):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid,
+            segment_numbers=[1, 4, 9],
+            combine_segments=combine_segments,
+            dtype=numpy_dtype,
+        )
+        assert pixels.dtype == numpy_dtype
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()

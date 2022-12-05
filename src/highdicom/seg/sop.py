@@ -61,6 +61,29 @@ logger = logging.getLogger(__name__)
 _NO_FRAME_REF_VALUE = -1
 
 
+def _get_unsigned_dtype(max_val: int):
+    """Get the smallest unsigned numpy datatype to accommodate a value.
+
+    Parameters
+    ----------
+    max_val: int
+        The largest non-negative integer that must be accommodated.
+
+    Returns
+    -------
+    type:
+        The selected np dtype.
+
+    """
+    if max_val < 8:
+        dtype = np.uint8
+    elif max_val < 65536:
+        dtype = np.uint16
+    else:
+        dtype = np.uint32  # should be extremely unlikely
+    return dtype
+
+
 class Segmentation(SOPClass):
 
     """SOP class for the Segmentation IOD."""
@@ -1821,6 +1844,7 @@ class Segmentation(SOPClass):
         relabel: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
+        dtype: Optional[type] = None,
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -1865,6 +1889,12 @@ class Segmentation(SOPClass):
             overlay. However, this reduces performance significantly. If checks
             are skipped and multiple segments do overlap, the segment with the
             highest segment number will be placed into the output array.
+        dtype: Union[type, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be np.float32. Otherwise, the smallest
+            unsigned integer type that accommodates all of the output values
+            will be chosen.
 
         Returns
         -------
@@ -1905,6 +1935,24 @@ class Segmentation(SOPClass):
                 'Segment numbers array contains invalid values.'
             )
 
+        # Determine output type
+        if combine_segments:
+            max_output_val = (
+                segment_numbers.shape[0] if relabel else segment_numbers.max()
+            )
+        else:
+            max_output_val = 1
+
+        if dtype is None:
+            dtype = _get_unsigned_dtype(max_output_val)
+        if (
+            rescale_fractional and
+            self.segmentation_type == SegmentationTypeValues.FRACTIONAL
+        ):
+            intermediate_dtype = np.uint8
+        else:
+            intermediate_dtype = dtype
+
         nfo, nseg = seg_frames_matrix.shape
         if self.pixel_array.ndim == 2:
             nfi = 1
@@ -1936,24 +1984,21 @@ class Segmentation(SOPClass):
                         'and the specified MaximumFractionalValue '
                         f'({self.MaximumFractionalValue}).'
                     )
-                pixel_array = self.pixel_array // self.MaximumFractionalValue
-                pixel_array = pixel_array.astype(np.uint8)
+
+            if self.pixel_array.ndim == 2:
+                pixel_array = self.pixel_array[None, :, :]
             else:
                 pixel_array = self.pixel_array
 
-            if pixel_array.ndim == 2:
-                pixel_array = pixel_array[None, :, :]
-
             # Initialize empty pixel array
-            # TODO check dtype is OK???
-            out_array = np.zeros((nfo, h, w), np.uint16)
+            out_array = np.zeros((nfo, h, w), dtype=intermediate_dtype)
 
             # Loop over output frames
             for fo in range(nfo):
                 # Loop over segmentation indices
                 for seg_ind, seg_n in enumerate(segment_numbers):
                     fi = seg_frames_matrix[fo, seg_ind] - 1
-                    pix_value = seg_ind + 1 if relabel else seg_n
+                    pix_value = dtype(seg_ind + 1 if relabel else seg_n)
                     if fi >= 0:
                         if seg_ind > 0 and not skip_overlap_checks:
                             if np.any(
@@ -1973,7 +2018,7 @@ class Segmentation(SOPClass):
 
         else:
             # Initialize empty pixel array
-            out_array = np.zeros((nfo, h, w, nseg), self.pixel_array.dtype)
+            out_array = np.zeros((nfo, h, w, nseg), intermediate_dtype)
 
             # Loop through output frames
             for out_frm, frm_row in enumerate(seg_frames_matrix):
@@ -1990,16 +2035,16 @@ class Segmentation(SOPClass):
                             out_array[out_frm, :, :, out_seg] = \
                                 self.pixel_array[seg_frame_ind, :, :]
 
-            if rescale_fractional:
-                if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
-                    if out_array.max() > self.MaximumFractionalValue:
-                        raise RuntimeError(
-                            'Segmentation image contains values greater than '
-                            'the MaximumFractionalValue recorded in the '
-                            'dataset.'
-                        )
-                    max_val = self.MaximumFractionalValue
-                    out_array = out_array.astype(np.float32) / max_val
+        if rescale_fractional:
+            if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                if out_array.max() > self.MaximumFractionalValue:
+                    raise RuntimeError(
+                        'Segmentation image contains values greater than '
+                        'the MaximumFractionalValue recorded in the '
+                        'dataset.'
+                    )
+                max_val = self.MaximumFractionalValue
+                out_array = out_array.astype(dtype) / max_val
 
         return out_array
 
@@ -2147,6 +2192,7 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
+        dtype: Optional[type] = None,
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -2246,6 +2292,12 @@ class Segmentation(SOPClass):
             overlay. However, this reduces performance significantly. If checks
             are skipped and multiple segments do overlap, the segment with the
             highest segment number will be placed into the output array.
+        dtype: Union[type, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be np.float32. Otherwise, the smallest
+            unsigned integer type that accommodates all of the output values
+            will be chosen.
 
         Returns
         -------
@@ -2373,6 +2425,7 @@ class Segmentation(SOPClass):
             relabel=relabel,
             rescale_fractional=rescale_fractional,
             skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
         )
 
     def get_pixels_by_source_frame(
@@ -2386,6 +2439,7 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
+        dtype: Optional[type] = None,
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -2490,6 +2544,12 @@ class Segmentation(SOPClass):
             overlay. However, this reduces performance significantly. If checks
             are skipped and multiple segments do overlap, the segment with the
             highest segment number will be placed into the output array.
+        dtype: Union[type, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be np.float32. Otherwise, the smallest
+            unsigned integer type that accommodates all of the output values
+            will be chosen.
 
         Returns
         -------
@@ -2651,6 +2711,7 @@ class Segmentation(SOPClass):
             relabel=relabel,
             rescale_fractional=rescale_fractional,
             skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
         )
 
     def get_pixels_by_dimension_index_values(
@@ -2661,7 +2722,9 @@ class Segmentation(SOPClass):
         combine_segments: bool = False,
         relabel: bool = False,
         assert_missing_frames_are_empty: bool = False,
-        rescale_fractional: bool = True
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
+        dtype: Optional[type] = None,
     ):
         """Get a pixel array for a list of dimension index values.
 
@@ -2758,6 +2821,18 @@ class Segmentation(SOPClass):
             each pixel lies in the range 0.0 to 1.0. If False, the raw integer
             values are returned. If the segmentation has BINARY type, this
             parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlay between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlay. However, this reduces performance significantly. If checks
+            are skipped and multiple segments do overlap, the segment with the
+            highest segment number will be placed into the output array.
+        dtype: Union[type, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be np.float32. Otherwise, the smallest
+            unsigned integer type that accommodates all of the output values
+            will be chosen.
 
         Returns
         -------
@@ -2908,7 +2983,9 @@ class Segmentation(SOPClass):
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
-            rescale_fractional=rescale_fractional
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
         )
 
 
