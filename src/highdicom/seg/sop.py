@@ -2688,7 +2688,7 @@ class Segmentation(SOPClass):
         ...     relabel=True
         ... )
         >>> pixels.shape, np.unique(pixels)
-        ((3, 10, 10), array([0, 1, 2, 3]))
+        ((3, 10, 10), array([0, 1, 2, 3], dtype=uint8))
 
         """
         # Check that indexing in this way is possible
