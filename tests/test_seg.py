@@ -2584,7 +2584,7 @@ class TestSegmentationParsing():
         return request.param
 
     @staticmethod
-    @pytest.fixture( params=[False, True])
+    @pytest.fixture(params=[False, True])
     def combine_segments(request):
         return request.param
 
