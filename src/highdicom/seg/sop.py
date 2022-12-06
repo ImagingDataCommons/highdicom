@@ -61,8 +61,8 @@ logger = logging.getLogger(__name__)
 _NO_FRAME_REF_VALUE = -1
 
 
-def _get_unsigned_dtype(max_val: int) -> type:
-    """Get the smallest unsigned numpy datatype to accommodate a value.
+def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
+    """Get the smallest unsigned NumPy datatype to accommodate a value.
 
     Parameters
     ----------
@@ -72,7 +72,7 @@ def _get_unsigned_dtype(max_val: int) -> type:
     Returns
     -------
     type:
-        The selected np dtype.
+        The selected NumPy datatype.
 
     """
     if max_val < 256:
@@ -1941,7 +1941,7 @@ class Segmentation(SOPClass):
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
-            fractional values, this will be np.float32. Otherwise, the smallest
+            fractional values, this will be numpy.float32. Otherwise, the smallest
             unsigned integer type that accommodates all of the output values
             will be chosen.
 
@@ -2006,15 +2006,15 @@ class Segmentation(SOPClass):
         # Check dtype is suitable
         if np.dtype(dtype).kind not in ('u', 'i', 'f'):
             raise ValueError(
-                f"Dtype {dtype} is not suitable."
+                f'Data type "{dtype}" is not suitable.'
             )
 
         if will_be_rescaled:
             intermediate_dtype = np.uint8
             if np.dtype(dtype).kind != 'f':
                 raise ValueError(
-                    "If rescaling a fractional segmentation, the output dtype "
-                    "must be a floating-point type."
+                    'If rescaling a fractional segmentation, the output dtype '
+                    'must be a floating-point type.'
                 )
         else:
             intermediate_dtype = dtype
@@ -2457,7 +2457,7 @@ class Segmentation(SOPClass):
                     f'SOP Instance UID {sop_uid} does not match any '
                     'referenced source frames. To return an empty '
                     'segmentation mask in this situation, use the '
-                    "'assert_missing_frames_are_empty' parameter."
+                    '"assert_missing_frames_are_empty" parameter.'
                 )
                 raise KeyError(msg) from e
             frame_indices[r] = src_uid_ind
