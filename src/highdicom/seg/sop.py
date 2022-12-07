@@ -2034,8 +2034,8 @@ class Segmentation(SOPClass):
                 if not rescale_fractional:
                     raise ValueError(
                         'In order to combine segments of a FRACTIONAL '
-                        'segmentation image, rescale_fractional must be '
-                        'set to True.'
+                        'segmentation image, argument "rescale_fractional" '
+                        'must be set to True.'
                     )
                 # Combining fractional segs is only possible if there are
                 # two unique values in the array: 0 and MaximumFractionalValue
