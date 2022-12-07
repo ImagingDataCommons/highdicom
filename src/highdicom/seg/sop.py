@@ -84,7 +84,10 @@ def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
     return dtype
 
 
-def _check_dtype(max_val: int, dtype: Union[np.dtype, str, type]) -> None:
+def _check_numpy_value_representation(
+    max_val: int,
+    dtype: Union[np.dtype, str, type]
+) -> None:
     """Check whether a given maximum value can be represented by a given dtype.
 
     Parameters
@@ -2020,7 +2023,7 @@ class Segmentation(SOPClass):
                 )
         else:
             intermediate_dtype = dtype
-        _check_dtype(max_output_val, dtype)
+        _check_numpy_value_representation(max_output_val, dtype)
 
         nfo, nseg = seg_frames_matrix.shape
         if self.pixel_array.ndim == 2:
