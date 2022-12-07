@@ -2579,6 +2579,8 @@ class TestSegmentationParsing():
             np.uint64,
             np.float32,
             np.float64,
+            np.dtype("uint16"),
+            "uint16",
         ])
     def numpy_dtype(request):
         return request.param

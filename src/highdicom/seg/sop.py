@@ -71,27 +71,27 @@ def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
 
     Returns
     -------
-    type:
+    np.dtype:
         The selected NumPy datatype.
 
     """
     if max_val < 256:
-        dtype = np.uint8
+        dtype = np.dtype(np.uint8)
     elif max_val < 65536:
-        dtype = np.uint16
+        dtype = np.dtype(np.uint16)
     else:
-        dtype = np.uint32  # should be extremely unlikely
+        dtype = np.dtype(np.uint32)  # should be extremely unlikely
     return dtype
 
 
-def _check_dtype(max_val: int, dtype: type) -> None:
+def _check_dtype(max_val: int, dtype: Union[np.dtype, str, type]) -> None:
     """Check whether a given maximum value can be represented by a given dtype.
 
     Parameters
     ----------
     max_val: int
         The largest non-negative integer that must be accommodated.
-    dtype: type
+    dtype: Union[np.dtype, str, type]
         Data type of the array to be checked
 
     Raises
@@ -100,11 +100,12 @@ def _check_dtype(max_val: int, dtype: type) -> None:
         If the given maximum value is too large to be represented by dtype.
 
     """
+    dtype = np.dtype(dtype)
     raise_error = False
-    if np.dtype(dtype).kind == 'f':
+    if dtype.kind == 'f':
         if max_val > np.finfo(dtype).max:
             raise_error = True
-    elif np.dtype(dtype).kind in ('i', 'u'):
+    elif dtype.kind in ('i', 'u'):
         if max_val > np.iinfo(dtype).max:
             raise_error = True
     if raise_error:
@@ -1893,7 +1894,7 @@ class Segmentation(SOPClass):
         relabel: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Optional[type] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -1938,7 +1939,7 @@ class Segmentation(SOPClass):
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
             segment number will be placed into the output array.
-        dtype: Union[type, None]
+        dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be numpy.float32. Otherwise, the
@@ -2002,16 +2003,17 @@ class Segmentation(SOPClass):
                 dtype = np.float32
             else:
                 dtype = _get_unsigned_dtype(max_output_val)
+        dtype = np.dtype(dtype)
 
         # Check dtype is suitable
-        if np.dtype(dtype).kind not in ('u', 'i', 'f'):
+        if dtype.kind not in ('u', 'i', 'f'):
             raise ValueError(
                 f'Data type "{dtype}" is not suitable.'
             )
 
         if will_be_rescaled:
             intermediate_dtype = np.uint8
-            if np.dtype(dtype).kind != 'f':
+            if dtype.kind != 'f':
                 raise ValueError(
                     'If rescaling a fractional segmentation, the output dtype '
                     'must be a floating-point type.'
@@ -2067,7 +2069,7 @@ class Segmentation(SOPClass):
                 # Loop over segmentation indices
                 for seg_ind, seg_n in enumerate(segment_numbers):
                     fi = seg_frames_matrix[fo, seg_ind] - 1
-                    pix_value = intermediate_dtype(
+                    pix_value = intermediate_dtype.type(
                         seg_ind + 1 if relabel else seg_n
                     )
                     if fi >= 0:
@@ -2263,7 +2265,7 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Optional[type] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -2363,7 +2365,7 @@ class Segmentation(SOPClass):
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
             segment number will be placed into the output array.
-        dtype: Union[type, None]
+        dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
@@ -2510,7 +2512,7 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Optional[type] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -2615,7 +2617,7 @@ class Segmentation(SOPClass):
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
             segment number will be placed into the output array.
-        dtype: Union[type, None]
+        dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
@@ -2795,7 +2797,7 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Optional[type] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
     ):
         """Get a pixel array for a list of dimension index values.
 
@@ -2898,7 +2900,7 @@ class Segmentation(SOPClass):
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
             segment number will be placed into the output array.
-        dtype: Union[type, None]
+        dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
