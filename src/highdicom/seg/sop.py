@@ -2043,8 +2043,8 @@ class Segmentation(SOPClass):
                     np.unique(self.pixel_array),
                     np.array([0, self.MaximumFractionalValue]),
                     assume_unique=True
-                )
-                if not is_binary.all():
+                ).all()
+                if not is_binary:
                     raise ValueError(
                         'Combining segments of a FRACTIONAL segmentation is '
                         'only possible if the pixel array contains only 0s '
