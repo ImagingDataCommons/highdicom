@@ -1941,9 +1941,9 @@ class Segmentation(SOPClass):
         dtype: Union[type, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
-            fractional values, this will be numpy.float32. Otherwise, the smallest
-            unsigned integer type that accommodates all of the output values
-            will be chosen.
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
 
         Returns
         -------
