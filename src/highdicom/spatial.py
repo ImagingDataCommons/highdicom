@@ -211,7 +211,7 @@ class PixelToReferenceTransformer(object):
     pixel of the pixel matrix.
 
     Reference coordinates are (x, y, z) triplets of floating-point values,
-    where the (0.0, 0.0) point is located at the origin of the frame of
+    where the (0.0, 0.0, 0.0) point is located at the origin of the frame of
     reference.
 
     Examples
@@ -347,7 +347,7 @@ class ReferenceToPixelTransformer(object):
     matrix.
 
     Reference coordinates are (x, y, z) triplets of floating-point values,
-    where the (0.0, 0.0) point is located at the origin of the frame of
+    where the (0.0, 0.0, 0.0) point is located at the origin of the frame of
     reference.
 
     Pixel indices are (column, row) pairs of zero-based integer values, where
@@ -497,7 +497,7 @@ class ImageToReferenceTransformer(object):
     sub-pixel resolution.
 
     Reference coordinates are (x, y, z) triplets of floating-point values,
-    where the (0.0, 0.0) point is located at the origin of the frame of
+    where the (0.0, 0.0, 0.0) point is located at the origin of the frame of
     reference. Reference coordinates have millimeter units.
 
     Examples
@@ -630,7 +630,7 @@ class ReferenceToImageTransformer(object):
     to spatial coordinates (SCOORD).
 
     Reference coordinates are (x, y, z) triplets of floating-point values,
-    where the (0.0, 0.0) point is located at the origin of the frame of
+    where the (0.0, 0.0, 0.0) point is located at the origin of the frame of
     reference. Reference coordinates have millimeter units.
 
     Image coordinates are (column, row) pairs of floating-point values, where
