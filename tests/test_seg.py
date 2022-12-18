@@ -2590,6 +2590,11 @@ class TestSegmentationParsing():
     def combine_segments(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def relabel(request):
+        return request.param
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
@@ -2828,18 +2833,37 @@ class TestSegmentationParsing():
         assert pixels.shape == out_shape
         assert np.all(np.unique(pixels) == np.arange(len(segments_valid) + 1))
 
-    def test_get_pixels_with_dtype(self, numpy_dtype, combine_segments):
+    def test_get_pixels_with_dtype(
+        self,
+        numpy_dtype,
+        combine_segments,
+        relabel,
+     ):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
         source_frames_valid = [1, 2, 4, 5]
-        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+        seg = self._sm_control_seg
+        pixels = seg.get_pixels_by_source_frame(
             source_sop_instance_uid=source_sop_uid,
             source_frame_numbers=source_frames_valid,
             segment_numbers=[1, 4, 9],
             combine_segments=combine_segments,
+            relabel=relabel,
             dtype=numpy_dtype,
         )
         assert pixels.dtype == numpy_dtype
+        if combine_segments:
+            expected_shape = (len(source_frames_valid), seg.Rows, seg.Columns)
+            if relabel:
+                expected_vals = np.array([0, 3])  # only seg 9 in these frames
+            else:
+                expected_vals = np.array([0, 9])  # only seg 9 in these frames
+            assert np.array_equal(np.unique(pixels), expected_vals)
+        else:
+            expected_shape = (
+                len(source_frames_valid), seg.Rows, seg.Columns, 3
+            )
+        assert pixels.shape == expected_shape
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
