@@ -2573,6 +2573,9 @@ class Segmentation(SOPClass):
         )
 
         # Construct the query
+        # The ORDER BY is not logically necessary but seems to improve
+        # performance of the downstream numpy operations, presumably as it is
+        # more cache efficient
         query = (
             'SELECT '
             '    T.OutputFrameIndex,'
@@ -2584,7 +2587,8 @@ class Segmentation(SOPClass):
             'INNER JOIN FrameLUT L'
             '    ON U.SOPInstanceUID_id = L.ReferencedSOPInstanceUID_id '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber'
+            '    ON L.SegmentNumber = S.SegmentNumber '
+            'ORDER BY T.OutputFrameIndex'
         )
         indices_iterator = cur.execute(query)
 
@@ -2879,6 +2883,9 @@ class Segmentation(SOPClass):
         )
 
         # Construct the query
+        # The ORDER BY is not logically necessary but seems to improve
+        # performance of the downstream numpy operations, presumably as it is
+        # more cache efficient
         query = (
             'SELECT '
             '    F.OutputFrameIndex,'
@@ -2888,7 +2895,8 @@ class Segmentation(SOPClass):
             'INNER JOIN FrameLUT L'
             '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber'
+            '    ON L.SegmentNumber = S.SegmentNumber '
+            'ORDER BY F.OutputFrameIndex'
         )
         indices_iterator = cur.execute(query)
 
@@ -3178,6 +3186,9 @@ class Segmentation(SOPClass):
         )
 
         # Construct the query
+        # The ORDER BY is not logically necessary but seems to improve
+        # performance of the downstream numpy operations, presumably as it is
+        # more cache efficient
         join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
         query = (
             'SELECT '
@@ -3188,7 +3199,8 @@ class Segmentation(SOPClass):
             'INNER JOIN FrameLUT L'
             f'   ON {join_str} '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber'
+            '    ON L.SegmentNumber = S.SegmentNumber '
+            'ORDER BY D.OutputFrameIndex'
         )
         indices_iterator = cur.execute(query)
 
