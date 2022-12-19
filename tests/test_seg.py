@@ -2948,7 +2948,7 @@ class TestSegmentationParsing():
         ind_values = [
             (1, 1, 4, 5, 1),
         ]
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             self._sm_control_seg.get_pixels_by_dimension_index_values(
                 dimension_index_values=ind_values,
             )

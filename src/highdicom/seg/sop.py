@@ -2882,7 +2882,7 @@ class Segmentation(SOPClass):
         query = (
             'SELECT '
             '    F.OutputFrameIndex,'
-            '    L.ReferencedFrameNumber - 1,'
+            '    L.FrameNumber - 1,'
             '    S.OutputSegmentNumber '
             'FROM TemporaryFrameNumbers F '
             'INNER JOIN FrameLUT L'
@@ -3089,6 +3089,10 @@ class Segmentation(SOPClass):
         if dimension_index_pointers is None:
             dimension_index_pointers = self._dim_ind_pointers
         else:
+            if len(dimension_index_pointers) == 0:
+                raise ValueError(
+                    'Argument "dimension_index_pointers" must not be empty.'
+                )
             for ptr in dimension_index_pointers:
                 if ptr not in self._dim_ind_pointers:
                     kw = keyword_for_tag(ptr)
@@ -3101,81 +3105,96 @@ class Segmentation(SOPClass):
 
         if len(dimension_index_values) == 0:
             raise ValueError(
-                'Dimension index values should not be empty.'
+                'Argument "dimension_index_values" must not be empty.'
             )
-        if len(dimension_index_pointers) == 0:
-            raise ValueError(
-                'Dimension index pointers should not be empty.'
-            )
-        rows = len(dimension_index_values)
-        cols = len(segment_numbers)
-        seg_frames = -np.ones(shape=(rows, cols), dtype=np.int32)
+        for row in dimension_index_values:
+            if len(row) != len(dimension_index_pointers):
+                raise ValueError(
+                    'Dimension index values must be a sequence of sequences of '
+                    'integers, with each inner sequence having a single value '
+                    'per dimension index pointer specified.'
+                )
 
-        # Create the sub-matrix of the look up table that indexes
-        # by the dimension index values
-        dim_ind_cols = [
-            self._lut_dim_ind_cols[ptr]
-            for ptr in dimension_index_pointers
-        ]
-        lut = self._frame_lut[:, dim_ind_cols + [self._lut_seg_col]]
-
-        if np.unique(lut, axis=0).shape[0] != lut.shape[0]:
+        if not self.are_dimension_indices_unique(dimension_index_pointers):
             raise RuntimeError(
                 'The chosen dimension indices do not uniquely identify '
                 'frames of the segmentation image. You may need to provide '
                 'further indices to disambiguate.'
             )
 
-        # Build the segmentation frame matrix
-        for r, ind_vals in enumerate(dimension_index_values):
-            if len(ind_vals) != len(dimension_index_pointers):
-                raise ValueError(
-                    'Number of provided indices does not match the expected '
-                    'number.'
+        # Check that all frame numbers requested actually exist
+        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
+        cols_str = ', '.join(cols)
+        cur = self._db.cursor()
+        if not assert_missing_frames_are_empty:
+            unique_dim_inds = {
+                r for r in
+                cur.execute(
+                    f'SELECT DISTINCT {cols_str} FROM FrameLUT'
                 )
-            if not all(v > 0 for v in ind_vals):
-                raise ValueError(
-                    'Indices are 1-based and must be greater than 1.'
+            }
+            queried_dim_inds = set(tuple(r) for r in dimension_index_values)
+            missing_dim_inds = queried_dim_inds - unique_dim_inds
+            if len(missing_dim_inds) > 0:
+                msg = (
+                    f'Dimension index values {list(missing_dim_inds)} do not '
+                    'match any segmentation frame. To return '
+                    'an empty segmentation mask in this situation, '
+                    "use the 'assert_missing_frames_are_empty' "
+                    'parameter.'
                 )
+                raise ValueError(msg)
 
-            # Check whether this frame exists in the LUT at all, ignoring the
-            # segment number column
-            qry = np.array(ind_vals)
-            seg_frm_indices = np.where(np.all(lut[:, :-1] == qry, axis=1))[0]
-            if len(seg_frm_indices) == 0:
-                if assert_missing_frames_are_empty:
-                    # Nothing more to do
-                    continue
-                else:
-                    raise RuntimeError(
-                        f'No frame with dimension index values {ind_vals} '
-                        'found in the segmentation image. To return a frame of '
-                        'zeros in this situation, set the '
-                        "'assert_missing_frames_are_empty' parameter to True."
-                    )
+        # Run query to create the iterable of indices needed to construct
+        # the desired pixel array.
+        # The approach here is to create two temporary tables in the SQLite
+        # database, one for the desired dimension index values, and another for
+        # the desired segments, then use table joins to arrive with the frame
+        # LUT to arrive at the relevant rows, before clearing up the temporary
+        # tables.
 
-            # Iterate over requested segment numbers for this source frame
-            for c, seg_num in enumerate(segment_numbers):
-                # Use LUT to find the segmentation frame containing
-                # the index values and segment number
-                qry = np.array(list(ind_vals) + [seg_num])
-                seg_frm_indices = np.where(np.all(lut == qry, axis=1))[0]
-                if len(seg_frm_indices) == 1:
-                    seg_frames[r, c] = seg_frm_indices[0] + 1
-                elif len(seg_frm_indices) > 0:
-                    # This should never happen due to earlier checks
-                    # on unique rows
-                    raise RuntimeError(
-                        'An unexpected error was encountered during '
-                        'indexing of the segmentation image. Please '
-                        'file a bug report with the highdicom repository.'
-                    )
-                # else no segmentation frame found for this segment number,
-                # assume this frame is empty and leave the entry in seg_frames
-                # as -1
+        # Create temporary table of desired dimension indices
+        col_defs = [f'{col_name} INTEGER NOT NULL' for col_name in cols]
+        cmd = (
+            'CREATE TABLE TemporaryDimensionIndexValues('
+            '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+            f'   {", ".join(col_defs)}'
+            ')'
+        )
+        cur.execute(cmd)
+        placeholders = ', '.join(['?'] * (len(cols) + 1))
+        data = (
+            (i, *tuple(row)) for i, row in enumerate(dimension_index_values)
+        )
+        cur.executemany(
+            f'INSERT INTO TemporaryDimensionIndexValues VALUES({placeholders})',
+            data
+        )
 
-        return self._get_pixels_by_seg_frame(
-            seg_frames_matrix=seg_frames,
+        self._create_temporary_segment_table(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel
+        )
+
+        # Construct the query
+        join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
+        query = (
+            'SELECT '
+            '    D.OutputFrameIndex,'  # frame index of the output array
+            '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+            '    S.OutputSegmentNumber '  # output segment number
+            'FROM TemporaryDimensionIndexValues D '
+            'INNER JOIN FrameLUT L'
+            f'   ON {join_str} '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.SegmentNumber = S.SegmentNumber'
+        )
+        indices_iterator = cur.execute(query)
+
+        output_array = self._get_pixels_by_seg_frame(
+            num_output_frames=len(dimension_index_values),
+            indices_iterator=indices_iterator,
             segment_numbers=np.array(segment_numbers),
             combine_segments=combine_segments,
             relabel=relabel,
@@ -3183,6 +3202,13 @@ class Segmentation(SOPClass):
             skip_overlap_checks=skip_overlap_checks,
             dtype=dtype,
         )
+
+        # Clear up temporary tables
+        cur.execute('DROP TABLE TemporaryDimensionIndexValues')
+        self._drop_temporary_segment_table()
+        self._db.commit()
+
+        return output_array
 
 
 def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
