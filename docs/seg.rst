@@ -761,6 +761,64 @@ segmentation masks from SEG objects in a predictable and more intuitive way. We
 recommend using these methods over the basic `.pixel_array` in nearly all
 circumstances.
 
+Reading Existing Segmentation Images
+------------------------------------
+
+Since a segmentation is a DICOM object just like any other image, you can read
+it in from a file using `pydicom` to give you a `pydicom.Dataset`. However, if
+you read the file in using the :func:`highdicom.seg.segread` function, the
+segmentation will have type :class:`highdicom.seg.Segmentation`. This adds
+several extra methods that make it easier to work with the segmentation, such
+as the :meth:`highdicom.seg.Segmentation.get_segment_numbers` method that we
+saw above.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+    print(type(seg))
+    # <class 'highdicom.seg.sop.Segmentation'>
+
+Alternatively, you can convert an existing `pydicom.Dataset` into a
+:class:`highdicom.seg.Segmentation` using the
+:meth:`highdicom.seg.Segmentation.from_dataset()` method. This is useful if
+you receive the object over network rather than reading from file.
+
+.. code-block:: python
+
+    import highdicom as hd
+    import pydicom
+
+    dcm = pydicom.dcmread('data/test_files/seg_image_ct_binary.dcm')
+
+    # Convert to highdicom Segmentation object
+    seg = hd.Segmentation.from_dataset(dcm)
+
+    print(type(seg))
+    # <class 'highdicom.seg.sop.Segmentation'>
+
+By default this operation copies the underlying dataset, which may be slow for
+large objects. You can use ``copy=False`` to change the type of the object
+without copying the data.
+
+Since :class:`highdicom.seg.Segmentation` is a subclass of `pydicom.Dataset`,
+you can still perform operations on it, such as access DICOM attributes by
+their keyword, in the usual way.
+
+.. code-block:: python
+
+    import highdicom as hd
+    import pydicom
+
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+    print(isinstance(seg, pydicom.Dataset))
+    # True
+
+    # Accessing DICOM attributes as usual in pydicom
+    seg.PatientName
+    # 'Doe^Archibald'
+
 Reconstructing Segmentation Masks From DICOM SEGs
 -------------------------------------------------
 
@@ -783,6 +841,11 @@ of source instance UIDs, *H* and *W* are the height and width of the frames, and
 *S* is the number of segments included in the segmentation. In this way, the
 output of this method matches the input `pixel_array` to the constructor that
 would create the SEG object if it were created with highdicom.
+
+The following example (and those in later sections) use DICOM files from the
+highdicom test data, which may be found in the 
+`highdicom repository <https://github.com/herrmannlab/highdicom/tree/master/data/test_files>`_
+on GitHub.
 
 .. code-block:: python
 
@@ -811,20 +874,180 @@ would create the SEG object if it were created with highdicom.
     print(np.unique(pixels))
     # [0, 1]
 
-However, if the segments do not overlap, it is possible to combine the multiple
-segments into a simple "label map" style mask, as described above. This can be
-achieved by specifying the `combine_segments` parameter as `True`. In this
-case, the output will have shape (*F* x *H* x *W*), and a pixel value of *i*
-represents that the pixel belongs to segment *i* or a pixel value of 0
-represents that the pixel belongs to none of the requested segments. If the
-segments overlap, highdicom will raise a `RuntimeError`. Note that combining
-segments is only possible when the segmentation type is `BINARY`, or the
-segmentation type is `FRACTIONAL` but the only two values are actually present
-in the image.
+
+This second example demonstrates reconstructing segmentation masks from a
+segmentation derived from a multiframe image, in this case a whole slide
+microscopy image, and also demonstrates an example with multiple segments, in
+this case 20:
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
+
+    print(seg.number_of_segments)
+    # 20
+
+    # SOP Instance UID of the single multiframe image from which the
+    # segmentation was derived
+    _, _, source_sop_instance_uid = seg.get_source_image_uids()[0]
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_frame(
+        source_sop_instance_uid=source_sop_instance_uid,
+        source_frame_numbers=range(1, 26),
+        assert_missing_frames_are_empty=True,
+    )
+
+    # Source frames are stacked down the first dimension, segments are stacked
+    # down the fourth dimension
+    print(pixels.shape)
+    # (25, 10, 10, 20)
+
+    # Each segment is still binary
+    print(np.unique(pixels))
+    # [0, 1]
+
+Notice that we had to add an extra parameter here:
+``assert_missing_frames_are_empty``. This is because frame 3 has no
+segmentation in the segmentation image. This demonstrates an unfortunate
+subtlety of the way DICOM Segmentations are encoded. Since empty segments are
+omitted, if the segmentation contains no frames relating to a frame 3 of the
+source image, `highdicom` has no way to know whether frame 3 is really empty or
+whether you made a mistake and requested a frame that doesn't exist (or wasn't
+processed). By default, `highdicom` is cautious and will raise an error in this
+situation, unless you specify that frames that are not found in the Segmentation
+image should be interpreted as containing no segments using
+``assert_missing_frames_are_empty``.
+
+Reconstructing Specific Segments
+--------------------------------
 
 A further optional parameter, `segment_numbers`, allows the user to request
 only a subset of the segments available within the SEG object by providing a
-list of segment numbers.
+list of segment numbers. In this case, the output array will have a dimension
+equal to the number of segments requested, with the segments stacked in the
+order they were requested (which may not be ascending by segment number).
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
+
+    print(seg.number_of_segments)
+    # 20
+
+    # SOP Instance UID of the single multiframe image from which the
+    # segmentation was derived
+    _, _, source_sop_instance_uid = seg.get_source_image_uids()[0]
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_frame(
+        source_sop_instance_uid=source_sop_instance_uid,
+        source_frame_numbers=range(1, 26),
+        assert_missing_frames_are_empty=True,
+        segment_numbers=[10, 9, 8]
+    )
+
+    # Source frames are stacked down the first dimension, segments are stacked
+    # down the fourth dimension
+    print(pixels.shape)
+    # (25, 10, 10, 3)
+
+After this, the array ``pixels[:, :, :, 0]`` contains the pixels for segment
+number 10, ``pixels[:, :, :, 1]`` contains the pixels for segment number 9, and
+``pixels[:, :, :, 2]`` contains the pixels for segment number 8.
+
+Reconstructing Segmentation Masks as "Label Maps"
+-------------------------------------------------
+
+If the segments do not overlap, it is possible to combine the multiple segments
+into a simple "label map" style mask, as described above. This can be achieved
+by specifying the `combine_segments` parameter as `True`. In this case, the
+output will have shape (*F* x *H* x *W*), and a pixel value of *i* represents
+that the pixel belongs to segment *i* or a pixel value of 0 represents that the
+pixel belongs to none of the requested segments. Again, this mirrors the way
+you would have passed this segmentation mask to the constructor to create the
+object if you had used a label mask. If the segments overlap, highdicom will
+raise a `RuntimeError`. Note that combining segments is only possible when the
+segmentation type is `BINARY`, or the segmentation type is `FRACTIONAL` but the
+only two values are actually present in the image.
+
+Here, we repeat the above example but request the output as a label map:
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
+
+    # SOP Instance UID of the single multiframe image from which the
+    # segmentation was derived
+    _, _, source_sop_instance_uid = seg.get_source_image_uids()[0]
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_frame(
+        source_sop_instance_uid=source_sop_instance_uid,
+        source_frame_numbers=range(1, 26),
+        assert_missing_frames_are_empty=True,
+        segment_numbers=[10, 9, 8],
+        combine_segments=True,
+    )
+
+    # Source frames are stacked down the first dimension, now there is no
+    # fourth dimension
+    print(pixels.shape)
+    # (25, 10, 10)
+
+    print(np.unique(pixels))
+    # [0 8 9 10]
+
+In the default behavior, the pixel values of the output label map correspond to
+the original segment numbers to which those pixels belong. Therefore we see
+that the output array contains values 8, 9, and 10, corresponding to the three
+segments that we requested (in addition to 0, meaning no segment). However,
+when you are specifying a subset of segments, you may wish to "relabel" these
+segments such that in the output array the first segment you specify has value
+1, the second has value 2, and so on. This is achieved using the ``relabel``
+parameter.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
+
+    # SOP Instance UID of the single multiframe image from which the
+    # segmentation was derived
+    _, _, source_sop_instance_uid = seg.get_source_image_uids()[0]
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_frame(
+        source_sop_instance_uid=source_sop_instance_uid,
+        source_frame_numbers=range(1, 26),
+        assert_missing_frames_are_empty=True,
+        segment_numbers=[10, 9, 8],
+        combine_segments=True,
+        relabel=True,
+    )
+
+    # Source frames are stacked down the first dimension, now there is no
+    # fourth dimension
+    print(pixels.shape)
+    # (25, 10, 10)
+
+    # Now the output segments have been relabelled to 1, 2, 3
+    print(np.unique(pixels))
+    # [0 1 2 3]
+
+Reconstructing Fractional Segmentations
+---------------------------------------
 
 For `FRACTIONAL` SEG objects, highdicom will rescale the pixel values in the
 segmentation masks from the integer values as which they are stored back down
@@ -832,6 +1055,31 @@ to the range `0.0` to `1.0` as floating point values by scaling by the
 "MaximumFractionalValue" attribute. If desired, this behavior can be disabled
 by specifying `rescale_fractional=False`, in which case the raw integer array
 as stored in the SEG will be returned.
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_ct_true_fractional.dcm')
+
+    print(seg.segmentation_type)
+    # SegmentationTypeValues.FRACTIONAL
+
+    # List the source images for this segmentation:
+    sop_uids = [uids[2] for uids in seg.get_source_image_uids()]
+
+    # Get the segmentation array for a subset of these images:
+    pixels = seg.get_pixels_by_source_instance(
+        source_sop_instance_uids=sop_uids,
+    )
+
+    # Each segment values are now floating point
+    print(pixels.dtype)
+    # float32
+    print(np.unique(pixels))
+    # [0.        0.2509804 0.5019608]
 
 
 Viewing DICOM SEG Images
@@ -845,3 +1093,6 @@ viewers. Viewers that do support SEG include:
 - `3D Slicer <https://www.slicer.org/>`_, an open-source desktop application
   for 3D medical image computing. It supports both display and creation of
   DICOM SEG files via the "Quantitative Reporting" plugin.
+
+Note that these viewers may not support all features of segmentation images
+that `highdicom` is able to encode.
