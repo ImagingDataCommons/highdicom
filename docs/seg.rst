@@ -29,11 +29,11 @@ images difficult to understand and work with at first.
 Segments
 --------
 
-A SEG image encodes one or more distinct image regions of an image, which are
-known as *segments*. A single segment could represent, for example, a
-particular organ (liver, lung, kidney), tissue (fat, muscle, bone), or
-abnormality (tumor, infarct).  Elsewhere the same concept is known by other
-names such as *class* or *label*.
+A SEG image encodes one or more distinct regions of an image, which are known
+as *segments*. A single segment could represent, for example, a particular
+organ or structure (liver, lung, kidney, cell nucleus), tissue (fat, muscle,
+bone), or abnormality (tumor, infarct).  Elsewhere the same concept is known by
+other names such as *class* or *label*.
 
 Each segment in a DICOM SEG image is represented by a separate 2D *frame* (or
 set of *frames*) within the Segmentation image. One important ramification of
@@ -206,9 +206,10 @@ Constructing Basic Binary SEG Images
 
 We have now covered enough to construct a basic binary segmentation image. We
 use the :class:`highdicom.seg.Segmentation` class and provide a description of
-each segment, a pixel array of the segmentation mask as a numpy array with an
-unsigned integer data type, the `pydicom.Datasets` of the source images for the
-segmentation, and some other basic information.
+each segment, a pixel array of the segmentation mask, the `pydicom.Datasets` of
+the source images for the segmentation, and some other basic information. The
+segmentation pixel array is provided as a numpy array with an unsigned integer
+data type containing only the values 0 and 1.
 
 .. code-block:: python
 
@@ -403,8 +404,8 @@ this.  The first is to stack the masks for the multiple segments down axis 3
 `pixel_array` with *F* source frames of height *H* and width *W*, with *S*
 segments, is then (*F* x *H* x *W* *S*). The segmentation mask for the segment
 with ``segment_number=i`` should be found at ``pixel_array[:, :, :, i - 1]``
-(the offset is because segments are numbered starting at 1 but numpy array
-indexing starts at 0).
+(the offset of -1 is because segments are numbered starting at 1 but numpy
+array indexing starts at 0).
 
 
 Note that when multiple segments are used, the first dimension (*F*) must
@@ -542,7 +543,7 @@ binary ones ``"BINARY"``, with the caveat that fractional SEGs may not use the
 "label map" method to pass multiple segments but must instead stack them along
 axis 3.
 
-The example below shows a simple example of construction a fractional seg
+The example below shows a simple example of constructing a fractional seg
 representing a probabilistic segmentation of the liver.
 
 .. code-block:: python
@@ -607,7 +608,7 @@ manner as other DICOM images. However, since lossy compression methods such as
 standard JPEG are not designed to work with these sorts of images, we strongly
 advise using only lossless compression methods with Segmentation images.
 Currently *highdicom* supports the following compressed transfer syntaxes when
-creating segmentation images: ``"RLELossless"`` (lossless),
+creating ``"FRACTIONAL"`` segmentation images: ``"RLELossless"`` (lossless),
 ``"JPEG2000Lossless"`` (lossless), ``"JPEGBaseline8Bit"`` (lossy, not
 recommended).
 
@@ -616,7 +617,7 @@ store segmentation images that are binary in nature (i.e. only taking values 0
 and 1):
 
 - If the segmentation is very simple or sparse, the lossless compression methods
-  available in ``"FRACTIONAL"`` images may be more efficient than the
+  available in ``"FRACTIONAL"`` images may be more effective than the
   "bit-packing" method required by ``"BINARY"`` segmentations.
 - The clear frame boundaries make retrieving individual frames from
   ``"FRACTIONAL"`` image files possible.
@@ -629,11 +630,11 @@ In the simple cases we have seen so far, the geometry of the segmentation
 correspondence between a given pixel in the ``pixel_array`` and the
 corresponding pixel in the relevant source frame. While this covers most use
 cases, DICOM SEGs actually allow for more general segmentations in which there
-is a more complicated relationship between the source frames and the
-segmentation masks. This could arise when a source image is resampled or
+is a more complicated geometrical relationship between the source frames and
+the segmentation masks. This could arise when a source image is resampled or
 transformed before the segmentation method is applied, such that there is no
 longer a simple correspondence between pixels in the segmentation mask and
-pixels in the source image.
+pixels in the original source DICOM image.
 
 Highdicom supports this case by allowing you to manually specify the plane
 positions of the each frame in the segmentation mask, and further the
@@ -733,7 +734,8 @@ SEG image entirely (this is highdicom's default behavior).
 
 Every `pydicom.Dataset` has the `.pixel_array` property, which, in the case of
 a multiframe image, returns the full list of frames in the image as an array of
-shape (frames x rows x colums), with frames organized. A
+shape (frames x rows x colums), with frames organized in whatever manner they
+were organized in by the creator of the object. A
 :class:`highdicom.seg.Segmentation` is a sub-class of `pydicom.Dataset`, and
 therefore also has the `.pixel_array` property. However, given the complexities
 outlined above, *it is not recommended* to use to the `.pixel_array` property
@@ -775,7 +777,7 @@ When reconstructing a segmentation mask using `get_pixels_by_source_instance()`,
 the user must provide a list of SOP Instance UIDs of the source images for which
 the segmentation mask should be constructed. Whatever order is chosen here will
 be used to order the frames of the output segmentation mask, so it is up to the
-user to sort them according to how their needs. The default behavior is that the
+user to sort them according to their needs. The default behavior is that the
 output pixel array is of shape (*F* x *H* x *W* x *S*), where *F* is the number
 of source instance UIDs, *H* and *W* are the height and width of the frames, and
 *S* is the number of segments included in the segmentation. In this way, the
