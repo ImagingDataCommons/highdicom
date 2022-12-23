@@ -8,7 +8,13 @@ Documentation of the highdicom package
    introduction
    installation
    usage
+   coding
    seg
+   sr
+   kos
+   pr
+   sc
+   legacy
    development
    conformance
    citation
