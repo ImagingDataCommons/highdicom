@@ -71,6 +71,7 @@ from highdicom.sr.value_types import (
     TextContentItem,
     TimeContentItem,
     UIDRefContentItem,
+    WaveformContentItem,
 )
 
 SOP_CLASS_UIDS = {

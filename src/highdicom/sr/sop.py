@@ -333,7 +333,7 @@ class EnhancedSR(_SR):
 
     """SOP class for an Enhanced Structured Report (SR) document, whose
     content may include textual and a minimal amount of coded information,
-    numeric measurement values, references to SOP Instances (retricted to the
+    numeric measurement values, references to SOP Instances (restricted to the
     leaves of the tree), as well as 2D spatial or temporal regions of interest
     within such SOP Instances.
     """

@@ -11,6 +11,7 @@ Documentation of the highdicom package
    coding
    seg
    sr
+   tid1500
    kos
    pr
    sc
