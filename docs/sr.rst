@@ -222,10 +222,93 @@ Content Items like this:
 
 .. code-block:: python
 
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # A measurement derived from an image
+    depth_item = hd.sr.NumContentItem(
+       name=codes.DCM.Depth,
+       value=3.4,
+       unit=codes.UCUM.cm,
+    )
+
+    # The source image from which the measurement was inferred
+    source_item = hd.sr.CompositeContentItem(
+       name=codes.DCM.SourceImage,
+       referenced_sop_class_uid="1.2.840.10008.5.1.4.1.1.2",
+       referenced_sop_instance_uid="1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322",
+       relationship_type=hd.sr.RelationshipTypeValues.INFERRED_FROM,
+    )
+
+    # A tracking identifier identifying the measurment
+    tracking_item = hd.sr.UIDRefContentItem(
+       name=codes.DCM.TrackingIdentifier,
+       value=hd.UID(),  # a newly generated UID
+       relationship_type=hd.sr.RelationshipTypeValues.HAS_OBS_CONTEXT,
+    )
+
+    # Nest the source item below the depth item
+    depth_item.ContentSequence = [source_item, tracking_item]
 
 Structured Reporting IODs
 -------------------------
 
+By nesting Content Items and Content Sequences in this way, you can create a
+Structured Report DICOM object. There are many IODs (Information Object
+Definitions) for Structured Reports, and `highdicom` currently implements three
+of them:
+
+- :class:`highdicom.sr.EnhancedSR` -- ??? It does not support Scoord 3D Content Items,
+- :class:`highdicom.sr.ComprehensiveSR` -- ??? It does not support Scoord 3D Content Items.
+- :class:`highdicom.sr.Comprehensive3DSR` -- This is the most general form of
+  SR, but is relatively and may not be supported by all systems. It does
+  support Scoord 3D Content Items.
+
+The constructors for these classes take a number of parameters specifying the
+content of the structured report, the evidence from which it was derived in the
+form of a list of ``pydicom.Datasets``, as well as various metadata assocaited
+with the report.
+
+The content is provided as the ``content`` parameter, which should be a single
+content item representing the "root" of the (potentially) nested structure
+containing all Content Items in the report.
+
+Using the depth item constructed above as the root Content Item, we can
+create a Structured Report like this (here we use an example dataset from
+the highdicom test data):
+
+.. code-block:: python
+
+    # Path to single-frame CT image instance stored as PS3.10 file
+    image_dataset = pydicom.dcmread("data/test_files/ct_image.dcm")
+
+    # Create the Structured Report instance
+    sr_dataset = hd.sr.Comprehensive3DSR(
+        evidence=[image_dataset],
+        content=depth_item,
+        series_number=1,
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Manufacturer'
+    )
+
+Note that this is just a toy example and we do **not** recommend producing SRs
+like this in practice. Instead of this arbitrary structure of Content Items, it
+is far better to follow an existing **template** that encapsulates a
+standardized structure of Content Items.
+
 Structured Reporting Templates
 ------------------------------
 
+The DICOM standard defines a large number of Structured Reporting templates,
+which are essentially sets of constraints on the pattern of Content Items
+intended for a particular purpose.
+
+*Highdicom* currently implements only the TID1500 "Measurement Report" template
+and its many sub-templates. This template is highly flexible and provides a
+standardized way to store general measurements and evaluations from one or more
+images or image regions (expressed in image or frame of reference coordinates).
+
+The following page gives a detailed overview of how to use the Measurement
+Report template within *highdicom*.

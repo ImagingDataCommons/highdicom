@@ -3,10 +3,125 @@
 The TID1500 Measurement Report Template
 =======================================
 
+The TID1500 "Measurement Report" template is a general-purpose template for
+communicating measurements and qualitative evaluations derived from one or
+more images or regions of images. It is recommended to read the previous page
+on `Structured Reports <sr.html>`_ before this page.
 
+*Highdicom* represents the various sub-templates of the TID1500 template as
+Python classes. Using these classes will guide you through the process of
+creating TID 1500 SRs in a modular and structured way, and will perform various
+checks on the inputs you provide.
+
+Overview of TID1500 Content
+---------------------------
+
+A diagram of the structure of TID1500 content is shown here:
+
+At the top level, the Measurement Report template
+(:class:`highdicom.sr.MeasurementReport`) represents a report containing
+various measurements and various metadata about the process through which it
+was created.
+
+A measurement report contains one or more Measurement Groups, each
+of which applies either to one or more entire images
+(:class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`), a 2D image
+region of interest
+(:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`), or a 3D
+image region of interest
+(:class:`VolumetricROIMeasurementsAndQualitativeEvaluations`).
+
+Each Measurement Group contains a number of Measurements (numerical values
+derived from an image, such as a length or volume) and/or Qualitative
+Evaluations (categorical values derived from an image, such as classification
+of a tumor morphology).
+
+When constructing the content, it is necessary to start at the bottom of the
+content tree with the measurements and evaluations, and gradually compose them
+to create the higher-level templates. However, here we will describe the
+structure from the top down, as this makes it easier to understand the overall
+structure.
+
+Measurement Report
+------------------
+
+Every TID1500 Structured Report contains exactly one Measurement Report
+at the root of its content tree. This is represented by the class
+:class:`highdicom.sr.MeasurementReport`. 
+
+The first ingredient in the Measurement Report is the "Observation Context",
+which contains metadata describing the way the observations that led to the
+report were made. This includes information such as the person or device that
+made the observations, and the subject about which the observations were made:
+
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    observer_person_context = hd.sr.ObserverContext(
+        observer_type=codes.DCM.Person,
+        observer_identifying_attributes=hd.sr.PersonObserverIdentifyingAttributes(
+            name='Doe^John'
+        )
+    )
+    observer_device_context = hd.sr.ObserverContext(
+        observer_type=codes.DCM.Device,
+        observer_identifying_attributes=hd.sr.DeviceObserverIdentifyingAttributes(
+            uid=hd.UID()
+        )
+    )
+    observation_context = hd.sr.ObservationContext(
+        observer_person_context=observer_person_context,
+        observer_device_context=observer_device_context,
+    )
+
+The second required ingredient is a procedure code describing the procedure
+that was performed to result in the observations. Finally, we have the image
+measurement groups that the report contains (described below). Combining these
+we can construct the Measurement Report, and use it to construct the SR
+document:
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    measurement_report = hd.sr.MeasurementReport(
+        observation_context=observation_context,  # from above
+        procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+        imaging_measurements=[...],
+    )
+
+    # Create the Structured Report instance
+    sr_dataset = hd.sr.Comprehensive3DSR(
+        evidence=[...],  # all datasets referenced in the report
+        content=measurement_report,  # TODO fix this
+        series_number=1,
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Manufacturer'
+    )
 
 Measurement Groups
 ------------------
+
+A Measurement Report contains one or more Measurement Groups. There are three
+types of Measurement Groups, corresponding to entire images, 2D regions of
+interest, and 3D regions of interest. The three types may be mixed and matched
+within a single Measurent Report in any combination.
+
+TID 1501 (:class:`hd.sr.MeasurementsAndQualitativeEvaluations`)
+---------------------------------------------------------------
+
+The first, and simplest, type of Measurement Group applies to one or more 
+entire images.
+
+TID 1501 Planar ROI Image Measurements (:class:`hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations`)
+----------------------------------------------------------------------------------
+
+The first, and simplest, type of Measurement Group applies to one or more 
+entire images.
 
 
 Qualitative Evaluations
