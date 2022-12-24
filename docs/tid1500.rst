@@ -109,20 +109,70 @@ Measurement Groups
 A Measurement Report contains one or more Measurement Groups. There are three
 types of Measurement Groups, corresponding to entire images, 2D regions of
 interest, and 3D regions of interest. The three types may be mixed and matched
-within a single Measurent Report in any combination.
+within a single Measurement Report in any combination.
 
-TID 1501 (:class:`hd.sr.MeasurementsAndQualitativeEvaluations`)
----------------------------------------------------------------
+Common Parameters for Measurement Groups
+----------------------------------------
 
-The first, and simplest, type of Measurement Group applies to one or more 
-entire images.
+The three types of measurement group are more alike than different. The
+following parameters may be used for all Measurement Groups, regardless of
+type (some have been omitted for brevity):
 
-TID 1501 Planar ROI Image Measurements (:class:`hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations`)
-----------------------------------------------------------------------------------
+- ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
+    Identifier for tracking measurements
+- ``finding_type`` (:class:`highdicom.sr.CodedConcept`), optional
+    Type of observed finding
+- ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`), optional
+    Identification of algorithm used for making measurements.
+- ``finding_sites``: ``Sequence[``:class:`highdicom.sr.FindingSite` ``]``, optional
+    Coded description of one or more anatomic locations at which
+    finding was observed
+- ``measurements``: ``Sequence[``:class:`highdicom.sr.Measurement` ``]``, optional
+    Numeric measurements
+- ``qualitative_evaluations``:``Sequence[``:class:`highdicom.sr.CodedConcept` ``]``, optional
+    Coded name-value pairs that describe qualitative evaluations
+- ``finding_category``: (:class:`highdicom.sr.CodedConcept`), optional
+    Category of observed finding, e.g., anatomic structure or
+    morphologically abnormal structure
 
-The first, and simplest, type of Measurement Group applies to one or more 
-entire images.
+Measurements And Qualitative Evaluations (TID 1501)
+---------------------------------------------------
 
+The first, and simplest, type of Measurement Group applies to one or more
+entire images (or optionally one or more entire frames in the case of
+multiframe source images). This is implemented using
+:class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`.
+
+In addition to the common parameters above, this class also accepts a parameter
+``source_images``, which is a sequence of
+:class:`highdicom.sr.SourceImageForMeasurementGroup` items specifying the
+images (or frames) to which the measurement group applies.
+
+The following is a simple example:
+
+Planar ROI Image Measurements (TID 1410)
+----------------------------------------
+
+This type of Measurement Group applies to a specific planar sub-region of the
+source image or images. This is implemented in the class
+:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`).
+
+This class takes additional parameter specifying the region. There are two
+distinct options here. Either the image region is specified directly in the SR
+using a :class:`highdicom.sr.ImageRegion` or
+:class:`highdicom.sr.ImageRegion3D` passed as the ``referenced_region``
+parameter, or the region is specified as a reference to a particular reference
+in a DICOM Segmentation Image, specified by passing a
+:class:`highdicom.sr.ReferencedSegmentationFrame` to the `referenced_segment`
+parameter. Note that either ``referenced_region`` or ``referenced_segment``
+should be passed, and not both (or neither).
+
+Volumetric ROI Image Measurements (TID 1411)
+--------------------------------------------
+
+This type of Measurement Group applies to a specific volumetric sub-region of
+the source image or images. This is implemented in the class
+:class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`).
 
 Qualitative Evaluations
 -----------------------
@@ -130,3 +180,13 @@ Qualitative Evaluations
 
 Measurements
 ------------
+
+
+Parsing Measurement Reports
+---------------------------
+
+Searching For Measurement Groups
+--------------------------------
+
+Searching for Measurements and Evaluations
+------------------------------------------
