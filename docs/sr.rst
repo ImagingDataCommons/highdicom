@@ -27,8 +27,9 @@ types"), and accordingly, there are a number of different types of content
 item. The classes representing these content items in `highdicom` are:
 
 - :class:`highdicom.sr.CodeContentItem`: The value is a coded concept.
-- :class:`highdicom.sr.CompositeContentItem`: The value is a reference to another
-  (composite) DICOM object (for example an image or segmentation image).
+- :class:`highdicom.sr.CompositeContentItem`: The value is a reference to
+  another (composite) DICOM object (for example an image or segmentation
+  image).
 - :class:`highdicom.sr.ContainerContentItem`: The value is a template container
   containing other content items (more on this later).
 - :class:`highdicom.sr.DateContentItem`: The value is a date.
@@ -40,12 +41,14 @@ item. The classes representing these content items in `highdicom` are:
   coordinate in the image coordinate system.
 - :class:`highdicom.sr.Scoord3DContentItem`: The value is a 3D spatial
   coordinate in the frame of reference coordinate system.
-- :class:`highdicom.sr.TcoordContentItem`: The value is a temporal coordinate defined
-  relative to some start point.
+- :class:`highdicom.sr.TcoordContentItem`: The value is a temporal coordinate
+  defined relative to some start point.
 - :class:`highdicom.sr.TextContentItem`: The value is a general string.
 - :class:`highdicom.sr.TimeContentItem`: The value is a time.
-- :class:`highdicom.sr.WaveformContentItem`: The value is a time.
-- :class:`highdicom.sr.UIDRefContentItem`: The value is a UID (unique identifier).
+- :class:`highdicom.sr.WaveformContentItem`: The value is a reference to a
+  waveform stored within another DICOM object.
+- :class:`highdicom.sr.UIDRefContentItem`: The value is a UID (unique
+  identifier).
 
 These classes are all subclasses pf ``pydicom.Dataset`` and you can view and
 interact with their attributes as you can with any pydicom dataset.
@@ -114,7 +117,7 @@ particular image, which is given by the "ImagePositionPatient" or
 do not change if the underlying image is resampled.
 
 See the :mod:`highdicom.spatial` module for useful utilities for moving
-between these two coordinate system.
+between these two coordinate systems.
 
 Each of these has a distinct but similar list of graphical objects that can be
 represented, defined by the enumerations
@@ -202,8 +205,9 @@ turn contain further items, and so on, it is possible to build highly nested
 structures of content items in a "tree" structure.
 
 When this is done, it is necessary to include a "relationship type" attribute
-in each content item that encodes the relationship that the child item has with
-the parent (the Content Item whose Content Sequence the parent belongs to).
+in each child content item (i.e. all Content Items except the one at the root
+of the tree) that encodes the relationship that the child item has with the
+parent (the Content Item whose Content Sequence the parent belongs to).
 
 The possible relationship types are defined with the enumeration
 :class:`highdicom.sr.RelationshipTypeValues` (see the documentation of that
@@ -261,7 +265,7 @@ of them:
 - :class:`highdicom.sr.EnhancedSR` -- ??? It does not support Scoord 3D Content Items,
 - :class:`highdicom.sr.ComprehensiveSR` -- ??? It does not support Scoord 3D Content Items.
 - :class:`highdicom.sr.Comprehensive3DSR` -- This is the most general form of
-  SR, but is relatively and may not be supported by all systems. It does
+  SR, but is relatively new and may not be supported by all systems. It does
   support Scoord 3D Content Items.
 
 The constructors for these classes take a number of parameters specifying the
@@ -303,7 +307,7 @@ Structured Reporting Templates
 
 The DICOM standard defines a large number of Structured Reporting templates,
 which are essentially sets of constraints on the pattern of Content Items
-intended for a particular purpose.
+within a report. Each template is intended for a particular purpose.
 
 *Highdicom* currently implements only the TID1500 "Measurement Report" template
 and its many sub-templates. This template is highly flexible and provides a

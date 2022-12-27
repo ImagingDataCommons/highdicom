@@ -37,10 +37,10 @@ Evaluations (categorical values derived from an image, such as classification
 of a tumor morphology).
 
 When constructing the content, it is necessary to start at the bottom of the
-content tree with the measurements and evaluations, and gradually compose them
-to create the higher-level templates. However, here we will describe the
-structure from the top down, as this makes it easier to understand the overall
-structure.
+content tree with the Measurements and Evaluations, add them into Measurement
+Groups, add these groups to a Measurement Report, and then create the document.
+However, here we will describe the structure from the top down, as this makes
+the big picture clearer.
 
 Measurement Report
 ------------------
@@ -158,14 +158,28 @@ source image or images. This is implemented in the class
 :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`).
 
 This class takes additional parameter specifying the region. There are two
-distinct options here. Either the image region is specified directly in the SR
-using a :class:`highdicom.sr.ImageRegion` or
-:class:`highdicom.sr.ImageRegion3D` passed as the ``referenced_region``
-parameter, or the region is specified as a reference to a particular reference
-in a DICOM Segmentation Image, specified by passing a
-:class:`highdicom.sr.ReferencedSegmentationFrame` to the `referenced_segment`
-parameter. Note that either ``referenced_region`` or ``referenced_segment``
+distinct options here:
+
+1. The image region is specified directly in the SR using a
+   :class:`highdicom.sr.ImageRegion` or :class:`highdicom.sr.ImageRegion3D`
+   passed as the ``referenced_region`` parameter. In this case, the coordinates
+   defining the SR are stored within the measurement group itself.
+2. The region is specified as a reference to a single slice of a single segment
+   stored in a separate DICOM Segmentation Image object, specified by passing a
+   :class:`highdicom.sr.ReferencedSegmentationFrame` to the
+   `referenced_segment` parameter, which contains UIDs to identify the
+   Segmentation Image along with the segment number of the specific segment and
+   the frames within which it is stored.
+
+Note that **either** ``referenced_region`` or ``referenced_segment``
 should be passed, and not both (or neither).
+
+The choice between :class:`highdicom.sr.ImageRegion` and
+:class:`highdicom.sr.ImageRegion3D` determines whether the image region is
+defined in 2D image coordinates or 3D frame of reference coordinates. Either
+way, the region must be planar. It is possible to store coordinates for a
+planar in frame of reference coordinates in an
+:class:`highdicom.sr.ImageRegion3D`.
 
 Volumetric ROI Image Measurements (TID 1411)
 --------------------------------------------
@@ -173,6 +187,25 @@ Volumetric ROI Image Measurements (TID 1411)
 This type of Measurement Group applies to a specific volumetric sub-region of
 the source image or images. This is implemented in the class
 :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`).
+
+Like the similar Planar ROI class, this class takes additional parameter
+specifying the region. In this case there are three options:
+
+1. The image region is specified directly in the SR in image coordinates using
+   one or more objects of type :class:`highdicom.sr.ImageRegion` passed as the
+   ``referenced_regions`` parameter, representing the volumetric region as set
+   of 2D regions across multiple images or frames.
+2. The region is specified as a single volumetric region defined in frame of
+   reference coordinates using a single :class:`highdicom.sr.VolumeSurface`
+   object passed to the ``referenced_volume_surface`` parameter.
+3. The region is a reference to an entire segment (which may spread across
+   multiple images or frames) of a Segmentation Image object, specified by
+   passing a :class:`highdicom.sr.ReferencedSegment` to the
+   `referenced_segment` parameter, which contains UIDs to identify the
+   Segmentation Image along with the segment number of the specific segment.
+
+Note that exactly one of ``referenced_regions``, ``referenced_volume_surface``,
+or ``referenced_segment`` should be passed.
 
 Qualitative Evaluations
 -----------------------
