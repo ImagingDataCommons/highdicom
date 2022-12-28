@@ -1455,10 +1455,20 @@ def _get_softcopy_voi_lut_transformations(
                 )
 
             if has_width:
+                width = ref_im.WindowWidth
+                center = ref_im.WindowCenter
+                exp = getattr(ref_im, 'WindowCenterWidthExplanation', None)
+                # MultiValues are not hashable so make into tuples
+                if isinstance(width, MultiValue):
+                    width = tuple(width)
+                if isinstance(center, MultiValue):
+                    center = tuple(center)
+                if isinstance(exp, MultiValue):
+                    exp = tuple(exp)
                 by_window[(
-                    ref_im.WindowWidth,
-                    ref_im.WindowCenter,
-                    getattr(ref_im, 'WindowCenterWidthExplanation', None),
+                    width,
+                    center,
+                    exp,
                     getattr(ref_im, 'VOILUTFunction', None),
                 )].append(ref_im)
             elif has_lut:

@@ -1348,6 +1348,42 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.SoftcopyVOILUTSequence[1].WindowWidth == expected_width
         assert gsps.SoftcopyVOILUTSequence[1].WindowCenter == expected_center
 
+    def test_construction_with_copy_voi_lut_multival(self):
+        new_series = []
+        widths = [40.0, 20.0]
+        centers = [400.0, 600.0]
+        exps = ['WINDOW1', 'WINDOW2']
+        for dcm in self._ct_series:
+            new_dcm = deepcopy(dcm)
+            new_dcm.WindowCenter = centers
+            new_dcm.WindowWidth = widths
+            new_dcm.WindowCenterWidthExplanation = exps
+            new_series.append(new_dcm)
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=new_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 1
+        assert gsps.SoftcopyVOILUTSequence[0].WindowWidth == widths
+        assert gsps.SoftcopyVOILUTSequence[0].WindowCenter == centers
+        assert (
+            gsps.SoftcopyVOILUTSequence[0].WindowCenterWidthExplanation == exps
+        )
+
     def test_construction_with_copy_voi_lut_empty(self):
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
