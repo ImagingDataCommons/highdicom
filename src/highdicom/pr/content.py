@@ -1397,16 +1397,29 @@ def _get_softcopy_voi_lut_transformations(
             for frame_number, frm_grp in enumerate(perframe_grps, 1):
                 if hasattr(frm_grp, 'FrameVOILUTSequence'):
                     voi_seq = frm_grp.FrameVOILUTSequence[0]
+
                     # Create unique ID for this VOI lookup as a tuple
                     # of the contents
+                    width = voi_seq.WindowWidth
+                    center = voi_seq.WindowCenter
+                    exp = getattr(
+                        voi_seq,
+                        'WindowCenterWidthExplanation',
+                        None
+                    )
+
+                    # MultiValues are not hashable so make into tuples
+                    if isinstance(width, MultiValue):
+                        width = tuple(width)
+                    if isinstance(center, MultiValue):
+                        center = tuple(center)
+                    if isinstance(exp, MultiValue):
+                        exp = tuple(exp)
+
                     by_window[(
-                        voi_seq.WindowWidth,
-                        voi_seq.WindowCenter,
-                        getattr(
-                            voi_seq,
-                            'WindowCenterWidthExplanation',
-                            None
-                        ),
+                        width,
+                        center,
+                        exp,
                         getattr(voi_seq, 'VOILUTFunction', None),
                     )].append(frame_number)
 
