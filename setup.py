@@ -26,7 +26,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/herrmannlab/highdicom',
+    url='https://github.com/imagingdatacommons/highdicom',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[

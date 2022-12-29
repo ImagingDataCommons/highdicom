@@ -41,6 +41,6 @@ Install directly from source code (available on Github):
 
 .. code-block:: none
 
-    git clone https://github.com/herrmannlab/highdicom ~/highdicom
+    git clone https://github.com/imagingdatacommons/highdicom ~/highdicom
     pip install ~/highdicom
 
