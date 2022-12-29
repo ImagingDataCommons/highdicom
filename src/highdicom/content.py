@@ -1867,7 +1867,7 @@ class VOILUTTransformation(Dataset):
                     )
                 for exp in window_explanation:
                     _check_long_string(exp)
-            self.WindowCenterWidthExplanation = window_explanation
+            self.WindowCenterWidthExplanation = list(window_explanation)
         if voi_lut_function is not None:
             if window_center is None:
                 raise TypeError(
