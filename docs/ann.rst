@@ -1,6 +1,6 @@
-.. _sc:
+.. _ann:
 
-Secondary Capture (SC) Images
-=============================
+Bulk Microscopy Annotations
+===========================
 
 This page is under construction, and more detail will be added soon.

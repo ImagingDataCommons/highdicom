@@ -6,7 +6,7 @@ The TID1500 Measurement Report Template
 The TID1500 "Measurement Report" template is a general-purpose template for
 communicating measurements and qualitative evaluations derived from one or
 more images or regions of images. It is recommended to read the previous page
-on `Structured Reports <sr.html>`_ before this page.
+on :ref:`generalsr` before this page.
 
 *Highdicom* represents the various sub-templates of the TID1500 template as
 Python classes. Using these classes will guide you through the process of
@@ -112,14 +112,15 @@ interest, and 3D regions of interest. The three types may be mixed and matched
 within a single Measurement Report in any combination.
 
 Common Parameters for Measurement Groups
-----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The three types of measurement group are more alike than different. The
 following parameters may be used for all Measurement Groups, regardless of
 type (some have been omitted for brevity):
 
 - ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
-    Identifier for tracking measurements
+    Identifier for tracking measurement groups. This allows this region to
+    be referred to unambiguously in future objects.
 - ``finding_type`` (:class:`highdicom.sr.CodedConcept`), optional
     Type of observed finding
 - ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`), optional
@@ -136,7 +137,7 @@ type (some have been omitted for brevity):
     morphologically abnormal structure
 
 Measurements And Qualitative Evaluations (TID 1501)
----------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first, and simplest, type of Measurement Group applies to one or more
 entire images (or optionally one or more entire frames in the case of
@@ -146,12 +147,39 @@ multiframe source images). This is implemented using
 In addition to the common parameters above, this class also accepts a parameter
 ``source_images``, which is a sequence of
 :class:`highdicom.sr.SourceImageForMeasurementGroup` items specifying the
-images (or frames) to which the measurement group applies.
+images (or frames) to which the measurement group applies. If this is omitted,
+the measurement group is assumed to include all images referenced in the
+SR document.
 
 The following is a simple example:
 
+.. code-block:: python
+
+   import highdicom as hd
+   from pydicom import dcmread
+
+   im = dcmread('/path/to/file.dcm')
+
+   # A tracking identifier for this measurement group
+   tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Image0001',
+       uid=hd.UID(),
+   )
+
+   # An object describing the source image for the measurements
+   source_image = hd.sr.SourceImageForMeasurementGroup.from_source_image(im)
+
+   # Construct the measurement group
+   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+       source_images=[source_image],
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evluations=[...],
+   )
+
+
 Planar ROI Image Measurements (TID 1410)
-----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific planar sub-region of the
 source image or images. This is implemented in the class
@@ -181,8 +209,105 @@ way, the region must be planar. It is possible to store coordinates for a
 planar in frame of reference coordinates in an
 :class:`highdicom.sr.ImageRegion3D`.
 
+The following example uses an :class:`highdicom.sr.ImageRegion`:
+
+.. code-block:: python
+
+   import highdicom as hd
+   import numpy as np
+   from pydicom import dcmread
+
+   im = dcmread('/path/to/file.dcm')
+
+   # A tracking identifier for this measurement group
+   tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region0001',
+       uid=hd.UID(),
+   )
+
+   # Define the image region (a circle) using image coordinates
+   region = hd.sr.ImageRegion(
+       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+   )
+
+   # Construct the measurement group
+   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+       referenced_region=region,
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+   )
+
+This example uses an :class:`highdicom.sr.ImageRegion3D`:
+
+.. code-block:: python
+
+   import highdicom as hd
+   import numpy as np
+   from pydicom import dcmread
+
+   im = dcmread('/path/to/file.dcm')
+
+   # A tracking identifier for this measurement group
+   tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region3D0001',
+       uid=hd.UID(),
+   )
+
+   # Define the image region (a point) using frame-of-reference coordinates
+   region = hd.sr.ImageRegion3D(
+       graphic_type=hd.sr.GraphicTypeValues3D.POINT,
+       graphic_data=np.array([[123.5, 234.1, -23.7]]),
+       frame_of_reference_uid=im.FrameOfReferenceUID,
+   )
+
+   # Construct the measurement group
+   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+       referenced_region=region,
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+   )
+
+The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame`:
+
+.. code-block:: python
+
+   import highdicom as hd
+   import numpy as np
+   from pydicom import dcmread
+
+   # The image dataset referenced
+   im = dcmread('/path/to/file.dcm')
+
+   # A segmentation dataset, assumed to contain a segmentation of the source
+   # image above
+   seg = dcmread('/path/to/seg.dcm')
+
+   # A tracking identifier for this measurement group
+   tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region3D0001',
+       uid=hd.UID(),
+   )
+
+   # Define the image region using a specific segment from the segmentation
+   region = hd.sr.ReferencedSegmentationFrame.from_segmentation(
+       segmentation=seg,
+       segment_number=1,
+   )
+
+   # Construct the measurement group
+   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+       referenced_segment=region,
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+   )
+
 Volumetric ROI Image Measurements (TID 1411)
---------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific volumetric sub-region of
 the source image or images. This is implemented in the class
@@ -219,7 +344,7 @@ Parsing Measurement Reports
 ---------------------------
 
 Searching For Measurement Groups
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Searching for Measurements and Evaluations
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -5,10 +5,13 @@ Coding
 
 "Coding" is a key concept used throughout `highdicom`. By "coding", we are
 referring to the use of standardized nomenclatures or terminologies to describe
-medical (or related) concepts. Use of coding is vital to ensure that these
-concepts are unambiguously encoded within DICOM files. Coding is especially
-fundamental within structured reporting, but is also found in other places
-around highdicom.
+medical (or related) concepts. For example, instead of using the English word
+"liver" to describe the liver (or a word in another human language), we instead
+use a code such as '10200004' from the SNOMED-CT nomenclature to describe the
+liver in standardized way. Use of coding is vital to ensure that these concepts
+are unambiguously encoded within DICOM files. Coding is especially fundamental
+within structured reporting, but is also found in other places around
+highdicom.
 
 To communicate a concept in DICOM using a coding scheme, three elements are
 necessary:
@@ -26,13 +29,20 @@ use a well-known and widely accepted standard terminology to ensure that your
 DICOM objects will be as widely understood and as interoperable as possible.
 Examples of widely used medical terminologies include:
 
-- The DCM terminology. This terminology is defined within the DICOM standard
-  itself and is used to refer to DICOM concepts, as well as other concepts
+- The `DCM <https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_D.html>`_
+  terminology. This terminology is defined within the DICOM standard itself and
+  is used to refer to DICOM concepts, as well as other concepts
   within the radiology workflow.
-- SNOMED-CT. This terminology contains codes to describe medical concepts
-  including anatomy, diseases and procedures.
-- RadLex. A standardized terminology for concepts in radiology.
-- UCUM. A terminology specifically to describe units of measurement.
+- `SNOMED-CT <http://snomed.info/sct>`_. This terminology contains codes to
+  describe medical concepts including anatomy, diseases and procedures.
+- `RadLex <http://www.radlex.org/>`_. A standardized terminology for concepts
+  in radiology.
+- `UCUM <https://ucum.org/>`_. A terminology specifically to describe units of
+  measurement.
+
+See
+`this page <https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_8.html>`_
+for a list of terminologies used within DICOM.
 
 Highdicom defines the :class:`highdicom.sr.CodedConcept` to encapsulate
 a coded concept. To create a coded, you pass values for the coding scheme,

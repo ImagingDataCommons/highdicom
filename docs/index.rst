@@ -8,14 +8,6 @@ Documentation of the highdicom package
    introduction
    installation
    usage
-   coding
-   seg
-   sr
-   tid1500
-   kos
-   pr
-   sc
-   legacy
    development
    conformance
    citation
