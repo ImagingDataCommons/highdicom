@@ -121,18 +121,18 @@ type (some have been omitted for brevity):
 - ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
     Identifier for tracking measurement groups. This allows this region to
     be referred to unambiguously in future objects.
-- ``finding_type`` (:class:`highdicom.sr.CodedConcept`), optional
+- ``finding_type`` (:class:`highdicom.sr.CodedConcept`, optional)
     Type of observed finding
-- ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`), optional
+- ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`, optional)
     Identification of algorithm used for making measurements.
-- ``finding_sites``: ``Sequence[``:class:`highdicom.sr.FindingSite` ``]``, optional
+- ``finding_sites``: (Sequence of :class:`highdicom.sr.FindingSite`, optional)
     Coded description of one or more anatomic locations at which
     finding was observed
-- ``measurements``: ``Sequence[``:class:`highdicom.sr.Measurement` ``]``, optional
+- ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
     Numeric measurements
-- ``qualitative_evaluations``:``Sequence[``:class:`highdicom.sr.CodedConcept` ``]``, optional
+- ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
     Coded name-value pairs that describe qualitative evaluations
-- ``finding_category``: (:class:`highdicom.sr.CodedConcept`), optional
+- ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
     Category of observed finding, e.g., anatomic structure or
     morphologically abnormal structure
 
@@ -155,28 +155,27 @@ The following is a simple example:
 
 .. code-block:: python
 
-   import highdicom as hd
-   from pydicom import dcmread
+    import highdicom as hd
+    from pydicom import dcmread
 
-   im = dcmread('/path/to/file.dcm')
+    im = dcmread('/path/to/file.dcm')
 
-   # A tracking identifier for this measurement group
-   tracking_id = hd.sr.TrackingIdentifier(
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
        identifier='Image0001',
        uid=hd.UID(),
-   )
+    )
 
-   # An object describing the source image for the measurements
-   source_image = hd.sr.SourceImageForMeasurementGroup.from_source_image(im)
+    # An object describing the source image for the measurements
+    source_image = hd.sr.SourceImageForMeasurementGroup.from_source_image(im)
 
-   # Construct the measurement group
-   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+    # Construct the measurement group
+    group = hd.sr.MeasurementsAndQualitativeEvaluations(
        source_images=[source_image],
        tracking_identifier=tracking_id,
        measurements=[...],
        evluations=[...],
-   )
-
+    )
 
 Planar ROI Image Measurements (TID 1410)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -213,98 +212,98 @@ The following example uses an :class:`highdicom.sr.ImageRegion`:
 
 .. code-block:: python
 
-   import highdicom as hd
-   import numpy as np
-   from pydicom import dcmread
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
 
-   im = dcmread('/path/to/file.dcm')
+    im = dcmread('/path/to/file.dcm')
 
-   # A tracking identifier for this measurement group
-   tracking_id = hd.sr.TrackingIdentifier(
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
        identifier='Region0001',
        uid=hd.UID(),
-   )
+    )
 
-   # Define the image region (a circle) using image coordinates
-   region = hd.sr.ImageRegion(
+    # Define the image region (a circle) using image coordinates
+    region = hd.sr.ImageRegion(
        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
        graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
        source_image=hd.sr.SourceImageForRegion.from_source_image(im),
-   )
+    )
 
-   # Construct the measurement group
-   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+    # Construct the measurement group
+    group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
        referenced_region=region,
        tracking_identifier=tracking_id,
        measurements=[...],
        evaluations=[...],
-   )
+    )
 
 This example uses an :class:`highdicom.sr.ImageRegion3D`:
 
 .. code-block:: python
 
-   import highdicom as hd
-   import numpy as np
-   from pydicom import dcmread
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
 
-   im = dcmread('/path/to/file.dcm')
+    im = dcmread('/path/to/file.dcm')
 
-   # A tracking identifier for this measurement group
-   tracking_id = hd.sr.TrackingIdentifier(
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
        identifier='Region3D0001',
        uid=hd.UID(),
-   )
+    )
 
-   # Define the image region (a point) using frame-of-reference coordinates
-   region = hd.sr.ImageRegion3D(
+    # Define the image region (a point) using frame-of-reference coordinates
+    region = hd.sr.ImageRegion3D(
        graphic_type=hd.sr.GraphicTypeValues3D.POINT,
        graphic_data=np.array([[123.5, 234.1, -23.7]]),
        frame_of_reference_uid=im.FrameOfReferenceUID,
-   )
+    )
 
-   # Construct the measurement group
-   group = hd.sr.MeasurementsAndQualitativeEvaluations(
+    # Construct the measurement group
+    group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
        referenced_region=region,
        tracking_identifier=tracking_id,
        measurements=[...],
        evaluations=[...],
-   )
+    )
 
 The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame`:
 
 .. code-block:: python
 
-   import highdicom as hd
-   import numpy as np
-   from pydicom import dcmread
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
 
-   # The image dataset referenced
-   im = dcmread('/path/to/file.dcm')
+    # The image dataset referenced
+    im = dcmread('/path/to/file.dcm')
 
-   # A segmentation dataset, assumed to contain a segmentation of the source
-   # image above
-   seg = dcmread('/path/to/seg.dcm')
+    # A segmentation dataset, assumed to contain a segmentation of the source
+    # image above
+    seg = dcmread('/path/to/seg.dcm')
 
-   # A tracking identifier for this measurement group
-   tracking_id = hd.sr.TrackingIdentifier(
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
        identifier='Region3D0001',
        uid=hd.UID(),
-   )
+    )
 
-   # Define the image region using a specific segment from the segmentation
-   region = hd.sr.ReferencedSegmentationFrame.from_segmentation(
+    # Define the image region using a specific segment from the segmentation
+    ref_segment = hd.sr.ReferencedSegmentationFrame.from_segmentation(
        segmentation=seg,
        segment_number=1,
-   )
+    )
 
-   # Construct the measurement group
-   group = hd.sr.MeasurementsAndQualitativeEvaluations(
-       referenced_segment=region,
+    # Construct the measurement group
+    group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
+       referenced_segment=ref_segment,
        tracking_identifier=tracking_id,
        measurements=[...],
        evaluations=[...],
-   )
+    )
 
 Volumetric ROI Image Measurements (TID 1411)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -331,6 +330,110 @@ specifying the region. In this case there are three options:
 
 Note that exactly one of ``referenced_regions``, ``referenced_volume_surface``,
 or ``referenced_segment`` should be passed.
+
+The following example uses a list of :class:`highdicom.sr.ImageRegion` objects:
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
+
+    im1 = dcmread('/path/to/file1.dcm')
+    im2 = dcmread('/path/to/file2.dcm')
+
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region0001',
+       uid=hd.UID(),
+    )
+
+    # Define the image region (a circle) using image coordinates
+    region1 = hd.sr.ImageRegion(
+       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+       source_image=hd.sr.SourceImageForRegion.from_source_image(im1),
+    )
+    region2 = hd.sr.ImageRegion(
+       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+       graphic_data=np.array([[40.0, 50.0], [40.0, 60.0]]),
+       source_image=hd.sr.SourceImageForRegion.from_source_image(im2),
+    )
+
+    # Construct the measurement group
+    group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
+       referenced_regions=[region1, region2],
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+    )
+
+This example uses a :class:`highdicom.sr.VolumeSurface` object:
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
+
+    im = dcmread('/path/to/file.dcm')
+
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region0001',
+       uid=hd.UID(),
+    )
+
+    # Define the image region (a circle) using image coordinates
+    volume_surface = hd.sr.VolumeSurface(
+        graphic_type=hd.sr.GraphicTypeValues.POINT,
+        graphic_data=np.array([[123.5, 234.1, -23.7]]),
+        source_images=[hd.sr.SourceImageForSegmentation.from_source_image(im)],
+        frame_of_reference_uid: im.FrameOfReferenceUID,
+    )
+
+    # Construct the measurement group
+    group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
+       referenced_volume_surface=volume_surface,
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+    )
+
+The final example uses an :class:`highdicom.sr.ReferencedSegment`:
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+    from pydicom import dcmread
+
+    # The image dataset referenced
+    im = dcmread('/path/to/file.dcm')
+
+    # A segmentation dataset, assumed to contain a segmentation of the source
+    # image above
+    seg = dcmread('/path/to/seg.dcm')
+
+    # A tracking identifier for this measurement group
+    tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Region3D0001',
+       uid=hd.UID(),
+    )
+
+    # Define the image region using a specific segment from the segmentation
+    ref_segment = hd.sr.ReferencedSegment.from_segmentation(
+       segmentation=seg,
+       segment_number=1,
+    )
+
+    # Construct the measurement group
+    group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
+       referenced_segment=ref_segment,
+       tracking_identifier=tracking_id,
+       measurements=[...],
+       evaluations=[...],
+    )
 
 Qualitative Evaluations
 -----------------------
