@@ -23,13 +23,21 @@ At the top level, the Measurement Report template
 various measurements and various metadata about the process through which it
 was created.
 
-A measurement report contains one or more Measurement Groups, each
-of which applies either to one or more entire images
-(:class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`), a 2D image
-region of interest
-(:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`), or a 3D
-image region of interest
-(:class:`VolumetricROIMeasurementsAndQualitativeEvaluations`).
+A measurement report contains one or more "Measurement Groups", where each
+group contains measurements and/or evaluations about a particular image or
+image region. There are three types of Measurement Group, each of which refer
+to different types of region:
+
+- :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`: Refers to one or
+  more entire images or image frames.
+- :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`: Refers
+  to a 2D region of an image defined in image coordinates.
+- :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`:
+  Refers to a 3D region within the frame of reference of an image or image
+  series.
+
+A single Structured Report may contain a mixture of Measurement Groups of these
+different types in any combination (as long as there is at least one group).
 
 Each Measurement Group contains a number of Measurements (numerical values
 derived from an image, such as a length or volume) and/or Qualitative
@@ -78,18 +86,20 @@ made the observations, and the subject about which the observations were made:
 
 The second required ingredient is a procedure code describing the procedure
 that was performed to result in the observations. Finally, we have the image
-measurement groups that the report contains (described below). Combining these
-we can construct the Measurement Report, and use it to construct the SR
-document:
+measurement groups that the report contains (described below). There are some
+further optional parameters, such as a title for the report. Combining these we
+can construct the Measurement Report, and use it to construct the SR document:
 
 .. code-block:: python
 
+    from pydicom.sr.codedict import codes
     import highdicom as hd
 
     measurement_report = hd.sr.MeasurementReport(
         observation_context=observation_context,  # from above
         procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
-        imaging_measurements=[...],
+        imaging_measurements=[...],  # list of measurement groups, see below
+        title=codes.DCM.ImagingMeasurementReport,
     )
 
     # Create the Structured Report instance
@@ -111,45 +121,19 @@ types of Measurement Groups, corresponding to entire images, 2D regions of
 interest, and 3D regions of interest. The three types may be mixed and matched
 within a single Measurement Report in any combination.
 
-Common Parameters for Measurement Groups
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The three types of measurement group are more alike than different. The
-following parameters may be used for all Measurement Groups, regardless of
-type (some have been omitted for brevity):
-
-- ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
-    Identifier for tracking measurement groups. This allows this region to
-    be referred to unambiguously in future objects.
-- ``finding_type`` (:class:`highdicom.sr.CodedConcept`, optional)
-    Type of observed finding
-- ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`, optional)
-    Identification of algorithm used for making measurements.
-- ``finding_sites``: (Sequence of :class:`highdicom.sr.FindingSite`, optional)
-    Coded description of one or more anatomic locations at which
-    finding was observed
-- ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
-    Numeric measurements
-- ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
-    Coded name-value pairs that describe qualitative evaluations
-- ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
-    Category of observed finding, e.g., anatomic structure or
-    morphologically abnormal structure
-
-Measurements And Qualitative Evaluations (TID 1501)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Measurements And Qualitative Evaluations Group (TID 1501)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first, and simplest, type of Measurement Group applies to one or more
 entire images (or optionally one or more entire frames in the case of
 multiframe source images). This is implemented using
 :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`.
 
-In addition to the common parameters above, this class also accepts a parameter
-``source_images``, which is a sequence of
+This class also accepts a parameter ``source_images``, which is a sequence of
 :class:`highdicom.sr.SourceImageForMeasurementGroup` items specifying the
 images (or frames) to which the measurement group applies. If this is omitted,
-the measurement group is assumed to include all images referenced in the
-SR document.
+the measurement group is assumed to include all images referenced in the SR
+document.
 
 The following is a simple example:
 
@@ -177,20 +161,24 @@ The following is a simple example:
        evluations=[...],
     )
 
-Planar ROI Image Measurements (TID 1410)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Planar ROI Image Measurements Group (TID 1410)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific planar sub-region of the
 source image or images. This is implemented in the class
 :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`).
 
-This class takes additional parameter specifying the region. There are two
-distinct options here:
+This class takes a parameter specifying the region. There are two distinct
+options here:
 
 1. The image region is specified directly in the SR using a
    :class:`highdicom.sr.ImageRegion` or :class:`highdicom.sr.ImageRegion3D`
    passed as the ``referenced_region`` parameter. In this case, the coordinates
-   defining the SR are stored within the measurement group itself.
+   defining the SR are stored within the measurement group itself. The choice
+   between :class:`highdicom.sr.ImageRegion` and
+   :class:`highdicom.sr.ImageRegion3D` determines whether the image region is
+   defined in 2D image coordinates or 3D frame-of-reference coordinates. Either
+   way, the region must be planar.
 2. The region is specified as a reference to a single slice of a single segment
    stored in a separate DICOM Segmentation Image object, specified by passing a
    :class:`highdicom.sr.ReferencedSegmentationFrame` to the
@@ -201,14 +189,8 @@ distinct options here:
 Note that **either** ``referenced_region`` or ``referenced_segment``
 should be passed, and not both (or neither).
 
-The choice between :class:`highdicom.sr.ImageRegion` and
-:class:`highdicom.sr.ImageRegion3D` determines whether the image region is
-defined in 2D image coordinates or 3D frame of reference coordinates. Either
-way, the region must be planar. It is possible to store coordinates for a
-planar in frame of reference coordinates in an
-:class:`highdicom.sr.ImageRegion3D`.
-
-The following example uses an :class:`highdicom.sr.ImageRegion`:
+The following example uses an :class:`highdicom.sr.ImageRegion` as the
+``referenced_region``:
 
 .. code-block:: python
 
@@ -239,7 +221,8 @@ The following example uses an :class:`highdicom.sr.ImageRegion`:
        evaluations=[...],
     )
 
-This example uses an :class:`highdicom.sr.ImageRegion3D`:
+This example uses an :class:`highdicom.sr.ImageRegion3D` as the
+``referenced_region``:
 
 .. code-block:: python
 
@@ -270,7 +253,8 @@ This example uses an :class:`highdicom.sr.ImageRegion3D`:
        evaluations=[...],
     )
 
-The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame`:
+The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame` as
+the ``referenced_segment``:
 
 .. code-block:: python
 
@@ -305,14 +289,14 @@ The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame`:
        evaluations=[...],
     )
 
-Volumetric ROI Image Measurements (TID 1411)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Volumetric ROI Image Measurements Group (TID 1411)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific volumetric sub-region of
 the source image or images. This is implemented in the class
-:class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`).
+:class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`.
 
-Like the similar Planar ROI class, this class takes additional parameter
+Like the similar Planar ROI class, this class takes a parameter
 specifying the region. In this case there are three options:
 
 1. The image region is specified directly in the SR in image coordinates using
@@ -331,7 +315,8 @@ specifying the region. In this case there are three options:
 Note that exactly one of ``referenced_regions``, ``referenced_volume_surface``,
 or ``referenced_segment`` should be passed.
 
-The following example uses a list of :class:`highdicom.sr.ImageRegion` objects:
+The following example uses a list of :class:`highdicom.sr.ImageRegion` objects
+as the ``referenced_regions``:
 
 .. code-block:: python
 
@@ -368,7 +353,8 @@ The following example uses a list of :class:`highdicom.sr.ImageRegion` objects:
        evaluations=[...],
     )
 
-This example uses a :class:`highdicom.sr.VolumeSurface` object:
+This example uses a :class:`highdicom.sr.VolumeSurface` object as the
+``referenced_volume_surface``:
 
 .. code-block:: python
 
@@ -400,7 +386,8 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object:
        evaluations=[...],
     )
 
-The final example uses an :class:`highdicom.sr.ReferencedSegment`:
+The final example uses an :class:`highdicom.sr.ReferencedSegment` as the
+``referenced_segment``:
 
 .. code-block:: python
 
@@ -435,13 +422,98 @@ The final example uses an :class:`highdicom.sr.ReferencedSegment`:
        evaluations=[...],
     )
 
+Further Parameters for Measurement Groups
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The three types of measurement group are more alike than different. The
+following parameters may be used for all Measurement Groups, regardless of
+type (some have been omitted for brevity):
+
+- ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
+    Identifier for tracking measurement groups. This allows this region to
+    be referred to unambiguously in future objects.
+- ``finding_type`` (:class:`highdicom.sr.CodedConcept`, optional)
+    Type of observed finding
+- ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`, optional)
+    Identification of algorithm used for making measurements.
+- ``finding_sites``: (Sequence of :class:`highdicom.sr.FindingSite`, optional)
+    Coded description of one or more anatomic locations at which
+    finding was observed
+- ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
+    Numeric measurements
+- ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
+    Coded name-value pairs that describe qualitative evaluations
+- ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
+    Category of observed finding, e.g., anatomic structure or
+    morphologically abnormal structure
+
+
+Measurements and Qualitative Evaluations
+----------------------------------------
+
+Finally, we get down to the bottom of the content tree, and the measurements
+and evaluations themselves. Information derived from the images or image
+regions represented by the measurement group may be stored as either
+measurements, qualitative evaluations, or a mixture or the two. These two
+concepts play a similar role in the SR, but measurements have numerical values
+and qualitative evaluations have categorical values.
+
 Qualitative Evaluations
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
+A Qualitative Evaluation is essentially a categorical value inferred from an
+image. For example, this could represent a diagnosis derived from the
+referenced region, or a severity grading. These are represented in *highdicom*
+using the class :class:`highdicom.sr.QualitativeEvalution`, which is
+essentially a single :class:`highdicom.sr.CodeContentItem` within a special
+template.
 
-Measurements
-------------
+To create a Qualitative Evaluation, just pass the ``name`` and ``value``
+parameters:
 
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # An evaluation of disease severity as "mild"
+    severity_item = hd.sr.QualitativeEvalution(
+       name=codes.SCT.Severity,
+       value=codes.SCT.Mild,
+    )
+
+    # An evaluation of tumor morphology as adenocarcinoma
+    morphology_item = hd.sr.QualitativeEvalution(
+       name=codes.SCT.AssociatedMorphology,
+       value=codes.SCT.Anenocarcinoma,
+    )
+
+Measurements (TID300)
+~~~~~~~~~~~~~~~~~~~~~
+
+A Measurement is essentially a numerical (decimal) value derived from the image
+or image region. In *highdicom*, a measurement is represented by the class
+:class:`highdicom.sr.Measurement`. It is a small template that contains at its
+core a :class:`highdicom.sr.NumContentItem` containing the value, a
+:class:`highdicom.sr.CodeContentItem` specifying the unit of the measurement,
+and optionally several more content items describing further context or
+qualifications for the measurement.
+
+Here is a basic example:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # A volume measurement
+    measurement = hd.sr.Measurement(
+       name=codes.SCT.Volume,
+       value=1983.123,
+       unit=codes.UCUM.CubicMillimeter,
+    )
+
+In addition, the following optional parameters are available:
 
 Parsing Measurement Reports
 ---------------------------

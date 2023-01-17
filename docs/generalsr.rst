@@ -146,9 +146,9 @@ content items. These arrays should have dimensions (*N*, 2) for Scoord Content
 Items and (*N*, 3) for Scoord3D Content Items, where *N* is the number of
 points. The permissible number of points depends upon the graphic type. For
 example, a ``POINT`` is described by exactly one point, a ``CIRCLE`` is
-described by exactly 2 points, and a ``POLYLINE`` may contain 2 or more points.
-See the documentation of the relevant enumeration class for specific details on
-all graphic types.
+described by exactly 2 points (the center and a point on the circumference),
+and a ``POLYLINE`` may contain 2 or more points. See the documentation of the
+relevant enumeration class for specific details on all graphic types.
 
 Furthermore, `highdicom` will reconstruct the graphic data stored into a
 content item into a NumPy array of the correct shape if you use the

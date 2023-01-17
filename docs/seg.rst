@@ -84,7 +84,8 @@ each segment, and provide the following information:
 
 Notice that the segment description makes use of coded concepts to ensure that
 the way a particular anatomical structure is described is standardized and
-unambiguous (if standard nomenclatures are used).
+unambiguous (if standard nomenclatures are used). See :ref:`coding` for more
+information.
 
 Here is an example of constructing a simple segment description for a segment
 representing a liver that has been manually segmented.
@@ -183,13 +184,15 @@ take values 0 or 1, i.e.  each pixel either belongs to the segment or does not.
 
 By contrast, pixels in a ``"FRACTIONAL"`` segmentation image lie in the range 0
 to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
-whether these values should be interpreted as ``"PROBABILITY"`` (i.e. the
-number between 0 and 1 respresents a probability that a pixel belongs to the
-segment) or ``"OCCUPANCY"`` i.e. the number represents the fraction of the
-volume of the pixel's (or voxel's) area (or volume) that belongs to the
-segment.
+how these values should be interpreted. There are two options, represented by
+the enumerated type :class:`highdicom.seg.SegmentationFractionalTypeValues`:
 
-A potential source of confusion is that having a Segmentations Type of
+- ``"PROBABILITY"``, i.e. the number between 0 and 1 respresents a probability
+  that a pixel belongs to the segment
+- ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of the
+  pixel's (or voxel's) area (or volume) that belongs to the segment
+
+A potential source of confusion is that having a Segmentation Type of
 ``"BINARY"`` only limits the range of values *within a given segment*. It is
 perfectly valid for a ``"BINARY"`` segmentation to have multiple segments. It
 is therefore not the same as the sense of *binary* that distinguishes *binary*
@@ -327,7 +330,7 @@ the source images and segmentation frames at the same index correspond.
 
 Note that the example of the previous section with a 2D pixel array is simply
 a convenient shorthand for the special case where there is only a single source
-frame and a single segment. It is equivalent in every way to passing a 3D
+frame and a single segment. It is equivalent in every way to passing a 3D array
 with a single frame down axis 0.
 
 Alternatively, we could create a segmentation of a source image that is itself
@@ -822,25 +825,29 @@ their keyword, in the usual way.
 Reconstructing Segmentation Masks From DICOM SEGs
 -------------------------------------------------
 
-Highdicom provides the `Segmentation.get_pixels_by_source_instance()` and
-`Segmentation.get_pixels_by_source_frame()` methods to handle reconstruction of
-segmentation masks from SEG objects in which each frame in the SEG object is
-derived from a single source frame. The only difference between the two methods
-is that the `get_pixels_by_source_instance()` is used when the segmentation is
-derived from a source series consisting of multiple single-frame instances,
-while `get_pixels_by_source_frame` is used when the segmentation is derived
-from a single multiframe source instances.
+Highdicom provides the
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` and
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` methods to
+handle reconstruction of segmentation masks from SEG objects in which each
+frame in the SEG object is derived from a single source frame. The only
+difference between the two methods is that the
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is used when
+the segmentation is derived from a source series consisting of multiple
+single-frame instances, while
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_source()` is used when
+the segmentation is derived from a single multiframe source instances.
 
-When reconstructing a segmentation mask using `get_pixels_by_source_instance()`,
-the user must provide a list of SOP Instance UIDs of the source images for which
-the segmentation mask should be constructed. Whatever order is chosen here will
-be used to order the frames of the output segmentation mask, so it is up to the
+When reconstructing a segmentation mask using
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_source()`, the user must
+provide a list of SOP Instance UIDs of the source images for which the
+segmentation mask should be constructed. Whatever order is chosen here will be
+used to order the frames of the output segmentation mask, so it is up to the
 user to sort them according to their needs. The default behavior is that the
 output pixel array is of shape (*F* x *H* x *W* x *S*), where *F* is the number
-of source instance UIDs, *H* and *W* are the height and width of the frames, and
-*S* is the number of segments included in the segmentation. In this way, the
-output of this method matches the input `pixel_array` to the constructor that
-would create the SEG object if it were created with highdicom.
+of source instance UIDs, *H* and *W* are the height and width of the frames,
+and *S* is the number of segments included in the segmentation. In this way,
+the output of this method matches the input `pixel_array` to the constructor
+that would create the SEG object if it were created with highdicom.
 
 The following example (and those in later sections) use DICOM files from the
 highdicom test data, which may be found in the 
@@ -925,7 +932,7 @@ image should be interpreted as containing no segments using
 Reconstructing Specific Segments
 --------------------------------
 
-A further optional parameter, `segment_numbers`, allows the user to request
+A further optional parameter, ``segment_numbers``, allows the user to request
 only a subset of the segments available within the SEG object by providing a
 list of segment numbers. In this case, the output array will have a dimension
 equal to the number of segments requested, with the segments stacked in the
@@ -967,15 +974,15 @@ Reconstructing Segmentation Masks as "Label Maps"
 
 If the segments do not overlap, it is possible to combine the multiple segments
 into a simple "label map" style mask, as described above. This can be achieved
-by specifying the `combine_segments` parameter as `True`. In this case, the
+by specifying the ``combine_segments`` parameter as ``True``. In this case, the
 output will have shape (*F* x *H* x *W*), and a pixel value of *i* represents
 that the pixel belongs to segment *i* or a pixel value of 0 represents that the
 pixel belongs to none of the requested segments. Again, this mirrors the way
 you would have passed this segmentation mask to the constructor to create the
 object if you had used a label mask. If the segments overlap, highdicom will
-raise a `RuntimeError`. Note that combining segments is only possible when the
-segmentation type is `BINARY`, or the segmentation type is `FRACTIONAL` but the
-only two values are actually present in the image.
+raise a ``RuntimeError``. Note that combining segments is only possible when
+the segmentation type is ``"BINARY"``, or the segmentation type is
+``"FRACTIONAL"`` but the only two values are actually present in the image.
 
 Here, we repeat the above example but request the output as a label map:
 
@@ -1049,11 +1056,11 @@ parameter.
 Reconstructing Fractional Segmentations
 ---------------------------------------
 
-For `FRACTIONAL` SEG objects, highdicom will rescale the pixel values in the
+For ``"FRACTIONAL"`` SEG objects, highdicom will rescale the pixel values in the
 segmentation masks from the integer values as which they are stored back down
 to the range `0.0` to `1.0` as floating point values by scaling by the
 "MaximumFractionalValue" attribute. If desired, this behavior can be disabled
-by specifying `rescale_fractional=False`, in which case the raw integer array
+by specifying ``rescale_fractional=False``, in which case the raw integer array
 as stored in the SEG will be returned.
 
 .. code-block:: python
