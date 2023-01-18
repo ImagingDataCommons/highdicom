@@ -31,13 +31,13 @@ to different types of region:
 - :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`: Refers to one or
   more entire images or image frames.
 - :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`: Refers
-  to a 2D region of an image defined in image coordinates.
+  to a 2D region of a single image.
 - :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`:
-  Refers to a 3D region within the frame of reference of an image or image
-  series.
+  Refers to a 3D region within an image or image series.
 
-A single Structured Report may contain a mixture of Measurement Groups of these
-different types in any combination (as long as there is at least one group).
+A single Measurement Report may contain a mixture of Measurement Groups of
+these different types in any combination (as long as there is at least one
+group).
 
 Each Measurement Group contains a number of Measurements (numerical values
 derived from an image, such as a length or volume) and/or Qualitative
@@ -46,9 +46,9 @@ of a tumor morphology).
 
 When constructing the content, it is necessary to start at the bottom of the
 content tree with the Measurements and Evaluations, add them into Measurement
-Groups, add these groups to a Measurement Report, and then create the document.
-However, here we will describe the structure from the top down, as this makes
-the big picture clearer.
+Groups, add these groups to a Measurement Report, and then create the document
+that contains the report. However, here we will describe the structure from the
+top down, as this makes the big picture clearer.
 
 Measurement Report
 ------------------
@@ -133,7 +133,8 @@ This class also accepts a parameter ``source_images``, which is a sequence of
 :class:`highdicom.sr.SourceImageForMeasurementGroup` items specifying the
 images (or frames) to which the measurement group applies. If this is omitted,
 the measurement group is assumed to include all images referenced in the SR
-document.
+document (as passed in the ``evidence`` parameter of the relevant Structured
+Report object's ``__init__`` method).
 
 The following is a simple example:
 
@@ -158,7 +159,7 @@ The following is a simple example:
        source_images=[source_image],
        tracking_identifier=tracking_id,
        measurements=[...],
-       evluations=[...],
+       evaluations=[...],
     )
 
 Planar ROI Image Measurements Group (TID 1410)
@@ -166,25 +167,26 @@ Planar ROI Image Measurements Group (TID 1410)
 
 This type of Measurement Group applies to a specific planar sub-region of the
 source image or images. This is implemented in the class
-:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`).
+:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`.
 
 This class takes a parameter specifying the region. There are two distinct
 options here:
 
-1. The image region is specified directly in the SR using a
-   :class:`highdicom.sr.ImageRegion` or :class:`highdicom.sr.ImageRegion3D`
-   passed as the ``referenced_region`` parameter. In this case, the coordinates
-   defining the SR are stored within the measurement group itself. The choice
-   between :class:`highdicom.sr.ImageRegion` and
-   :class:`highdicom.sr.ImageRegion3D` determines whether the image region is
-   defined in 2D image coordinates or 3D frame-of-reference coordinates. Either
-   way, the region must be planar.
-2. The region is specified as a reference to a single slice of a single segment
-   stored in a separate DICOM Segmentation Image object, specified by passing a
-   :class:`highdicom.sr.ReferencedSegmentationFrame` to the
-   `referenced_segment` parameter, which contains UIDs to identify the
-   Segmentation Image along with the segment number of the specific segment and
-   the frames within which it is stored.
+- ``referenced_region``: The image region is specified directly in the SR
+  using a :class:`highdicom.sr.ImageRegion` or
+  :class:`highdicom.sr.ImageRegion3D` passed as the ``referenced_region``
+  parameter. In this case, the coordinates defining the SR are stored within
+  the measurement group itself. The choice between
+  :class:`highdicom.sr.ImageRegion` and :class:`highdicom.sr.ImageRegion3D`
+  determines whether the image region is defined in 2D image coordinates or 3D
+  frame-of-reference coordinates. Either way, the region must be planar.
+- ``referenced_segment``: The region is specified indirectly as a reference to
+  a single slice of a single segment stored in a separate DICOM Segmentation
+  Image object, specified by passing a
+  :class:`highdicom.sr.ReferencedSegmentationFrame` to the
+  ``referenced_segment`` parameter, which contains UIDs to identify the
+  Segmentation Image along with the segment number of the specific segment and
+  the frames within which it is stored.
 
 Note that **either** ``referenced_region`` or ``referenced_segment``
 should be passed, and not both (or neither).
@@ -299,18 +301,21 @@ the source image or images. This is implemented in the class
 Like the similar Planar ROI class, this class takes a parameter
 specifying the region. In this case there are three options:
 
-1. The image region is specified directly in the SR in image coordinates using
-   one or more objects of type :class:`highdicom.sr.ImageRegion` passed as the
-   ``referenced_regions`` parameter, representing the volumetric region as set
-   of 2D regions across multiple images or frames.
-2. The region is specified as a single volumetric region defined in frame of
-   reference coordinates using a single :class:`highdicom.sr.VolumeSurface`
-   object passed to the ``referenced_volume_surface`` parameter.
-3. The region is a reference to an entire segment (which may spread across
-   multiple images or frames) of a Segmentation Image object, specified by
-   passing a :class:`highdicom.sr.ReferencedSegment` to the
-   `referenced_segment` parameter, which contains UIDs to identify the
-   Segmentation Image along with the segment number of the specific segment.
+- ``referenced_regions``: The image region is specified directly in the SR in
+  image coordinates using one or more objects of type
+  :class:`highdicom.sr.ImageRegion` passed as the ``referenced_regions``
+  parameter, representing the volumetric region as set of 2D regions across
+  multiple images or frames.
+- ``referenced_volume_surface``: The region is specified as a single volumetric
+  region defined in frame of reference coordinates using a single
+  :class:`highdicom.sr.VolumeSurface` object passed to the
+  ``referenced_volume_surface`` parameter.
+- ``referenced_segment``: The region is specified indirectly as a reference to
+  an entire segment (which may spread across multiple images or frames) of a
+  Segmentation Image object, specified by passing a
+  :class:`highdicom.sr.ReferencedSegment` to the ``referenced_segment``
+  parameter, which contains UIDs to identify the Segmentation Image along with
+  the segment number of the specific segment within it.
 
 Note that exactly one of ``referenced_regions``, ``referenced_volume_surface``,
 or ``referenced_segment`` should be passed.
@@ -469,7 +474,7 @@ essentially a single :class:`highdicom.sr.CodeContentItem` within a special
 template.
 
 To create a Qualitative Evaluation, just pass the ``name`` and ``value``
-parameters:
+parameters as coded values:
 
 .. code-block:: python
 
@@ -513,13 +518,29 @@ Here is a basic example:
        unit=codes.UCUM.CubicMillimeter,
     )
 
-In addition, the following optional parameters are available:
+In addition, the following optional parameters are available (see the API
+reference for more information):
 
-Parsing Measurement Reports
----------------------------
+- **Qualifier:** Qualification of the measurement.
+- **Tracking Identifier:** Identifier for uniquely identifying and tracking
+  measurements.
+- **Algorithm:** Identification of algorithm used for making measurements.
+- **Derivation:** How the value was computed.
+- **Finding Sites:** Coded description of one or more anatomic locations corresonding
+  to the image region from which measurement was taken.
+- **Method:** Measurement method.
+- **Properties:** Measurement properties, including evaluations of its normality
+  and/or significance, its relationship to a reference population,
+  and an indication of its selection from a set of measurements
+- **Referenced Images:** Referenced images which were used as sources for the
+  measurement.
+- **Referenced Real World Value Map:**
+  Referenced real world value map for referenced source images used to
+  generate the measurement.
 
-Searching For Measurement Groups
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Putting It All Together
+-----------------------
 
-Searching for Measurements and Evaluations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+See the :ref:`full worked example <creating-sr>` in the quick start guide
+for a full walk through of how to combine these elements into an SR document.
+

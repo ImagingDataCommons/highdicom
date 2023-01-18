@@ -1,7 +1,7 @@
 .. _generalsr:
 
-Structured Reports: General Overview
-====================================
+Overview
+========
 
 Structured report documents are DICOM files that contain information derived
 from a medical image in a structured and computer-readable way. `Highdicom`

@@ -14,3 +14,4 @@ Since SRs are a complex topic, this section is sub-divided as follows:
 
    generalsr
    tid1500
+   tid1500parsing
