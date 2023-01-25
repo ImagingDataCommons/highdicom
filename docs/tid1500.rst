@@ -543,4 +543,3 @@ Putting It All Together
 
 See the :ref:`full worked example <creating-sr>` in the quick start guide
 for a full walk through of how to combine these elements into an SR document.
-
