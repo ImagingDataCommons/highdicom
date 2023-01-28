@@ -1419,10 +1419,9 @@ class Segmentation(SOPClass):
             self._db_con.execute(
                 """
                     CREATE TABLE InstanceUIDs(
-                        SOPInstanceUID_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         StudyInstanceUID VARCHAR NOT NULL,
                         SeriesInstanceUID VARCHAR NOT NULL,
-                        SOPInstanceUID VARCHAR UNIQUE NOT NULL
+                        SOPInstanceUID VARCHAR PRIMARY KEY
                     )
                 """
             )
@@ -1548,7 +1547,7 @@ class Segmentation(SOPClass):
             else:
                 ref_instance_uid = frame_source_instances[0]
                 try:
-                    src_uid_ind = self._get_src_uid_index(ref_instance_uid)
+                    self._check_sop_uid_exists(ref_instance_uid)
                 except KeyError as e:
                     raise AttributeError(
                         f'SOP instance {ref_instance_uid} referenced in the '
@@ -1557,7 +1556,7 @@ class Segmentation(SOPClass):
                         'Other Referenced Instances Sequence. This is an '
                         'error with the integrity of the Segmentation object.'
                     ) from e
-                referenced_instance_col_data.append(src_uid_ind)
+                referenced_instance_col_data.append(ref_instance_uid)
                 referenced_frame_col_data.append(frame_source_frames[0])
 
         # Summarise
@@ -1603,10 +1602,10 @@ class Segmentation(SOPClass):
         # Columns related to source frames, if they are usable for indexing
         if self._single_source_frame_per_seg_frame:
             col_defs.append('ReferencedFrameNumber INTEGER')
-            col_defs.append('ReferencedSOPInstanceUID_id INTEGER NOT NULL')
+            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
             col_defs.append(
-                'FOREIGN KEY(ReferencedSOPInstanceUID_id) '
-                'REFERENCES InstanceUIDs(SOPInstanceUID_id)'
+                'FOREIGN KEY(ReferencedSOPInstanceUID) '
+                'REFERENCES InstanceUIDs(SOPInstanceUID)'
             )
             col_data += [
                 referenced_frame_col_data,
@@ -1921,16 +1920,28 @@ class Segmentation(SOPClass):
 
         return types
 
-    def _get_src_uid_index(self, sop_instance_uid: str) -> int:
+    def _check_sop_uid_exists(self, sop_instance_uid: str) -> None:
+        """Checks whether a SOP Instance UID is in the database.
+
+        Parameters
+        ----------
+        sop_instance_uid: str
+            SOP Instance UID value to check.
+
+        Raises
+        ------
+        KeyError:
+            If the input sop_instance_uid is not in the database.
+
+        """
         cur = self._db_con.cursor()
         res = cur.execute(
-            "SELECT SOPInstanceUID_id FROM InstanceUIDs "
-            f"WHERE SOPInstanceUID='{sop_instance_uid}'"
+            "SELECT SOPInstanceUID FROM InstanceUIDs "
+            f"WHERE SOPInstanceUID='{sop_instance_uid}' LIMIT 1"
         )
         first = res.fetchone()
         if first is None:
             raise KeyError("No such source frame: {sop_instance_uid}.")
-        return first[0]
 
     def _create_temporary_segment_table(
         self,
@@ -2523,7 +2534,7 @@ class Segmentation(SOPClass):
         cur = self._db_con.cursor()
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID_id, '
+            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
             'SegmentNumber)'
         ).fetchone()[0]
         if n_unique_combos != self.NumberOfFrames:
@@ -2590,7 +2601,7 @@ class Segmentation(SOPClass):
                 'INNER JOIN InstanceUIDs U'
                 '    ON T.SourceSOPInstanceUID = U.SOPInstanceUID '
                 'INNER JOIN FrameLUT L'
-                '    ON U.SOPInstanceUID_id = L.ReferencedSOPInstanceUID_id '
+                '    ON U.SOPInstanceUID = L.ReferencedSOPInstanceUID '
                 'INNER JOIN TemporarySegmentNumbers S'
                 '    ON L.SegmentNumber = S.SegmentNumber '
                 'ORDER BY T.OutputFrameIndex'
