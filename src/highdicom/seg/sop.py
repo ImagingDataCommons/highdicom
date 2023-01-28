@@ -1391,7 +1391,7 @@ class Segmentation(SOPClass):
         Instance UIDS for instances referenced in the segmentation.
 
         """
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         cur.execute(
             """
                 CREATE TABLE InstanceUIDs(
@@ -1431,7 +1431,7 @@ class Segmentation(SOPClass):
             "VALUES(?, ?, ?)",
             instance_data,
         )
-        self._db.commit()
+        self.db_con.commit()
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
@@ -1447,7 +1447,7 @@ class Segmentation(SOPClass):
         index values.
 
         """
-        self._db = sqlite3.connect(":memory:")
+        self.db_con: sqlite3.Connection = sqlite3.connect(":memory:")
         self._build_ref_instance_lut()
 
         segnum_col_data = []
@@ -1614,7 +1614,7 @@ class Segmentation(SOPClass):
             ]
 
         # Build LUT from columns
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         all_defs = ", ".join(col_defs)
         cmd = f'CREATE TABLE FrameLUT({all_defs})'
         cur.execute(cmd)
@@ -1623,7 +1623,7 @@ class Segmentation(SOPClass):
             f'INSERT INTO FrameLUT VALUES({placeholders})',
             zip(*col_data),
         )
-        self._db.commit()
+        self.db_con.commit()
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -1923,7 +1923,7 @@ class Segmentation(SOPClass):
         return types
 
     def _get_src_uid_index(self, sop_instance_uid: str) -> int:
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         res = cur.execute(
             "SELECT SOPInstanceUID_id FROM InstanceUIDs "
             f"WHERE SOPInstanceUID='{sop_instance_uid}'"
@@ -1953,7 +1953,7 @@ class Segmentation(SOPClass):
 
         """
         # Create temporary table of desired segments
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         cmd = (
             'CREATE TABLE TemporarySegmentNumbers('
             'SegmentNumber INTEGER UNIQUE NOT NULL,'
@@ -1979,13 +1979,13 @@ class Segmentation(SOPClass):
             'VALUES(?, ?)',
             data
         )
-        self._db.commit()
+        self.db_con.commit()
 
     def _drop_temporary_segment_table(self) -> None:
         """Drop the table created by _create_temporary_segment_table()."""
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         cur.execute('DROP TABLE TemporarySegmentNumbers')
-        self._db.commit()
+        self.db_con.commit()
 
     def _get_pixels_by_seg_frame(
         self,
@@ -2207,7 +2207,7 @@ class Segmentation(SOPClass):
             dataset.
 
         """
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         res = cur.execute(
             'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '
             'FROM InstanceUIDs'
@@ -2284,7 +2284,7 @@ class Segmentation(SOPClass):
                 )
             column_names.append(self._dim_ind_col_names[ptr])
         col_str = ", ".join(column_names)
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         n_unique_dim_indices = cur.execute(
             f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
         ).fetchone()[0]
@@ -2516,7 +2516,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID_id, '
@@ -2606,7 +2606,7 @@ class Segmentation(SOPClass):
         # Clear up temporary tables
         cur.execute('DROP TABLE TemporarySOPInstanceUIDs')
         self._drop_temporary_segment_table()
-        self._db.commit()
+        self.db_con.commit()
 
         return output_array
 
@@ -2824,7 +2824,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
@@ -2914,7 +2914,7 @@ class Segmentation(SOPClass):
         # Clear up temporary tables
         cur.execute('DROP TABLE TemporaryFrameNumbers')
         self._drop_temporary_segment_table()
-        self._db.commit()
+        self.db_con.commit()
 
         return output_array
 
@@ -3133,7 +3133,7 @@ class Segmentation(SOPClass):
         # Check that all frame numbers requested actually exist
         cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
         cols_str = ', '.join(cols)
-        cur = self._db.cursor()
+        cur = self.db_con.cursor()
         if not assert_missing_frames_are_empty:
             unique_dim_inds = {
                 r for r in
@@ -3218,7 +3218,7 @@ class Segmentation(SOPClass):
         # Clear up temporary tables
         cur.execute('DROP TABLE TemporaryDimensionIndexValues')
         self._drop_temporary_segment_table()
-        self._db.commit()
+        self.db_con.commit()
 
         return output_array
 
