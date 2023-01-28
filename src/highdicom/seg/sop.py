@@ -1391,17 +1391,6 @@ class Segmentation(SOPClass):
         Instance UIDS for instances referenced in the segmentation.
 
         """
-        cur = self.db_con.cursor()
-        cur.execute(
-            """
-                CREATE TABLE InstanceUIDs(
-                    SOPInstanceUID_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    StudyInstanceUID VARCHAR NOT NULL,
-                    SeriesInstanceUID VARCHAR NOT NULL,
-                    SOPInstanceUID VARCHAR UNIQUE NOT NULL
-                )
-            """
-        )
         instance_data = []
         if hasattr(self, 'ReferencedSeriesSequence'):
             for ref_series in self.ReferencedSeriesSequence:
@@ -1425,13 +1414,24 @@ class Segmentation(SOPClass):
                                 ref_ins.ReferencedSOPInstanceUID,
                             )
                         )
-        cur.executemany(
-            "INSERT INTO InstanceUIDs "
-            "(StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID) "
-            "VALUES(?, ?, ?)",
-            instance_data,
-        )
-        self.db_con.commit()
+
+        with self._db_con:
+            self._db_con.execute(
+                """
+                    CREATE TABLE InstanceUIDs(
+                        SOPInstanceUID_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        StudyInstanceUID VARCHAR NOT NULL,
+                        SeriesInstanceUID VARCHAR NOT NULL,
+                        SOPInstanceUID VARCHAR UNIQUE NOT NULL
+                    )
+                """
+            )
+            self._db_con.executemany(
+                "INSERT INTO InstanceUIDs "
+                "(StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID) "
+                "VALUES(?, ?, ?)",
+                instance_data,
+            )
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
@@ -1447,7 +1447,7 @@ class Segmentation(SOPClass):
         index values.
 
         """
-        self.db_con: sqlite3.Connection = sqlite3.connect(":memory:")
+        self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
         self._build_ref_instance_lut()
 
         segnum_col_data = []
@@ -1614,16 +1614,15 @@ class Segmentation(SOPClass):
             ]
 
         # Build LUT from columns
-        cur = self.db_con.cursor()
         all_defs = ", ".join(col_defs)
-        cmd = f'CREATE TABLE FrameLUT({all_defs})'
-        cur.execute(cmd)
-        placeholders = ', '.join(['?'] * len(col_data))
-        cur.executemany(
-            f'INSERT INTO FrameLUT VALUES({placeholders})',
-            zip(*col_data),
-        )
-        self.db_con.commit()
+        with self._db_con:
+            cmd = f'CREATE TABLE FrameLUT({all_defs})'
+            self._db_con.execute(cmd)
+            placeholders = ', '.join(['?'] * len(col_data))
+            self._db_con.executemany(
+                f'INSERT INTO FrameLUT VALUES({placeholders})',
+                zip(*col_data),
+            )
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -1923,7 +1922,7 @@ class Segmentation(SOPClass):
         return types
 
     def _get_src_uid_index(self, sop_instance_uid: str) -> int:
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         res = cur.execute(
             "SELECT SOPInstanceUID_id FROM InstanceUIDs "
             f"WHERE SOPInstanceUID='{sop_instance_uid}'"
@@ -1941,6 +1940,9 @@ class Segmentation(SOPClass):
     ) -> None:
         """Create a temporary table of desired segment in the SQLite DB.
 
+        Assumes the self._db_con object is currently being used as a context
+        manager and does not commit the changes.
+
         Parameters
         ----------
         segment_numbers: Sequence[int]
@@ -1953,14 +1955,6 @@ class Segmentation(SOPClass):
 
         """
         # Create temporary table of desired segments
-        cur = self.db_con.cursor()
-        cmd = (
-            'CREATE TABLE TemporarySegmentNumbers('
-            'SegmentNumber INTEGER UNIQUE NOT NULL,'
-            'OutputSegmentNumber INTEGER UNIQUE NOT NULL'
-            ')'
-        )
-        cur.execute(cmd)
         if combine_segments:
             if relabel:
                 # Output segment numbers are consecutive and start at 1
@@ -1973,19 +1967,29 @@ class Segmentation(SOPClass):
             # Output segment numbers are indices along the output array's
             # segment dimension, so are consecutive starting at 0
             data = enumerate(segment_numbers)
-        cur.executemany(
+
+        cmd = (
+            'CREATE TABLE TemporarySegmentNumbers('
+            'SegmentNumber INTEGER UNIQUE NOT NULL,'
+            'OutputSegmentNumber INTEGER UNIQUE NOT NULL'
+            ')'
+        )
+        self._db_con.execute(cmd)
+        self._db_con.executemany(
             'INSERT INTO '
             'TemporarySegmentNumbers(OutputSegmentNumber, SegmentNumber) '
             'VALUES(?, ?)',
             data
         )
-        self.db_con.commit()
 
     def _drop_temporary_segment_table(self) -> None:
-        """Drop the table created by _create_temporary_segment_table()."""
-        cur = self.db_con.cursor()
-        cur.execute('DROP TABLE TemporarySegmentNumbers')
-        self.db_con.commit()
+        """Drop the table created by _create_temporary_segment_table().
+
+        Assumes the self._db_con object is currently being used as a context
+        manager and does not commit the changes.
+
+        """
+        self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
 
     def _get_pixels_by_seg_frame(
         self,
@@ -2207,7 +2211,7 @@ class Segmentation(SOPClass):
             dataset.
 
         """
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         res = cur.execute(
             'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '
             'FROM InstanceUIDs'
@@ -2284,7 +2288,7 @@ class Segmentation(SOPClass):
                 )
             column_names.append(self._dim_ind_col_names[ptr])
         col_str = ", ".join(column_names)
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         n_unique_dim_indices = cur.execute(
             f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
         ).fetchone()[0]
@@ -2516,7 +2520,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID_id, '
@@ -2554,59 +2558,59 @@ class Segmentation(SOPClass):
         # rows, before clearing up the temporary tables.
 
         # Create temporary table of desired frame numbers
-        cmd = (
-            'CREATE TABLE TemporarySOPInstanceUIDs('
-            '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-            '    SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
-            ')'
-        )
-        cur.execute(cmd)
-        cur.executemany(
-            'INSERT INTO TemporarySOPInstanceUIDs VALUES(?, ?)',
-            enumerate(source_sop_instance_uids)
-        )
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporarySOPInstanceUIDs('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                '    SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO TemporarySOPInstanceUIDs VALUES(?, ?)',
+                enumerate(source_sop_instance_uids)
+            )
 
-        self._create_temporary_segment_table(
-            segment_numbers=segment_numbers,
-            combine_segments=combine_segments,
-            relabel=relabel
-        )
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
 
-        # Construct the query
-        # The ORDER BY is not logically necessary but seems to improve
-        # performance of the downstream numpy operations, presumably as it is
-        # more cache efficient
-        query = (
-            'SELECT '
-            '    T.OutputFrameIndex,'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM TemporarySOPInstanceUIDs T '
-            'INNER JOIN InstanceUIDs U'
-            '    ON T.SourceSOPInstanceUID = U.SOPInstanceUID '
-            'INNER JOIN FrameLUT L'
-            '    ON U.SOPInstanceUID_id = L.ReferencedSOPInstanceUID_id '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
-            'ORDER BY T.OutputFrameIndex'
-        )
-        indices_iterator = cur.execute(query)
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            query = (
+                'SELECT '
+                '    T.OutputFrameIndex,'
+                '    L.FrameNumber - 1,'
+                '    S.OutputSegmentNumber '
+                'FROM TemporarySOPInstanceUIDs T '
+                'INNER JOIN InstanceUIDs U'
+                '    ON T.SourceSOPInstanceUID = U.SOPInstanceUID '
+                'INNER JOIN FrameLUT L'
+                '    ON U.SOPInstanceUID_id = L.ReferencedSOPInstanceUID_id '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY T.OutputFrameIndex'
+            )
+            indices_iterator = self._db_con.execute(query)
 
-        output_array = self._get_pixels_by_seg_frame(
-            num_output_frames=len(source_sop_instance_uids),
-            indices_iterator=indices_iterator,
-            segment_numbers=np.array(segment_numbers),
-            combine_segments=combine_segments,
-            relabel=relabel,
-            rescale_fractional=rescale_fractional,
-            skip_overlap_checks=skip_overlap_checks,
-            dtype=dtype,
-        )
+            output_array = self._get_pixels_by_seg_frame(
+                num_output_frames=len(source_sop_instance_uids),
+                indices_iterator=indices_iterator,
+                segment_numbers=np.array(segment_numbers),
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                skip_overlap_checks=skip_overlap_checks,
+                dtype=dtype,
+            )
 
-        # Clear up temporary tables
-        cur.execute('DROP TABLE TemporarySOPInstanceUIDs')
-        self._drop_temporary_segment_table()
-        self.db_con.commit()
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporarySOPInstanceUIDs')
+            self._drop_temporary_segment_table()
 
         return output_array
 
@@ -2824,7 +2828,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
@@ -2864,57 +2868,57 @@ class Segmentation(SOPClass):
         # tables.
 
         # Create temporary table of desired frame numbers
-        cmd = (
-            'CREATE TABLE TemporaryFrameNumbers('
-            '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-            '    SourceFrameNumber INTEGER UNIQUE NOT NULL'
-            ')'
-        )
-        cur.execute(cmd)
-        cur.executemany(
-            'INSERT INTO TemporaryFrameNumbers VALUES(?, ?)',
-            enumerate(source_frame_numbers)
-        )
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporaryFrameNumbers('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                '    SourceFrameNumber INTEGER UNIQUE NOT NULL'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO TemporaryFrameNumbers VALUES(?, ?)',
+                enumerate(source_frame_numbers)
+            )
 
-        self._create_temporary_segment_table(
-            segment_numbers=segment_numbers,
-            combine_segments=combine_segments,
-            relabel=relabel
-        )
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
 
-        # Construct the query
-        # The ORDER BY is not logically necessary but seems to improve
-        # performance of the downstream numpy operations, presumably as it is
-        # more cache efficient
-        query = (
-            'SELECT '
-            '    F.OutputFrameIndex,'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM TemporaryFrameNumbers F '
-            'INNER JOIN FrameLUT L'
-            '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
-            'ORDER BY F.OutputFrameIndex'
-        )
-        indices_iterator = cur.execute(query)
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            query = (
+                'SELECT '
+                '    F.OutputFrameIndex,'
+                '    L.FrameNumber - 1,'
+                '    S.OutputSegmentNumber '
+                'FROM TemporaryFrameNumbers F '
+                'INNER JOIN FrameLUT L'
+                '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY F.OutputFrameIndex'
+            )
+            indices_iterator = self._db_con.execute(query)
 
-        output_array = self._get_pixels_by_seg_frame(
-            num_output_frames=len(source_frame_numbers),
-            indices_iterator=indices_iterator,
-            segment_numbers=np.array(segment_numbers),
-            combine_segments=combine_segments,
-            relabel=relabel,
-            rescale_fractional=rescale_fractional,
-            skip_overlap_checks=skip_overlap_checks,
-            dtype=dtype,
-        )
+            output_array = self._get_pixels_by_seg_frame(
+                num_output_frames=len(source_frame_numbers),
+                indices_iterator=indices_iterator,
+                segment_numbers=np.array(segment_numbers),
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                skip_overlap_checks=skip_overlap_checks,
+                dtype=dtype,
+            )
 
-        # Clear up temporary tables
-        cur.execute('DROP TABLE TemporaryFrameNumbers')
-        self._drop_temporary_segment_table()
-        self.db_con.commit()
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporaryFrameNumbers')
+            self._drop_temporary_segment_table()
 
         return output_array
 
@@ -3133,7 +3137,7 @@ class Segmentation(SOPClass):
         # Check that all frame numbers requested actually exist
         cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
         cols_str = ', '.join(cols)
-        cur = self.db_con.cursor()
+        cur = self._db_con.cursor()
         if not assert_missing_frames_are_empty:
             unique_dim_inds = {
                 r for r in
@@ -3157,68 +3161,69 @@ class Segmentation(SOPClass):
         # the desired pixel array.
         # The approach here is to create two temporary tables in the SQLite
         # database, one for the desired dimension index values, and another for
-        # the desired segments, then use table joins to arrive with the frame
-        # LUT to arrive at the relevant rows, before clearing up the temporary
-        # tables.
+        # the desired segments, then use table joins with the frame LUT to
+        # arrive at the relevant rows, before clearing up the temporary tables.
 
         # Create temporary table of desired dimension indices
         col_defs = [f'{col_name} INTEGER NOT NULL' for col_name in cols]
-        cmd = (
-            'CREATE TABLE TemporaryDimensionIndexValues('
-            '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-            f'   {", ".join(col_defs)}'
-            ')'
-        )
-        cur.execute(cmd)
-        placeholders = ', '.join(['?'] * (len(cols) + 1))
-        data = (
-            (i, *tuple(row)) for i, row in enumerate(dimension_index_values)
-        )
-        cur.executemany(
-            f'INSERT INTO TemporaryDimensionIndexValues VALUES({placeholders})',
-            data
-        )
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporaryDimensionIndexValues('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                f'   {", ".join(col_defs)}'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            placeholders = ', '.join(['?'] * (len(cols) + 1))
+            data = (
+                (i, *tuple(row))
+                for i, row in enumerate(dimension_index_values)
+            )
+            self._db_con.executemany(
+                'INSERT INTO TemporaryDimensionIndexValues '
+                f'VALUES({placeholders})',
+                data
+            )
 
-        self._create_temporary_segment_table(
-            segment_numbers=segment_numbers,
-            combine_segments=combine_segments,
-            relabel=relabel
-        )
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
 
-        # Construct the query
-        # The ORDER BY is not logically necessary but seems to improve
-        # performance of the downstream numpy operations, presumably as it is
-        # more cache efficient
-        join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
-        query = (
-            'SELECT '
-            '    D.OutputFrameIndex,'  # frame index of the output array
-            '    L.FrameNumber - 1,'  # frame *index* of segmentation image
-            '    S.OutputSegmentNumber '  # output segment number
-            'FROM TemporaryDimensionIndexValues D '
-            'INNER JOIN FrameLUT L'
-            f'   ON {join_str} '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
-            'ORDER BY D.OutputFrameIndex'
-        )
-        indices_iterator = cur.execute(query)
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
+            query = (
+                'SELECT '
+                '    D.OutputFrameIndex,'  # frame index of the output array
+                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+                '    S.OutputSegmentNumber '  # output segment number
+                'FROM TemporaryDimensionIndexValues D '
+                'INNER JOIN FrameLUT L'
+                f'   ON {join_str} '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY D.OutputFrameIndex'
+            )
+            indices_iterator = self._db_con.execute(query)
 
-        output_array = self._get_pixels_by_seg_frame(
-            num_output_frames=len(dimension_index_values),
-            indices_iterator=indices_iterator,
-            segment_numbers=np.array(segment_numbers),
-            combine_segments=combine_segments,
-            relabel=relabel,
-            rescale_fractional=rescale_fractional,
-            skip_overlap_checks=skip_overlap_checks,
-            dtype=dtype,
-        )
+            output_array = self._get_pixels_by_seg_frame(
+                num_output_frames=len(dimension_index_values),
+                indices_iterator=indices_iterator,
+                segment_numbers=np.array(segment_numbers),
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                skip_overlap_checks=skip_overlap_checks,
+                dtype=dtype,
+            )
 
-        # Clear up temporary tables
-        cur.execute('DROP TABLE TemporaryDimensionIndexValues')
-        self._drop_temporary_segment_table()
-        self.db_con.commit()
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporaryDimensionIndexValues')
+            self._drop_temporary_segment_table()
 
         return output_array
 
