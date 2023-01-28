@@ -2058,7 +2058,8 @@ class Segmentation(SOPClass):
             default, checks are performed to ensure that the segments do not
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
-            segment number will be placed into the output array.
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
         dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -2465,7 +2466,8 @@ class Segmentation(SOPClass):
             default, checks are performed to ensure that the segments do not
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
-            segment number will be placed into the output array.
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
         dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -2740,7 +2742,8 @@ class Segmentation(SOPClass):
             default, checks are performed to ensure that the segments do not
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
-            segment number will be placed into the output array.
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
         dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
@@ -3042,7 +3045,8 @@ class Segmentation(SOPClass):
             default, checks are performed to ensure that the segments do not
             overlap. However, this reduces performance. If checks are skipped
             and multiple segments do overlap, the segment with the highest
-            segment number will be placed into the output array.
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
         dtype: Union[type, str, np.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
