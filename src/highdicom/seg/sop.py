@@ -2722,12 +2722,12 @@ class Segmentation(SOPClass):
         assert_missing_frames_are_empty: bool, optional
             Assert that requested source frame numbers that are not referenced
             by the segmentation image contain no segments. If a source frame
-            number is not referenced by the segmentation image, highdicom is
+            number is not referenced by the segmentation image and is larger
+            than the frame number of the highest referenced frame, highdicom is
             unable to check that the frame number is valid in the source image.
-            By default, highdicom will raise an error if any of the requested
-            source frames are not referenced in the source image. To override
-            this behavior and return a segmentation frame of all zeros for such
-            frames, set this parameter to True.
+            By default, highdicom will raise an error in this situation. To
+            override this behavior and return a segmentation frame of all zeros
+            for such frames, set this parameter to True.
         rescale_fractional: bool
             If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
             True, the raw integer-valued array stored in the segmentation image
@@ -2853,22 +2853,19 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            unique_frames = {
-                r[0] for r in
-                cur.execute(
-                    'SELECT DISTINCT(ReferencedFrameNumber) FROM FrameLUT'
-                )
-            }
-            missing_frames = set(source_frame_numbers) - unique_frames
-            if len(missing_frames) > 0:
-                msg = (
-                    f'Source frame number(s) {list(missing_frames)} do not '
-                    'match any referenced source frame. To return '
-                    'an empty segmentation mask in this situation, '
-                    "use the 'assert_missing_frames_are_empty' "
-                    'parameter.'
-                )
-                raise ValueError(msg)
+            max_frame_number = cur.execute(
+                'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
+            ).fetchone()[0]
+            for f in source_frame_numbers:
+                if f > max_frame_number:
+                    msg = (
+                        f'Source frame number {f} is larger than any '
+                        'referenced source frame, so highdicom cannot be '
+                        'certain that it is valid. To return an empty '
+                        'segmentation mask in this situation, use the '
+                        "'assert_missing_frames_are_empty' parameter."
+                    )
+                    raise ValueError(msg)
 
         # Run query to create the iterable of indices needed to construct
         # the desired pixel array.

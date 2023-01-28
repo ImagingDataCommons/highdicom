@@ -2744,8 +2744,16 @@ class TestSegmentationParsing():
     def test_get_pixels_by_invalid_source_frames(self):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
-        # (frame 3 has no segment)
-        source_frames_invalid = [1, 3, 4, 5]
+        # (frame 3 has no segment but is below the max so shouldn't raise)
+        source_frames_valid = [1, 3, 4, 5]
+        self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid
+        )
+
+        # (frame 100 has no segment but is greater than largest frame so
+        # should raise)
+        source_frames_invalid = [1, 3, 4, 5, 100]
         with pytest.raises(ValueError):
             self._sm_control_seg.get_pixels_by_source_frame(
                 source_sop_instance_uid=source_sop_uid,
@@ -2755,8 +2763,8 @@ class TestSegmentationParsing():
     def test_get_pixels_by_invalid_source_frames_with_assert(self):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
-        # (frame 3 has no segment)
-        source_frames_invalid = [1, 3, 4, 5]
+        # (frame 100 has no segment)
+        source_frames_invalid = [1, 3, 4, 5, 100]
         pixels = self._sm_control_seg.get_pixels_by_source_frame(
             source_sop_instance_uid=source_sop_uid,
             source_frame_numbers=source_frames_invalid,
