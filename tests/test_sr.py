@@ -73,6 +73,7 @@ from highdicom.sr import (
     ValueTypeValues,
     VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
+    srread,
 )
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
@@ -3877,6 +3878,27 @@ class TestComprehensiveSR(unittest.TestCase):
         with pytest.raises(AttributeError):
             assert report.PertinentOtherEvidenceSequence
 
+    def test_srread(self):
+        report = ComprehensiveSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
+        )
+
+        with BytesIO() as buf:
+            report.save_as(buf)
+            buf.seek(0)
+            sr_read = srread(buf)
+
+        assert isinstance(sr_read, ComprehensiveSR)
+
 
 class TestComprehensive3DSR(unittest.TestCase):
 
@@ -4924,6 +4946,14 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
                 graphic_type=GraphicTypeValues3D.POINT,
                 referenced_sop_instance_uid=UID()
             )
+
+    def test_srread(self):
+        with BytesIO() as buf:
+            self._sr.save_as(buf)
+            buf.seek(0)
+            sr_read = srread(buf)
+
+        assert isinstance(sr_read, Comprehensive3DSR)
 
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
