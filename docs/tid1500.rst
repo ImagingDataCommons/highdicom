@@ -105,7 +105,7 @@ can construct the Measurement Report, and use it to construct the SR document:
     # Create the Structured Report instance
     sr_dataset = hd.sr.Comprehensive3DSR(
         evidence=[...],  # all datasets referenced in the report
-        content=measurement_report,  # TODO fix this
+        content=measurement_report,
         series_number=1,
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
@@ -526,11 +526,11 @@ reference for more information):
   measurements.
 - **Algorithm:** Identification of algorithm used for making measurements.
 - **Derivation:** How the value was computed.
-- **Finding Sites:** Coded description of one or more anatomic locations corresonding
-  to the image region from which measurement was taken.
+- **Finding Sites:** Coded description of one or more anatomic locations
+  corresponding to the image region from which measurement was taken.
 - **Method:** Measurement method.
-- **Properties:** Measurement properties, including evaluations of its normality
-  and/or significance, its relationship to a reference population,
+- **Properties:** Measurement properties, including evaluations of its
+  normality and/or significance, its relationship to a reference population,
   and an indication of its selection from a set of measurements
 - **Referenced Images:** Referenced images which were used as sources for the
   measurement.
