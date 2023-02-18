@@ -3639,12 +3639,27 @@ class TestEnhancedSR(unittest.TestCase):
             observation_context=observation_context,
             procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
             imaging_measurements=imaging_measurements
-        )[0]
+        )
 
     def test_construction(self):
         report = EnhancedSR(
             evidence=[self._ref_dataset],
-            content=self._content,
+            content=self._content[0],
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures
+        )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+
+    def test_construction_content_is_sequence(self):
+        report = EnhancedSR(
+            evidence=[self._ref_dataset],
+            content=self._content,  # the full measurement report
             series_instance_uid=self._series_instance_uid,
             series_number=self._series_number,
             sop_instance_uid=self._sop_instance_uid,
@@ -3759,9 +3774,29 @@ class TestComprehensiveSR(unittest.TestCase):
             observation_context=self._observation_context,
             procedure_reported=self._procedure_reported,
             imaging_measurements=self._imaging_measurements
-        )[0]
+        )
 
     def test_construction(self):
+        report = ComprehensiveSR(
+            evidence=[self._ref_dataset],
+            content=self._content[0],
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
+        )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.33'
+
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+        with pytest.raises(AttributeError):
+            assert report.PertinentOtherEvidenceSequence
+
+    def test_construction_content_is_sequence(self):
         report = ComprehensiveSR(
             evidence=[self._ref_dataset],
             content=self._content,
@@ -3965,9 +4000,41 @@ class TestComprehensive3DSR(unittest.TestCase):
             observation_context=observation_context,
             procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
             imaging_measurements=imaging_measurements
-        )[0]
+        )
 
     def test_construction(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset],
+            content=self._content[0],
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
+        )
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.PatientID == self._ref_dataset.PatientID
+        assert report.PatientName == self._ref_dataset.PatientName
+        assert report.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        assert report.AccessionNumber == self._ref_dataset.AccessionNumber
+        assert report.SeriesInstanceUID == self._series_instance_uid
+        assert report.SeriesNumber == self._series_number
+        assert report.SOPInstanceUID == self._sop_instance_uid
+        assert report.InstanceNumber == self._instance_number
+        assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.34'
+        assert report.InstitutionName == self._institution_name
+        assert report.Manufacturer == self._manufacturer
+        assert report.Modality == 'SR'
+
+        with pytest.raises(AttributeError):
+            assert report.CurrentRequestedProcedureEvidenceSequence
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
+
+    def test_construction_content_is_sequence(self):
         report = Comprehensive3DSR(
             evidence=[self._ref_dataset],
             content=self._content,

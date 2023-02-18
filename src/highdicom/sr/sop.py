@@ -12,6 +12,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
+from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.valuerep import DT, PersonName
 from pydicom.uid import (
     ComprehensiveSRStorage,
@@ -42,7 +43,7 @@ class _SR(SOPClass):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -72,9 +73,10 @@ class _SR(SOPClass):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -209,6 +211,14 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
+        if isinstance(content, DataElementSequence):
+            if len(content) != 1:
+                raise ValueError(
+                    "If content is a pydicom.Sequence, it must contain a "
+                    "single element."
+                )
+            content = content[0]
+
         content_copy = deepcopy(content)
         content_item = ContentItem._from_dataset_derived(content_copy)
         self._content = ContentSequence([content_item], is_root=True)
@@ -341,7 +351,7 @@ class EnhancedSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -370,9 +380,10 @@ class EnhancedSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -448,12 +459,12 @@ class EnhancedSR(_SR):
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
-        unsopported_content = find_content_items(
-            content,
+        unsupported_content = find_content_items(
+            content if isinstance(content, Dataset) else content[0],
             value_type=ValueTypeValues.SCOORD3D,
             recursive=True
         )
-        if len(unsopported_content) > 0:
+        if len(unsupported_content) > 0:
             raise ValueError(
                 'Enhanced SR does not support content items with '
                 'SCOORD3D value type.'
@@ -471,7 +482,7 @@ class ComprehensiveSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -500,9 +511,10 @@ class ComprehensiveSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -582,7 +594,7 @@ class ComprehensiveSR(_SR):
             **kwargs
         )
         unsupported_content = find_content_items(
-            content,
+            content if isinstance(content, Dataset) else content[0],
             value_type=ValueTypeValues.SCOORD3D,
             recursive=True
         )
@@ -633,7 +645,7 @@ class Comprehensive3DSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -661,9 +673,10 @@ class Comprehensive3DSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
