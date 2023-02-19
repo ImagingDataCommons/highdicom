@@ -56,7 +56,7 @@ setuptools.setup(
         'pillow>=8.3',
         'pillow-jpls>=1.0',
     ],
-    extras_requires={
+    extras_require={
         'libjpeg': [
             'pylibjpeg>=1.4',
             'pylibjpeg-libjpeg>=1.3',
