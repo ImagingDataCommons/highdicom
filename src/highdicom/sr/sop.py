@@ -792,9 +792,10 @@ def srread(
 
     The object is returned as an instance of the highdicom class corresponding
     to the dataset's IOD. Currently supported IODs are:
-    - EnhancedSRStorage
-    - ComprehensiveSRStorage
-    - Comprehensive3DSRStorage
+
+    * EnhancedSRStorage via class :class:`EnhancedSR`
+    * ComprehensiveSRStorage via class :class:`ComprehensiveSR`
+    * Comprehensive3DSRStorage via class :class:`Comprehensive3DSR`
 
     Parameters
     ----------
