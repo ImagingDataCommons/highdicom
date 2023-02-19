@@ -788,7 +788,7 @@ class Comprehensive3DSR(_SR):
 def srread(
     fp: Union[str, bytes, PathLike, BinaryIO],
 ) -> Union[EnhancedSR, ComprehensiveSR, Comprehensive3DSR]:
-    """Read a structured report document in DICOM File Format.
+    """Read a Structured Report (SR) document in DICOM File format.
 
     The object is returned as an instance of the highdicom class corresponding
     to the dataset's IOD. Currently supported IODs are:
@@ -810,7 +810,7 @@ def srread(
     Returns
     -------
     Union[highdicom.sr.EnhancedSR, highdicom.sr.ComprehensiveSR, highdicom.sr.Comprehensive3DSR]
-        Segmentation image read from the file.
+        Structured Report document read from the file.
 
     """  # noqa: E501
     class_map = {
