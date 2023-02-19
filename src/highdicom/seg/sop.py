@@ -1921,7 +1921,7 @@ class Segmentation(SOPClass):
         return types
 
     def _check_sop_uid_exists(self, sop_instance_uid: str) -> None:
-        """Checks whether a SOP Instance UID is in the database.
+        """Check whether a SOP Instance UID is in the database.
 
         Parameters
         ----------
