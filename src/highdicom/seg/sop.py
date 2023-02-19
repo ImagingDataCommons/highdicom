@@ -1931,7 +1931,7 @@ class Segmentation(SOPClass):
         Raises
         ------
         KeyError:
-            If the input sop_instance_uid is not in the database.
+            If the input `sop_instance_uid` is not in the database.
 
         """
         cur = self._db_con.cursor()
