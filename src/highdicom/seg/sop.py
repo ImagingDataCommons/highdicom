@@ -5,7 +5,17 @@ from copy import deepcopy
 from os import PathLike
 import sqlite3
 from typing import (
-    Any, cast, Dict, Iterable, List, Optional, Sequence, Union, Tuple, BinaryIO
+    Any,
+    BinaryIO,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+    cast,
 )
 
 import numpy as np
@@ -118,6 +128,291 @@ def _check_numpy_value_representation(
             f"{max_val}, which is too large be represented using dtype "
             f"{dtype}."
         )
+
+
+class _SegDBManager:
+
+    """Database manager for data associated with a segmentation image."""
+
+    def __init__(
+        self,
+        referenced_uids: List[Tuple[str, str, str]],
+        segment_numbers: List[int],
+        dim_indices: Dict[int, List[int]],
+        referenced_instances: Optional[List[str]],
+        referenced_frames: Optional[List[int]],
+    ):
+        """
+
+        Parameters
+        ----------
+        referenced_uids: List[Tuple[str, str, str]]
+            List of UIDs for each instance referenced in the segmentation.
+            Each tuple should be in the format
+            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
+        segment_numbers: List[int]
+            Segment numbers for each frame in the segmentation image.
+        dim_indices: Dict[int, List[int]]
+            Dictionary mapping the integer tag value of each dimension index
+            pointer (excluding SegmentNumber) to a list of dimension indices
+            for each frames in the segmentation image.
+        referenced_instances: Optional[List[str]]
+            SOPInstanceUID of each referenced instance for each frame in the
+            segmentation image. Should be omitted if there is not a single
+            referenced instance per segmentation frame.
+        referenced_frames: Optional[List[int]]
+            Frame number of the referenced frame for each frame in the
+            segmentation image. Should be omitted if there is not a single
+            referenced instance per segmentation frame.
+
+        """
+        self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
+
+        self._create_ref_instance_table(referenced_uids)
+
+        self._number_of_frames = len(segment_numbers)
+
+        self._dim_ind_col_names = {}
+        for i, t in enumerate(dim_indices.keys()):
+            kw = keyword_for_tag(t)
+            if kw == '':
+                kw = f'UnknownDimensionIndex{i}'
+            col_name = kw + '_DimensionIndexValues'
+            self._dim_ind_col_names[t] = col_name
+
+        # Construct the columns and values to put into a frame look-up table
+        # table within sqlite. There will be one row per frame in the
+        # segmentation instance
+        col_defs = []  # SQL column definitions
+        col_data = []  # lists of column data
+
+        # Frame number column
+        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
+        col_data.append(list(range(1, self._number_of_frames + 1)))
+
+        # Segment number column
+        col_defs.append('SegmentNumber INTEGER NOT NULL')
+        col_data.append(segment_numbers)
+
+        # Columns for other dimension index values
+        col_defs += [
+            f'{col_name} INTEGER NOT NULL'
+            for col_name in self._dim_ind_col_names.values()
+        ]
+        col_data.extend(list(dim_indices.values()))
+
+        # Columns related to source frames, if they are usable for indexing
+        if (referenced_frames is None) != (referenced_instances is None):
+            raise TypeError(
+                "'referenced_frames' and 'referenced_instances' should be "
+                "provided together or not at all."
+            )
+        if referenced_instances is not None:
+            col_defs.append('ReferencedFrameNumber INTEGER')
+            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
+            col_defs.append(
+                'FOREIGN KEY(ReferencedSOPInstanceUID) '
+                'REFERENCES InstanceUIDs(SOPInstanceUID)'
+            )
+            col_data += [
+                referenced_frames,
+                referenced_instances,
+            ]
+
+        # Build LUT from columns
+        all_defs = ", ".join(col_defs)
+        with self._db_con:
+            cmd = f'CREATE TABLE FrameLUT({all_defs})'
+            self._db_con.execute(cmd)
+            placeholders = ', '.join(['?'] * len(col_data))
+            self._db_con.executemany(
+                f'INSERT INTO FrameLUT VALUES({placeholders})',
+                zip(*col_data),
+            )
+
+    def _create_ref_instance_table(
+        self,
+        referenced_uids: List[Tuple[str, str, str]],
+    ) -> None:
+        """Create a table of referenced instances.
+
+        Parameters
+        ----------
+        referenced_uids: List[Tuple[str, str, str]]
+            List of UIDs for each instance referenced in the segmentation.
+            Each tuple should be in the format
+            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
+
+        """
+        with self._db_con:
+            self._db_con.execute(
+                """
+                    CREATE TABLE InstanceUIDs(
+                        StudyInstanceUID VARCHAR NOT NULL,
+                        SeriesInstanceUID VARCHAR NOT NULL,
+                        SOPInstanceUID VARCHAR PRIMARY KEY
+                    )
+                """
+            )
+            self._db_con.executemany(
+                "INSERT INTO InstanceUIDs "
+                "(StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID) "
+                "VALUES(?, ?, ?)",
+                referenced_uids,
+            )
+
+    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
+        """Get UIDs for all source SOP instances referenced in the segmentation.
+
+        Returns
+        -------
+        List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
+            List of tuples containing Study Instance UID, Series Instance UID
+            and SOP Instance UID for every SOP Instance referenced in the
+            dataset.
+
+        """
+        cur = self._db_con.cursor()
+        res = cur.execute(
+            'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '
+            'FROM InstanceUIDs'
+        )
+
+        return [
+            (hd_UID(a), hd_UID(b), hd_UID(c)) for a, b, c in res.fetchall()
+        ]
+
+    def are_dimension_indices_unique(
+        self,
+        dimension_index_pointers: Sequence[Union[int, BaseTag]],
+    ) -> bool:
+        """Check if a list of index pointers uniquely identifies frames.
+
+        For a given list of dimension index pointers, check whether every
+        combination of index values for these pointers identifies a unique
+        frame per segment in the segmentation image. This is a pre-requisite
+        for indexing using this list of dimension index pointers in the
+        :meth:`Segmentation.get_pixels_by_dimension_index_values()` method.
+
+        Parameters
+        ----------
+        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
+            Sequence of tags serving as dimension index pointers.
+
+        Returns
+        -------
+        bool
+            True if the specified list of dimension index pointers uniquely
+            identifies frames in the segmentation image. False otherwise.
+
+        """
+        column_names = ['SegmentNumber']
+        for ptr in dimension_index_pointers:
+            column_names.append(self._dim_ind_col_names[ptr])
+        col_str = ", ".join(column_names)
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
+        ).fetchone()[0]
+        return n_unique_combos == self._number_of_frames
+
+    def are_referenced_sop_instances_unique(self) -> bool:
+        """Check if ReferencedSOPInstanceUID uniquely identify frames.
+
+        Returns
+        -------
+        bool
+            True if the ReferencedSOPInstanceUID (in combination with the
+            segment number) uniquely identifies frames of the segmentation
+            image.
+
+        """
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            'SELECT COUNT(*) FROM '
+            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
+            'SegmentNumber)'
+        ).fetchone()[0]
+        return n_unique_combos == self._number_of_frames
+
+    def are_referenced_frames_unique(self) -> bool:
+        """Check if ReferencedFrameNumber uniquely identify frames.
+
+        Returns
+        -------
+        bool
+            True if the ReferencedFrameNumber (in combination with the
+            segment number) uniquely identifies frames of the segmentation
+            image.
+
+        """
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            'SELECT COUNT(*) FROM '
+            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
+            'SegmentNumber)'
+        ).fetchone()[0]
+        return n_unique_combos == self._number_of_frames
+
+    def get_unique_sopuids(self) -> Set[str]:
+        """Get set of unique Referenced SOP Instance UIDs.
+
+        Returns
+        -------
+        Set[str]
+            Set of unique Referenced SOP Instance UIDs.
+
+        """
+        cur = self._db_con.cursor()
+        return {
+            r[0] for r in
+            cur.execute(
+                'SELECT DISTINCT(SOPInstanceUID) from InstanceUIDs'
+            )
+        }
+
+    def get_max_frame_number(self) -> int:
+        """Get highest frame number of any referenced frame.
+
+        Returns
+        -------
+        int
+            Highest frame number referenced in the segmentation image.
+
+        """
+        cur = self._db_con.cursor()
+        return cur.execute(
+            'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
+        ).fetchone()[0]
+
+    def get_unique_dim_index_values(
+        self,
+        dimension_index_pointers: Sequence[int],
+    ) -> Set[Tuple[int, ...]]:
+        """Get set of unique dimension index value combinations.
+
+        Parameters
+        ----------
+        dimension_index_pointers: Sequence[int]
+            List of dimension index pointers for which to find unique
+            combinations of values.
+
+        Returns
+        -------
+        Set[Tuple[int, ...]]
+            Set of unique dimension index values for the input dimension index
+            pointers.
+
+        """
+        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
+        cols_str = ', '.join(cols)
+        cur = self._db_con.cursor()
+        return {
+            r for r in
+            cur.execute(
+                f'SELECT DISTINCT {cols_str} FROM FrameLUT'
+            )
+        }
 
 
 class Segmentation(SOPClass):
@@ -1384,11 +1679,14 @@ class Segmentation(SOPClass):
 
         return cast(Segmentation, seg)
 
-    def _build_ref_instance_lut(self) -> None:
-        """Build lookup table for all instance referenced in the segmentation.
+    def _get_ref_instance_uids(self) -> List[Tuple[str, str, str]]:
+        """List all instances referenced in the segmentation.
 
-        Builds a table in the sqlite db containing all Study, Series and SOP
-        Instance UIDS for instances referenced in the segmentation.
+        Returns
+        -------
+        List[Tuple[str, str, str]]
+            List of all instances referenced in the segmentation in the format
+            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
 
         """
         instance_data = []
@@ -1415,22 +1713,7 @@ class Segmentation(SOPClass):
                             )
                         )
 
-        with self._db_con:
-            self._db_con.execute(
-                """
-                    CREATE TABLE InstanceUIDs(
-                        StudyInstanceUID VARCHAR NOT NULL,
-                        SeriesInstanceUID VARCHAR NOT NULL,
-                        SOPInstanceUID VARCHAR PRIMARY KEY
-                    )
-                """
-            )
-            self._db_con.executemany(
-                "INSERT INTO InstanceUIDs "
-                "(StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID) "
-                "VALUES(?, ?, ?)",
-                instance_data,
-            )
+        return instance_data
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
@@ -1446,12 +1729,12 @@ class Segmentation(SOPClass):
         index values.
 
         """
-        self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
-        self._build_ref_instance_lut()
+        referenced_uids = self._get_ref_instance_uids()
+        all_referenced_sops = {uids[2] for uids in referenced_uids}
 
-        segnum_col_data = []
-        referenced_instance_col_data = []
-        referenced_frame_col_data = []
+        segment_numbers = []
+        referenced_instances: Optional[List[str]] = []
+        referenced_frames: Optional[List[int]] = []
 
         # Get list of all dimension index pointers, excluding the segment
         # number, since this is treated differently
@@ -1461,19 +1744,12 @@ class Segmentation(SOPClass):
             for dim_ind in self.DimensionIndexSequence
             if dim_ind.DimensionIndexPointer != seg_num_tag
         ]
-        self._dim_ind_col_names = {}
-        for i, t in enumerate(self._dim_ind_pointers):
-            kw = keyword_for_tag(t)
-            if kw == '':
-                kw = f'UnknownDimensionIndex{i}'
-            col_name = kw + '_DimensionIndexValues'
-            self._dim_ind_col_names[t] = col_name
         dim_ind_positions = {
             dim_ind.DimensionIndexPointer: i
             for i, dim_ind in enumerate(self.DimensionIndexSequence)
             if dim_ind.DimensionIndexPointer != seg_num_tag
         }
-        dim_index_col_data: Dict[int, List[int]] = {
+        dim_indices: Dict[int, List[int]] = {
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
@@ -1486,7 +1762,7 @@ class Segmentation(SOPClass):
             # Get segment number for this frame
             seg_id_seg = frame_item.SegmentIdentificationSequence[0]
             seg_num = seg_id_seg.ReferencedSegmentNumber
-            segnum_col_data.append(int(seg_num))
+            segment_numbers.append(int(seg_num))
 
             # Get dimension indices for this frame
             indices = frame_item.FrameContentSequence[0].DimensionIndexValues
@@ -1501,7 +1777,7 @@ class Segmentation(SOPClass):
                     'dimension index sequence.'
                 )
             for ptr in self._dim_ind_pointers:
-                dim_index_col_data[ptr].append(indices[dim_ind_positions[ptr]])
+                dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
 
             frame_source_instances = []
             frame_source_frames = []
@@ -1546,18 +1822,16 @@ class Segmentation(SOPClass):
                 self._single_source_frame_per_seg_frame = False
             else:
                 ref_instance_uid = frame_source_instances[0]
-                try:
-                    self._check_sop_uid_exists(ref_instance_uid)
-                except KeyError as e:
+                if ref_instance_uid not in all_referenced_sops:
                     raise AttributeError(
                         f'SOP instance {ref_instance_uid} referenced in the '
                         'source image sequence is not included in the '
                         'Referenced Series Sequence or Studies Containing '
                         'Other Referenced Instances Sequence. This is an '
                         'error with the integrity of the Segmentation object.'
-                    ) from e
-                referenced_instance_col_data.append(ref_instance_uid)
-                referenced_frame_col_data.append(frame_source_frames[0])
+                    )
+                referenced_instances.append(ref_instance_uid)
+                referenced_frames.append(frame_source_frames[0])
 
         # Summarise
         if any(
@@ -1576,52 +1850,17 @@ class Segmentation(SOPClass):
         else:
             self._locations_preserved = None
 
-        # Construct the columns and values to put into a frame look-up table
-        # table within sqlite. There will be one row per frame in the
-        # segmentation instance
-        col_defs = []  # SQL column definitions
-        col_data = []  # lists of column data
+        if not self._single_source_frame_per_seg_frame:
+            referenced_instances = None
+            referenced_frames = None
 
-        # Frame number column
-        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        col_data.append(list(range(1, self.NumberOfFrames + 1)))
-
-        # Segment number column
-        col_defs.append('SegmentNumber INTEGER NOT NULL')
-        col_data.append(segnum_col_data)
-
-        # Columns for other dimension index values
-        col_defs += [
-            f'{col_name} INTEGER NOT NULL'
-            for col_name in self._dim_ind_col_names.values()
-        ]
-        col_data += [
-            indices for indices in dim_index_col_data.values()
-        ]
-
-        # Columns related to source frames, if they are usable for indexing
-        if self._single_source_frame_per_seg_frame:
-            col_defs.append('ReferencedFrameNumber INTEGER')
-            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-            col_defs.append(
-                'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                'REFERENCES InstanceUIDs(SOPInstanceUID)'
-            )
-            col_data += [
-                referenced_frame_col_data,
-                referenced_instance_col_data,
-            ]
-
-        # Build LUT from columns
-        all_defs = ", ".join(col_defs)
-        with self._db_con:
-            cmd = f'CREATE TABLE FrameLUT({all_defs})'
-            self._db_con.execute(cmd)
-            placeholders = ', '.join(['?'] * len(col_data))
-            self._db_con.executemany(
-                f'INSERT INTO FrameLUT VALUES({placeholders})',
-                zip(*col_data),
-            )
+        self._db_man = _SegDBManager(
+            referenced_uids=referenced_uids,
+            segment_numbers=segment_numbers,
+            dim_indices=dim_indices,
+            referenced_instances=referenced_instances,
+            referenced_frames=referenced_frames,
+        )
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -1920,29 +2159,6 @@ class Segmentation(SOPClass):
 
         return types
 
-    def _check_sop_uid_exists(self, sop_instance_uid: str) -> None:
-        """Checks whether a SOP Instance UID is in the database.
-
-        Parameters
-        ----------
-        sop_instance_uid: str
-            SOP Instance UID value to check.
-
-        Raises
-        ------
-        KeyError:
-            If the input sop_instance_uid is not in the database.
-
-        """
-        cur = self._db_con.cursor()
-        res = cur.execute(
-            "SELECT SOPInstanceUID FROM InstanceUIDs "
-            f"WHERE SOPInstanceUID='{sop_instance_uid}' LIMIT 1"
-        )
-        first = res.fetchone()
-        if first is None:
-            raise KeyError("No such source frame: {sop_instance_uid}.")
-
     def _create_temporary_segment_table(
         self,
         segment_numbers: Sequence[int],
@@ -2223,15 +2439,7 @@ class Segmentation(SOPClass):
             dataset.
 
         """
-        cur = self._db_con.cursor()
-        res = cur.execute(
-            'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '
-            'FROM InstanceUIDs'
-        )
-
-        return [
-            (hd_UID(a), hd_UID(b), hd_UID(c)) for a, b, c in res.fetchall()
-        ]
+        return self._db_man.get_source_image_uids()
 
     def get_default_dimension_index_pointers(
         self
@@ -2288,7 +2496,6 @@ class Segmentation(SOPClass):
             raise ValueError(
                 'Argument "dimension_index_pointers" may not be empty.'
             )
-        column_names = ['SegmentNumber']
         for ptr in dimension_index_pointers:
             if ptr not in self._dim_ind_pointers:
                 kw = keyword_for_tag(ptr)
@@ -2298,13 +2505,9 @@ class Segmentation(SOPClass):
                     f'Tag {ptr} ({kw}) is not used as a dimension index '
                     'in this image.'
                 )
-            column_names.append(self._dim_ind_col_names[ptr])
-        col_str = ", ".join(column_names)
-        cur = self._db_con.cursor()
-        n_unique_dim_indices = cur.execute(
-            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
-        ).fetchone()[0]
-        return n_unique_dim_indices == self.NumberOfFrames
+        return self._db_man.are_dimension_indices_unique(
+            dimension_index_pointers
+        )
 
     def _check_indexing_with_source_frames(
         self,
@@ -2533,13 +2736,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
-            'SegmentNumber)'
-        ).fetchone()[0]
-        if n_unique_combos != self.NumberOfFrames:
+        if not self._db_man.are_referenced_sop_instances_unique():
             raise RuntimeError(
                 'Source SOP instance UIDs and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -2547,12 +2744,7 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            unique_uids = {
-                r[0] for r in
-                cur.execute(
-                    'SELECT DISTINCT(SOPInstanceUID) FROM InstanceUIDs'
-                )
-            }
+            unique_uids = self._db_man.get_unique_sopuids()
             missing_uids = set(source_sop_instance_uids) - unique_uids
             if len(missing_uids) > 0:
                 msg = (
@@ -2842,13 +3034,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
-            'SegmentNumber)'
-        ).fetchone()[0]
-        if n_unique_combos != self.NumberOfFrames:
+        if not self._db_man.are_referenced_frames_unique():
             raise RuntimeError(
                 'Source frame numbers and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -2856,9 +3042,7 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            max_frame_number = cur.execute(
-                'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
-            ).fetchone()[0]
+            max_frame_number = self._db_man.get_max_frame_number()
             for f in source_frame_numbers:
                 if f > max_frame_number:
                     msg = (
@@ -3147,18 +3331,12 @@ class Segmentation(SOPClass):
             )
 
         # Check that all frame numbers requested actually exist
-        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
-        cols_str = ', '.join(cols)
-        cur = self._db_con.cursor()
         if not assert_missing_frames_are_empty:
-            unique_dim_inds = {
-                r for r in
-                cur.execute(
-                    f'SELECT DISTINCT {cols_str} FROM FrameLUT'
-                )
-            }
+            unique_dim_ind_vals = self._db_man.get_unique_dim_index_values(
+                dimension_index_pointers
+            )
             queried_dim_inds = set(tuple(r) for r in dimension_index_values)
-            missing_dim_inds = queried_dim_inds - unique_dim_inds
+            missing_dim_inds = queried_dim_inds - unique_dim_ind_vals
             if len(missing_dim_inds) > 0:
                 msg = (
                     f'Dimension index values {list(missing_dim_inds)} do not '
@@ -3177,7 +3355,11 @@ class Segmentation(SOPClass):
         # arrive at the relevant rows, before clearing up the temporary tables.
 
         # Create temporary table of desired dimension indices
-        col_defs = [f'{col_name} INTEGER NOT NULL' for col_name in cols]
+        col_defs = [
+            f'{self._dim_ind_col_names[p]} INTEGER NOT NULL'
+            for p in dimension_index_values
+        ]
+        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
         with self._db_con:
             cmd = (
                 'CREATE TABLE TemporaryDimensionIndexValues('
