@@ -26,7 +26,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/herrmannlab/highdicom',
+    url='https://github.com/imagingdatacommons/highdicom',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
@@ -56,7 +56,7 @@ setuptools.setup(
         'pillow>=8.3',
         'pillow-jpls>=1.0',
     ],
-    extras_requires={
+    extras_require={
         'libjpeg': [
             'pylibjpeg>=1.4',
             'pylibjpeg-libjpeg>=1.3',

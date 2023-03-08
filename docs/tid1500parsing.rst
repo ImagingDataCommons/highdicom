@@ -10,6 +10,7 @@ can do this using the ``srread()`` function:
 highdicom SR object.
 
 .. code-block:: python
+
     import highdicom as hd
 
     # This example is in the highdicom test data files in the repository
@@ -19,6 +20,7 @@ Alternatively, if you already have a ``pydicom.Dataset`` in memory, you can use
 the relevant ``from_dataset`` method like this:
 
 .. code-block:: python
+
     import pydicom
     import highdicom as hd
 
@@ -41,9 +43,9 @@ Searching For Measurement Groups
 
 To search for measurement groups, the :class:`highdicom.sr.MeasurementReport`
 class has
-:method:`highdicom.sr.MeasurementReport.get_image_measurement_groups`,
-:method:`highdicom.sr.MeasurementReport.get_planar_roi_measurement_groups`, and
-:method:`highdicom.sr.MeasurementReport.get_volumetric_roi_measurement_groups`
+:meth:`highdicom.sr.MeasurementReport.get_image_measurement_groups`,
+:meth:`highdicom.sr.MeasurementReport.get_planar_roi_measurement_groups`, and
+:meth:`highdicom.sr.MeasurementReport.get_volumetric_roi_measurement_groups`
 methods, each of which returns a list of the measurement groups of the three
 different types from the structured SR. You can additionally provide filters
 to return only those measurement groups that meet certain criteria.
@@ -51,14 +53,15 @@ to return only those measurement groups that meet certain criteria.
 The available search criteria include: tracking UID, finding type, finding
 site, referenced SOP instance UID, and referenced SOP class UID. Additionally
 for 
-:method:`highdicom.sr.MeasurementReport.get_planar_roi_measurement_groups`, and
-:method:`highdicom.sr.MeasurementReport.get_volumetric_roi_measurement_groups`
+:meth:`highdicom.sr.MeasurementReport.get_planar_roi_measurement_groups`, and
+:meth:`highdicom.sr.MeasurementReport.get_volumetric_roi_measurement_groups`
 it also possible to filter by graphic type and reference type (how the ROI
 is specified in the measurement group).
 
 For example:
 
 .. code-block:: python
+
     import highdicom as hd
     from pydicom.sr.codedict import codes
 

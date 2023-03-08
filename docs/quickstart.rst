@@ -283,7 +283,7 @@ image:
     # Create the Structured Report instance
     sr_dataset = hd.sr.Comprehensive3DSR(
         evidence=[image_dataset],
-        content=measurement_report[0],
+        content=measurement_report,
         series_number=1,
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
