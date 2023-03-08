@@ -157,4 +157,5 @@ __all__ = [
     'ValueTypeValues',
     'VolumeSurface',
     'VolumetricROIMeasurementsAndQualitativeEvaluations',
+    'WaveformContentItem',
 ]
