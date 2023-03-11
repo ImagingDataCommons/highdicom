@@ -428,8 +428,6 @@ class _SegDBManager:
         flow then returns to code within the "with" block. After the "with"
         block has completed, the cleanup of the table is automatically handled.
 
-        Does not commit any changes to the database.
-
         Parameters
         ----------
         table_name: str
@@ -442,20 +440,23 @@ class _SegDBManager:
 
         """
         defs_str = ', '.join(column_defs)
-        cmd = (f'CREATE TABLE {table_name}({defs_str})')
-        self._db_con.execute(cmd)
+        create_cmd = (f'CREATE TABLE {table_name}({defs_str})')
         placeholders = ', '.join(['?'] * len(column_defs))
-        self._db_con.executemany(
-            f'INSERT INTO {table_name} VALUES({placeholders})',
-            column_data
-        )
+
+        with self._db_con:
+            self._db_con.execute(create_cmd)
+            self._db_con.executemany(
+                f'INSERT INTO {table_name} VALUES({placeholders})',
+                column_data
+            )
 
         # Return control flow to "with" block
         yield
 
         # Clean up the table
         cmd = (f'DROP TABLE {table_name}')
-        self._db_con.execute(cmd)
+        with self._db_con:
+            self._db_con.execute(cmd)
 
     @contextmanager
     def temp_segment_table(
@@ -471,8 +472,6 @@ class _SegDBManager:
         derived from the input. Control flow then returns to code within the
         "with" block. After the "with" block has completed, the cleanup of
         the table is automatically handled.
-
-        Does not commit any changes to the database.
 
         Parameters
         ----------
@@ -505,21 +504,24 @@ class _SegDBManager:
             '    OutputSegmentNumber INTEGER UNIQUE NOT NULL'
             ')'
         )
-        self._db_con.execute(cmd)
-        self._db_con.executemany(
-            'INSERT INTO '
-            'TemporarySegmentNumbers('
-            '    OutputSegmentNumber, SegmentNumber'
-            ')'
-            'VALUES(?, ?)',
-            data
-        )
+
+        with self._db_con:
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO '
+                'TemporarySegmentNumbers('
+                '    OutputSegmentNumber, SegmentNumber'
+                ')'
+                'VALUES(?, ?)',
+                data
+            )
 
         # Yield execution to "with" block
         yield
 
         # Clean up table after user code executes
-        self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
+        with self._db_con:
+            self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
 
     @contextmanager
     def get_indices_by_source_instance(
@@ -593,18 +595,17 @@ class _SegDBManager:
             'ORDER BY T.OutputFrameIndex'
         )
 
-        with self._db_con:
-            with self.temp_table(
-                table_name=table_name,
-                column_defs=column_defs,
-                column_data=column_data,
+        with self.temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self.temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
             ):
-                with self.temp_segment_table(
-                    segment_numbers=segment_numbers,
-                    combine_segments=combine_segments,
-                    relabel=relabel
-                ):
-                    yield self._db_con.execute(query)
+                yield self._db_con.execute(query)
 
     @contextmanager
     def get_indices_by_source_frame(
@@ -681,18 +682,17 @@ class _SegDBManager:
             'ORDER BY F.OutputFrameIndex'
         )
 
-        with self._db_con:
-            with self.temp_table(
-                table_name=table_name,
-                column_defs=column_defs,
-                column_data=column_data,
+        with self.temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self.temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
             ):
-                with self.temp_segment_table(
-                    segment_numbers=segment_numbers,
-                    combine_segments=combine_segments,
-                    relabel=relabel
-                ):
-                    yield self._db_con.execute(query)
+                yield self._db_con.execute(query)
 
     @contextmanager
     def get_indices_by_dimension_index_values(
@@ -739,7 +739,9 @@ class _SegDBManager:
         # Create temporary table of desired dimension indices
         table_name = 'TemporaryDimensionIndexValues'
 
-        dim_ind_cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
+        dim_ind_cols = [
+            self._dim_ind_col_names[p] for p in dimension_index_pointers
+        ]
         column_defs = (
             ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
             [f'{col} INTEGER NOT NULL' for col in dim_ind_cols]
@@ -766,18 +768,17 @@ class _SegDBManager:
             'ORDER BY D.OutputFrameIndex'
         )
 
-        with self._db_con:
-            with self.temp_table(
-                table_name=table_name,
-                column_defs=column_defs,
-                column_data=column_data,
+        with self.temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self.temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
             ):
-                with self.temp_segment_table(
-                    segment_numbers=segment_numbers,
-                    combine_segments=combine_segments,
-                    relabel=relabel
-                ):
-                    yield self._db_con.execute(query)
+                yield self._db_con.execute(query)
 
 
 class Segmentation(SOPClass):
