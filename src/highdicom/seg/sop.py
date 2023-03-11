@@ -221,10 +221,10 @@ class _SegDBManager:
 
         # Build LUT from columns
         all_defs = ", ".join(col_defs)
+        cmd = f'CREATE TABLE FrameLUT({all_defs})'
+        placeholders = ', '.join(['?'] * len(col_data))
         with self._db_con:
-            cmd = f'CREATE TABLE FrameLUT({all_defs})'
             self._db_con.execute(cmd)
-            placeholders = ', '.join(['?'] * len(col_data))
             self._db_con.executemany(
                 f'INSERT INTO FrameLUT VALUES({placeholders})',
                 zip(*col_data),
@@ -413,6 +413,342 @@ class _SegDBManager:
                 f'SELECT DISTINCT {cols_str} FROM FrameLUT'
             )
         }
+
+    def _create_temporary_segment_table(
+        self,
+        segment_numbers: Sequence[int],
+        combine_segments: bool,
+        relabel: bool,
+    ) -> None:
+        """Create a temporary table of desired segment in the SQLite DB.
+
+        Does not commit the changes.
+
+        Parameters
+        ----------
+        segment_numbers: Sequence[int]
+            Segment numbers to include, in the order desired.
+        combine_segments: bool
+            Whether the segments will be combined into a label map.
+        relabel: bool
+            Whether the output segment numbers should be relabelled to 1-n
+            (True) or retain their values in the original segmentation object.
+
+        """
+        # Create temporary table of desired segments
+        if combine_segments:
+            if relabel:
+                # Output segment numbers are consecutive and start at 1
+                data = enumerate(segment_numbers, 1)
+            else:
+                # Output segment numbers are the same as the input segment
+                # numbers
+                data = zip(segment_numbers, segment_numbers)
+        else:
+            # Output segment numbers are indices along the output array's
+            # segment dimension, so are consecutive starting at 0
+            data = enumerate(segment_numbers)
+
+        cmd = (
+            'CREATE TABLE TemporarySegmentNumbers('
+            'SegmentNumber INTEGER UNIQUE NOT NULL,'
+            'OutputSegmentNumber INTEGER UNIQUE NOT NULL'
+            ')'
+        )
+        self._db_con.execute(cmd)
+        self._db_con.executemany(
+            'INSERT INTO '
+            'TemporarySegmentNumbers(OutputSegmentNumber, SegmentNumber) '
+            'VALUES(?, ?)',
+            data
+        )
+
+    def _drop_temporary_segment_table(self) -> None:
+        """Drop the table created by _create_temporary_segment_table().
+
+        Does not commit the changes.
+
+        """
+        self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
+
+    def get_indices_by_source_instance(
+        self,
+        source_sop_instance_uids: Sequence[str],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> List[Tuple[int, int, int]]:
+        """Get frame indices to create a segmentation mask for given instances.
+
+        Parameters
+        ----------
+        source_sop_instance_uids: str
+            SOP Instance UID of the source instances to for which segmentations
+            are requested.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Returns
+        -------
+        List[Tuple[int, int, int]]:
+            List of indices required to construct the requested mask. Each
+            triplet denotes the (output frame index, segmentation frame index,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset.
+
+        """
+        # Run query to create the iterable of indices needed to construct the
+        # desired pixel array. The approach here is to create two temporary
+        # tables in the SQLite database, one for the desired source UIDs, and
+        # another for the desired segments, then use table joins to arrive with
+        # the referenced UIDs table and the frame LUT to arrive at the relevant
+        # rows, before clearing up the temporary tables.
+
+        # Create temporary table of desired frame numbers
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporarySOPInstanceUIDs('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                '    SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO TemporarySOPInstanceUIDs VALUES(?, ?)',
+                enumerate(source_sop_instance_uids)
+            )
+
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
+
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            query = (
+                'SELECT '
+                '    T.OutputFrameIndex,'
+                '    L.FrameNumber - 1,'
+                '    S.OutputSegmentNumber '
+                'FROM TemporarySOPInstanceUIDs T '
+                'INNER JOIN InstanceUIDs U'
+                '    ON T.SourceSOPInstanceUID = U.SOPInstanceUID '
+                'INNER JOIN FrameLUT L'
+                '    ON U.SOPInstanceUID = L.ReferencedSOPInstanceUID '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY T.OutputFrameIndex'
+            )
+            indices = list(self._db_con.execute(query))
+
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporarySOPInstanceUIDs')
+            self._drop_temporary_segment_table()
+
+        return indices
+
+    def get_indices_by_source_frame(
+        self,
+        source_sop_instance_uid: str,
+        source_frame_numbers: Sequence[int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> List[Tuple[int, int, int]]:
+        """Get frame indices to create a segmentation mask for given frames.
+
+        Parameters
+        ----------
+        source_sop_instance_uid: str
+            SOP Instance UID of the source instance that contains the source
+            frames.
+        source_frame_numbers: Sequence[int]
+            A sequence of frame numbers (1-based) within the source instance
+            for which segmentations are requested.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Returns
+        -------
+        List[Tuple[int, int, int]]:
+            List of indices required to construct the requested mask. Each
+            triplet denotes the (output frame index, segmentation frame index,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset.
+
+        """
+        # Run query to create the iterable of indices needed to construct
+        # the desired pixel array.
+        # The approach here is to create two temporary tables in the SQLite
+        # database, one for the desired frame numbers, and another for the
+        # desired segments, then use table joins to arrive with the frame LUT
+        # to arrive at the relevant rows, before clearing up the temporary
+        # tables.
+
+        # Create temporary table of desired frame numbers
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporaryFrameNumbers('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                '    SourceFrameNumber INTEGER UNIQUE NOT NULL'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO TemporaryFrameNumbers VALUES(?, ?)',
+                enumerate(source_frame_numbers)
+            )
+
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
+
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            query = (
+                'SELECT '
+                '    F.OutputFrameIndex,'
+                '    L.FrameNumber - 1,'
+                '    S.OutputSegmentNumber '
+                'FROM TemporaryFrameNumbers F '
+                'INNER JOIN FrameLUT L'
+                '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY F.OutputFrameIndex'
+            )
+            indices = list(self._db_con.execute(query))
+
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporaryFrameNumbers')
+            self._drop_temporary_segment_table()
+
+        return indices
+
+    def get_indices_by_dimension_index_values(
+        self,
+        dimension_index_values: Sequence[Sequence[int]],
+        dimension_index_pointers: Sequence[int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> List[Tuple[int, int, int]]:
+        """Get frame indices to create a segmentation mask for given frames.
+
+        Parameters
+        ----------
+        dimension_index_values: Sequence[Sequence[int]]
+            Dimension index values for the requested frames.
+        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
+            The data element tags that identify the indices used in the
+            ``dimension_index_values`` parameter.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Returns
+        -------
+        List[Tuple[int, int, int]]:
+            List of indices required to construct the requested mask. Each
+            triplet denotes the (output frame index, segmentation frame index,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset.
+
+        """
+        # Create temporary table of desired dimension indices
+        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
+        col_defs = [f'{col} INTEGER NOT NULL' for col in cols]
+        with self._db_con:
+            cmd = (
+                'CREATE TABLE TemporaryDimensionIndexValues('
+                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
+                f'   {", ".join(col_defs)}'
+                ')'
+            )
+            self._db_con.execute(cmd)
+            placeholders = ', '.join(['?'] * (len(cols) + 1))
+            data = (
+                (i, *tuple(row))
+                for i, row in enumerate(dimension_index_values)
+            )
+            self._db_con.executemany(
+                'INSERT INTO TemporaryDimensionIndexValues '
+                f'VALUES({placeholders})',
+                data
+            )
+
+            self._create_temporary_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            )
+
+            # Construct the query
+            # The ORDER BY is not logically necessary but seems to improve
+            # performance of the downstream numpy operations, presumably as it
+            # is more cache efficient
+            join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
+            query = (
+                'SELECT '
+                '    D.OutputFrameIndex,'  # frame index of the output array
+                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+                '    S.OutputSegmentNumber '  # output segment number
+                'FROM TemporaryDimensionIndexValues D '
+                'INNER JOIN FrameLUT L'
+                f'   ON {join_str} '
+                'INNER JOIN TemporarySegmentNumbers S'
+                '    ON L.SegmentNumber = S.SegmentNumber '
+                'ORDER BY D.OutputFrameIndex'
+            )
+            indices = list(self._db_con.execute(query))
+
+            # Clear up temporary tables
+            self._db_con.execute('DROP TABLE TemporaryDimensionIndexValues')
+            self._drop_temporary_segment_table()
+
+        return indices
 
 
 class Segmentation(SOPClass):
@@ -2159,65 +2495,6 @@ class Segmentation(SOPClass):
 
         return types
 
-    def _create_temporary_segment_table(
-        self,
-        segment_numbers: Sequence[int],
-        combine_segments: bool,
-        relabel: bool,
-    ) -> None:
-        """Create a temporary table of desired segment in the SQLite DB.
-
-        Assumes the self._db_con object is currently being used as a context
-        manager and does not commit the changes.
-
-        Parameters
-        ----------
-        segment_numbers: Sequence[int]
-            Segment numbers to include, in the order desired.
-        combine_segments: bool
-            Whether the segments will be combined into a label map.
-        relabel: bool
-            Whether the output segment numbers should be relabelled to 1-n
-            (True) or retain their values in the original segmentation object.
-
-        """
-        # Create temporary table of desired segments
-        if combine_segments:
-            if relabel:
-                # Output segment numbers are consecutive and start at 1
-                data = enumerate(segment_numbers, 1)
-            else:
-                # Output segment numbers are the same as the input segment
-                # numbers
-                data = zip(segment_numbers, segment_numbers)
-        else:
-            # Output segment numbers are indices along the output array's
-            # segment dimension, so are consecutive starting at 0
-            data = enumerate(segment_numbers)
-
-        cmd = (
-            'CREATE TABLE TemporarySegmentNumbers('
-            'SegmentNumber INTEGER UNIQUE NOT NULL,'
-            'OutputSegmentNumber INTEGER UNIQUE NOT NULL'
-            ')'
-        )
-        self._db_con.execute(cmd)
-        self._db_con.executemany(
-            'INSERT INTO '
-            'TemporarySegmentNumbers(OutputSegmentNumber, SegmentNumber) '
-            'VALUES(?, ?)',
-            data
-        )
-
-    def _drop_temporary_segment_table(self) -> None:
-        """Drop the table created by _create_temporary_segment_table().
-
-        Assumes the self._db_con object is currently being used as a context
-        manager and does not commit the changes.
-
-        """
-        self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
-
     def _get_pixels_by_seg_frame(
         self,
         num_output_frames: int,
@@ -2755,67 +3032,23 @@ class Segmentation(SOPClass):
                 )
                 raise KeyError(msg)
 
-        # Run query to create the iterable of indices needed to construct the
-        # desired pixel array. The approach here is to create two temporary
-        # tables in the SQLite database, one for the desired source UIDs, and
-        # another for the desired segments, then use table joins to arrive with
-        # the referenced UIDs table and the frame LUT to arrive at the relevant
-        # rows, before clearing up the temporary tables.
+        indices = self._db_man.get_indices_by_source_instance(
+            source_sop_instance_uids=source_sop_instance_uids,
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel,
+        )
 
-        # Create temporary table of desired frame numbers
-        with self._db_con:
-            cmd = (
-                'CREATE TABLE TemporarySOPInstanceUIDs('
-                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-                '    SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
-                ')'
-            )
-            self._db_con.execute(cmd)
-            self._db_con.executemany(
-                'INSERT INTO TemporarySOPInstanceUIDs VALUES(?, ?)',
-                enumerate(source_sop_instance_uids)
-            )
-
-            self._create_temporary_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            )
-
-            # Construct the query
-            # The ORDER BY is not logically necessary but seems to improve
-            # performance of the downstream numpy operations, presumably as it
-            # is more cache efficient
-            query = (
-                'SELECT '
-                '    T.OutputFrameIndex,'
-                '    L.FrameNumber - 1,'
-                '    S.OutputSegmentNumber '
-                'FROM TemporarySOPInstanceUIDs T '
-                'INNER JOIN InstanceUIDs U'
-                '    ON T.SourceSOPInstanceUID = U.SOPInstanceUID '
-                'INNER JOIN FrameLUT L'
-                '    ON U.SOPInstanceUID = L.ReferencedSOPInstanceUID '
-                'INNER JOIN TemporarySegmentNumbers S'
-                '    ON L.SegmentNumber = S.SegmentNumber '
-                'ORDER BY T.OutputFrameIndex'
-            )
-            indices_iterator = self._db_con.execute(query)
-
-            output_array = self._get_pixels_by_seg_frame(
-                num_output_frames=len(source_sop_instance_uids),
-                indices_iterator=indices_iterator,
-                segment_numbers=np.array(segment_numbers),
-                combine_segments=combine_segments,
-                relabel=relabel,
-                rescale_fractional=rescale_fractional,
-                skip_overlap_checks=skip_overlap_checks,
-                dtype=dtype,
-            )
-
-            # Clear up temporary tables
-            self._db_con.execute('DROP TABLE TemporarySOPInstanceUIDs')
-            self._drop_temporary_segment_table()
+        output_array = self._get_pixels_by_seg_frame(
+            num_output_frames=len(source_sop_instance_uids),
+            indices_iterator=indices,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
+        )
 
         return output_array
 
@@ -3054,66 +3287,24 @@ class Segmentation(SOPClass):
                     )
                     raise ValueError(msg)
 
-        # Run query to create the iterable of indices needed to construct
-        # the desired pixel array.
-        # The approach here is to create two temporary tables in the SQLite
-        # database, one for the desired frame numbers, and another for the
-        # desired segments, then use table joins to arrive with the frame LUT
-        # to arrive at the relevant rows, before clearing up the temporary
-        # tables.
+        indices = self._db_man.get_indices_by_source_frame(
+            source_sop_instance_uid=source_sop_instance_uid,
+            source_frame_numbers=source_frame_numbers,
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel,
+        )
 
-        # Create temporary table of desired frame numbers
-        with self._db_con:
-            cmd = (
-                'CREATE TABLE TemporaryFrameNumbers('
-                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-                '    SourceFrameNumber INTEGER UNIQUE NOT NULL'
-                ')'
-            )
-            self._db_con.execute(cmd)
-            self._db_con.executemany(
-                'INSERT INTO TemporaryFrameNumbers VALUES(?, ?)',
-                enumerate(source_frame_numbers)
-            )
-
-            self._create_temporary_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            )
-
-            # Construct the query
-            # The ORDER BY is not logically necessary but seems to improve
-            # performance of the downstream numpy operations, presumably as it
-            # is more cache efficient
-            query = (
-                'SELECT '
-                '    F.OutputFrameIndex,'
-                '    L.FrameNumber - 1,'
-                '    S.OutputSegmentNumber '
-                'FROM TemporaryFrameNumbers F '
-                'INNER JOIN FrameLUT L'
-                '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
-                'INNER JOIN TemporarySegmentNumbers S'
-                '    ON L.SegmentNumber = S.SegmentNumber '
-                'ORDER BY F.OutputFrameIndex'
-            )
-            indices_iterator = self._db_con.execute(query)
-
-            output_array = self._get_pixels_by_seg_frame(
-                num_output_frames=len(source_frame_numbers),
-                indices_iterator=indices_iterator,
-                segment_numbers=np.array(segment_numbers),
-                combine_segments=combine_segments,
-                relabel=relabel,
-                rescale_fractional=rescale_fractional,
-                skip_overlap_checks=skip_overlap_checks,
-                dtype=dtype,
-            )
-
-            # Clear up temporary tables
-            self._db_con.execute('DROP TABLE TemporaryFrameNumbers')
-            self._drop_temporary_segment_table()
+        output_array = self._get_pixels_by_seg_frame(
+            num_output_frames=len(source_frame_numbers),
+            indices_iterator=indices,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
+        )
 
         return output_array
 
@@ -3347,77 +3538,24 @@ class Segmentation(SOPClass):
                 )
                 raise ValueError(msg)
 
-        # Run query to create the iterable of indices needed to construct
-        # the desired pixel array.
-        # The approach here is to create two temporary tables in the SQLite
-        # database, one for the desired dimension index values, and another for
-        # the desired segments, then use table joins with the frame LUT to
-        # arrive at the relevant rows, before clearing up the temporary tables.
+        indices = self._db_man.get_indices_by_dimension_index_values(
+            dimension_index_values=dimension_index_values,
+            dimension_index_pointers=dimension_index_pointers,
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel,
+        )
 
-        # Create temporary table of desired dimension indices
-        col_defs = [
-            f'{self._dim_ind_col_names[p]} INTEGER NOT NULL'
-            for p in dimension_index_values
-        ]
-        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
-        with self._db_con:
-            cmd = (
-                'CREATE TABLE TemporaryDimensionIndexValues('
-                '    OutputFrameIndex INTEGER UNIQUE NOT NULL,'
-                f'   {", ".join(col_defs)}'
-                ')'
-            )
-            self._db_con.execute(cmd)
-            placeholders = ', '.join(['?'] * (len(cols) + 1))
-            data = (
-                (i, *tuple(row))
-                for i, row in enumerate(dimension_index_values)
-            )
-            self._db_con.executemany(
-                'INSERT INTO TemporaryDimensionIndexValues '
-                f'VALUES({placeholders})',
-                data
-            )
-
-            self._create_temporary_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            )
-
-            # Construct the query
-            # The ORDER BY is not logically necessary but seems to improve
-            # performance of the downstream numpy operations, presumably as it
-            # is more cache efficient
-            join_str = ' AND '.join(f'D.{col} = L.{col}' for col in cols)
-            query = (
-                'SELECT '
-                '    D.OutputFrameIndex,'  # frame index of the output array
-                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
-                '    S.OutputSegmentNumber '  # output segment number
-                'FROM TemporaryDimensionIndexValues D '
-                'INNER JOIN FrameLUT L'
-                f'   ON {join_str} '
-                'INNER JOIN TemporarySegmentNumbers S'
-                '    ON L.SegmentNumber = S.SegmentNumber '
-                'ORDER BY D.OutputFrameIndex'
-            )
-            indices_iterator = self._db_con.execute(query)
-
-            output_array = self._get_pixels_by_seg_frame(
-                num_output_frames=len(dimension_index_values),
-                indices_iterator=indices_iterator,
-                segment_numbers=np.array(segment_numbers),
-                combine_segments=combine_segments,
-                relabel=relabel,
-                rescale_fractional=rescale_fractional,
-                skip_overlap_checks=skip_overlap_checks,
-                dtype=dtype,
-            )
-
-            # Clear up temporary tables
-            self._db_con.execute('DROP TABLE TemporaryDimensionIndexValues')
-            self._drop_temporary_segment_table()
+        output_array = self._get_pixels_by_seg_frame(
+            num_output_frames=len(dimension_index_values),
+            indices_iterator=indices,
+            segment_numbers=np.array(segment_numbers),
+            combine_segments=combine_segments,
+            relabel=relabel,
+            rescale_fractional=rescale_fractional,
+            skip_overlap_checks=skip_overlap_checks,
+            dtype=dtype,
+        )
 
         return output_array
 
