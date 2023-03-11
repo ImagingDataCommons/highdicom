@@ -421,7 +421,7 @@ class _SegDBManager:
         table_name: str,
         column_defs: Sequence[str],
         column_data: Iterable[Sequence[Any]],
-    ):
+    ) -> Generator[None, None, None]:
         """Context manager that handles a temporary table.
 
         The temporary table is created with the specified information. Control
@@ -464,7 +464,7 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool,
         relabel: bool
-    ) -> None:
+    ) -> Generator[None, None, None]:
         """Context manager that handles a temporary table for segments.
 
         The temporary table is named "TemporarySegmentNumbers" with columns
@@ -530,8 +530,11 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Iterable[Tuple[int, int, int]]:
+    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
         """Get frame indices to create a segmentation mask for given instances.
+
+        This yields an iterator to the underlying database result, and is
+        intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -554,8 +557,8 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterable[Tuple[int, int, int]]:
-            List of indices required to construct the requested mask. Each
+        Iterator[Tuple[int, int, int]]:
+            Iterator of indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
@@ -615,8 +618,11 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Iterable[Tuple[int, int, int]]:
+    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
         """Get frame indices to create a segmentation mask for given frames.
+
+        This yields an iterator to the underlying database result, and is
+        intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -642,8 +648,8 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterable[Tuple[int, int, int]]:
-            List of indices required to construct the requested mask. Each
+        Iterator[Tuple[int, int, int]]:
+            Iterator of indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
@@ -702,8 +708,11 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Iterable[Tuple[int, int, int]]:
+    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
         """Get frame indices to create a segmentation mask for given frames.
+
+        This yields an iterator to the underlying database result, and is
+        intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -728,7 +737,7 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterable[Tuple[int, int, int]]:
+        Iterator[Tuple[int, int, int]]:
             List of indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
