@@ -8,7 +8,6 @@ Documentation of the highdicom package
    introduction
    installation
    usage
-   seg
    development
    conformance
    citation

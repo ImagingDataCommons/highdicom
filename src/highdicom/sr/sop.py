@@ -12,6 +12,7 @@ from pydicom.uid import (
     ImplicitVRLittleEndian,
     UID,
 )
+from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.valuerep import DT, PersonName
 from pydicom.uid import (
     ComprehensiveSRStorage,
@@ -42,7 +43,7 @@ class _SR(SOPClass):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -72,9 +73,10 @@ class _SR(SOPClass):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -209,6 +211,14 @@ class _SR(SOPClass):
             self.PreliminaryFlag = 'PRELIMINARY'
 
         # Add content to dataset
+        if isinstance(content, DataElementSequence):
+            if len(content) != 1:
+                raise ValueError(
+                    "If content is a pydicom.Sequence, it must contain a "
+                    "single element."
+                )
+            content = content[0]
+
         content_copy = deepcopy(content)
         content_item = ContentItem._from_dataset_derived(content_copy)
         self._content = ContentSequence([content_item], is_root=True)
@@ -268,13 +278,17 @@ class _SR(SOPClass):
         return _create_references(group)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> Dataset:
+    def from_dataset(cls, dataset: Dataset, copy: bool = True) -> Dataset:
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -285,7 +299,10 @@ class _SR(SOPClass):
         if not hasattr(dataset, 'ContentSequence'):
             raise ValueError('Dataset is not an SR document.')
         _check_little_endian(dataset)
-        sop_instance = deepcopy(dataset)
+        if copy:
+            sop_instance = deepcopy(dataset)
+        else:
+            sop_instance = dataset
         sop_instance.__class__ = cls
 
         root_item = Dataset()
@@ -298,15 +315,20 @@ class _SR(SOPClass):
             tid_item = dataset.ContentTemplateSequence[0]
             if tid_item.TemplateIdentifier == '1500':
                 sop_instance._content = MeasurementReport.from_sequence(
-                    [root_item]
+                    [root_item],
+                    copy=False,
                 )
             else:
                 sop_instance._content = ContentSequence.from_sequence(
-                    [root_item], is_root=True
+                    [root_item],
+                    is_root=True,
+                    copy=False,
                 )
         except AttributeError:
             sop_instance._content = ContentSequence.from_sequence(
-                [root_item], is_root=True
+                [root_item],
+                is_root=True,
+                copy=False,
             )
 
         return sop_instance
@@ -321,7 +343,7 @@ class EnhancedSR(_SR):
 
     """SOP class for an Enhanced Structured Report (SR) document, whose
     content may include textual and a minimal amount of coded information,
-    numeric measurement values, references to SOP Instances (retricted to the
+    numeric measurement values, references to SOP Instances (restricted to the
     leaves of the tree), as well as 2D spatial or temporal regions of interest
     within such SOP Instances.
     """
@@ -329,7 +351,7 @@ class EnhancedSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -358,9 +380,10 @@ class EnhancedSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -436,12 +459,12 @@ class EnhancedSR(_SR):
             transfer_syntax_uid=transfer_syntax_uid,
             **kwargs
         )
-        unsopported_content = find_content_items(
-            content,
+        unsupported_content = find_content_items(
+            content if isinstance(content, Dataset) else content[0],
             value_type=ValueTypeValues.SCOORD3D,
             recursive=True
         )
-        if len(unsopported_content) > 0:
+        if len(unsupported_content) > 0:
             raise ValueError(
                 'Enhanced SR does not support content items with '
                 'SCOORD3D value type.'
@@ -459,7 +482,7 @@ class ComprehensiveSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -488,9 +511,10 @@ class ComprehensiveSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -570,7 +594,7 @@ class ComprehensiveSR(_SR):
             **kwargs
         )
         unsupported_content = find_content_items(
-            content,
+            content if isinstance(content, Dataset) else content[0],
             value_type=ValueTypeValues.SCOORD3D,
             recursive=True
         )
@@ -581,13 +605,21 @@ class ComprehensiveSR(_SR):
             )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ComprehensiveSR':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ComprehensiveSR':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -597,7 +629,7 @@ class ComprehensiveSR(_SR):
         """
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
-        sop_instance = super().from_dataset(dataset)
+        sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = ComprehensiveSR
         return cast(ComprehensiveSR, sop_instance)
 
@@ -613,7 +645,7 @@ class Comprehensive3DSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Dataset,
+        content: Union[Dataset, DataElementSequence],
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -641,9 +673,10 @@ class Comprehensive3DSR(_SR):
             Instances that are referenced in the content tree and from which
             the created SR document instance should inherit patient and study
             information
-        content: pydicom.dataset.Dataset
+        content: Union[pydicom.dataset.Dataset, pydicom.sequence.Sequence]
             Root container content items that should be included in the
-            SR document
+            SR document. This should either be a single dataset, or a sequence
+            of datasets containing a single item.
         series_instance_uid: str
             Series Instance UID of the SR document series
         series_number: int
@@ -723,13 +756,21 @@ class Comprehensive3DSR(_SR):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'Comprehensive3DSR':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'Comprehensive3DSR':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Comprehensive 3D SR document
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -739,6 +780,6 @@ class Comprehensive3DSR(_SR):
         """
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
-        sop_instance = super().from_dataset(dataset)
+        sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = Comprehensive3DSR
         return cast(Comprehensive3DSR, sop_instance)

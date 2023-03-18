@@ -77,7 +77,7 @@ class SegmentDescription(Dataset):
             "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>`
             "Common Anatomic Regions", as as well as other CIDs for
             domain-specific anatomic regions)
-        primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
+        primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
 
@@ -138,13 +138,21 @@ class SegmentDescription(Dataset):
             ]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SegmentDescription':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'SegmentDescription':
         """Construct instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an item of the Segment Sequence.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -161,33 +169,39 @@ class SegmentDescription(Dataset):
             module='segmentation-image',
             base_path=['SegmentSequence']
         )
-        desc = deepcopy(dataset)
+        if copy:
+            desc = deepcopy(dataset)
+        else:
+            desc = dataset
         desc.__class__ = cls
 
         # Convert sub sequences to highdicom types
         desc.SegmentedPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
-                desc.SegmentedPropertyCategoryCodeSequence[0]
+                desc.SegmentedPropertyCategoryCodeSequence[0],
+                copy=False,
             )
         ]
         desc.SegmentedPropertyTypeCodeSequence = [
             CodedConcept.from_dataset(
-                desc.SegmentedPropertyTypeCodeSequence[0]
+                desc.SegmentedPropertyTypeCodeSequence[0],
+                copy=False,
             )
         ]
         if hasattr(desc, 'SegmentationAlgorithmIdentificationSequence'):
             desc.SegmentationAlgorithmIdentificationSequence = \
                 AlgorithmIdentificationSequence.from_sequence(
-                    desc.SegmentationAlgorithmIdentificationSequence
+                    desc.SegmentationAlgorithmIdentificationSequence,
+                    copy=False,
                 )
         if hasattr(desc, 'AnatomicRegionSequence'):
             desc.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.AnatomicRegionSequence
             ]
         if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
             desc.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
         return cast(SegmentDescription, desc)
@@ -292,19 +306,39 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames]
+        coordinate_system: Union[str, CoordinateSystemNames, None]
     ) -> None:
         """
         Parameters
         ----------
-        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames, None]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
-            imaging
+            imaging. If None, the imaging does not belong within a frame of
+            reference.
 
         """
         super().__init__()
-        self._coordinate_system = CoordinateSystemNames(coordinate_system)
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if coordinate_system is None:
+            self._coordinate_system = None
+        else:
+            self._coordinate_system = CoordinateSystemNames(coordinate_system)
+
+        if self._coordinate_system is None:
+            dim_uid = UID()
+
+            segment_number_index = Dataset()
+            segment_number_index.DimensionIndexPointer = tag_for_keyword(
+                'ReferencedSegmentNumber'
+            )
+            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
+                'SegmentIdentificationSequence'
+            )
+            segment_number_index.DimensionOrganizationUID = dim_uid
+            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
+
+            self.append(segment_number_index)
+
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             dim_uid = UID()
 
             segment_number_index = Dataset()
@@ -440,7 +474,12 @@ class DimensionIndexSequence(DataElementSequence):
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
                 plane_positions = [
                     item.PlanePositionSlideSequence
@@ -481,7 +520,12 @@ class DimensionIndexSequence(DataElementSequence):
                 'Argument "images" must be a series of single-frame images.'
             )
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             plane_positions = []
             for img in images:
                 # Unfortunately, the image position is not specified relative to
@@ -582,6 +626,13 @@ class DimensionIndexSequence(DataElementSequence):
         attribute.
 
         """
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                'Cannot calculate index values for multiple plane '
+                'positions when images do not exist within a frame of '
+                'reference.'
+            )
+
         # For each dimension other than the Referenced Segment Number,
         # obtain the value of the attribute that the Dimension Index Pointer
         # points to in the element of the Plane Position Sequence or

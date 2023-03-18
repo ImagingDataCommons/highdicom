@@ -155,7 +155,8 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
     @classmethod
     def from_dataset(
         cls,
-        dataset: Dataset
+        dataset: Dataset,
+        copy: bool = True,
     ) -> 'LongitudinalTemporalOffsetFromEvent':
         """Construct object from an existing dataset.
 
@@ -163,6 +164,10 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -170,15 +175,11 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(
-        cls,
-        dataset: Dataset
-    ) -> 'LongitudinalTemporalOffsetFromEvent':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(LongitudinalTemporalOffsetFromEvent, item)
 
 
@@ -264,13 +265,21 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurementGroup':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'SourceImageForMeasurementGroup':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type IMAGE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -278,15 +287,11 @@ class SourceImageForMeasurementGroup(ImageContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(
-        cls,
-        dataset: Dataset
-    ) -> 'SourceImageForMeasurementGroup':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(SourceImageForMeasurementGroup, item)
 
 
@@ -372,13 +377,21 @@ class SourceImageForMeasurement(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurement':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'SourceImageForMeasurement':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type IMAGE
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -386,12 +399,11 @@ class SourceImageForMeasurement(ImageContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForMeasurement':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(SourceImageForMeasurement, item)
 
 
@@ -477,13 +489,21 @@ class SourceImageForRegion(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForRegion':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'SourceImageForRegion':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -492,11 +512,7 @@ class SourceImageForRegion(ImageContentItem):
 
         """
         dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForRegion':
-        item = super()._from_dataset_base(dataset)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(SourceImageForRegion, item)
 
 
@@ -582,13 +598,21 @@ class SourceImageForSegmentation(ImageContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceImageForSegmentation':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'SourceImageForSegmentation':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -596,12 +620,11 @@ class SourceImageForSegmentation(ImageContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'SourceImageForSegmentation':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(SourceImageForSegmentation, item)
 
 
@@ -654,13 +677,21 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SourceSeriesForSegmentation':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'SourceSeriesForSegmentation':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -668,12 +699,11 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'SourceSeriesForSegmentation':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(SourceSeriesForSegmentation, item)
 
 
@@ -748,13 +778,21 @@ class ImageRegion(ScoordContentItem):
         self.ContentSequence = [source_image]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ImageRegion':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -762,12 +800,11 @@ class ImageRegion(ScoordContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(ImageRegion, item)
 
 
@@ -817,13 +854,21 @@ class ImageRegion3D(Scoord3DContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'ImageRegion3D':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -831,19 +876,18 @@ class ImageRegion3D(Scoord3DContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'ImageRegion3D':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(ImageRegion3D, item)
 
 
 class VolumeSurface(ContentSequence):
 
-    """Content sequence representing a volume surface in the the three-dimensional
-    patient/slide coordinate system in millimeter unit.
+    """Content sequence representing a volume surface in the the
+    three-dimensional patient/slide coordinate system in millimeter unit.
     """
 
     def __init__(
@@ -1198,13 +1242,21 @@ class RealWorldValueMap(CompositeContentItem):
         )
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'RealWorldValueMap':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'RealWorldValueMap':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1212,12 +1264,11 @@ class RealWorldValueMap(CompositeContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'RealWorldValueMap':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(RealWorldValueMap, item)
 
 
@@ -1268,7 +1319,7 @@ class FindingSite(CodeContentItem):
             modifier_item = CodeContentItem(
                 name=CodedConcept(
                     value='106233006',
-                    meaning='Topographical Modifier',
+                    meaning='Topographical modifier',
                     scheme_designator='SCT'
                 ),
                 value=topographical_modifier,
@@ -1315,13 +1366,21 @@ class FindingSite(CodeContentItem):
         return None
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'FindingSite':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'FindingSite':
         """Construct object from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -1329,12 +1388,11 @@ class FindingSite(CodeContentItem):
             Constructed object
 
         """
-        dataset_copy = deepcopy(dataset)
-        return cls._from_dataset(dataset_copy)
-
-    @classmethod
-    def _from_dataset(cls, dataset: Dataset) -> 'FindingSite':
-        item = super()._from_dataset_base(dataset)
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
         return cast(FindingSite, item)
 
 

@@ -428,6 +428,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_monochrome_jpegls(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -455,6 +456,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_jpegls(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         photometric_interpretation = 'YBR_FULL'
         coordinate_system = 'PATIENT'

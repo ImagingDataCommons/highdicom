@@ -93,7 +93,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'AlgorithmIdentificationSequence':
         """Construct instance from an existing data element sequence.
 
@@ -102,6 +103,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         sequence: pydicom.sequence.Sequence
             Data element sequence representing the
             Algorithm Identification Sequence
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -123,7 +128,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
                 'SegmentationAlgorithmIdentificationSequence'
             ]
         )
-        algo_id_sequence = deepcopy(sequence)
+        if copy:
+            algo_id_sequence = deepcopy(sequence)
+        else:
+            algo_id_sequence = sequence
         algo_id_sequence.__class__ = AlgorithmIdentificationSequence
         return cast(AlgorithmIdentificationSequence, algo_id_sequence)
 
@@ -301,7 +309,7 @@ class PixelMeasuresSequence(DataElementSequence):
     def __init__(
         self,
         pixel_spacing: Sequence[float],
-        slice_thickness: float,
+        slice_thickness: Optional[float],
         spacing_between_slices: Optional[float] = None,
     ) -> None:
         """
@@ -312,9 +320,9 @@ class PixelMeasuresSequence(DataElementSequence):
             millimeters along the row and column dimension of the image. First
             value represents the spacing between rows (vertical) and second
             value represents the spacing between columns (horizontal).
-        slice_thickness: float
-            Depth of physical space volume the image represents in millimeter
-        spacing_between_slices: float, optional
+        slice_thickness: Union[float, None]
+            Depth of physical space volume the image represents in millimeter.
+        spacing_between_slices: Union[float, None], optional
             Distance in physical space between two consecutive images in
             millimeters. Only required for certain modalities, such as MR.
 
@@ -322,7 +330,8 @@ class PixelMeasuresSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         item.PixelSpacing = [DS(ps, auto_format=True) for ps in pixel_spacing]
-        item.SliceThickness = slice_thickness
+        if slice_thickness is not None:
+            item.SliceThickness = DS(slice_thickness, auto_format=True)
         if spacing_between_slices is not None:
             item.SpacingBetweenSlices = spacing_between_slices
         self.append(item)
@@ -330,7 +339,8 @@ class PixelMeasuresSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PixelMeasuresSequence':
         """Create a PixelMeasuresSequence from an existing Sequence.
 
@@ -338,6 +348,10 @@ class PixelMeasuresSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -368,7 +382,10 @@ class PixelMeasuresSequence(DataElementSequence):
                 'a Pixel Measures Sequence.'
             )
 
-        pixel_measures = deepcopy(sequence)
+        if copy:
+            pixel_measures = deepcopy(sequence)
+        else:
+            pixel_measures = sequence
         pixel_measures.__class__ = PixelMeasuresSequence
         return cast(PixelMeasuresSequence, pixel_measures)
 
@@ -479,7 +496,8 @@ class PlanePositionSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PlanePositionSequence':
         """Create a PlanePositionSequence from an existing Sequence.
 
@@ -489,6 +507,10 @@ class PlanePositionSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -522,7 +544,10 @@ class PlanePositionSequence(DataElementSequence):
                 ]
             )
 
-        plane_position = deepcopy(sequence)
+        if copy:
+            plane_position = deepcopy(sequence)
+        else:
+            plane_position = sequence
         plane_position.__class__ = PlanePositionSequence
         return cast(PlanePositionSequence, plane_position)
 
@@ -611,7 +636,8 @@ class PlaneOrientationSequence(DataElementSequence):
     @classmethod
     def from_sequence(
         cls,
-        sequence: DataElementSequence
+        sequence: DataElementSequence,
+        copy: bool = True,
     ) -> 'PlaneOrientationSequence':
         """Create a PlaneOrientationSequence from an existing Sequence.
 
@@ -621,6 +647,10 @@ class PlaneOrientationSequence(DataElementSequence):
         ----------
         sequence: pydicom.sequence.Sequence
             Sequence to be converted.
+        copy: bool
+            If True, the underlying sequence is deep-copied such that the
+            original sequence remains intact. If False, this operation will
+            alter the original sequence in place.
 
         Returns
         -------
@@ -651,7 +681,10 @@ class PlaneOrientationSequence(DataElementSequence):
                     'either the PATIENT or SLIDE coordinate system.'
                 )
 
-        plane_orientation = deepcopy(sequence)
+        if copy:
+            plane_orientation = deepcopy(sequence)
+        else:
+            plane_orientation = sequence
         plane_orientation.__class__ = PlaneOrientationSequence
         return cast(PlaneOrientationSequence, plane_orientation)
 
@@ -1834,7 +1867,7 @@ class VOILUTTransformation(Dataset):
                     )
                 for exp in window_explanation:
                     _check_long_string(exp)
-            self.WindowCenterWidthExplanation = window_explanation
+            self.WindowCenterWidthExplanation = list(window_explanation)
         if voi_lut_function is not None:
             if window_center is None:
                 raise TypeError(

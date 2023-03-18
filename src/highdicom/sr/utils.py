@@ -289,7 +289,7 @@ def collect_evidence(
         else:
             unref_group[key].append(evd_item)
         evd_uids.add(evd.SOPInstanceUID)
-    if not(ref_uids.issubset(evd_uids)):
+    if not ref_uids.issubset(evd_uids):
         missing_uids = ref_uids.difference(evd_uids)
         raise ValueError(
             'No evidence was provided for the following SOP instances, '

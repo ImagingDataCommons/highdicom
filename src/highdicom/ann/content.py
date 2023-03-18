@@ -308,7 +308,7 @@ class AnnotationGroup(Dataset):
                         f'Graphic data of annotation #{i + 1} of graphic type '
                         '"POLYGON" must be at least three coordinates.'
                     )
-                if np.allclose(graphic_data[i][0], graphic_data[i][-1]):
+                if np.array_equal(graphic_data[i][0], graphic_data[i][-1]):
                     raise ValueError(
                         'The first and last coordinate of graphic data of '
                         f'annotation #{i + 1} of graphic type "POLYGON" '
@@ -502,7 +502,7 @@ class AnnotationGroup(Dataset):
         Parameters
         ----------
         coordinate_type: Union[str, highdicom.ann.AnnotationCoordinateTypeValues]
-            Coordinate type of annotation
+            Coordinate type of annotations
 
         Returns
         -------
@@ -512,7 +512,7 @@ class AnnotationGroup(Dataset):
 
         """  # noqa: E501
         coordinate_type = AnnotationCoordinateTypeValues(coordinate_type)
-        if self._graphic_data:
+        if len(self._graphic_data) > 0:
             if coordinate_type not in self._graphic_data:
                 raise ValueError(
                     'Graphic data is not available for Annotation Coordinate '
@@ -595,7 +595,7 @@ class AnnotationGroup(Dataset):
                 indices_or_sections=split_param
             )
 
-            self._graphic_data[coordinate_type] = graphic_data
+            self._graphic_data = {coordinate_type: graphic_data}
 
         return self._graphic_data[coordinate_type]
 
@@ -758,7 +758,7 @@ class AnnotationGroup(Dataset):
         highdicom.ann.AnnotationGroup
             Item of the Annotation Group Sequence
 
-        """
+        """  # noqa: E501
         if not isinstance(dataset, Dataset):
             raise TypeError(
                 'Dataset must be of type pydicom.dataset.Dataset.'
@@ -770,7 +770,7 @@ class AnnotationGroup(Dataset):
         )
         group = deepcopy(dataset)
         group.__class__ = cls
-        group._graphic_data = {}
+        group._graphic_data = {}  # will be handled by get_graphic_data()
 
         group.AnnotationPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
