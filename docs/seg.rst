@@ -1,7 +1,7 @@
 .. _seg:
 
-DICOM Segmentation Images
-=========================
+Segmentation Images
+===================
 
 DICOM Segmentation Images (often abbreviated DICOM SEG) are one of the primary
 IODs (information objects definitions) implemented in the *highdicom* library.
