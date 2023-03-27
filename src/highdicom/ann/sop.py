@@ -188,13 +188,12 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 'value.'
             )
 
+        # Common Instance Reference
         ref = Dataset()
         ref.ReferencedSOPClassUID = src_img.SOPClassUID
         ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
         self.ReferencedImageSequence = [ref]
 
-        # Common Instance Reference
-        self.ReferencedImageSequence: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
         for img in source_images:
             ref = Dataset()
