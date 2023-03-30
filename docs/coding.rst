@@ -102,7 +102,7 @@ Here are some other examples of codes within `pydicom`:
 
 
 The two classes are used interoperably throughout highdicom: anywhere in the
-`highdicom` API that you can pass a `:class:`highdicom.sr.CodedConcept`, you
+`highdicom` API that you can pass a :class:`highdicom.sr.CodedConcept`, you
 can pass an ``pydicom.sr.coding.Code`` instead and it will be converted behind
 the scenes for you. Furthermore, equality is defined between the two classes
 such that it evaluates to true if they represent the same concept, and they
