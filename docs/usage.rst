@@ -162,10 +162,10 @@ for them:
 
     # Find segments (identified by their segment number) that have segmented
     # property type "Bone"
-    bone_segments = seg.get_segment_numbers(
+    bone_segment_numbers = seg.get_segment_numbers(
         segmented_property_type=codes.SCT.Bone
     )
-    print(bone_segments)  # '[1]'
+    print(bone_segment_numbers)  # '[1]'
 
     # List SOP Instance UIDs of the images from which the segmentation was
     # derived
@@ -184,7 +184,7 @@ for them:
     # Retrieve a binary segmentation mask for these images for the bone segment
     mask = seg.get_pixels_by_source_instance(
         source_sop_instance_uids=source_image_uids,
-        segment_numbers=bone_segments,
+        segment_numbers=bone_segment_numbers,
     )
     # Output is a numpy array of shape (instances x rows x columns x segments)
     print(mask.shape)  # '(2, 16, 16, 1)'
