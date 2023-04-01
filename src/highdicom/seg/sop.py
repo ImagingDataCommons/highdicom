@@ -570,7 +570,9 @@ class _SegDBManager:
         over information on the steps required to construct the requested
         segmentation mask from the stored frames of the segmentation image.
 
-        This method is intended to be used as a context manager for efficiency.
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
 
         Parameters
         ----------
@@ -668,7 +670,9 @@ class _SegDBManager:
         over information on the steps required to construct the requested
         segmentation mask from the stored frames of the segmentation image.
 
-        This method is intended to be used as a context manager for efficiency.
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
 
         Parameters
         ----------
@@ -770,7 +774,9 @@ class _SegDBManager:
         over information on the steps required to construct the requested
         segmentation mask from the stored frames of the segmentation image.
 
-        This method is intended to be used as a context manager for efficiency.
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
 
         Parameters
         ----------
