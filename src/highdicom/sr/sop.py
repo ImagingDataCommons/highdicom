@@ -3,14 +3,27 @@ import datetime
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, cast, Mapping, List, Optional, Sequence, Tuple, Union
+from os import PathLike
+from typing import (
+    Any,
+    cast,
+    Mapping,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    BinaryIO,
+)
 
+from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     UID,
+    UID_dictionary,
 )
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.valuerep import DT, PersonName
@@ -783,3 +796,49 @@ class Comprehensive3DSR(_SR):
         sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = Comprehensive3DSR
         return cast(Comprehensive3DSR, sop_instance)
+
+
+def srread(
+    fp: Union[str, bytes, PathLike, BinaryIO],
+) -> Union[EnhancedSR, ComprehensiveSR, Comprehensive3DSR]:
+    """Read a Structured Report (SR) document in DICOM File format.
+
+    The object is returned as an instance of the highdicom class corresponding
+    to the dataset's IOD. Currently supported IODs are:
+
+    * Enhanced SR via class :class:`EnhancedSR`
+    * Comprehensive SR via class :class:`ComprehensiveSR`
+    * Comprehensive 3D SR via class :class:`Comprehensive3DSR`
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing a
+        supported SR document.
+
+    Raises
+    ------
+    RuntimeError:
+        If the DICOM file has an IOD not supported by highdicom.
+
+    Returns
+    -------
+    Union[highdicom.sr.EnhancedSR, highdicom.sr.ComprehensiveSR, highdicom.sr.Comprehensive3DSR]
+        Structured Report document read from the file.
+
+    """  # noqa: E501
+    class_map = {
+        EnhancedSRStorage: EnhancedSR,
+        ComprehensiveSRStorage: ComprehensiveSR,
+        Comprehensive3DSRStorage: Comprehensive3DSR,
+    }
+    dcm = dcmread(fp)
+
+    sop_class_uid = dcm.SOPClassUID
+    if sop_class_uid in class_map:
+        return class_map[sop_class_uid].from_dataset(dcm, copy=False)
+    else:
+        iod_name = UID_dictionary[sop_class_uid][0]
+        raise RuntimeError(
+            f'SOP Class UID {sop_class_uid} "{iod_name}" is not supported.'
+        )

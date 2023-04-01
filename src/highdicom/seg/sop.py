@@ -1040,9 +1040,8 @@ class Segmentation(SOPClass):
             if pixel_array.ndim == 3:
                 # A label-map style array where pixel values represent
                 # segment associations
-                segments_present = np.unique(
-                    pixel_array[pixel_array > 0].astype(np.uint16)
-                )
+                segments_present = np.unique(pixel_array).astype(np.uint16)
+                segments_present = segments_present[segments_present > 0]
 
                 # The pixel values in the pixel array must all belong to
                 # a described segment
