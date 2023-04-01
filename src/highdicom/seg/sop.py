@@ -357,7 +357,7 @@ class _SegDBManager:
         ).fetchone()[0]
         return n_unique_combos == self._number_of_frames
 
-    def get_unique_sopuids(self) -> Set[str]:
+    def get_unique_sop_instance_uids(self) -> Set[str]:
         """Get set of unique Referenced SOP Instance UIDs.
 
         Returns
@@ -526,7 +526,7 @@ class _SegDBManager:
             self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
 
     @contextmanager
-    def get_indices_by_source_instance(
+    def iterate_indices_by_source_instance(
         self,
         source_sop_instance_uids: Sequence[str],
         segment_numbers: Sequence[int],
@@ -614,7 +614,7 @@ class _SegDBManager:
                 yield self._db_con.execute(query)
 
     @contextmanager
-    def get_indices_by_source_frame(
+    def iterate_indices_by_source_frame(
         self,
         source_sop_instance_uid: str,
         source_frame_numbers: Sequence[int],
@@ -703,7 +703,7 @@ class _SegDBManager:
                 yield self._db_con.execute(query)
 
     @contextmanager
-    def get_indices_by_dimension_index_values(
+    def iterate_indices_by_dimension_index_values(
         self,
         dimension_index_values: Sequence[Sequence[int]],
         dimension_index_pointers: Sequence[int],
@@ -3062,7 +3062,7 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            unique_uids = self._db_man.get_unique_sopuids()
+            unique_uids = self._db_man.get_unique_sop_instance_uids()
             missing_uids = set(source_sop_instance_uids) - unique_uids
             if len(missing_uids) > 0:
                 msg = (
@@ -3073,7 +3073,7 @@ class Segmentation(SOPClass):
                 )
                 raise KeyError(msg)
 
-        with self._db_man.get_indices_by_source_instance(
+        with self._db_man.iterate_indices_by_source_instance(
             source_sop_instance_uids=source_sop_instance_uids,
             segment_numbers=segment_numbers,
             combine_segments=combine_segments,
@@ -3326,7 +3326,7 @@ class Segmentation(SOPClass):
                     )
                     raise ValueError(msg)
 
-        with self._db_man.get_indices_by_source_frame(
+        with self._db_man.iterate_indices_by_source_frame(
             source_sop_instance_uid=source_sop_instance_uid,
             source_frame_numbers=source_frame_numbers,
             segment_numbers=segment_numbers,
@@ -3575,7 +3575,7 @@ class Segmentation(SOPClass):
                 )
                 raise ValueError(msg)
 
-        with self._db_man.get_indices_by_dimension_index_values(
+        with self._db_man.iterate_indices_by_dimension_index_values(
             dimension_index_values=dimension_index_values,
             dimension_index_pointers=dimension_index_pointers,
             segment_numbers=segment_numbers,
