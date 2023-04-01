@@ -402,8 +402,8 @@ class _SegDBManager:
         Returns
         -------
         Set[Tuple[int, ...]]
-            Set of unique dimension index values for the input dimension index
-            pointers.
+            Set of unique dimension index value combinations for the given
+            input dimension index pointers.
 
         """
         cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
@@ -547,8 +547,17 @@ class _SegDBManager:
         """Iterate over segmentation frame indices for given source image
         instances.
 
-        This yields an iterator to the underlying database result, and is
-        intended to be used as a context manager for efficiency.
+        This is intended for the case of a segmentation image that references
+        multiple single frame sources images (typically a series). In this
+        case, the user supplies a list of SOP Instance UIDs of the source
+        images of interest, and this method returns information about the
+        frames of the segmentation image relevant to these source images.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -572,11 +581,12 @@ class _SegDBManager:
         Yields
         ------
         Iterator[Tuple[int, int, int]]:
-            Iterator of indices required to construct the requested mask. Each
+            Indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
-            segmentation dataset.
+            segmentation dataset and inserting them into the output array with
+            a given segment value.
 
         """
         # Run query to create the iterable of indices needed to construct the
@@ -635,8 +645,17 @@ class _SegDBManager:
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
         """Iterate over frame indices for given source image frames.
 
-        This yields an iterator to the underlying database result, and is
-        intended to be used as a context manager for efficiency.
+        This is intended for the case of a segmentation image that references a
+        single multi-frame source image instance. In this case, the user
+        supplies a list of frames numbers of interest within the single source
+        instance, and this method returns information about the frames
+        of the segmentation image relevant to these frames.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -663,11 +682,12 @@ class _SegDBManager:
         Yields
         ------
         Iterator[Tuple[int, int, int]]:
-            Iterator of indices required to construct the requested mask. Each
+            Indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
-            segmentation dataset.
+            segmentation dataset and inserting them into the output array with
+            a given segment value.
 
         """
         # Run query to create the iterable of indices needed to construct the
@@ -724,8 +744,20 @@ class _SegDBManager:
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
         """Iterate over frame indices for given dimension index values.
 
-        This yields an iterator to the underlying database result, and is
-        intended to be used as a context manager for efficiency.
+        This is intended to be the most flexible and lowest-level (and there
+        also least convenient) method to request information about
+        segmentation frames. The user can choose to specify which segmentation
+        frames are of interest using arbitrary dimension indices and their
+        associated values. This makes no assumptions about the dimension
+        organization of the underlying segmentation, except that the given
+        dimension indices can be used to uniquely identify frames in the
+        segmentation image.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager for efficiency.
 
         Parameters
         ----------
@@ -751,11 +783,12 @@ class _SegDBManager:
         Yields
         ------
         Iterator[Tuple[int, int, int]]:
-            List of indices required to construct the requested mask. Each
+            Indices required to construct the requested mask. Each
             triplet denotes the (output frame index, segmentation frame index,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
-            segmentation dataset.
+            segmentation dataset and inserting them into the output array with
+            a given segment value.
 
         """
         # Create temporary table of desired dimension indices
