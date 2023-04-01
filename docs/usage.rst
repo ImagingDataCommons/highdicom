@@ -157,15 +157,15 @@ for them:
     # This example is a test file in the highdicom git repository
     seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
 
-    # Print the number of segments
-    print(seg.number_of_segments)  # '2'
+    # Check the number of segments
+    assert seg.number_of_segments == 2
 
     # Find segments (identified by their segment number) that have segmented
     # property type "Bone"
     bone_segment_numbers = seg.get_segment_numbers(
         segmented_property_type=codes.SCT.Bone
     )
-    print(bone_segment_numbers)  # '[1]'
+    assert bone_segment_numbers ==  [1]
 
     # List SOP Instance UIDs of the images from which the segmentation was
     # derived
@@ -187,8 +187,8 @@ for them:
         segment_numbers=bone_segment_numbers,
     )
     # Output is a numpy array of shape (instances x rows x columns x segments)
-    print(mask.shape)  # '(2, 16, 16, 1)'
-    print(np.unique(mask))  # '[0 1]'
+    assert mask.shape == (2, 16, 16, 1)
+    assert np.unique(mask) == np.array([0, 1])
 
     # Alternatively, retrieve the segmentation mask for the full list of segments
     # (2 in this case), and combine the resulting array into a "label mask", where
@@ -199,8 +199,8 @@ for them:
         skip_overlap_checks=True,  # the segments in this image overlap
     )
     # Output is a numpy array of shape (instances x rows x columns)
-    print(mask.shape)  # '(2, 16, 16)'
-    print(np.unique(mask))  # '[0 1 2]'
+    assert mask.shape == (2, 16, 16)
+    assert np.unique(mask) == np.array([0, 1, 2])
 
 
 .. _creating-sr:
