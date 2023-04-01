@@ -85,7 +85,7 @@ def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
 
     Returns
     -------
-    np.dtype:
+    numpy.dtype:
         The selected NumPy datatype.
 
     """
@@ -108,7 +108,7 @@ def _check_numpy_value_representation(
     ----------
     max_val: int
         The largest non-negative integer that must be accommodated.
-    dtype: Union[np.dtype, str, type]
+    dtype: Union[numpy.dtype, str, type]
         Data type of the array to be checked
 
     Raises
@@ -150,9 +150,9 @@ class _SegDBManager:
         Parameters
         ----------
         referenced_uids: List[Tuple[str, str, str]]
-            List of UIDs for each instance referenced in the segmentation.
-            Each tuple should be in the format
-            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
+            Triplet of UIDs for each image instance (Study Instance UID,
+            Series Instance UID, SOP Instance UID) that is referenced
+            in the segmentation image.
         segment_numbers: List[int]
             Segment numbers for each frame in the segmentation image.
         dim_indices: Dict[int, List[int]]
@@ -160,13 +160,14 @@ class _SegDBManager:
             pointer (excluding SegmentNumber) to a list of dimension indices
             for each frames in the segmentation image.
         referenced_instances: Optional[List[str]]
-            SOPInstanceUID of each referenced instance for each frame in the
-            segmentation image. Should be omitted if there is not a single
-            referenced instance per segmentation frame.
+            SOP Instance UID of each referenced image instance for each frame
+            in the segmentation image. Should be omitted if there is not a single
+            referenced image instance per segmentation image frame.
         referenced_frames: Optional[List[int]]
-            Frame number of the referenced frame for each frame in the
-            segmentation image. Should be omitted if there is not a single
-            referenced instance per segmentation frame.
+            Number of the corresponding frame in the referenced image
+            instance for each frame in the segmentation image. Should be
+            omitted if there is not a single referenced image instance per
+            segmentation image frame.
 
         """
         self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
@@ -265,14 +266,13 @@ class _SegDBManager:
             )
 
     def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
-        """Get UIDs for all source SOP instances referenced in the segmentation.
+        """Get UIDs of all source image instances referenced in the segmentation.
 
         Returns
         -------
         List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
-            List of tuples containing Study Instance UID, Series Instance UID
-            and SOP Instance UID for every SOP Instance referenced in the
-            dataset.
+            (Study Instance UID, Series Instance UID, SOP Instance UID) triplet
+            for every image instance referenced in the segmentation.
 
         """
         cur = self._db_con.cursor()
@@ -320,7 +320,7 @@ class _SegDBManager:
         return n_unique_combos == self._number_of_frames
 
     def are_referenced_sop_instances_unique(self) -> bool:
-        """Check if ReferencedSOPInstanceUID uniquely identify frames.
+        """Check if Referenced SOP Instance UIDs uniquely identify frames.
 
         Returns
         -------
@@ -339,7 +339,7 @@ class _SegDBManager:
         return n_unique_combos == self._number_of_frames
 
     def are_referenced_frames_unique(self) -> bool:
-        """Check if ReferencedFrameNumber uniquely identify frames.
+        """Check if Referenced Frame Numbers uniquely identify frames.
 
         Returns
         -------
@@ -533,7 +533,7 @@ class _SegDBManager:
         combine_segments: bool = False,
         relabel: bool = False,
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
-        """Get frame indices to create a segmentation mask for given instances.
+        """Iterate over segmentation frame indices for given source image instances.
 
         This yields an iterator to the underlying database result, and is
         intended to be used as a context manager for efficiency.
@@ -541,10 +541,10 @@ class _SegDBManager:
         Parameters
         ----------
         source_sop_instance_uids: str
-            SOP Instance UID of the source instances to for which segmentations
-            are requested.
+            SOP Instance UID of the source instances for which segmentation
+            image frames are requested.
         segment_numbers: Sequence[int]
-            Sequence containing segment numbers to include.
+            Numbers of segments to include.
         combine_segments: bool, optional
             If True, produce indices to combine the different segments into a
             single label map in which the value of a pixel represents its
@@ -621,7 +621,7 @@ class _SegDBManager:
         combine_segments: bool = False,
         relabel: bool = False,
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
-        """Get frame indices to create a segmentation mask for given frames.
+        """Iterate over frame indices for given source image frames.
 
         This yields an iterator to the underlying database result, and is
         intended to be used as a context manager for efficiency.
@@ -711,7 +711,7 @@ class _SegDBManager:
         combine_segments: bool = False,
         relabel: bool = False,
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
-        """Get frame indices to create a segmentation mask for given frames.
+        """Iterate over frame indices for given dimension index values.
 
         This yields an iterator to the underlying database result, and is
         intended to be used as a context manager for efficiency.
@@ -2989,7 +2989,7 @@ class Segmentation(SOPClass):
             and multiple segments do overlap, the segment with the highest
             segment number (after relabelling, if applicable) will be placed
             into the output array.
-        dtype: Union[type, str, np.dtype, None]
+        dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
@@ -3080,7 +3080,7 @@ class Segmentation(SOPClass):
             relabel=relabel,
         ) as indices:
 
-            output_array = self._get_pixels_by_seg_frame(
+            return self._get_pixels_by_seg_frame(
                 num_output_frames=len(source_sop_instance_uids),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
@@ -3090,8 +3090,6 @@ class Segmentation(SOPClass):
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
             )
-
-        return output_array
 
     def get_pixels_by_source_frame(
         self,
@@ -3210,7 +3208,7 @@ class Segmentation(SOPClass):
             and multiple segments do overlap, the segment with the highest
             segment number (after relabelling, if applicable) will be placed
             into the output array.
-        dtype: Union[type, str, np.dtype, None]
+        dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
@@ -3463,7 +3461,7 @@ class Segmentation(SOPClass):
             and multiple segments do overlap, the segment with the highest
             segment number (after relabelling, if applicable) will be placed
             into the output array.
-        dtype: Union[type, str, np.dtype, None]
+        dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
             fractional values, this will be np.float32. Otherwise, the smallest
