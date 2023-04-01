@@ -98,7 +98,7 @@ class Measurements(Dataset):
     def referenced_images(self) -> Union[ReferencedImageSequence, None]:
         """Union[highdicom.ReferencedImageSequence, None]: referenced images"""
         if hasattr(self, 'ReferencedImageSequence'):
-            return self.ReferencedImageSequence
+            return ReferencedImageSequence.from_sequence(self.ReferencedImageSequence)
         else:
             return None
 
