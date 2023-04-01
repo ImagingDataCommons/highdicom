@@ -3895,9 +3895,9 @@ class TestComprehensiveSR(unittest.TestCase):
         with BytesIO() as buf:
             report.save_as(buf)
             buf.seek(0)
-            sr_read = srread(buf)
+            sr_instance = srread(buf)
 
-        assert isinstance(sr_read, ComprehensiveSR)
+        assert isinstance(sr_instance, ComprehensiveSR)
 
 
 class TestComprehensive3DSR(unittest.TestCase):
