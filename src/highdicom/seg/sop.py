@@ -305,8 +305,7 @@ class _SegDBManager:
         Returns
         -------
         bool
-            True if the specified list of dimension index pointers uniquely
-            identifies frames in the segmentation image. False otherwise.
+            True if dimension indices are unique.
 
         """
         column_names = ['SegmentNumber']
