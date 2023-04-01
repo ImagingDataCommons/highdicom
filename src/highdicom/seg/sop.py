@@ -161,8 +161,8 @@ class _SegDBManager:
             for each frames in the segmentation image.
         referenced_instances: Optional[List[str]]
             SOP Instance UID of each referenced image instance for each frame
-            in the segmentation image. Should be omitted if there is not a single
-            referenced image instance per segmentation image frame.
+            in the segmentation image. Should be omitted if there is not a
+            single referenced image instance per segmentation image frame.
         referenced_frames: Optional[List[int]]
             Number of the corresponding frame in the referenced image
             instance for each frame in the segmentation image. Should be
@@ -266,7 +266,7 @@ class _SegDBManager:
             )
 
     def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
-        """Get UIDs of all source image instances referenced in the segmentation.
+        """Get UIDs of source image instances referenced in the segmentation.
 
         Returns
         -------
@@ -533,7 +533,8 @@ class _SegDBManager:
         combine_segments: bool = False,
         relabel: bool = False,
     ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
-        """Iterate over segmentation frame indices for given source image instances.
+        """Iterate over segmentation frame indices for given source image
+        instances.
 
         This yields an iterator to the underlying database result, and is
         intended to be used as a context manager for efficiency.
@@ -570,9 +571,9 @@ class _SegDBManager:
         # Run query to create the iterable of indices needed to construct the
         # desired pixel array. The approach here is to create two temporary
         # tables in the SQLite database, one for the desired source UIDs, and
-        # another for the desired segments, then use table joins to arrive with
-        # the referenced UIDs table and the frame LUT to arrive at the relevant
-        # rows, before clearing up the temporary tables.
+        # another for the desired segments, then use table joins with the
+        # referenced UIDs table and the frame LUT at the relevant rows, before
+        # clearing up the temporary tables.
 
         # Create temporary table of desired frame numbers
         table_name = 'TemporarySOPInstanceUIDs'
@@ -658,12 +659,11 @@ class _SegDBManager:
             segmentation dataset.
 
         """
-        # Run query to create the iterable of indices needed to construct
-        # the desired pixel array.
-        # The approach here is to create two temporary tables in the SQLite
-        # database, one for the desired frame numbers, and another for the
-        # desired segments, then use table joins to arrive with the frame LUT
-        # to arrive at the relevant rows, before clearing up the temporary
+        # Run query to create the iterable of indices needed to construct the
+        # desired pixel array. The approach here is to create two temporary
+        # tables in the SQLite database, one for the desired frame numbers, and
+        # another for the desired segments, then use table joins with the frame
+        # LUT to arrive at the relevant rows, before clearing up the temporary
         # tables.
 
         # Create temporary table of desired frame numbers
@@ -2992,9 +2992,9 @@ class Segmentation(SOPClass):
         dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
-            fractional values, this will be np.float32. Otherwise, the smallest
-            unsigned integer type that accommodates all of the output values
-            will be chosen.
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
 
         Returns
         -------
@@ -3211,9 +3211,9 @@ class Segmentation(SOPClass):
         dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
-            fractional values, this will be np.float32. Otherwise, the smallest
-            unsigned integer type that accommodates all of the output values
-            will be chosen.
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
 
         Returns
         -------
@@ -3464,7 +3464,7 @@ class Segmentation(SOPClass):
         dtype: Union[type, str, numpy.dtype, None]
             Data type of the returned array. If None, an appropriate type will
             be chosen automatically. If the returned values are rescaled
-            fractional values, this will be np.float32. Otherwise, the smallest
+            fractional values, this will be numpy.float32. Otherwise, the smallest
             unsigned integer type that accommodates all of the output values
             will be chosen.
 
