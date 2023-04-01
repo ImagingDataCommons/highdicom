@@ -3334,7 +3334,7 @@ class Segmentation(SOPClass):
             relabel=relabel,
         ) as indices:
 
-            output_array = self._get_pixels_by_seg_frame(
+            return self._get_pixels_by_seg_frame(
                 num_output_frames=len(source_frame_numbers),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
@@ -3344,8 +3344,6 @@ class Segmentation(SOPClass):
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
             )
-
-        return output_array
 
     def get_pixels_by_dimension_index_values(
         self,
@@ -3585,7 +3583,7 @@ class Segmentation(SOPClass):
             relabel=relabel,
         ) as indices:
 
-            output_array = self._get_pixels_by_seg_frame(
+            return self._get_pixels_by_seg_frame(
                 num_output_frames=len(dimension_index_values),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
@@ -3595,8 +3593,6 @@ class Segmentation(SOPClass):
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
             )
-
-        return output_array
 
 
 def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
