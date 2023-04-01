@@ -188,7 +188,7 @@ for them:
     )
     # Output is a numpy array of shape (instances x rows x columns x segments)
     assert mask.shape == (2, 16, 16, 1)
-    assert np.unique(mask) == np.array([0, 1])
+    assert np.unique(mask).tolist() == [0, 1]
 
     # Alternatively, retrieve the segmentation mask for the full list of segments
     # (2 in this case), and combine the resulting array into a "label mask", where
@@ -200,7 +200,7 @@ for them:
     )
     # Output is a numpy array of shape (instances x rows x columns)
     assert mask.shape == (2, 16, 16)
-    assert np.unique(mask) == np.array([0, 1, 2])
+    assert np.unique(mask).tolist() == [0, 1, 2]
 
 
 .. _creating-sr:
