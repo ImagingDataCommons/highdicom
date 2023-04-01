@@ -240,6 +240,10 @@ class _SegDBManager:
     ) -> None:
         """Create a table of referenced instances.
 
+        The resulting table (called InstanceUIDs) contains Study, Series and
+        SOP instance UIDs for each instance referenced by the segmentation
+        image.
+
         Parameters
         ----------
         referenced_uids: List[Tuple[str, str, str]]
@@ -321,6 +325,11 @@ class _SegDBManager:
     def are_referenced_sop_instances_unique(self) -> bool:
         """Check if Referenced SOP Instance UIDs uniquely identify frames.
 
+        This is a pre-requisite for requesting segmentation masks defined by
+        the SOP Instance UIDs of their source frames, such as using the
+        Segmentation.get_pixels_by_source_instance() method and
+        _SegDBManager.iterate_indices_by_source_instance() method.
+
         Returns
         -------
         bool
@@ -375,6 +384,10 @@ class _SegDBManager:
 
     def get_max_frame_number(self) -> int:
         """Get highest frame number of any referenced frame.
+
+        Absent access to the referenced dataset itself, being less than this
+        value is a sufficient condition for the existence of a frame number
+        in the source image.
 
         Returns
         -------
