@@ -4951,9 +4951,9 @@ class TestGetVolumetricMeasurementGroups(unittest.TestCase):
         with BytesIO() as buf:
             self._sr.save_as(buf)
             buf.seek(0)
-            sr_read = srread(buf)
+            sr_instance = srread(buf)
 
-        assert isinstance(sr_read, Comprehensive3DSR)
+        assert isinstance(sr_instance, Comprehensive3DSR)
 
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
