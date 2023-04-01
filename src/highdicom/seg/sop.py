@@ -417,7 +417,7 @@ class _SegDBManager:
         }
 
     @contextmanager
-    def temp_table(
+    def _generate_temp_table(
         self,
         table_name: str,
         column_defs: Sequence[str],
@@ -438,6 +438,12 @@ class _SegDBManager:
             string per column.
         column_data: Iterable[Sequence[Any]]
             Column data to place into the table.
+
+        Yields
+        ------
+        None:
+            Yields control to the "with" block, with the temporary table
+            created.
 
         """
         defs_str = ', '.join(column_defs)
@@ -460,7 +466,7 @@ class _SegDBManager:
             self._db_con.execute(cmd)
 
     @contextmanager
-    def temp_segment_table(
+    def _generate_temp_segment_table(
         self,
         segment_numbers: Sequence[int],
         combine_segments: bool,
@@ -483,6 +489,12 @@ class _SegDBManager:
         relabel: bool
             Whether the output segment numbers should be relabelled to 1-n
             (True) or retain their values in the original segmentation object.
+
+        Yields
+        ------
+        None:
+            Yields control to the "with" block, with the temporary table
+            created.
 
         """
         if combine_segments:
@@ -600,12 +612,12 @@ class _SegDBManager:
             'ORDER BY T.OutputFrameIndex'
         )
 
-        with self.temp_table(
+        with self._generate_temp_table(
             table_name=table_name,
             column_defs=column_defs,
             column_data=column_data,
         ):
-            with self.temp_segment_table(
+            with self._generate_temp_segment_table(
                 segment_numbers=segment_numbers,
                 combine_segments=combine_segments,
                 relabel=relabel
@@ -689,12 +701,12 @@ class _SegDBManager:
             'ORDER BY F.OutputFrameIndex'
         )
 
-        with self.temp_table(
+        with self._generate_temp_table(
             table_name=table_name,
             column_defs=column_defs,
             column_data=column_data,
         ):
-            with self.temp_segment_table(
+            with self._generate_temp_segment_table(
                 segment_numbers=segment_numbers,
                 combine_segments=combine_segments,
                 relabel=relabel
@@ -778,12 +790,12 @@ class _SegDBManager:
             'ORDER BY D.OutputFrameIndex'
         )
 
-        with self.temp_table(
+        with self._generate_temp_table(
             table_name=table_name,
             column_defs=column_defs,
             column_data=column_data,
         ):
-            with self.temp_segment_table(
+            with self._generate_temp_segment_table(
                 segment_numbers=segment_numbers,
                 combine_segments=combine_segments,
                 relabel=relabel
