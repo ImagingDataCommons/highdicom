@@ -821,11 +821,11 @@ def srread(
     }
     dcm = dcmread(fp)
 
-    sopuid = dcm.SOPClassUID
-    if sopuid in class_map:
-        return class_map[sopuid].from_dataset(dcm, copy=False)
+    sop_class_uid = dcm.SOPClassUID
+    if sop_class_uid in class_map:
+        return class_map[sop_class_uid].from_dataset(dcm, copy=False)
     else:
-        iod_name = UID_dictionary[sopuid][0]
+        iod_name = UID_dictionary[sop_class_uid][0]
         raise RuntimeError(
             f'SOP Class UID {dcm.SOPClassUID} "{iod_name}" is not supported.'
         )
