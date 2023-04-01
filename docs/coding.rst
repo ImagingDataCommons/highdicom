@@ -6,12 +6,12 @@ Coding
 "Coding" is a key concept used throughout `highdicom`. By "coding", we are
 referring to the use of standardized nomenclatures or terminologies to describe
 medical (or related) concepts. For example, instead of using the English word
-"liver" to describe the liver (or a word in another human language), we instead
+"liver" (or a word in another human language) to describe the liver, we instead
 use a code such as '10200004' from the SNOMED-CT nomenclature to describe the
 liver in standardized way. Use of coding is vital to ensure that these concepts
-are unambiguously encoded within DICOM files. Coding is especially fundamental
-within structured reporting, but is also found in other places around
-highdicom.
+are expressed unambiguously within DICOM files. Coding is especially
+fundamental within structured reporting, but is also found in other places
+around the DICOM standard and, in turn, highdicom.
 
 To communicate a concept in DICOM using a coding scheme, three elements are
 necessary:
@@ -44,10 +44,10 @@ See
 `this page <https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_8.html>`_
 for a list of terminologies used within DICOM.
 
-Highdicom defines the :class:`highdicom.sr.CodedConcept` to encapsulate
-a coded concept. To create a coded, you pass values for the coding scheme,
-code value, and code meaning. For example, to describe a tumor using the
-SNOMED-CT terminology, you could do this:
+Highdicom defines the :class:`highdicom.sr.CodedConcept` class to encapsulate a
+coded concept. To create a :class:`highdicom.sr.CodedConcept`, you pass values
+for the coding scheme, code value, and code meaning. For example, to describe a
+tumor using the SNOMED-CT terminology, you could do this:
 
 .. code-block:: python
 
@@ -101,7 +101,7 @@ Here are some other examples of codes within `pydicom`:
    # Code(value='cm', scheme_designator='UCUM', meaning='cm', scheme_version=None)
 
 
-The two classes are used interoperably throughout highdicom: anywhere in the
+The two classes can be used interoperably throughout highdicom: anywhere in the
 `highdicom` API that you can pass a :class:`highdicom.sr.CodedConcept`, you
 can pass an ``pydicom.sr.coding.Code`` instead and it will be converted behind
 the scenes for you. Furthermore, equality is defined between the two classes
