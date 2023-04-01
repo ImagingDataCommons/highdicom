@@ -827,5 +827,5 @@ def srread(
     else:
         iod_name = UID_dictionary[sop_class_uid][0]
         raise RuntimeError(
-            f'SOP Class UID {dcm.SOPClassUID} "{iod_name}" is not supported.'
+            f'SOP Class UID {sop_class_uid} "{iod_name}" is not supported.'
         )
