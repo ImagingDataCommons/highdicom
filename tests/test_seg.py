@@ -2513,7 +2513,9 @@ class TestSegmentation:
         self.check_dimension_index_vals(instance)
 
 
-class TestSegmentationParsing(unittest.TestCase):
+class TestSegmentationParsing():
+
+    @pytest.fixture(autouse=True)
     def setUp(self):
         self._sm_control_seg_ds = dcmread(
             'data/test_files/seg_image_sm_control.dcm'
@@ -2561,6 +2563,37 @@ class TestSegmentationParsing(unittest.TestCase):
         self._cr_binary_seg = Segmentation.from_dataset(
             self._cr_binary_seg_ds
         )
+
+    # Fixtures to use to parametrize segmentation creation
+    # Using this fixture mechanism, we can parametrize class methods
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            np.int8,
+            np.uint8,
+            np.int16,
+            np.uint16,
+            np.int32,
+            np.uint32,
+            np.int64,
+            np.uint64,
+            np.float32,
+            np.float64,
+            np.dtype("uint16"),
+            "uint16",
+        ])
+    def numpy_dtype(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def combine_segments(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def relabel(request):
+        return request.param
 
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
@@ -2711,8 +2744,16 @@ class TestSegmentationParsing(unittest.TestCase):
     def test_get_pixels_by_invalid_source_frames(self):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
-        # (frame 3 has no segment)
-        source_frames_invalid = [1, 3, 4, 5]
+        # (frame 3 has no segment but is below the max so shouldn't raise)
+        source_frames_valid = [1, 3, 4, 5]
+        self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid
+        )
+
+        # (frame 100 has no segment but is greater than largest frame so
+        # should raise)
+        source_frames_invalid = [1, 3, 4, 5, 100]
         with pytest.raises(ValueError):
             self._sm_control_seg.get_pixels_by_source_frame(
                 source_sop_instance_uid=source_sop_uid,
@@ -2722,8 +2763,8 @@ class TestSegmentationParsing(unittest.TestCase):
     def test_get_pixels_by_invalid_source_frames_with_assert(self):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
-        # (frame 3 has no segment)
-        source_frames_invalid = [1, 3, 4, 5]
+        # (frame 100 has no segment)
+        source_frames_invalid = [1, 3, 4, 5, 100]
         pixels = self._sm_control_seg.get_pixels_by_source_frame(
             source_sop_instance_uid=source_sop_uid,
             source_frame_numbers=source_frames_invalid,
@@ -2799,6 +2840,38 @@ class TestSegmentationParsing(unittest.TestCase):
         )
         assert pixels.shape == out_shape
         assert np.all(np.unique(pixels) == np.arange(len(segments_valid) + 1))
+
+    def test_get_pixels_with_dtype(
+        self,
+        numpy_dtype,
+        combine_segments,
+        relabel,
+     ):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        source_frames_valid = [1, 2, 4, 5]
+        seg = self._sm_control_seg
+        pixels = seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames_valid,
+            segment_numbers=[1, 4, 9],
+            combine_segments=combine_segments,
+            relabel=relabel,
+            dtype=numpy_dtype,
+        )
+        assert pixels.dtype == numpy_dtype
+        if combine_segments:
+            expected_shape = (len(source_frames_valid), seg.Rows, seg.Columns)
+            if relabel:
+                expected_vals = np.array([0, 3])  # only seg 9 in these frames
+            else:
+                expected_vals = np.array([0, 9])  # only seg 9 in these frames
+            assert np.array_equal(np.unique(pixels), expected_vals)
+        else:
+            expected_shape = (
+                len(source_frames_valid), seg.Rows, seg.Columns, 3
+            )
+        assert pixels.shape == expected_shape
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
@@ -2883,7 +2956,7 @@ class TestSegmentationParsing(unittest.TestCase):
         ind_values = [
             (1, 1, 4, 5, 1),
         ]
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             self._sm_control_seg.get_pixels_by_dimension_index_values(
                 dimension_index_values=ind_values,
             )
@@ -3152,6 +3225,7 @@ class TestSegmentationParsing(unittest.TestCase):
             )
 
     def test_get_pixels_by_source_instances_overlap(self):
+        # Test that overlapping segments are detected
         all_source_sop_uids = [
             tup[-1] for tup in
             self._ct_binary_overlap_seg.get_source_image_uids()
@@ -3175,6 +3249,38 @@ class TestSegmentationParsing(unittest.TestCase):
                 source_sop_instance_uids=source_sop_uids,
                 combine_segments=True
             )
+
+    def test_get_pixels_by_source_instances_overlap_no_checks(self):
+        # Test that skipping overlapping tests works as expected
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_overlap_seg.Rows,
+            self._ct_binary_overlap_seg.Columns,
+            self._ct_binary_overlap_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        out = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            combine_segments=True,
+            skip_overlap_checks=True,
+        )
+        raw_pix_arr = self._ct_binary_overlap_seg.pixel_array
+        expected_array = np.maximum(
+            raw_pix_arr[:4, ...],
+            raw_pix_arr[4:, ...] * 2
+        )
+        assert np.array_equal(expected_array, out)
 
 
 class TestSegUtilities(unittest.TestCase):
