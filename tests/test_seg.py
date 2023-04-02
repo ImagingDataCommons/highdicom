@@ -3067,6 +3067,56 @@ class TestSegmentationParsing():
         )
         assert pixels.shape == out_shape
 
+    def test_get_pixels_by_source_instances_missing_instance(self):
+        # Tests where there is an instance passed that has no recorded
+        # segmentation
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Append a non-existent UID
+        source_sop_uids.append("1.2.3.4.5")
+
+        # Should fail unless the assert flag is passed
+        with pytest.raises(ValueError):
+            self._ct_binary_seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+            )
+
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            assert_missing_frames_are_empty=True,
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+            self._ct_binary_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        # Check the missing instance has been given an empty mask
+        assert pixels[-1, :, :, :].max() == 0
+
+        # Also test with combine segments
+        pixels = self._ct_binary_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            assert_missing_frames_are_empty=True,
+            combine_segments=True
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg.Rows,
+            self._ct_binary_seg.Columns,
+        )
+        assert pixels.shape == out_shape
+
+        # Check the missing instance has been given an empty mask
+        assert pixels[-1, :, :].max() == 0
+
     def test_get_pixels_by_source_instances_cr(self):
         all_source_sop_uids = [
             tup[-1] for tup in self._cr_binary_seg.get_source_image_uids()
