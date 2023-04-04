@@ -9,10 +9,11 @@ import numpy as np
 import pydicom
 from pydicom.dataset import Dataset
 from pydicom.encaps import get_frame_offsets
-from pydicom.filebase import DicomFile, DicomFileLike
+from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
+    read_file_meta_info
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
@@ -232,7 +233,7 @@ class ImageFileReader(object):
 
     """
 
-    def __init__(self, filename: Union[str, Path, DicomFileLike]):
+    def __init__(self, filename: Union[str, Path, DicomFileLike, DicomBytesIO]):
         """
         Parameters
         ----------
@@ -240,9 +241,36 @@ class ImageFileReader(object):
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, DicomFileLike):
+        if isinstance(filename, DicomBytesIO):
             self._fp = filename
             self._filename = None
+        elif isinstance(filename, DicomFileLike):
+            fp = filename
+            is_little_endian, is_implicit_VR = self._check_file_format(fp)
+            try:
+                if fp.is_little_endian != is_little_endian:
+                    raise ValueError(
+                        'Transfer syntax of file object has incorrect value '
+                        'for attribute "is_little_endian".'
+                    )
+            except AttributeError:
+                raise AttributeError(
+                    'Transfer syntax of file object does not have '
+                    'attribute "is_little_endian".'
+                )
+            try:
+                if fp.is_implicit_VR != is_implicit_VR:
+                    raise ValueError(
+                        'Transfer syntax of file object has incorrect value '
+                        'for attribute "is_implicit_VR".'
+                    )
+            except AttributeError:
+                raise AttributeError(
+                    'Transfer syntax of file object does not have '
+                    'attribute "is_implicit_VR".'
+                )
+            self._fp = fp
+            self._filename = Path(fp.name)
         elif isinstance(filename, (str, Path)):
             self._filename = Path(filename)
             self._fp = None
@@ -310,7 +338,7 @@ class ImageFileReader(object):
         self._fp.is_little_endian = is_little_endian
         self._fp.is_implicit_VR = is_implicit_VR
 
-    def _check_file_format(self, fp: DicomFileLike) -> Tuple[bool, bool]:
+    def _check_file_format(self, fp: Union[DicomFileLike, DicomBytesIO]) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
         Parameters
@@ -332,8 +360,12 @@ class ImageFileReader(object):
             If the file object does not represent a DICOM Part 10 file
 
         """
-        file_meta = dcmread(fp).file_meta
-        fp.seek(0)
+        if self._filename is None:
+            file_meta = dcmread(fp).file_meta
+            fp.seek(0)
+        else:
+            file_meta = read_file_meta_info(str(self._filename))
+
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         return (
             transfer_syntax_uid.is_little_endian,
