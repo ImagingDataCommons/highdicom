@@ -210,13 +210,11 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
-def _stop_when(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
+def _stop_after_group_2(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
     """
     Stop DCM reading after first tag groups
     """
-    if tag.group > 2:
-        return True
-    return False
+    return tag.group > 2
 
 
 class ImageFileReader(object):
@@ -251,36 +249,14 @@ class ImageFileReader(object):
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, DicomBytesIO):
-            self._fp = filename
-            self._filename = None
-        elif isinstance(filename, DicomFileLike):
+        if isinstance(filename, DicomFileLike):
             fp = filename
-            is_little_endian, is_implicit_VR = self._check_file_format(fp)
-            try:
-                if fp.is_little_endian != is_little_endian:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_little_endian".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_little_endian".'
-                )
-            try:
-                if fp.is_implicit_VR != is_implicit_VR:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_implicit_VR".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_implicit_VR".'
-                )
-            self._fp = fp
-            self._filename = Path(fp.name)
+            if isinstance(filename, DicomBytesIO):
+                self._fp = filename
+                self._filename = None
+            else:
+                self._fp = fp
+                self._filename = Path(fp.name)
         elif isinstance(filename, (str, Path)):
             self._filename = Path(filename)
             self._fp = None
@@ -374,7 +350,7 @@ class ImageFileReader(object):
             # fileobj type is BinaryIO but works fine with a DicomBytesIO
             file_meta = read_partial(
                 fileobj=fp,  # type: ignore
-                stop_when=_stop_when
+                stop_when=_stop_after_group_2
             ).file_meta
             fp.seek(0)
         else:
