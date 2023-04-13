@@ -13,7 +13,8 @@ from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
-    read_file_meta_info
+    read_file_meta_info,
+    read_partial
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
@@ -209,6 +210,15 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
+def _stop_when(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
+    """
+    Stop DCM reading after first tag groups
+    """
+    if tag.group > 2:
+        return True
+    return False
+
+
 class ImageFileReader(object):
 
     """Reader for DICOM datasets representing Image Information Entities.
@@ -361,7 +371,11 @@ class ImageFileReader(object):
 
         """
         if self._filename is None:
-            file_meta = dcmread(fp).file_meta
+            # fileobj type is BinaryIO but works fine with a DicomBytesIO
+            file_meta = read_partial(
+                fileobj=fp,  # type: ignore
+                stop_when=_stop_when
+            ).file_meta
             fp.seek(0)
         else:
             file_meta = read_file_meta_info(str(self._filename))
