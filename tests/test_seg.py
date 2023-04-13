@@ -3079,7 +3079,7 @@ class TestSegmentationParsing():
         source_sop_uids.append("1.2.3.4.5")
 
         # Should fail unless the assert flag is passed
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             self._ct_binary_seg.get_pixels_by_source_instance(
                 source_sop_instance_uids=source_sop_uids,
             )
