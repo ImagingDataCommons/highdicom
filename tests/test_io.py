@@ -174,7 +174,7 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
-            
+
     def test_read_single_frame_ct_image_dicom_file_like_opened(self):
         # Test reading frames from an opened DicomFileLike file
         filename = self._test_dir.joinpath("ct_image.dcm")

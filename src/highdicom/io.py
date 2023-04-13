@@ -324,7 +324,10 @@ class ImageFileReader(object):
         self._fp.is_little_endian = is_little_endian
         self._fp.is_implicit_VR = is_implicit_VR
 
-    def _check_file_format(self, fp: Union[DicomFileLike, DicomBytesIO]) -> Tuple[bool, bool]:
+    def _check_file_format(
+            self,
+            fp: Union[DicomFileLike, DicomBytesIO]
+    ) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
         Parameters
