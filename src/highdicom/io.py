@@ -241,7 +241,7 @@ class ImageFileReader(object):
 
     """
 
-    def __init__(self, filename: Union[str, Path, DicomFileLike, DicomBytesIO]):
+    def __init__(self, filename: Union[str, Path, DicomFileLike]):
         """
         Parameters
         ----------
@@ -251,11 +251,10 @@ class ImageFileReader(object):
         """
         if isinstance(filename, DicomFileLike):
             fp = filename
+            self._fp = fp
             if isinstance(filename, DicomBytesIO):
-                self._fp = filename
                 self._filename = None
             else:
-                self._fp = fp
                 self._filename = Path(fp.name)
         elif isinstance(filename, (str, Path)):
             self._filename = Path(filename)
@@ -326,7 +325,7 @@ class ImageFileReader(object):
 
     def _check_file_format(
             self,
-            fp: Union[DicomFileLike, DicomBytesIO]
+            fp: DicomFileLike
     ) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
