@@ -5,12 +5,12 @@ from random import shuffle
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
+from pydicom.filebase import DicomBytesIO, DicomFileLike
 
 from highdicom.io import ImageFileReader
 
 
 class TestImageFileReader(unittest.TestCase):
-
     def setUp(self):
         super().setUp()
         file_path = Path(__file__)
@@ -156,3 +156,40 @@ class TestImageFileReader(unittest.TestCase):
                     reader.metadata.Columns,
                 )
                 np.testing.assert_array_equal(frame, pixel_array[i, ...])
+
+    def test_read_single_frame_ct_image_dicom_bytes_io(self):
+        filename = str(self._test_dir.joinpath("ct_image.dcm"))
+        dcm = DicomBytesIO(open(filename, "rb").read())
+
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(dcm) as reader:
+            assert reader.number_of_frames == 1
+            frame = reader.read_frame(0)
+            assert isinstance(frame, np.ndarray)
+            assert frame.ndim == 2
+            assert frame.dtype == np.int16
+            assert frame.shape == (
+                reader.metadata.Rows,
+                reader.metadata.Columns,
+            )
+            np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_single_frame_ct_image_dicom_file_like_opened(self):
+        # Test reading frames from an opened DicomFileLike file
+        filename = self._test_dir.joinpath("ct_image.dcm")
+        dcm = DicomFileLike(filename.open("rb"))
+
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(dcm) as reader:
+            assert reader.number_of_frames == 1
+            frame = reader.read_frame(0)
+            assert isinstance(frame, np.ndarray)
+            assert frame.ndim == 2
+            assert frame.dtype == np.int16
+            assert frame.shape == (
+                reader.metadata.Rows,
+                reader.metadata.Columns,
+            )
+            np.testing.assert_array_equal(frame, pixel_array)
