@@ -445,7 +445,11 @@ class TestCodedConcept(unittest.TestCase):
         super().setUp()
         self._value = '373098007'
         self._long_code_value = 'some_code_value_longer_than_sixteen_chars'
-        self._urn_code_value = 'https://browser.ihtsdotools.org/?perspective=full&conceptId1=373098007&edition=MAIN/SNOMEDCT-US/2023-03-01&release=&languages=en'
+        self._urn_code_value = (
+            'https://browser.ihtsdotools.org/?perspective=full&conceptId1='
+            '373098007&edition=MAIN/SNOMEDCT-US/2023-03-01&release=&languages='
+            'en'
+        )
         self._meaning = 'Mean Value of population'
         self._scheme_designator = 'SCT'
 
