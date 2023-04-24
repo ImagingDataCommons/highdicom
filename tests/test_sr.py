@@ -444,6 +444,8 @@ class TestCodedConcept(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._value = '373098007'
+        self._long_code_value = 'some_code_value_longer_than_sixteen_chars'
+        self._urn_code_value = 'https://browser.ihtsdotools.org/?perspective=full&conceptId1=373098007&edition=MAIN/SNOMEDCT-US/2023-03-01&release=&languages=en'
         self._meaning = 'Mean Value of population'
         self._scheme_designator = 'SCT'
 
@@ -505,6 +507,81 @@ class TestCodedConcept(unittest.TestCase):
         assert c.CodingSchemeDesignator == self._scheme_designator
         assert c.CodeMeaning == self._meaning
         assert c.CodingSchemeVersion == version
+
+    def test_long_code_value(self):
+        version = 'v1.0'
+        c = CodedConcept(
+            self._long_code_value,
+            self._scheme_designator,
+            self._meaning,
+            version,
+        )
+        assert c.value == self._long_code_value
+        assert c.scheme_designator == self._scheme_designator
+        assert c.meaning == self._meaning
+        assert c.scheme_version == version
+        assert c.LongCodeValue == self._long_code_value
+        assert not hasattr(c, 'CodeValue')
+        assert c.CodingSchemeDesignator == self._scheme_designator
+        assert c.CodeMeaning == self._meaning
+        assert c.CodingSchemeVersion == version
+
+    def test_urn_code_value(self):
+        version = 'v1.0'
+        c = CodedConcept(
+            self._urn_code_value,
+            self._scheme_designator,
+            self._meaning,
+            version,
+        )
+        assert c.value == self._urn_code_value
+        assert c.scheme_designator == self._scheme_designator
+        assert c.meaning == self._meaning
+        assert c.scheme_version == version
+        assert c.URNCodeValue == self._urn_code_value
+        assert not hasattr(c, 'CodeValue')
+        assert c.CodingSchemeDesignator == self._scheme_designator
+        assert c.CodeMeaning == self._meaning
+        assert c.CodingSchemeVersion == version
+
+    def test_from_dataset(self):
+        ds = Dataset()
+        ds.CodeValue = self._value
+        ds.CodeMeaning = self._meaning
+        ds.CodingSchemeDesignator = self._scheme_designator
+        c = CodedConcept.from_dataset(ds)
+        assert c.value == self._value
+        assert c.scheme_designator == self._scheme_designator
+        assert c.meaning == self._meaning
+
+    def test_from_dataset_long_value(self):
+        ds = Dataset()
+        ds.LongCodeValue = self._long_code_value
+        ds.CodeMeaning = self._meaning
+        ds.CodingSchemeDesignator = self._scheme_designator
+        c = CodedConcept.from_dataset(ds)
+        assert c.value == self._long_code_value
+        assert c.scheme_designator == self._scheme_designator
+        assert c.meaning == self._meaning
+
+    def test_from_dataset_urn_value(self):
+        ds = Dataset()
+        ds.URNCodeValue = self._urn_code_value
+        ds.CodeMeaning = self._meaning
+        ds.CodingSchemeDesignator = self._scheme_designator
+        c = CodedConcept.from_dataset(ds)
+        assert c.value == self._urn_code_value
+        assert c.scheme_designator == self._scheme_designator
+        assert c.meaning == self._meaning
+
+    def test_from_dataset_multiple_value(self):
+        ds = Dataset()
+        ds.CodeValue = self._value
+        ds.URNCodeValue = self._urn_code_value  # two code values, invalid
+        ds.CodeMeaning = self._meaning
+        ds.CodingSchemeDesignator = self._scheme_designator
+        with pytest.raises(AttributeError):
+            CodedConcept.from_dataset(ds)
 
     def test_equal(self):
         c1 = CodedConcept(self._value, self._scheme_designator, self._meaning)
