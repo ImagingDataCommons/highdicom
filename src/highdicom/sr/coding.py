@@ -126,7 +126,14 @@ class CodedConcept(Dataset):
             raise TypeError(
                 'Dataset must be a pydicom.dataset.Dataset.'
             )
-        for kw in ['CodeValue', 'CodeMeaning', 'CodingSchemeDesignator']:
+        code_value_kws = ['CodeValue', 'LongCodeValue', 'URNCodeValue']
+        num_code_values = sum(hasattr(dataset, kw) for kw in code_value_kws)
+        if num_code_values != 1:
+            raise AttributeError(
+                'Dataset should have exactly one of the following attributes: '
+                f'{", ".join(code_value_kws)}.'
+             )
+        for kw in ['CodeMeaning', 'CodingSchemeDesignator']:
             if not hasattr(dataset, kw):
                 raise AttributeError(
                     'Dataset does not contain the following attribute '
