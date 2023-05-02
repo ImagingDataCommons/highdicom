@@ -4,7 +4,7 @@ The TID1500 Measurement Report Template
 =======================================
 
 The TID1500 "Measurement Report" template is a general-purpose template for
-communicating measurements and qualitative evaluations derived from one or
+communicating measurements and qualitative qualitative_evaluations derived from one or
 more images or regions of images. It is recommended to read the previous page
 on :ref:`generalsr` before this page.
 
@@ -24,7 +24,7 @@ various measurements and various metadata about the process through which it
 was created.
 
 A measurement report contains one or more "Measurement Groups", where each
-group contains measurements and/or evaluations about a particular image or
+group contains measurements and/or qualitative_evaluations about a particular image or
 image region. There are three types of Measurement Group, each of which refer
 to different types of region:
 
@@ -65,6 +65,7 @@ made the observations, and the subject about which the observations were made:
 
 .. code-block:: python
 
+    from pydicom.sr.codedict import codes
     import highdicom as hd
 
     observer_person_context = hd.sr.ObserverContext(
@@ -159,7 +160,7 @@ The following is a simple example:
        source_images=[source_image],
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 Planar ROI Image Measurements Group (TID 1410)
@@ -220,7 +221,7 @@ The following example uses an :class:`highdicom.sr.ImageRegion` as the
        referenced_region=region,
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 This example uses an :class:`highdicom.sr.ImageRegion3D` as the
@@ -252,7 +253,7 @@ This example uses an :class:`highdicom.sr.ImageRegion3D` as the
        referenced_region=region,
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame` as
@@ -288,7 +289,7 @@ the ``referenced_segment``:
        referenced_segment=ref_segment,
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 Volumetric ROI Image Measurements Group (TID 1411)
@@ -355,7 +356,7 @@ as the ``referenced_regions``:
        referenced_regions=[region1, region2],
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 This example uses a :class:`highdicom.sr.VolumeSurface` object as the
@@ -380,7 +381,7 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object as the
         graphic_type=hd.sr.GraphicTypeValues.POINT,
         graphic_data=np.array([[123.5, 234.1, -23.7]]),
         source_images=[hd.sr.SourceImageForSegmentation.from_source_image(im)],
-        frame_of_reference_uid: im.FrameOfReferenceUID,
+        frame_of_reference_uid=im.FrameOfReferenceUID,
     )
 
     # Construct the measurement group
@@ -388,7 +389,7 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object as the
        referenced_volume_surface=volume_surface,
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 The final example uses an :class:`highdicom.sr.ReferencedSegment` as the
@@ -424,7 +425,7 @@ The final example uses an :class:`highdicom.sr.ReferencedSegment` as the
        referenced_segment=ref_segment,
        tracking_identifier=tracking_id,
        measurements=[...],
-       evaluations=[...],
+       qualitative_evaluations=[...],
     )
 
 Further Parameters for Measurement Groups
@@ -447,7 +448,7 @@ type (some have been omitted for brevity):
 - ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
     Numeric measurements
 - ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
-    Coded name-value pairs that describe qualitative evaluations
+    Coded name-value pairs that describe qualitative qualitative_evaluations
 - ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
     Category of observed finding, e.g., anatomic structure or
     morphologically abnormal structure
@@ -457,11 +458,11 @@ Measurements and Qualitative Evaluations
 ----------------------------------------
 
 Finally, we get down to the bottom of the content tree, and the measurements
-and evaluations themselves. Information derived from the images or image
+and qualitative_evaluations themselves. Information derived from the images or image
 regions represented by the measurement group may be stored as either
-measurements, qualitative evaluations, or a mixture or the two. These two
+measurements, qualitative qualitative_evaluations, or a mixture or the two. These two
 concepts play a similar role in the SR, but measurements have numerical values
-and qualitative evaluations have categorical values.
+and qualitative qualitative_evaluations have categorical values.
 
 Qualitative Evaluations
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -529,7 +530,7 @@ reference for more information):
 - **Finding Sites:** Coded description of one or more anatomic locations
   corresponding to the image region from which measurement was taken.
 - **Method:** Measurement method.
-- **Properties:** Measurement properties, including evaluations of its
+- **Properties:** Measurement properties, including qualitative_evaluations of its
   normality and/or significance, its relationship to a reference population,
   and an indication of its selection from a set of measurements
 - **Referenced Images:** Referenced images which were used as sources for the
