@@ -1,7 +1,7 @@
 .. _iods:
 
-Information Objects Definitions (IODs)
-======================================
+Information Object Definitions (IODs)
+=====================================
 
 An Information Object Definition defines a single "type" of DICOM file, such
 as a Segmentation, Presentation State or Structured Report. The following

@@ -539,8 +539,190 @@ reference for more information):
   Referenced real world value map for referenced source images used to
   generate the measurement.
 
+.. _tid1500_full_example:
+
 Putting It All Together
 -----------------------
 
-See the :ref:`full worked example <creating-sr>` in the quick start guide
-for a full walk through of how to combine these elements into an SR document.
+The snippet below is a full example of creating an SR document using the
+TID1500 template. You can find the file created by this snippet in the
+highdicom test data within the highdicom repository at
+``data/test_files/sr_document_with_multiple_groups.dcm``.
+
+.. code-block:: python
+
+    import numpy as np
+    from pydicom.sr.codedict import codes
+    import pydicom
+    import highdicom as hd
+
+    im = pydicom.dcmread("data/test_files/ct_image.dcm")
+
+    # Information about the observer
+    observer_person_context = hd.sr.ObserverContext(
+        observer_type=codes.DCM.Person,
+        observer_identifying_attributes=hd.sr.PersonObserverIdentifyingAttributes(
+            name='Doe^John'
+        )
+    )
+    observer_device_context = hd.sr.ObserverContext(
+        observer_type=codes.DCM.Device,
+        observer_identifying_attributes=hd.sr.DeviceObserverIdentifyingAttributes(
+            uid=hd.UID()
+        )
+    )
+    observation_context = hd.sr.ObservationContext(
+        observer_person_context=observer_person_context,
+        observer_device_context=observer_device_context,
+    )
+
+    # An object describing the source image for the measurements
+    source_image = hd.sr.SourceImageForMeasurementGroup.from_source_image(im)
+
+    # First, we define an image measurement group for the CT image describing
+    # the intensity histogram at a certain vertebral level
+
+    # A tracking identifier for this measurement group
+    im_tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Image0001',
+       uid=hd.UID(),
+    )
+
+    # A measurement using an IBSI code (not in pydicom)
+    histogram_intensity_code = hd.sr.CodedConcept(
+        value="X6K6",
+        meaning="Intensity Histogram Mean",
+        scheme_designator="IBSI",
+    )
+    hist_measurement = hd.sr.Measurement(
+        name=histogram_intensity_code,
+        value=-119.0738525390625,
+        unit=codes.UCUM.HounsfieldUnit,
+    )
+    im_evaluation = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.AnatomicalPosition,
+        value=codes.SCT.LevelOfT4T5IntervertebralDisc,
+    )
+
+    # Construct the measurement group
+    im_group = hd.sr.MeasurementsAndQualitativeEvaluations(
+       source_images=[source_image],
+       tracking_identifier=im_tracking_id,
+       measurements=[hist_measurement],
+       qualitative_evaluations=[im_evaluation],
+    )
+
+    # Next, we define a planar ROI measurement group describing a lung nodule
+
+    # A tracking identifier for this measurement group
+    lung_nodule_roi_tracking_id = hd.sr.TrackingIdentifier(
+       identifier='LungNodule0001',
+       uid=hd.UID(),
+    )
+
+    # Define the image region (a circle) using image coordinates
+    region = hd.sr.ImageRegion(
+       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+    )
+    nodule_measurement = hd.sr.Measurement(
+        name=codes.SCT.Diameter,
+        value=10.0,
+        unit=codes.UCUM.mm,
+    )
+    nodule_evaluation = hd.sr.QualitativeEvaluation(
+        name=codes.DCM.LevelOfSignificance,
+        value=codes.SCT.NotSignificant,
+    )
+
+    # Construct the measurement group
+    planar_group_1 = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
+       referenced_region=region,
+       tracking_identifier=lung_nodule_roi_tracking_id,
+       finding_type=codes.SCT.Nodule,
+       finding_category=codes.SCT.MorphologicallyAbnormalStructure,
+       finding_sites=[hd.sr.FindingSite(codes.SCT.Lung)],
+       measurements=[nodule_measurement],
+       qualitative_evaluations=[nodule_evaluation],
+    )
+
+    # Next, we define a second planar ROI measurement group describing the
+    # aorta
+
+    # A tracking identifier for this measurement group
+    aorta_roi_tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Aorta0001',
+       uid=hd.UID(),
+    )
+
+    # Define the image region (a circle) using image coordinates
+    region = hd.sr.ImageRegion(
+       graphic_type=hd.sr.GraphicTypeValues.POLYLINE,
+       graphic_data=np.array([[25.0, 45.0], [45.0, 45.0], [45.0, 65.0], [25.0, 65.0]]),
+       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+    )
+    aorta_measurement = hd.sr.Measurement(
+        name=codes.SCT.Diameter,
+        value=20.0,
+        unit=codes.UCUM.mm,
+    )
+
+    # Construct the measurement group
+    planar_group_2 = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
+       referenced_region=region,
+       tracking_identifier=aorta_roi_tracking_id,
+       finding_type=codes.SCT.Aorta,
+       finding_category=structure_code,
+       measurements=[aorta_measurement],
+    )
+
+    # Finally, we define a volumetric ROI measurement group describing a
+    # vertebral body
+
+    # A tracking identifier for this measurement group
+    volumetric_roi_tracking_id = hd.sr.TrackingIdentifier(
+       identifier='Vertebra0001',
+       uid=hd.UID(),
+    )
+
+    # Define the region (a point) using frame of reference coordinates
+    volume_surface = hd.sr.VolumeSurface(
+        graphic_type=hd.sr.GraphicTypeValues3D.POINT,
+        graphic_data=np.array([[123.5, 234.1, -23.7]]),
+        source_images=[hd.sr.SourceImageForSegmentation.from_source_image(im)],
+        frame_of_reference_uid=im.FrameOfReferenceUID,
+    )
+    vol_measurement = hd.sr.Measurement(
+        name=codes.SCT.Volume,
+        value=200.0,
+        unit=codes.UCUM.CubicMillimeter,
+    )
+
+    # Construct the measurement group
+    vol_group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
+       referenced_volume_surface=volume_surface,
+       tracking_identifier=volumetric_roi_tracking_id,
+       finding_category=structure_code,
+       finding_type=codes.SCT.Vertebra,
+       measurements=[vol_measurement],
+    )
+
+    measurement_report = hd.sr.MeasurementReport(
+        observation_context=observation_context,  # from above
+        procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+        imaging_measurements=[im_group, planar_group_1, planar_group_2, vol_group],
+        title=codes.DCM.ImagingMeasurementReport,
+    )
+
+    # Create the Structured Report instance
+    sr_dataset = hd.sr.Comprehensive3DSR(
+        evidence=[im],  # all datasets referenced in the report
+        content=measurement_report,
+        series_number=1,
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Manufacturer'
+    )
+    sr_dataset.save_as("sr_document_with_multiple_groups.dcm")
