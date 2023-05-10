@@ -55,7 +55,13 @@ site, referenced SOP instance UID, and referenced SOP class UID. If you provide
 multiple criteria, the methods return those groups that meet *all* the
 specified criteria.
 
-For example, here are just some examples of using these methods to find
+The returned objects are of type
+:class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`,
+:class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`, or
+:class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`,
+respectively, representing the entire sub-template in the SR content tree.
+
+Here are just some examples of using these methods to find
 measurement groups of interest within a measurement report. As an example
 SR document, we use the SR document created on the previous page (see
 :ref:`tid1500_full_example` for the relevant snippet).
@@ -96,7 +102,7 @@ SR document, we use the SR document created on the previous page (see
 Additionally for
 :meth:`highdicom.sr.MeasurementReport.get_planar_roi_measurement_groups`, and
 :meth:`highdicom.sr.MeasurementReport.get_volumetric_roi_measurement_groups` it
-also possible to filter by graphic type and reference type (how the ROI is
+is possible to filter by graphic type and reference type (how the ROI is
 specified in the measurement group).
 
 To search by graphic type, pass an instance of either the
@@ -164,9 +170,10 @@ Accessing Data in Measurement Groups
 
 Once you have found measurement groups, there are various properties on the
 returned object that allow you to access the information that you may need.
-These may be in the form of basic Python types or other highdicom classes that
-in turn have methods and properties defined on them. These classes are the same
-classes that you use to construct the objects.
+These may be in the form of basic Python within the measurement group's content
+items, or highdicom classes representing full sub-templates that in turn have
+methods and properties defined on them. These classes are the same classes that
+you use to construct the objects.
 
 The following example demonstrates some examples, see the API documentation
 of the relevant class for a full list.
@@ -204,7 +211,7 @@ of the relevant class for a full list.
     # finding_type returns a CodedConcept
     assert group.finding_type == codes.SCT.Nodule
 
-    # finding_sites returns a list of hd.sr.FindingSite objects
+    # finding_sites returns a list of hd.sr.FindingSite objects (a sub-template)
     assert isinstance(group.finding_sites[0], hd.sr.FindingSite)
     # the value of a finding site is a CodedConcept
     assert group.finding_sites[0].value == codes.SCT.Lung
@@ -235,10 +242,85 @@ objects of type :class:`highdicom.sr.ReferencedSegmentationFrame` and
 Searching for Measurements
 --------------------------
 
+Each measurement group may optionally contain any number of "measurements",
+represented by the TID300 "Measurement" template and the
+:class:`highdicom.sr.Measurement` class that implements it in *highdicom*.
+A measurement contains a numerical measurement derived from the image, along
+with the physical unit of the measurement and various other optional
+descriptive metadata 
+
+You can search for measurements within a measurements group using the
+``get_measurements()`` method on the relevant measurement group class. You can
+optionally provide a ``name`` parameter, which should be a coded value that
+allows you to find measurements with a particular name.
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Use the same example file in the highdicom test data
+    sr = hd.sr.srread("data/test_files/sr_document_with_multiple_groups.dcm")
+
+    # Use the first planar measurement group as an example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # Get a list of all measurements
+    measurements = group.get_measurements()
+
+    # Get a list of measurements for diameter
+    measurements = group.get_measurements(codes.SCT.Diameter)
+
+
+Note that although there will usually be only a single measurement with a given
+name within a measurement group, this is not disallowed by the standard.
+Consequently, the ``get_measurements()`` method returns a list containing 0
+or more measurements.
+
 Accessing Data in Measurements
 ------------------------------
 
+You can access the name of a measurement with the `name` property (returns a
+:class:`highdicom.sr.CodedConcept`, its numerical value with the `value`
+property (returns a `float`), and the unit with the `unit` property.
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Use the same example file in the highdicom test data
+    sr = hd.sr.srread("data/test_files/sr_document_with_multiple_groups.dcm")
+
+    # Use the first planar measurement group as an example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # Get the diameter measurement in this group
+    measurement = group.get_measurements(codes.SCT.Diameter)[0]
+
+    # Access the measurement's name
+    assert measurement.name == codes.SCT.Diameter
+
+    # Access the measurement's value
+    assert measurement.value == 10.0
+
+    # Access the measurement's unit
+    assert measurement.unit == codes.UCUM.mm
+
+Additionally, the properties `method`, `finding_sites`, `qualifier`,
+`referenced_images`, and `derivation` allow you to access further optional
+metadata that may be present in the stored measurement.
+
 Searching for Evaluations
 -------------------------
+
+In addition to numerical measurements, measurement groups may also contain
+"qualitative evaluations". These contain an evaluation of the image represented
+using a coded concept.
+
+Similar to measurements, you can search for evaluations with the
+`get_evaluations()` method. You can filter by name with the ``name`` parameter.
+You can access the name and value of the returned evaluations with the ``name``
+and ``value`` properties.
 
 NB remember to update the quickstart example!!
