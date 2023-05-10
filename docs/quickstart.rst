@@ -372,10 +372,11 @@ templates.
     # tracking_uid returns a hd.UID, a subclass of str
     assert group.tracking_uid == "1.2.826.0.1.3680043.10.511.3.77718622501224431322963356892468048"
 
-    # source_images returns a list of hd.sr.SourceImageForMeasurementGroup, which
-    # in turn have some properties to access data
+    # source_images returns a list of hd.sr.SourceImageForMeasurementGroup,
+    # which in turn have some properties to access data
     assert isinstance(group.source_images[0], hd.sr.SourceImageForMeasurementGroup)
-    assert group.source_images[0].referenced_sop_instance_uid == "1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322" 
+    ref_sop_uid = group.source_images[0].referenced_sop_instance_uid
+    assert ref_sop_uid == "1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322" 
 
     # for the various optional pieces of information in a measurement, accessing
     # the relevant property returns None if the information is not present
@@ -415,10 +416,7 @@ templates.
     # Get a list of all measurements
     measurements = group.get_measurements()
 
-    # Get a list of measurements for diameter
-    measurements = group.get_measurements(name=codes.SCT.Diameter)
-    print(measurements[0])
-
+    # Get the first measurements for diameter
     measurement = group.get_measurements(name=codes.SCT.Diameter)[0]
 
     # Access the measurement's name
