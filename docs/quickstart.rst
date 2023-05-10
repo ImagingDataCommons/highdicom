@@ -293,6 +293,7 @@ image:
 
     print(sr_dataset)
 
+For more information see :doc:`generalsr` and :doc:`tid1500`.
 
 .. _parsing-sr:
 
@@ -376,7 +377,7 @@ templates.
     # which in turn have some properties to access data
     assert isinstance(group.source_images[0], hd.sr.SourceImageForMeasurementGroup)
     ref_sop_uid = group.source_images[0].referenced_sop_instance_uid
-    assert ref_sop_uid == "1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322" 
+    assert ref_sop_uid == "1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322"
 
     # for the various optional pieces of information in a measurement, accessing
     # the relevant property returns None if the information is not present
@@ -440,8 +441,10 @@ templates.
     assert evaluation.value == codes.SCT.NotSignificant
 
 
-However, there are low-level utilities that you can use to find content items
-in the content tree of any structured report documents:
+For more information see :doc:`tid1500parsing`.
+
+Additionally, there are low-level utilities that you can use to find content
+items in the content tree of any structured report documents:
 
 .. code-block:: python
 
