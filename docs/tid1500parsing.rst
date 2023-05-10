@@ -269,7 +269,7 @@ allows you to find measurements with a particular name.
     measurements = group.get_measurements()
 
     # Get a list of measurements for diameter
-    measurements = group.get_measurements(codes.SCT.Diameter)
+    measurements = group.get_measurements(name=codes.SCT.Diameter)
 
 
 Note that although there will usually be only a single measurement with a given
@@ -296,7 +296,7 @@ property (returns a `float`), and the unit with the `unit` property.
     group = sr.content.get_planar_roi_measurement_groups()[0]
 
     # Get the diameter measurement in this group
-    measurement = group.get_measurements(codes.SCT.Diameter)[0]
+    measurement = group.get_measurements(name=codes.SCT.Diameter)[0]
 
     # Access the measurement's name
     assert measurement.name == codes.SCT.Diameter
@@ -319,8 +319,28 @@ In addition to numerical measurements, measurement groups may also contain
 using a coded concept.
 
 Similar to measurements, you can search for evaluations with the
-`get_evaluations()` method. You can filter by name with the ``name`` parameter.
-You can access the name and value of the returned evaluations with the ``name``
-and ``value`` properties.
+`get_qualitative_evaluations()` method. You can optionally filter by name with
+the ``name`` parameter. You can access the name and value of the returned
+evaluations with the ``name`` and ``value`` properties.
 
-NB remember to update the quickstart example!!
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Use the same example file in the highdicom test data
+    sr = hd.sr.srread("data/test_files/sr_document_with_multiple_groups.dcm")
+
+    # Use the first planar measurement group as an example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # Get the diameter measurement in this group
+    evaluation = group.get_qualitative_evaluations(
+        name=codes.DCM.LevelOfSignificance
+    )[0]
+
+    # Access the measurement's name
+    assert evaluation.name == codes.DCM.LevelOfSignificance
+
+    # Access the measurement's value
+    assert evaluation.value == codes.SCT.NotSignificant

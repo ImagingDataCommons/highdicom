@@ -299,7 +299,151 @@ image:
 Parsing Structured Report (SR) documents
 ----------------------------------------
 
-Finding relevant content in the nested SR content tree:
+Highdicom has special support for parsing structured reports conforming to the
+TID1500 "Measurment Report" template using specialized Python classes for
+templates.
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # This example is in the highdicom test data files in the repository
+    sr = hd.sr.srread("data/test_files/sr_document_with_multiple_groups.dcm")
+
+    # First we explore finding measurement groups. There are three types of
+    # measurement groups (image measurement, planar roi measurement groups, and
+    # volumetric roi measurement groups)
+
+    # Get a list of all image measurement groups referencing an image with a
+    # particular SOP Instance UID
+    groups = sr.content.get_image_measurement_groups(
+        referenced_sop_instance_uid="1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322",
+    )
+    assert len(groups) == 1
+
+    # Get a list of all image measurement groups with a particular tracking UID
+    groups = sr.content.get_image_measurement_groups(
+        tracking_uid="1.2.826.0.1.3680043.10.511.3.77718622501224431322963356892468048",
+    )
+    assert len(groups) == 1
+
+    # Get a list of all planar ROI measurement groups with finding type "Nodule"
+    # AND finding site "Lung"
+    groups = sr.content.get_planar_roi_measurement_groups(
+        finding_type=codes.SCT.Nodule,
+        finding_site=codes.SCT.Lung,
+    )
+    assert len(groups) == 1
+
+    # Get a list of all volumetric ROI measurement groups (with no filters)
+    groups = sr.content.get_volumetric_roi_measurement_groups()
+    assert len(groups) == 1
+
+    # Get a list of all planar ROI measurement groups with graphic type CIRCLE
+    groups = sr.content.get_planar_roi_measurement_groups(
+        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+    )
+    assert len(groups) == 1
+
+    # Get a list of all planar ROI measurement groups stored as regions
+    groups = sr.content.get_planar_roi_measurement_groups(
+        reference_type=codes.DCM.ImageRegion,
+    )
+    assert len(groups) == 2
+
+    # Get a list of all volumetric ROI measurement groups stored as volume
+    # surfaces
+    groups = sr.content.get_volumetric_roi_measurement_groups(
+        reference_type=codes.DCM.VolumeSurface,
+    )
+    assert len(groups) == 1
+
+    # Next, we explore the properties of measurement groups that can
+    # be conveniently accessed with Python properties
+
+    # Use the first (only) image measurement group as an example
+    group = sr.content.get_image_measurement_groups()[0]
+
+    # tracking_identifier returns a Python str
+    assert group.tracking_identifier == "Image0001"
+
+    # tracking_uid returns a hd.UID, a subclass of str
+    assert group.tracking_uid == "1.2.826.0.1.3680043.10.511.3.77718622501224431322963356892468048"
+
+    # source_images returns a list of hd.sr.SourceImageForMeasurementGroup, which
+    # in turn have some properties to access data
+    assert isinstance(group.source_images[0], hd.sr.SourceImageForMeasurementGroup)
+    assert group.source_images[0].referenced_sop_instance_uid == "1.3.6.1.4.1.5962.1.1.1.1.1.20040119072730.12322" 
+
+    # for the various optional pieces of information in a measurement, accessing
+    # the relevant property returns None if the information is not present
+    assert group.finding_type is None
+
+    # Now use the first planar ROI group as a second example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # finding_type returns a CodedConcept
+    assert group.finding_type == codes.SCT.Nodule
+
+    # finding_sites returns a list of hd.sr.FindingSite objects
+    assert isinstance(group.finding_sites[0], hd.sr.FindingSite)
+    # the value of a finding site is a CodedConcept
+    assert group.finding_sites[0].value == codes.SCT.Lung
+
+    # reference_type returns a CodedConcept (the same values used above for
+    # filtering)
+    assert group.reference_type == codes.DCM.ImageRegion
+
+    # since this has reference type ImageRegion, we can access the referenced
+    # using 'roi', which will return an hd.sr.ImageRegion object
+    assert isinstance(group.roi, hd.sr.ImageRegion)
+
+    # the graphic type and actual ROI coordinates (as a numpy array) can be
+    # accessed with the graphic_type and value properties of the roi
+    assert group.roi.graphic_type == hd.sr.GraphicTypeValues.CIRCLE
+    assert isinstance(group.roi.value, np.ndarray)
+    assert group.roi.value.shape == (2, 2)
+
+    # Next, we explore getting individual measurements out of measurement
+    # groups
+
+    # Use the first planar measurement group as an example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # Get a list of all measurements
+    measurements = group.get_measurements()
+
+    # Get a list of measurements for diameter
+    measurements = group.get_measurements(name=codes.SCT.Diameter)
+    print(measurements[0])
+
+    measurement = group.get_measurements(name=codes.SCT.Diameter)[0]
+
+    # Access the measurement's name
+    assert measurement.name == codes.SCT.Diameter
+
+    # Access the measurement's value
+    assert measurement.value == 10.0
+
+    # Access the measurement's unit
+    assert measurement.unit == codes.UCUM.mm
+
+    # Get the diameter measurement in this group
+    evaluation = group.get_qualitative_evaluations(
+        name=codes.DCM.LevelOfSignificance
+    )[0]
+
+    # Access the measurement's name
+    assert evaluation.name == codes.DCM.LevelOfSignificance
+
+    # Access the measurement's value
+    assert evaluation.value == codes.SCT.NotSignificant
+
+
+However, there are low-level utilities that you can use to find content items
+in the content tree of any structured report documents:
 
 .. code-block:: python
 
@@ -323,7 +467,7 @@ Finding relevant content in the nested SR content tree:
     print(containers)
 
     # Query content of SR document, where content is structured according
-    # to TID 1500 "Measurment Report"
+    # to TID 1500 "Measurement Report"
     if sr_dataset.ContentTemplateSequence[0].TemplateIdentifier == 'TID1500':
         # Determine who made the observations reported in the document
         observers = hd.sr.utils.find_content_items(
