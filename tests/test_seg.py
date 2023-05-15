@@ -1490,16 +1490,10 @@ class TestSegmentation:
         )
 
         # Ensure the recovered pixel array matches what is expected
-        if pix_type in (np.bool_, np.float_):
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding * max_fractional_value
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
-        else:
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding * max_fractional_value
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
         # Multi-segment (exclusive)
@@ -1516,7 +1510,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1532,7 +1526,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_exc
+            expected_enc_exc * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1550,7 +1544,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1566,7 +1560,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_overlap
+            expected_enc_overlap * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 

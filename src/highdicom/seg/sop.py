@@ -913,7 +913,7 @@ class Segmentation(SOPClass):
             ``plane_positions`` parameter is provided, the frame in
             ``pixel_array[i, ...]`` should correspond to either
             ``source_images[i]`` (if ``source_images`` is a list of single
-            frame instances) or source_images[0].pixel_array[i, ...] if
+            frame instances) or ``source_images[0].pixel_array[i, ...]`` if
             ``source_images`` is a single multiframe instance.
 
             Similarly, if ``pixel_array`` is a 3D array representing the
@@ -1188,13 +1188,17 @@ class Segmentation(SOPClass):
             self._coordinate_system = None
 
         # General Reference
-        self.SourceImageSequence: List[Dataset] = []
+
+        # Note that appending directly to the SourceImageSequence is typically
+        # slow so it's more efficient to build as a Python list then convert
+        # later
+        source_image_seq: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
         for s_img in source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
             ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
-            self.SourceImageSequence.append(ref)
+            source_image_seq.append(ref)
             referenced_series[s_img.SeriesInstanceUID].append(ref)
 
         # Common Instance Reference
@@ -1358,9 +1362,11 @@ class Segmentation(SOPClass):
             sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
-        # Information about individual frames will be updated below
-        self.NumberOfFrames = 0
-        self.PerFrameFunctionalGroupsSequence: List[Dataset] = []
+        # Information about individual frames. Note that a *very* significant
+        # efficiency gain is observed when building this as a Python list
+        # rather than a pydicom sequence, and then converting to a pydicom
+        # sequence at the end
+        pffg_sequence: List[Dataset] = []
 
         # Check segment numbers
         described_segment_numbers = np.array([
@@ -1372,17 +1378,10 @@ class Segmentation(SOPClass):
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
             pixel_array,
-            described_segment_numbers,
-            segmentation_type
+            len(described_segment_numbers),
+            segmentation_type,
         )
         self.SegmentsOverlap = segments_overlap.value
-        if omit_empty_frames and pixel_array.sum() == 0:
-            omit_empty_frames = False
-            logger.warning(
-                'Encoding an empty segmentation with "omit_empty_frames" '
-                'set to True. Reverting to encoding all frames since omitting '
-                'all frames is not possible.'
-            )
 
         if has_ref_frame_uid:
             if plane_positions is None:
@@ -1504,8 +1503,11 @@ class Segmentation(SOPClass):
 
         # Remove empty slices
         if omit_empty_frames:
-            pixel_array, plane_positions, source_image_indices = \
+            plane_positions, source_image_indices, is_empty = \
                 self._omit_empty_frames(pixel_array, plane_positions)
+            if is_empty:
+                # Cannot omit empty frames when all frames are empty
+                omit_empty_frames = False
         else:
             source_image_indices = list(range(pixel_array.shape[0]))
 
@@ -1531,19 +1533,19 @@ class Segmentation(SOPClass):
             dimension_position_values = [None]
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
-        if is_encaps:
-            # In the case of encapsulated transfer syntaxes, we will accumulate
-            # a list of encoded frames to encapsulate at the end
-            full_frames_list = []
-        else:
-            # In the case of non-encapsulated (uncompressed) transfer syntaxes
-            # we will accumulate a 1D array of pixels from all frames for
-            # bitpacking at the end
-            full_pixel_array = np.array([], np.bool_)
+
+        # In the case of encapsulated transfer syntaxes, we will accumulate
+        # a list of encoded frames to encapsulate at the end
+        # In the case of non-encapsulated (uncompressed) transfer syntaxes
+        # we will accumulate a list of flattened pixels from all frames for
+        # bitpacking at the end
+        full_frames_list: Union[List[bytes], List[np.ndarray]] = []
 
         for i, segment_number in enumerate(described_segment_numbers):
             # Pixel array for just this segment
             if pixel_array.dtype in (np.float_, np.float32, np.float64):
+                # Based on the previous checks and casting, if we get here
+                # the output is a FRACTIONAL segmentation
                 # Floating-point numbers must be mapped to 8-bit integers in
                 # the range [0, max_fractional_value].
                 if pixel_array.ndim == 4:
@@ -1554,29 +1556,36 @@ class Segmentation(SOPClass):
                     segment_array * float(self.MaximumFractionalValue)
                 )
                 planes = planes.astype(np.uint8)
-            elif pixel_array.dtype in (np.uint8, np.uint16):
-                # Note that integer arrays with segments stacked down the last
-                # dimension will already have been converted to bool, leaving
-                # only "label maps" here, which must be converted to binary
-                # masks.
-                planes = np.zeros(pixel_array.shape, dtype=np.uint8)
-                planes[pixel_array == segment_number] = 1
-            elif pixel_array.dtype == np.bool_:
-                if pixel_array.ndim == 4:
-                    planes = pixel_array[:, :, :, segment_number - 1]
-                else:
-                    planes = pixel_array
-                planes = planes.astype(np.uint8)
-                # It may happen that a boolean array is passed that should be
-                # interpreted as fractional segmentation type. In this case, we
-                # also need to stretch pixel valeus to 8-bit unsigned integer
-                # range by multiplying with the maximum fractional value.
-                if segmentation_type == SegmentationTypeValues.FRACTIONAL:
-                    planes *= int(self.MaximumFractionalValue)
             else:
-                raise TypeError('Pixel array has an invalid data type.')
+                if pixel_array.ndim == 3:
+                    # "Label maps" that must be converted to binary masks.
+                    if len(described_segment_numbers) == 1:
+                        # We wish to avoid unnecessary comparison or casting
+                        # operations here, for efficiency reasons
+                        if pixel_array.dtype != np.uint8:
+                            planes = pixel_array.astype(np.uint8)
+                        else:
+                            planes = pixel_array
+                    else:
+                        planes = (
+                            pixel_array == segment_number
+                        ).astype(np.uint8)
+                else:
+                    planes = pixel_array[:, :, :, segment_number - 1]
+                    if planes.dtype != np.uint8:
+                        planes = planes.astype(np.uint8)
 
-            contained_plane_index = []
+                # It may happen that a binary valued array is passed that
+                # should be stored as a fractional segmentation. In
+                # this case, we also need to stretch pixel values to 8-bit
+                # unsigned integer range by multiplying with the maximum
+                # fractional value.
+                if segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    # Avoid an unnecessary multiplication operation if max
+                    # fractional value is 1
+                    if int(self.MaximumFractionalValue) != 1:
+                        planes *= int(self.MaximumFractionalValue)
+
             for j in plane_sort_index:
                 # Index of this frame in the original list of source indices
                 source_image_index = source_image_indices[j]
@@ -1584,15 +1593,14 @@ class Segmentation(SOPClass):
                 # Even though completely empty slices were removed earlier,
                 # there may still be slices in which this specific segment is
                 # absent. Such frames should be removed
-                if omit_empty_frames and np.sum(planes[j]) == 0:
-                    logger.info(
+                if omit_empty_frames and not np.any(planes[source_image_index]):
+                    logger.debug(
                         'skip empty plane {} of segment #{}'.format(
                             j, segment_number
                         )
                     )
                     continue
-                contained_plane_index.append(j)
-                logger.info(
+                logger.debug(
                     'add plane #{} for segment #{}'.format(
                         j, segment_number
                     )
@@ -1666,20 +1674,18 @@ class Segmentation(SOPClass):
                     derivation_src_img_item = Dataset()
                     if hasattr(source_images[0], 'NumberOfFrames'):
                         # A single multi-frame source image
-                        src_img_item = self.SourceImageSequence[0]
+                        src_img_item = source_images[0]
                         # Frame numbers are one-based
                         derivation_src_img_item.ReferencedFrameNumber = (
                             source_image_index + 1
                         )
                     else:
                         # Multiple single-frame source images
-                        src_img_item = self.SourceImageSequence[
-                            source_image_index
-                        ]
+                        src_img_item = source_images[source_image_index]
                     derivation_src_img_item.ReferencedSOPClassUID = \
-                        src_img_item.ReferencedSOPClassUID
+                        src_img_item.SOPClassUID
                     derivation_src_img_item.ReferencedSOPInstanceUID = \
-                        src_img_item.ReferencedSOPInstanceUID
+                        src_img_item.SOPInstanceUID
                     purpose_code = \
                         codes.cid7202.SourceImageForImageProcessingOperation
                     derivation_src_img_item.PurposeOfReferenceCodeSequence = [
@@ -1693,29 +1699,32 @@ class Segmentation(SOPClass):
                         derivation_image_item
                     )
                 else:
-                    logger.warning('spatial locations not preserved')
+                    logger.debug('spatial locations not preserved')
 
                 identification = Dataset()
                 identification.ReferencedSegmentNumber = segment_number
                 pffp_item.SegmentIdentificationSequence = [
                     identification,
                 ]
-                self.PerFrameFunctionalGroupsSequence.append(pffp_item)
-                self.NumberOfFrames += 1
+                pffg_sequence.append(pffp_item)
 
-            if is_encaps:
-                # Encode this frame and add to the list for encapsulation
-                # at the end
-                for f in contained_plane_index:
-                    full_frames_list.append(self._encode_pixels(planes[f]))
-            else:
-                # Concatenate the 1D array for re-encoding at the end
-                full_pixel_array = np.concatenate([
-                    full_pixel_array,
-                    planes[contained_plane_index].flatten()
-                ])
+                if is_encaps:
+                    # Encode this frame and add to the list for encapsulation
+                    # at the end
+                    full_frames_list.append(
+                        self._encode_pixels(planes[source_image_index])
+                    )
+                else:
+                    # Concatenate the 1D array for re-encoding at the end
+                    full_frames_list.append(
+                        planes[source_image_index].flatten()
+                    )
 
             self.SegmentSequence.append(segment_descriptions[i])
+
+        self.PerFrameFunctionalGroupsSequence = pffg_sequence
+        self.SourceImageSequence = source_image_seq
+        self.NumberOfFrames = len(pffg_sequence)
 
         if is_encaps:
             # Encapsulate all pre-compressed frames
@@ -1724,7 +1733,9 @@ class Segmentation(SOPClass):
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
-            self.PixelData = self._encode_pixels(full_pixel_array)
+            self.PixelData = self._encode_pixels(
+                np.concatenate(full_frames_list)
+            )
 
         # Add a null trailing byte if required
         if len(self.PixelData) % 2 == 1:
@@ -1792,9 +1803,9 @@ class Segmentation(SOPClass):
     @staticmethod
     def _check_and_cast_pixel_array(
         pixel_array: np.ndarray,
-        described_segment_numbers: np.ndarray,
+        number_of_segments: int,
         segmentation_type: SegmentationTypeValues
-    ) -> Tuple[np.ndarray, SegmentsOverlapValues]:
+    ) -> Tuple[np.ndarray, SegmentsOverlapValues, bool]:
         """Checks on the shape and data type of the pixel array.
 
         Also checks for overlapping segments and returns the result.
@@ -1803,7 +1814,7 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             The segmentation pixel array.
-        described_segment_numbers: numpy.ndarray
+        number_of_segments: int,
             The segment numbers from the segment descriptions, in the order
             they were passed. 1D array of integers.
         segmentation_type: highdicom.seg.SegmentationTypeValues
@@ -1820,26 +1831,24 @@ class Segmentation(SOPClass):
         """
         if pixel_array.ndim == 4:
             # Check that the number of segments in the array matches
-            if pixel_array.shape[-1] != len(described_segment_numbers):
+            if pixel_array.shape[-1] != number_of_segments:
                 raise ValueError(
                     'The number of segments in last dimension of the pixel '
                     f'array ({pixel_array.shape[-1]}) does not match the '
                     'number of described segments '
-                    f'({len(described_segment_numbers)}).'
+                    f'({number_of_segments}).'
                 )
 
         if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
+            max_pixel = pixel_array.max()
+
             if pixel_array.ndim == 3:
                 # A label-map style array where pixel values represent
                 # segment associations
-                segments_present = np.unique(pixel_array).astype(np.uint16)
-                segments_present = segments_present[segments_present > 0]
 
                 # The pixel values in the pixel array must all belong to
                 # a described segment
-                if not np.all(
-                        np.in1d(segments_present, described_segment_numbers)
-                    ):
+                if max_pixel > number_of_segments:
                     raise ValueError(
                         'Pixel array contains segments that lack '
                         'descriptions.'
@@ -1852,24 +1861,30 @@ class Segmentation(SOPClass):
                 # Pixel array is 4D where each segment is stacked down
                 # the last dimension
                 # In this case, each segment of the pixel array should be binary
-                if pixel_array.max() > 1:
+                if max_pixel > 1:
                     raise ValueError(
                         'When passing a 4D stack of segments with an integer '
                         'pixel type, the pixel array must be binary.'
                     )
-                pixel_array = pixel_array.astype(np.bool_)
 
                 # Need to check whether or not segments overlap
-                if pixel_array.shape[-1] == 1:
+                if max_pixel == 0:
+                    # Empty segments can't overlap (this skips an unnecessary
+                    # further test)
+                    segments_overlap = SegmentsOverlapValues.NO
+                elif pixel_array.shape[-1] == 1:
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
-                elif pixel_array.sum(axis=-1).max() > 1:
-                    segments_overlap = SegmentsOverlapValues.YES
                 else:
-                    segments_overlap = SegmentsOverlapValues.NO
+                    sum_over_segments = pixel_array.sum(axis=-1)
+                    if np.any(sum_over_segments > 1):
+                        segments_overlap = SegmentsOverlapValues.YES
+                    else:
+                        segments_overlap = SegmentsOverlapValues.NO
 
         elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
             unique_values = np.unique(pixel_array)
+
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
@@ -1885,10 +1900,13 @@ class Segmentation(SOPClass):
                         'Floating point pixel array values must be either '
                         '0.0 or 1.0 in case of BINARY segmentation type.'
                     )
-                pixel_array = pixel_array.astype(np.bool_)
+                pixel_array = pixel_array.astype(np.uint8)
 
                 # Need to check whether or not segments overlap
-                if pixel_array.shape[-1] == 1:
+                if len(unique_values) == 1 and unique_values[0] == 0.0:
+                    # All pixels are zero: there can be no overlap
+                    segments_overlap = SegmentsOverlapValues.NO
+                elif pixel_array.shape[-1] == 1:
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
                 elif pixel_array.sum(axis=-1).max() > 1:
@@ -1912,12 +1930,12 @@ class Segmentation(SOPClass):
     def _omit_empty_frames(
         pixel_array: np.ndarray,
         plane_positions: Sequence[Optional[PlanePositionSequence]]
-    ) -> Tuple[np.ndarray, List[Optional[PlanePositionSequence]], List[int]]:
-        """Remove empty frames from the pixel array.
+    ) -> Tuple[List[Optional[PlanePositionSequence]], List[int], bool]:
+        """Remove empty frames from the plane positions.
 
         Empty frames (without any positive pixels) do not need to be included
-        in the segmentation image. This method removes the relevant frames
-        and updates the plane positions accordingly.
+        in the segmentation image. This method update the plane positions such
+        that the empty frames are omitted.
 
         Parameters
         ----------
@@ -1928,29 +1946,37 @@ class Segmentation(SOPClass):
 
         Returns
         -------
-        pixel_array: numpy.ndarray
-            Pixel array with empty frames removed
         plane_positions: List[Optional[highdicom.PlanePositionSequence]]
             Plane positions with entries corresponding to empty frames removed.
         source_image_indices: List[int]
             List giving for each frame in the output pixel array the index of
             the corresponding frame in the original pixel array
+        is_empty: bool
+            Whether the entire image is empty. If so, empty frames should not
+            be omitted.
 
         """
-        non_empty_frames = []
+        # non_empty_frames = []
         non_empty_plane_positions = []
 
         # This list tracks which source image each non-empty frame came from
         source_image_indices = []
         for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
-            if frm.sum() > 0:
-                non_empty_frames.append(frm)
+            if np.any(frm):
+                # non_empty_frames.append(frm)
                 non_empty_plane_positions.append(pos)
                 source_image_indices.append(i)
-        pixel_array = np.stack(non_empty_frames)
-        plane_positions = non_empty_plane_positions
+        # pixel_array = np.stack(non_empty_frames)
 
-        return (pixel_array, plane_positions, source_image_indices)
+        if len(non_empty_plane_positions) == 0:
+            logger.warning(
+                'Encoding an empty segmentation with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.'
+            )
+            return (plane_positions, list(range(len(plane_positions))), True)
+
+        return (non_empty_plane_positions, source_image_indices, False)
 
     def _encode_pixels(self, planes: np.ndarray) -> bytes:
         """Encodes pixel planes.
