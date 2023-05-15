@@ -659,6 +659,14 @@ class DimensionIndexSequence(DataElementSequence):
             return_index=True
         )
 
+        if len(plane_sort_indices) != len(plane_positions):
+            raise ValueError(
+                "Input image/frame positions are not unique according to the "
+                "Dimension Index Pointers. The generated segmentation would be "
+                "ambiguous. Ensure that source images/frames have distinct "
+                "locations."
+            )
+
         return (plane_position_values, plane_sort_indices)
 
     def get_index_keywords(self) -> List[str]:
