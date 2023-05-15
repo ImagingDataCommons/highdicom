@@ -1805,7 +1805,7 @@ class Segmentation(SOPClass):
         pixel_array: np.ndarray,
         number_of_segments: int,
         segmentation_type: SegmentationTypeValues
-    ) -> Tuple[np.ndarray, SegmentsOverlapValues, bool]:
+    ) -> Tuple[np.ndarray, SegmentsOverlapValues]:
         """Checks on the shape and data type of the pixel array.
 
         Also checks for overlapping segments and returns the result.
@@ -1882,9 +1882,8 @@ class Segmentation(SOPClass):
                     else:
                         segments_overlap = SegmentsOverlapValues.NO
 
-        elif (pixel_array.dtype in (np.float_, np.float32, np.float64)):
+        elif pixel_array.dtype in (np.float_, np.float32, np.float64):
             unique_values = np.unique(pixel_array)
-
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
@@ -1934,7 +1933,7 @@ class Segmentation(SOPClass):
         """Remove empty frames from the plane positions.
 
         Empty frames (without any positive pixels) do not need to be included
-        in the segmentation image. This method update the plane positions such
+        in the segmentation image. This method updates the plane positions such
         that the empty frames are omitted.
 
         Parameters
@@ -1956,17 +1955,14 @@ class Segmentation(SOPClass):
             be omitted.
 
         """
-        # non_empty_frames = []
         non_empty_plane_positions = []
 
         # This list tracks which source image each non-empty frame came from
         source_image_indices = []
         for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
             if np.any(frm):
-                # non_empty_frames.append(frm)
                 non_empty_plane_positions.append(pos)
                 source_image_indices.append(i)
-        # pixel_array = np.stack(non_empty_frames)
 
         if len(non_empty_plane_positions) == 0:
             logger.warning(
