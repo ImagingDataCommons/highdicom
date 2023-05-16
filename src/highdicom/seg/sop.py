@@ -1362,23 +1362,19 @@ class Segmentation(SOPClass):
             sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
-        # Information about individual frames. Note that a *very* significant
-        # efficiency gain is observed when building this as a Python list
-        # rather than a pydicom sequence, and then converting to a pydicom
-        # sequence at the end
-        pffg_sequence: List[Dataset] = []
-
         # Check segment numbers
         described_segment_numbers = np.array([
             int(item.SegmentNumber)
             for item in segment_descriptions
         ])
         self._check_segment_numbers(described_segment_numbers)
+        number_of_segments = len(described_segment_numbers)
+        self.SegmentSequence = segment_descriptions
 
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
             pixel_array,
-            len(described_segment_numbers),
+            number_of_segments,
             segmentation_type,
         )
         self.SegmentsOverlap = segments_overlap.value
@@ -1541,7 +1537,14 @@ class Segmentation(SOPClass):
         # bitpacking at the end
         full_frames_list: List[np.ndarray] = []
 
-        for i, segment_number in enumerate(described_segment_numbers):
+        # Information about individual frames is placed into the
+        # PerFrameFunctionalGroupsSequence. Note that a *very* significant
+        # efficiency gain is observed when building this as a Python list
+        # rather than a pydicom sequence, and then converting to a pydicom
+        # sequence at the end
+        pffg_sequence: List[Dataset] = []
+
+        for segment_number in described_segment_numbers:
             # Pixel array for just this segment
             if pixel_array.dtype in (np.float_, np.float32, np.float64):
                 # Based on the previous checks and casting, if we get here
@@ -1559,9 +1562,11 @@ class Segmentation(SOPClass):
             else:
                 if pixel_array.ndim == 3:
                     # "Label maps" that must be converted to binary masks.
-                    if len(described_segment_numbers) == 1:
+                    if number_of_segments == 1:
                         # We wish to avoid unnecessary comparison or casting
-                        # operations here, for efficiency reasons
+                        # operations here, for efficiency reasons. If there is
+                        # only a single segment, the label map pixel array is
+                        # already correct
                         if pixel_array.dtype != np.uint8:
                             planes = pixel_array.astype(np.uint8)
                         else:
@@ -1587,7 +1592,7 @@ class Segmentation(SOPClass):
                         planes *= int(self.MaximumFractionalValue)
 
             for j in plane_sort_index:
-                # Index of this frame in the original list of source indices
+                # Index of this frame in the original list of source frames
                 source_image_index = source_image_indices[j]
 
                 # Even though completely empty slices were removed earlier,
@@ -1717,8 +1722,6 @@ class Segmentation(SOPClass):
                     full_frames_list.append(
                         planes[source_image_index].flatten()
                     )
-
-            self.SegmentSequence.append(segment_descriptions[i])
 
         self.PerFrameFunctionalGroupsSequence = pffg_sequence
         self.SourceImageSequence = source_image_seq
