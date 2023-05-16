@@ -1539,7 +1539,7 @@ class Segmentation(SOPClass):
         # In the case of non-encapsulated (uncompressed) transfer syntaxes
         # we will accumulate a list of flattened pixels from all frames for
         # bitpacking at the end
-        full_frames_list: Union[List[bytes], List[np.ndarray]] = []
+        full_frames_list: List[np.ndarray] = []
 
         for i, segment_number in enumerate(described_segment_numbers):
             # Pixel array for just this segment
@@ -1711,9 +1711,7 @@ class Segmentation(SOPClass):
                 if is_encaps:
                     # Encode this frame and add to the list for encapsulation
                     # at the end
-                    full_frames_list.append(
-                        self._encode_pixels(planes[source_image_index])
-                    )
+                    full_frames_list.append(planes[source_image_index])
                 else:
                     # Concatenate the 1D array for re-encoding at the end
                     full_frames_list.append(
@@ -1728,7 +1726,10 @@ class Segmentation(SOPClass):
 
         if is_encaps:
             # Encapsulate all pre-compressed frames
-            self.PixelData = encapsulate(full_frames_list)
+            compressed_frames = [
+                self._encode_pixels(frm) for frm in full_frames_list
+            ]
+            self.PixelData = encapsulate(compressed_frames)
         else:
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
