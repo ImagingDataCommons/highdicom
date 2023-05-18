@@ -3,10 +3,10 @@
 The TID1500 Measurement Report Template
 =======================================
 
-The TID1500 "Measurement Report" template is a general-purpose template for
-communicating measurements and qualitative qualitative_evaluations derived from one or
-more images or regions of images. It is recommended to read the previous page
-on :ref:`generalsr` before this page.
+The `TID1500 "Measurement Report" <tid1500def_>`_ template is a general-purpose
+template for communicating measurements and qualitative qualitative evaluations
+derived from one or more images or regions of images. It is recommended to read
+the previous page on :ref:`generalsr` before this page.
 
 *Highdicom* represents the various sub-templates of the TID1500 template as
 Python classes. Using these classes will guide you through the process of
@@ -18,31 +18,42 @@ Overview of TID1500 Content
 
 A diagram of the structure of TID1500 content is shown here:
 
+.. figure:: images/tid1500_overview.svg
+   :scale: 100 %
+   :alt: TID1500 diagram
+
+   Simplified diagram of the structure of the TID1500 template and major
+   subtemplates. Note that this is intended to give a quick overview, please
+   refer to the standard itself for full details.
+
 At the top level, the Measurement Report template
 (:class:`highdicom.sr.MeasurementReport`) represents a report containing
 various measurements and various metadata about the process through which it
 was created.
 
 A measurement report contains one or more "Measurement Groups", where each
-group contains measurements and/or qualitative_evaluations about a particular image or
+group contains measurements and/or qualitative evaluations about a particular image or
 image region. There are three types of Measurement Group, each of which refer
 to different types of region:
 
-- :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`: Refers to one or
-  more entire images or image frames.
-- :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`: Refers
-  to a 2D region of a single image.
-- :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`:
+- :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`
+  (`TID1501 <tid1501def_>`_): Refers to one or more entire images or image
+  frames.
+- :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`
+  (`TID1410 <tid1410def_>`_): Refers to a 2D region within a single image.
+- :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`
+  (`TID1411 <tid1411def_>`_): Refers to a 2D region within a single image.
   Refers to a 3D region within an image or image series.
 
 A single Measurement Report may contain a mixture of Measurement Groups of
 these different types in any combination (as long as there is at least one
 group).
 
-Each Measurement Group contains a number of Measurements (numerical values
-derived from an image, such as a length or volume) and/or Qualitative
-Evaluations (categorical values derived from an image, such as classification
-of a tumor morphology).
+Each Measurement Group contains a number of Measurements
+(`TID300 <tid300def_>`_) - numerical values derived from an image, such as a
+length or volume - and/or Qualitative Evaluations - categorical values derived
+from an image, such as classification of a tumor morphology.
+
 
 When constructing the content, it is necessary to start at the bottom of the
 content tree with the Measurements and Evaluations, add them into Measurement
@@ -50,8 +61,8 @@ Groups, add these groups to a Measurement Report, and then create the document
 that contains the report. However, here we will describe the structure from the
 top down, as this makes the big picture clearer.
 
-Measurement Report
-------------------
+Measurement Report (`TID1500 <tid1500def_>`_)
+---------------------------------------------
 
 Every TID1500 Structured Report contains exactly one Measurement Report
 at the root of its content tree. This is represented by the class
@@ -122,8 +133,8 @@ types of Measurement Groups, corresponding to entire images, 2D regions of
 interest, and 3D regions of interest. The three types may be mixed and matched
 within a single Measurement Report in any combination.
 
-Measurements And Qualitative Evaluations Group (TID 1501)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Measurements And Qualitative Evaluations Group (`TID1501 <tid1501def_>`_)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first, and simplest, type of Measurement Group applies to one or more
 entire images (or optionally one or more entire frames in the case of
@@ -163,8 +174,8 @@ The following is a simple example:
        qualitative_evaluations=[...],
     )
 
-Planar ROI Image Measurements Group (TID 1410)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Planar ROI Image Measurements Group (`TID1410 <tid1410def_>`_)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific planar sub-region of the
 source image or images. This is implemented in the class
@@ -176,8 +187,8 @@ options here:
 - ``referenced_region``: The image region is specified directly in the SR
   using a :class:`highdicom.sr.ImageRegion` or
   :class:`highdicom.sr.ImageRegion3D` passed as the ``referenced_region``
-  parameter. In this case, the coordinates defining the SR are stored within
-  the measurement group itself. The choice between
+  parameter. In this case, the coordinates defining the region are stored
+  within the measurement group itself. The choice between
   :class:`highdicom.sr.ImageRegion` and :class:`highdicom.sr.ImageRegion3D`
   determines whether the image region is defined in 2D image coordinates or 3D
   frame-of-reference coordinates. Either way, the region must be planar.
@@ -292,8 +303,8 @@ the ``referenced_segment``:
        qualitative_evaluations=[...],
     )
 
-Volumetric ROI Image Measurements Group (TID 1411)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Volumetric ROI Image Measurements Group (`TID1411 <tid1411def_>`_)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This type of Measurement Group applies to a specific volumetric sub-region of
 the source image or images. This is implemented in the class
@@ -458,11 +469,11 @@ Measurements and Qualitative Evaluations
 ----------------------------------------
 
 Finally, we get down to the bottom of the content tree, and the measurements
-and qualitative_evaluations themselves. Information derived from the images or image
-regions represented by the measurement group may be stored as either
-measurements, qualitative qualitative_evaluations, or a mixture or the two. These two
+and qualitative evaluations themselves. Information derived from the images or
+image regions represented by the measurement group may be stored as either
+measurements, qualitative evaluations, or a mixture or the two. These two
 concepts play a similar role in the SR, but measurements have numerical values
-and qualitative qualitative_evaluations have categorical values.
+and qualitative evaluations have categorical values.
 
 Qualitative Evaluations
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -494,8 +505,8 @@ parameters as coded values:
        value=codes.SCT.Anenocarcinoma,
     )
 
-Measurements (TID300)
-~~~~~~~~~~~~~~~~~~~~~
+Measurements (`TID300 <tid300def_>`_)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A Measurement is essentially a numerical (decimal) value derived from the image
 or image region. In *highdicom*, a measurement is represented by the class
@@ -530,7 +541,7 @@ reference for more information):
 - **Finding Sites:** Coded description of one or more anatomic locations
   corresponding to the image region from which measurement was taken.
 - **Method:** Measurement method.
-- **Properties:** Measurement properties, including qualitative_evaluations of its
+- **Properties:** Measurement properties, including qualitative evaluations of its
   normality and/or significance, its relationship to a reference population,
   and an indication of its selection from a set of measurements
 - **Referenced Images:** Referenced images which were used as sources for the
@@ -726,3 +737,10 @@ highdicom test data within the highdicom repository at
         manufacturer='Manufacturer'
     )
     sr_dataset.save_as("sr_document_with_multiple_groups.dcm")
+
+.. _tid300def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300
+.. _tid1500def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500 
+.. _tid1501def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1501
+.. _tid1410def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1410
+.. _tid1411def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1411
+

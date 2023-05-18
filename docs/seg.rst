@@ -109,7 +109,7 @@ representing a liver that has been manually segmented.
 In this second example, we describe a segment representing a tumor that has
 been automatically segmented by an artificial intelligence algorithm. For this,
 we must first provide more information about the algorithm used in an
-:class:`hd.AlgorithmIdentificationSequence`.
+:class:`highdicom.AlgorithmIdentificationSequence`.
 
 .. code-block:: python
 
@@ -966,9 +966,12 @@ that the pixel belongs to segment *i* or a pixel value of 0 represents that the
 pixel belongs to none of the requested segments. Again, this mirrors the way
 you would have passed this segmentation mask to the constructor to create the
 object if you had used a label mask. If the segments overlap, highdicom will
-raise a ``RuntimeError``. Note that combining segments is only possible when
-the segmentation type is ``"BINARY"``, or the segmentation type is
-``"FRACTIONAL"`` but the only two values are actually present in the image.
+raise a ``RuntimeError``. Alternatively, if you specify the
+`skip_overlap_checks` parameter as `True`, no error will be raised and each
+pixel will be given the value of the highest segment number of those present in
+the pixel. Note that combining segments is only possible when the segmentation
+type is ``"BINARY"``, or the segmentation type is ``"FRACTIONAL"`` but the only
+two values are actually present in the image.
 
 Here, we repeat the above example but request the output as a label map:
 
