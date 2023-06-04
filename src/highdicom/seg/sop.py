@@ -2151,8 +2151,10 @@ class Segmentation(SOPClass):
                         )
 
         # There shouldn't be duplicates here, but there's no explicit rule
-        # preventing it
-        unique_instance_data = set(instance_data)
+        # preventing it.
+        # Since dictionary ordering is preserved, this trick deduplicates
+        # the list without changing the order
+        unique_instance_data = list(dict.fromkeys(instance_data))
         if len(unique_instance_data) != len(instance_data):
             logger.warning(
                 'Duplicate entries found in the ReferencedSeriesSequence.'
@@ -3084,9 +3086,9 @@ class Segmentation(SOPClass):
         >>> for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
         ...     print(sop_uid)
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93
-        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
 
         Get the segmentation array for a subset of these images:
 
