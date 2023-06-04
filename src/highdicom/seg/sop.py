@@ -3084,9 +3084,9 @@ class Segmentation(SOPClass):
         >>> for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
         ...     print(sop_uid)
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93
+        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94
         1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95
-        1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
 
         Get the segmentation array for a subset of these images:
 
