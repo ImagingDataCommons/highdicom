@@ -2150,7 +2150,15 @@ class Segmentation(SOPClass):
                             )
                         )
 
-        return instance_data
+        # There shouldn't be duplicates here, but there's no explicit rule
+        # preventing it
+        unique_instance_data = set(instance_data)
+        if len(unique_instance_data) != len(instance_data):
+            logger.warning(
+                'Duplicate entries found in the ReferencedSeriesSequence.'
+            )
+
+        return list(unique_instance_data)
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
