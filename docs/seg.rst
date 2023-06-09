@@ -763,8 +763,7 @@ several extra methods that make it easier to work with the segmentation.
     import highdicom as hd
 
     seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
-    print(type(seg))
-    # <class 'highdicom.seg.sop.Segmentation'>
+    assert isinstance(seg, hd.seg.Segmentation)
 
 Alternatively, you can convert an existing ``pydicom.Dataset`` into a
 :class:`highdicom.seg.Segmentation` using the
@@ -781,8 +780,7 @@ you receive the object over network rather than reading from file.
     # Convert to highdicom Segmentation object
     seg = hd.Segmentation.from_dataset(dcm)
 
-    print(type(seg))
-    # <class 'highdicom.seg.sop.Segmentation'>
+    assert isinstance(seg, hd.seg.Segmentation)
 
 By default this operation copies the underlying dataset, which may be slow for
 large objects. You can use ``copy=False`` to change the type of the object
@@ -798,8 +796,7 @@ attributes by their keyword, in the usual way.
     import pydicom
 
     seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
-    print(isinstance(seg, pydicom.Dataset))
-    # True
+    assert isinstance(seg, pydicom.Dataset)
 
     # Accessing DICOM attributes as usual in pydicom
     seg.PatientName
@@ -822,32 +819,32 @@ whose descriptions meet certain criteria. For example:
     # This is a test file in the highdicom git repository
     seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
 
-    # Print the number of segments
-    print(seg.number_of_segments)  # '2'
+    # Check the number of segments
+    assert seg.number_of_segments == 2
 
-    # Print the range of segment numbers
-    print(seg.segment_numbers)  # 'range(1, 3)'
+    # Check the range of segment numbers
+    assert seg.segment_numbers == range(1, 3)
 
     # Search for segments by label (returns segment numbers of all matching
     # segments)
-    print(seg.get_segment_numbers(segment_label='first segment'))  # '[1]'
-    print(seg.get_segment_numbers(segment_label='second segment'))  # '[2]'
+    assert seg.get_segment_numbers(segment_label='first segment')) == [1]
+    assert seg.get_segment_numbers(segment_label='second segment')) == [2]
 
     # Search for segments by segmented property type (returns segment numbers
     # of all matching segments)
-    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone))  # '[1]'
-    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine))  # '[2]'
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone)) == [1]
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine)) == [2]
 
     # Search for segments by tracking UID (returns segment numbers of all
     # matching segments)
-    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'))  # '[1]'
-    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772'))  # '[2]'
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067')) == [1]
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772')) == [2]
 
     # You can also get the full description for a given segment, and access
     # the information in it via properties
     segment_1_description = seg.get_segment_description(1)
-    print(segment_1_description.segment_label) #  'first segment'
-    print(segment_1_description.tracking_uid)  # '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
+    assert segment_1_description.segment_label) == 'first segment'
+    assert segment_1_description.tracking_uid) == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
 
 
 Reconstructing Segmentation Masks From DICOM SEGs
@@ -904,10 +901,8 @@ on GitHub.
             '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94'
         ]
     )
-    print(pixels.shape)
-    # (2, 16, 16, 1)
-    print(np.unique(pixels))
-    # [0, 1]
+    assert pixels.shape == (2, 16, 16, 1)
+    assert np.array_equal(np.unique(pixels), np.array([0, 1]))
 
 This second example demonstrates reconstructing segmentation masks from a
 segmentation derived from a multiframe image, in this case a whole slide
@@ -921,8 +916,7 @@ this case 20, segments:
     # Read in the segmentation using highdicom
     seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
 
-    print(seg.number_of_segments)
-    # 20
+    assert seg.number_of_segments == 20
 
     # SOP Instance UID of the single multiframe image from which the
     # segmentation was derived
@@ -936,12 +930,10 @@ this case 20, segments:
 
     # Source frames are stacked down the first dimension, segments are stacked
     # down the fourth dimension
-    print(pixels.shape)
-    # (25, 10, 10, 20)
+    assert pixels.shape == (25, 10, 10, 20)
 
     # Each segment is still binary
-    print(np.unique(pixels))
-    # [0, 1]
+    assert np.array_equal(np.unique(pixels), np.array([0, 1]))
 
 Note that these two methods may only be used when the segmentation's metadata
 indicates that each segmentation frame is derived from exactly one source
@@ -969,8 +961,7 @@ order they were requested (which may not be ascending by segment number).
     # Read in the segmentation using highdicom
     seg = hd.seg.segread('data/test_files/seg_image_sm_numbers.dcm')
 
-    print(seg.number_of_segments)
-    # 20
+    assert seg.number_of_segments == 20
 
     # SOP Instance UID of the single multiframe image from which the
     # segmentation was derived
@@ -986,8 +977,7 @@ order they were requested (which may not be ascending by segment number).
 
     # Source frames are stacked down the first dimension, segments are stacked
     # down the fourth dimension
-    print(pixels.shape)
-    # (25, 10, 10, 3)
+    assert pixels.shape == (25, 10, 10, 3)
 
 After this, the array ``pixels[:, :, :, 0]`` contains the pixels for segment
 number 10, ``pixels[:, :, :, 1]`` contains the pixels for segment number 9, and
@@ -1037,11 +1027,9 @@ Here, we repeat the above example but request the output as a label map:
 
     # Source frames are stacked down the first dimension, now there is no
     # fourth dimension
-    print(pixels.shape)
-    # (25, 10, 10)
+    assert pixels.shape == (25, 10, 10)
 
-    print(np.unique(pixels))
-    # [0 8 9 10]
+    assert np.array_equal(np.unique(pixels), np.array([0, 8, 9, 10]))
 
 In the default behavior, the pixel values of the output label map correspond to
 the original segment numbers to which those pixels belong. Therefore we see
@@ -1076,12 +1064,10 @@ the ``relabel`` parameter.
 
     # Source frames are stacked down the first dimension, now there is no
     # fourth dimension
-    print(pixels.shape)
-    # (25, 10, 10)
+    assert pixels.shape == (25, 10, 10)
 
     # Now the output segments have been relabelled to 1, 2, 3
-    print(np.unique(pixels))
-    # [0 1 2 3]
+    assert np.array_equal(np.unique(pixels), np.array([0, 1, 2, 3]))
 
 Reconstructing Fractional Segmentations
 ---------------------------------------
@@ -1101,8 +1087,7 @@ as stored in the SEG will be returned.
     # Read in the segmentation using highdicom
     seg = hd.seg.segread('data/test_files/seg_image_ct_true_fractional.dcm')
 
-    print(seg.segmentation_type)
-    # SegmentationTypeValues.FRACTIONAL
+    assert seg.segmentation_type == hd.seg.SegmentationTypeValues.FRACTIONAL
 
     # List the source images for this segmentation:
     sop_uids = [uids[2] for uids in seg.get_source_image_uids()]
@@ -1113,8 +1098,8 @@ as stored in the SEG will be returned.
     )
 
     # Each segment values are now floating point
-    print(pixels.dtype)
-    # float32
+    assert pixels.dtype == np.float32
+
     print(np.unique(pixels))
     # [0.        0.2509804 0.5019608]
 
