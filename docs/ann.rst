@@ -38,7 +38,7 @@ contains. The required metadata elements include:
   describing the category and specific structure that has been annotated.
 * A ``graphic_type`` (:class:`highdicom.ann.GraphicTypeValues`) indicating the
   "form" of the annotations. Permissible values are ``"ELLIPSE"``, ``"POINT"``,
-  ``"POLYGON"``,``"RECTANGLE"``, and ``"POLYLINE"``.
+  ``"POLYGON"``, ``"RECTANGLE"``, and ``"POLYLINE"``.
 * The ``algorithm_type``
   (:class:`highdicom.ann.AnnotationGroupGenerationTypeValues`), the type of the
   algorithm used to generate the annotations (``"MANUAL"``,
@@ -55,7 +55,7 @@ that the coordinates are expressed as a (Column,Row) pair in image coordinates
 -- or 3 -- meaning that the coordinates are expressed as a (X,Y,Z) triple in 3D
 frame of reference coordinates.
 
-Here is a simple example of constructing an annotation group.
+Here is a simple example of constructing an annotation group:
 
 .. code-block:: python
 
@@ -64,9 +64,8 @@ Here is a simple example of constructing an annotation group.
     import highdicom as hd
     import numpy as np
 
-    # Graphic data containing two nuclei, each represented by a circle
-    # A circle is representing by two point: the center then a point on the
-    # circumference
+    # Graphic data containing two nuclei, each represented by a single point
+    # expressed in 2D image coordinates
     graphic_data = [
         np.array([[1234.6, 4088.4], [1239.5, 4088.4]]),
         np.array([[1248.7, 4054.9], [1252.4, 4054.9]]),
