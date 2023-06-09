@@ -6,13 +6,15 @@ from typing import List, Tuple, Union
 from pathlib import Path
 
 import numpy as np
+import pydicom
 from pydicom.dataset import Dataset
 from pydicom.encaps import get_frame_offsets
-from pydicom.filebase import DicomFile, DicomFileLike
+from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
-    read_file_meta_info
+    read_file_meta_info,
+    read_partial
 )
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
@@ -208,6 +210,13 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
+def _stop_after_group_2(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
+    """
+    Stop DCM reading after first tag groups
+    """
+    return tag.group > 2
+
+
 class ImageFileReader(object):
 
     """Reader for DICOM datasets representing Image Information Entities.
@@ -242,31 +251,11 @@ class ImageFileReader(object):
         """
         if isinstance(filename, DicomFileLike):
             fp = filename
-            is_little_endian, is_implicit_VR = self._check_file_format(fp)
-            try:
-                if fp.is_little_endian != is_little_endian:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_little_endian".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_little_endian".'
-                )
-            try:
-                if fp.is_implicit_VR != is_implicit_VR:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_implicit_VR".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_implicit_VR".'
-                )
             self._fp = fp
-            self._filename = Path(fp.name)
+            if isinstance(filename, DicomBytesIO):
+                self._filename = None
+            else:
+                self._filename = Path(fp.name)
         elif isinstance(filename, (str, Path)):
             self._filename = Path(filename)
             self._fp = None
@@ -287,7 +276,10 @@ class ImageFileReader(object):
         return self
 
     def __exit__(self, except_type, except_value, except_trace) -> None:
-        self._fp.close()
+        try:
+            self._fp.close()
+        except AttributeError:
+            pass
         if except_value:
             sys.stderr.write(
                 'Error while accessing file "{}":\n{}'.format(
@@ -331,7 +323,10 @@ class ImageFileReader(object):
         self._fp.is_little_endian = is_little_endian
         self._fp.is_implicit_VR = is_implicit_VR
 
-    def _check_file_format(self, fp) -> Tuple[bool, bool]:
+    def _check_file_format(
+            self,
+            fp: DicomFileLike
+    ) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
         Parameters
@@ -353,7 +348,16 @@ class ImageFileReader(object):
             If the file object does not represent a DICOM Part 10 file
 
         """
-        file_meta = read_file_meta_info(str(self._filename))
+        if self._filename is None:
+            # fileobj type is BinaryIO but works fine with a DicomBytesIO
+            file_meta = read_partial(
+                fileobj=fp,  # type: ignore
+                stop_when=_stop_after_group_2
+            ).file_meta
+            fp.seek(0)
+        else:
+            file_meta = read_file_meta_info(str(self._filename))
+
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         return (
             transfer_syntax_uid.is_little_endian,
@@ -492,7 +496,10 @@ class ImageFileReader(object):
 
     def close(self) -> None:
         """Closes file."""
-        self._fp.close()
+        try:
+            self._fp.close()
+        except AttributeError:
+            return
 
     def read_frame_raw(self, index: int) -> bytes:
         """Reads the raw pixel data of an individual frame item.
