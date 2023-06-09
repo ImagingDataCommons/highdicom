@@ -902,7 +902,7 @@ on GitHub.
         ]
     )
     assert pixels.shape == (2, 16, 16, 1)
-    assert np.array_equal(np.unique(pixels), np.array([0, 1]))
+    assert np.unique(pixels).to_list() == [0, 1]
 
 This second example demonstrates reconstructing segmentation masks from a
 segmentation derived from a multiframe image, in this case a whole slide
@@ -933,7 +933,7 @@ this case 20, segments:
     assert pixels.shape == (25, 10, 10, 20)
 
     # Each segment is still binary
-    assert np.array_equal(np.unique(pixels), np.array([0, 1]))
+    assert np.unique(pixels).to_list() == [0, 1]
 
 Note that these two methods may only be used when the segmentation's metadata
 indicates that each segmentation frame is derived from exactly one source
@@ -1029,7 +1029,7 @@ Here, we repeat the above example but request the output as a label map:
     # fourth dimension
     assert pixels.shape == (25, 10, 10)
 
-    assert np.array_equal(np.unique(pixels), np.array([0, 8, 9, 10]))
+    assert np.unique(pixels).to_list() == [0, 8, 9, 10]
 
 In the default behavior, the pixel values of the output label map correspond to
 the original segment numbers to which those pixels belong. Therefore we see
@@ -1067,7 +1067,7 @@ the ``relabel`` parameter.
     assert pixels.shape == (25, 10, 10)
 
     # Now the output segments have been relabelled to 1, 2, 3
-    assert np.array_equal(np.unique(pixels), np.array([0, 1, 2, 3]))
+    assert np.unique(pixels).to_list() == [0, 1, 2, 3]
 
 Reconstructing Fractional Segmentations
 ---------------------------------------
