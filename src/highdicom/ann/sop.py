@@ -2,9 +2,21 @@
 from collections import defaultdict
 from copy import deepcopy
 from operator import eq
-from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
+from os import PathLike
+from typing import (
+    Any,
+    BinaryIO,
+    cast,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
+from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import (
@@ -406,7 +418,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
     @classmethod
     def from_dataset(
         cls,
-        dataset: Dataset
+        dataset: Dataset,
+        copy: bool = True,
     ) -> 'MicroscopyBulkSimpleAnnotations':
         """Construct instance from an existing dataset.
 
@@ -414,6 +427,10 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing a Microscopy Bulk Simple Annotations instance.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -431,12 +448,38 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 'instance.'
             )
         _check_little_endian(dataset)
-        ann = deepcopy(dataset)
+        if copy:
+            ann = deepcopy(dataset)
+        else:
+            ann = dataset
         ann.__class__ = MicroscopyBulkSimpleAnnotations
 
         ann.AnnotationGroupSequence = [
-            AnnotationGroup.from_dataset(item)
+            AnnotationGroup.from_dataset(item, copy=copy)
             for item in ann.AnnotationGroupSequence
         ]
 
         return cast(MicroscopyBulkSimpleAnnotations, ann)
+
+
+def annread(
+    fp: Union[str, bytes, PathLike, BinaryIO],
+) -> MicroscopyBulkSimpleAnnotations:
+    """Read a bulk annotations object stored in DICOM File Format.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing a
+        MicroscopyBulkSimpleAnnotations object.
+
+    Returns
+    -------
+    highdicom.ann.MicroscopyBulkSimpleAnnotations
+        Bulk annotations object read from the file.
+
+    """
+    return MicroscopyBulkSimpleAnnotations.from_dataset(
+        dcmread(fp),
+        copy=False
+    )

@@ -15,7 +15,7 @@ from highdicom.ann.enum import (
     AnnotationGroupGenerationTypeValues,
     GraphicTypeValues,
 )
-from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations
+from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations, annread
 from highdicom.content import AlgorithmIdentificationSequence
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
@@ -468,6 +468,11 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             dataset = dcmread(fp)
 
         annotations = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
+
+        with BytesIO() as fp:
+            annotations.save_as(fp)
+            fp.seek(0)
+            annotations = annread(fp)
 
         assert isinstance(
             annotations.annotation_coordinate_type,
