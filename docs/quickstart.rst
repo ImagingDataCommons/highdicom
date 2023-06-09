@@ -147,33 +147,66 @@ For more information see :doc:`seg`.
 Parsing Segmentation (SEG) images
 ---------------------------------
 
-Iterating over segments in a segmentation image instance:
+Finding relevant segments in a segmentation image instance and retrieving masks
+for them:
 
 .. code-block:: python
 
-    from pathlib import Path
-
     import highdicom as hd
-    from pydicom.filereader import dcmread
+    import numpy as np
+    from pydicom.sr.codedict import codes
 
-    # Path to multi-frame SEG image instance stored as PS3.10 file
-    seg_file = Path('/path/to/seg/file')
+    # Read SEG Image data set from PS3.10 files on disk into a Segmentation
+    # object
+    # This example is a test file in the highdicom git repository
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
 
-    # Read SEG Image data set from PS3.10 files on disk
-    seg_dataset = dcmread(str(seg_file))
+    # Check the number of segments
+    assert seg.number_of_segments == 2
 
-    # Iterate over segments and print the information about the frames
-    # that encode the segment across different image positions
-    for frames, frame_descriptions, description in hd.seg.utils.iter_segments(seg_dataset):
-        print(frames.shape)
-        print(
-            set([
-                item.SegmentIdentificationSequence[0].ReferencedSegmentNumber
-                for item in frame_descriptions
-            ])
-        )
-        print(description.SegmentNumber)
+    # Find segments (identified by their segment number) that have segmented
+    # property type "Bone"
+    bone_segment_numbers = seg.get_segment_numbers(
+        segmented_property_type=codes.SCT.Bone
+    )
+    assert bone_segment_numbers ==  [1]
 
+    # List SOP Instance UIDs of the images from which the segmentation was
+    # derived
+    for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
+        print(study_uid, series_uid, sop_uid)
+        # '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93'
+        # ...
+
+    # Here is a list of known SOP Instance UIDs that are a subset of those
+    # from which the segmentation was derived
+    source_image_uids = [
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93',
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94',
+    ]
+
+    # Retrieve a binary segmentation mask for these images for the bone segment
+    mask = seg.get_pixels_by_source_instance(
+        source_sop_instance_uids=source_image_uids,
+        segment_numbers=bone_segment_numbers,
+    )
+    # Output is a numpy array of shape (instances x rows x columns x segments)
+    assert mask.shape == (2, 16, 16, 1)
+    assert np.unique(mask).tolist() == [0, 1]
+
+    # Alternatively, retrieve the segmentation mask for the full list of segments
+    # (2 in this case), and combine the resulting array into a "label mask", where
+    # pixel value represents segment number
+    mask = seg.get_pixels_by_source_instance(
+        source_sop_instance_uids=source_image_uids,
+        combine_segments=True,
+        skip_overlap_checks=True,  # the segments in this image overlap
+    )
+    # Output is a numpy array of shape (instances x rows x columns)
+    assert mask.shape == (2, 16, 16)
+    assert np.unique(mask).tolist() == [0, 1, 2]
+
+For more information see :doc:`seg`.
 
 .. _creating-sr:
 
