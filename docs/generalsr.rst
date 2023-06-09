@@ -261,8 +261,10 @@ Structured Report DICOM object. There are many IODs (Information Object
 Definitions) for Structured Reports, and `highdicom` currently implements three
 of them:
 
-- :class:`highdicom.sr.EnhancedSR` -- ??? It does not support Scoord 3D Content Items,
-- :class:`highdicom.sr.ComprehensiveSR` -- ??? It does not support Scoord 3D Content Items.
+- :class:`highdicom.sr.EnhancedSR` -- Does not support Scoord 3D Content Items.
+- :class:`highdicom.sr.ComprehensiveSR` -- Does not support Scoord 3D Content
+  Items. In terms of functionality currently supported by `highdicom`, this is
+  equivalent to the EnhancedSR.
 - :class:`highdicom.sr.Comprehensive3DSR` -- This is the most general form of
   SR, but is relatively new and may not be supported by all systems. It does
   support Scoord 3D Content Items.

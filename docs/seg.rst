@@ -54,22 +54,22 @@ describing what the segment represents. This information is placed in the
 *highdcom*, we use the :class:`highdicom.seg.SegmentDescription` class to hold
 this information. When you construct a DICOM SEG image using *highdicom*, you
 must construct a single :class:`highdicom.seg.SegmentDescription` object for
-each segment, and provide the following information:
+each segment. The segment description includes the following information:
 
 - **Segment Label**: A human-readable name for the segment (e.g. ``"Left
   Kidney"``). This can be any string.
 - **Segmented Property Category**: A coded value describing the
   category of the segmented region. For example this could specify that the
   segment represents an anatomical structure, a tissue type, or an abnormality.
-  This is passed as a coded value as either a
+  This is passed as either a
   :class:`highdicom.sr.CodedConcept`, or a :class:`pydicom.sr.coding.Code`
   object.
-- **Segmented Property Type**: Another coded concept that more specifically
+- **Segmented Property Type**: Another coded value that more specifically
   describes the segmented region, as for example a kidney or tumor.  This is
-  passed as a coded value as either a :class:`highdicom.sr.CodedConcept`, or a
+  passed as either a :class:`highdicom.sr.CodedConcept`, or a
   :class:`pydicom.sr.coding.Code` object.
 - **Algorithm Type**: Whether the segment was produced by an automatic,
-  semi-automatic or manual algorithm. The valid values are contained within the
+  semi-automatic, or manual algorithm. The valid values are contained within the
   enum :class:`highdicom.seg.SegmentAlgorithmTypeValues`.
 - **Anatomic Regions**: (Optional) A coded value describing the anatomic region
   in which the segment is found. For example, if the segmented property type is
@@ -77,10 +77,10 @@ each segment, and provide the following information:
   This is passed as a sequence of coded values as either
   :class:`highdicom.sr.CodedConcept`, or :class:`pydicom.sr.coding.Code`
   objects.
-- **Tracking ID and UID**: (Optional) This allows you to provide a ID and
-  unique ID to a specific segment. This can be used to uniquely identify
-  particular lesions over multiple imaging studies, for example. These are
-  passed as strings.
+- **Tracking ID and UID**: (Optional) These allow you to provide, respectively,
+  a human readable ID and unique ID to a specific segment. This can be used,
+  for example, to uniquely identify particular lesions over multiple imaging
+  studies. These are passed as strings.
 
 Notice that the segment description makes use of coded concepts to ensure that
 the way a particular anatomical structure is described is standardized and
@@ -132,47 +132,6 @@ we must first provide more information about the algorithm used in an
         anatomic_regions=[codes.SCT.Kidney]
     )
 
-When working with existing SEG images you can use highdicom to search for
-segments whose descriptions meet certain criteria. For example:
-
-.. code-block:: python
-
-    from pydicom.sr.codedict import codes
-
-    import highdicom as hd
-
-
-    # This is a test file in the highdicom git repository
-    seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
-
-    # Print the number of segments
-    print(seg.number_of_segments)  # '2'
-
-    # Print the range of segment numbers
-    print(seg.segment_numbers)  # 'range(1, 3)'
-
-    # Search for segments by label (returns segment numbers of all matching
-    # segments)
-    print(seg.get_segment_numbers(segment_label='first segment'))  # '[1]'
-    print(seg.get_segment_numbers(segment_label='second segment'))  # '[2]'
-
-    # Search for segments by segmented property type (returns segment numbers
-    # of all matching segments)
-    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone))  # '[1]'
-    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine))  # '[2]'
-
-    # Search for segments by tracking UID (returns segment numbers of all
-    # matching segments)
-    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'))  # '[1]'
-    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772'))  # '[2]'
-
-    # You can also get the full description for a given segment, and access
-    # the information in it via properties
-    segment_1_description = seg.get_segment_description(1)
-    print(segment_1_description.segment_label) #  'first segment'
-    print(segment_1_description.tracking_uid)  # '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
-
-
 Binary and Fractional SEGs
 --------------------------
 
@@ -211,8 +170,8 @@ We have now covered enough to construct a basic binary segmentation image. We
 use the :class:`highdicom.seg.Segmentation` class and provide a description of
 each segment, a pixel array of the segmentation mask, the source images as a
 list of ``pydicom.Dataset`` objects, and some other basic information. The
-segmentation pixel array is provided as a numpy array with an unsigned integer
-data type containing only the values 0 and 1.
+segmentation pixel array is provided as a numpy array with a boolean or
+unsigned integer data type containing only the values 0 and 1.
 
 .. code-block:: python
 
@@ -269,7 +228,7 @@ the frames within the ``source_images`` parameter, i.e. ``pixel_array[i, ...]``
 is the segmentation of ``source_images[i]``. Note that highdicom makes no
 attempt to sort the input source images in any way. It is the responsibility of
 the user to ensure that they pass the source images in a meaningful order, and
-the source images and segmentation frames at the same index correspond.
+that the source images and segmentation frames at the same index correspond.
 
 
 .. code-block:: python
@@ -333,8 +292,11 @@ a convenient shorthand for the special case where there is only a single source
 frame and a single segment. It is equivalent in every way to passing a 3D array
 with a single frame down axis 0.
 
+Constructing Binary SEG Images of Multiframe Souce Images
+---------------------------------------------------------
+
 Alternatively, we could create a segmentation of a source image that is itself
-a multiframe image (such as an Enhanced CT or MR image, or a Whole Slide
+a multiframe image (such as an Enhanced CT, Enhanced MR image, or a Whole Slide
 Microscopy image). In this case, we just pass the single source image object,
 and the ``pixel_array`` input with one segmentation frame in axis 0 for each
 frame of the source file, listed in ascending order by frame number. I.e.
@@ -406,7 +368,7 @@ the ``pixel_array`` passed to the constructor. There are two methods of doing
 this.  The first is to stack the masks for the multiple segments down axis 3
 (the fourth axis) of the ``pixel_array``. The shape of the resulting
 ``pixel_array`` with *F* source frames of height *H* and width *W*, with *S*
-segments, is then (*F* x *H* x *W* *S*). The segmentation mask for the segment
+segments, is then (*F* x *H* x *W* x *S*). The segmentation mask for the segment
 with ``segment_number=i`` should be found at ``pixel_array[:, :, :, i - 1]``
 (the offset of -1 is because segments are numbered starting at 1 but numpy
 array indexing starts at 0).
@@ -480,10 +442,14 @@ label map form is more convenient to work with in many applications, however it
 is limited to representing segmentations that do not overlap (i.e. those in
 which a single pixel can belong to at most one segment). The more general form
 does not have this limitation: a given pixel may belong to any number of
-segments.
+segments. Note that passing a "label map" is purely a convenience provided by
+`highdicom`, it makes no difference to how the segmentation is actually stored
+(`highdicom` splits the label map into multiple single-segment frames and
+stores these, as required by the standard).
 
-The following snippet produces an equivalent SEG image to the previous snippet,
-but passes the mask as a label map rather than as a stack of segments.
+Therefore, The following snippet produces an equivalent SEG image to the
+previous snippet, but passes the mask as a label map rather than as a stack of
+segments.
 
 .. code-block:: python
 
@@ -530,7 +496,8 @@ not stored this way. Instead they are quantized and scaled so that they may be
 stored as unsigned 8-bit integers between 0 and the value of the "Maximum
 Fractional Value" (0062,000E) attribute. Thus, assuming a "Maximum Fractional
 Value" of 255, a pixel value of *x* should be interpreted as a probability or
-occupancy value of *x*/255.
+occupancy value of *x*/255. You can control the "Maximum Fractional Value" by
+passing the ``max_fractional_value`` parameter. 255 is used as the default.
 
 When constructing ``"FRACTIONAL"`` segmentation images, you pass a
 floating-point valued pixel array and *highdicom* handles this
@@ -542,9 +509,9 @@ Similarly, *highdicom* will rescale stored values back down to the range 0-1 by
 default in its methods for retrieving pixel arrays (more on this below).
 
 Otherwise, constructing ``"FRACTIONAL"`` segs is identical to constructing
-binary ones ``"BINARY"``, with the caveat that fractional SEGs may not use the
-"label map" method to pass multiple segments but must instead stack them along
-axis 3.
+binary ones ``"BINARY"``, with the limitation that fractional SEGs may not use
+the "label map" method to pass multiple segments but must instead stack them
+along axis 3.
 
 The example below shows a simple example of constructing a fractional seg
 representing a probabilistic segmentation of the liver.
@@ -593,10 +560,27 @@ representing a probabilistic segmentation of the liver.
         device_serial_number='1234567890',
     )
 
+Implicit Conversion to Fractional
+---------------------------------
+
+Note that any segmentation pixel array that `highdicom` allows you to store as a
+``"BINARY"`` SEG (i.e. a binary segmentation with segments stacked down axis 3,
+or a label-map style segmentation) may also be stored as a ``"FRACTIONAL"``
+SEG. You just pass the integer array, specify the ``segmentaton_type`` as
+``"FRACTIONAL"`` and `highdicom` does the conversion for you. Input pixels
+with value 1 will be automatically stored with value ``max_fractional_value``.
+We recommend that if you do this, you specify ``max_fractional_value=1`` to
+clearly communicate that the segmentation is inherently binary in nature.
+
+Why would you want to make this seemingly rather strange choice? Well,
+``"FRACTIONAL"`` SEGs tend to compress *much* better than ``"BINARY"`` ones
+(see next section). Note however, that this is arguably an misuse of the intent
+of the standard, so *caveat emptor*.
+
 Compression
 -----------
 
-The type of pixel compression available in segmentation images depends on the
+The types of pixel compression available in segmentation images depends on the
 segmentation type. Pixels in a ``"BINARY"`` segmentation image are "bit-packed"
 such that 8 pixels are grouped into 1 byte in the stored array. If a given frame
 contains a number of pixels that is not divisible by 8 exactly, a single byte 
@@ -639,7 +623,7 @@ transformed before the segmentation method is applied, such that there is no
 longer a simple correspondence between pixels in the segmentation mask and
 pixels in the original source DICOM image.
 
-Highdicom supports this case by allowing you to manually specify the plane
+`Highdicom` supports this case by allowing you to manually specify the plane
 positions of the each frame in the segmentation mask, and further the
 orientations and pixel spacings of these planes if they do not match that in the
 source images. In this case, the correspondence between the items of the
@@ -733,7 +717,8 @@ frames are stored within the SEG as an array indexed by a frame number
 SEG a lot of freedom about how to organize the resulting frames within the 1D
 list within the SEG. To complicate matters further, frames in the segmentation
 image that would otherwise be "empty" (contain only 0s) may be omitted from the
-SEG image entirely (this is highdicom's default behavior).
+SEG image entirely (this is `highdicom`'s default behavior but cant be turned
+off if you prefer by specifying ``omit_empty_frames=False`` in the constructor).
 
 Every ``pydicom.Dataset`` has the ``.pixel_array`` property, which, in the case
 of a multiframe image, returns the full list of frames in the image as an array
@@ -759,7 +744,7 @@ attribute (5200, 9230) with the matching frame number, it is possible to
 determine the meaning of a certain segmentation frame. We will not describe the
 full details of this mechanism here.
 
-Instead, highdicom provides a family of methods to help users reconstruct
+Instead, `highdicom` provides a family of methods to help users reconstruct
 segmentation masks from SEG objects in a predictable and more intuitive way. We
 recommend using these methods over the basic ``.pixel_array`` in nearly all
 circumstances.
@@ -771,9 +756,7 @@ Since a segmentation is a DICOM object just like any other image, you can read
 it in from a file using ``pydicom`` to give you a ``pydicom.Dataset``. However,
 if you read the file in using the :func:`highdicom.seg.segread` function, the
 segmentation will have type :class:`highdicom.seg.Segmentation`. This adds
-several extra methods that make it easier to work with the segmentation, such
-as the :meth:`highdicom.seg.Segmentation.get_segment_numbers` method that we
-saw above.
+several extra methods that make it easier to work with the segmentation.
 
 .. code-block:: python
 
@@ -806,8 +789,8 @@ large objects. You can use ``copy=False`` to change the type of the object
 without copying the data.
 
 Since :class:`highdicom.seg.Segmentation` is a subclass of ``pydicom.Dataset``,
-you can still perform operations on it, such as access DICOM attributes by
-their keyword, in the usual way.
+you can still perform `pydicom` operations on it, such as access DICOM
+attributes by their keyword, in the usual way.
 
 .. code-block:: python
 
@@ -822,10 +805,55 @@ their keyword, in the usual way.
     seg.PatientName
     # 'Doe^Archibald'
 
+Searching For Segments
+----------------------
+
+When working with existing SEG images you can use the method
+:meth:`highdicom.seg.Segmentation.get_segment_numbers()` to search for segments
+whose descriptions meet certain criteria. For example:
+
+.. code-block:: python
+
+    from pydicom.sr.codedict import codes
+
+    import highdicom as hd
+
+
+    # This is a test file in the highdicom git repository
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary_overlap.dcm')
+
+    # Print the number of segments
+    print(seg.number_of_segments)  # '2'
+
+    # Print the range of segment numbers
+    print(seg.segment_numbers)  # 'range(1, 3)'
+
+    # Search for segments by label (returns segment numbers of all matching
+    # segments)
+    print(seg.get_segment_numbers(segment_label='first segment'))  # '[1]'
+    print(seg.get_segment_numbers(segment_label='second segment'))  # '[2]'
+
+    # Search for segments by segmented property type (returns segment numbers
+    # of all matching segments)
+    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone))  # '[1]'
+    print(seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine))  # '[2]'
+
+    # Search for segments by tracking UID (returns segment numbers of all
+    # matching segments)
+    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'))  # '[1]'
+    print(seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772'))  # '[2]'
+
+    # You can also get the full description for a given segment, and access
+    # the information in it via properties
+    segment_1_description = seg.get_segment_description(1)
+    print(segment_1_description.segment_label) #  'first segment'
+    print(segment_1_description.tracking_uid)  # '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
+
+
 Reconstructing Segmentation Masks From DICOM SEGs
 -------------------------------------------------
 
-Highdicom provides the
+`Highdicom` provides the
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` and
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` methods to
 handle reconstruction of segmentation masks from SEG objects in which each
@@ -834,11 +862,11 @@ difference between the two methods is that the
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is used when
 the segmentation is derived from a source series consisting of multiple
 single-frame instances, while
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_source()` is used when
-the segmentation is derived from a single multiframe source instances.
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` is used when
+the segmentation is derived from a single multiframe source instance.
 
 When reconstructing a segmentation mask using
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_source()`, the user must
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()`, the user must
 provide a list of SOP Instance UIDs of the source images for which the
 segmentation mask should be constructed. Whatever order is chosen here will be
 used to order the frames of the output segmentation mask, so it is up to the
@@ -847,10 +875,10 @@ output pixel array is of shape (*F* x *H* x *W* x *S*), where *F* is the number
 of source instance UIDs, *H* and *W* are the height and width of the frames,
 and *S* is the number of segments included in the segmentation. In this way,
 the output of this method matches the input `pixel_array` to the constructor
-that would create the SEG object if it were created with highdicom.
+that would create the SEG object if it were created with `highdicom`.
 
 The following example (and those in later sections) use DICOM files from the
-highdicom test data, which may be found in the 
+`highdicom` test data, which may be found in the 
 `highdicom repository <https://github.com/herrmannlab/highdicom/tree/master/data/test_files>`_
 on GitHub.
 
@@ -883,8 +911,8 @@ on GitHub.
 
 This second example demonstrates reconstructing segmentation masks from a
 segmentation derived from a multiframe image, in this case a whole slide
-microscopy image, and also demonstrates an example with multiple segments, in
-this case 20:
+microscopy image, and also demonstrates an example with multiple, in
+this case 20, segments:
 
 .. code-block:: python
 
@@ -914,6 +942,16 @@ this case 20:
     # Each segment is still binary
     print(np.unique(pixels))
     # [0, 1]
+
+Note that these two methods may only be used when the segmentation's metadata
+indicates that each segmentation frame is derived from exactly one source
+instance or frame of a source instance. If this is not the case, a
+``RuntimeError`` is raised.
+
+In the general case, the
+:meth:`highdicom.seg.Segmentation.get_pixels_by_dimension_index_values()` method
+is available to query directly by the underlying dimension index values. We
+will not cover this advanced topic.
 
 Reconstructing Specific Segments
 --------------------------------
@@ -961,17 +999,19 @@ Reconstructing Segmentation Masks as "Label Maps"
 If the segments do not overlap, it is possible to combine the multiple segments
 into a simple "label map" style mask, as described above. This can be achieved
 by specifying the ``combine_segments`` parameter as ``True``. In this case, the
-output will have shape (*F* x *H* x *W*), and a pixel value of *i* represents
-that the pixel belongs to segment *i* or a pixel value of 0 represents that the
-pixel belongs to none of the requested segments. Again, this mirrors the way
-you would have passed this segmentation mask to the constructor to create the
-object if you had used a label mask. If the segments overlap, highdicom will
-raise a ``RuntimeError``. Alternatively, if you specify the
-`skip_overlap_checks` parameter as `True`, no error will be raised and each
-pixel will be given the value of the highest segment number of those present in
-the pixel. Note that combining segments is only possible when the segmentation
-type is ``"BINARY"``, or the segmentation type is ``"FRACTIONAL"`` but the only
-two values are actually present in the image.
+output will have shape (*F* x *H* x *W*), and a pixel value of *i > 0*
+indicates that the pixel belongs to segment *i* or a pixel value of 0
+represents that the pixel belongs to none of the requested segments. Again,
+this mirrors the way you would have passed this segmentation mask to the
+constructor to create the object if you had used a label mask. If the segments
+overlap, `highdicom` will raise a ``RuntimeError``. Alternatively, if you
+specify the ``skip_overlap_checks`` parameter as ``True``, no error will be
+raised and each pixel will be given the value of the highest segment number of
+those present in the pixel (or the highest segment value after relabelling has
+been applied if you pass ``relabel=True``, see below). Note that combining
+segments is only possible when the segmentation type is ``"BINARY"``, or the
+segmentation type is ``"FRACTIONAL"`` but the only two values are actually
+present in the image.
 
 Here, we repeat the above example but request the output as a label map:
 
@@ -1010,7 +1050,7 @@ segments that we requested (in addition to 0, meaning no segment). However,
 when you are specifying a subset of segments, you may wish to "relabel" these
 segments such that in the output array the first segment you specify (10 in the
 above example) is indicated by pixel value 1, the second segment (9 in the
-example) has is indicated by pixel value 2, and so on. This is achieved using
+example) is indicated by pixel value 2, and so on. This is achieved using
 the ``relabel`` parameter.
 
 .. code-block:: python
@@ -1046,9 +1086,9 @@ the ``relabel`` parameter.
 Reconstructing Fractional Segmentations
 ---------------------------------------
 
-For ``"FRACTIONAL"`` SEG objects, highdicom will rescale the pixel values in the
-segmentation masks from the integer values as which they are stored back down
-to the range `0.0` to `1.0` as floating point values by scaling by the
+For ``"FRACTIONAL"`` SEG objects, `highdicom` will rescale the pixel values in
+the segmentation masks from the integer values as which they are stored back
+down to the range `0.0` to `1.0` as floating point values by scaling by the
 "MaximumFractionalValue" attribute. If desired, this behavior can be disabled
 by specifying ``rescale_fractional=False``, in which case the raw integer array
 as stored in the SEG will be returned.

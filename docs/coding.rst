@@ -11,12 +11,13 @@ use a code such as '10200004' from the SNOMED-CT nomenclature to describe the
 liver in standardized way. Use of coding is vital to ensure that these concepts
 are expressed unambiguously within DICOM files. Coding is especially
 fundamental within structured reporting, but is also found in other places
-around the DICOM standard and, in turn, highdicom.
+around the DICOM standard and, in turn, `highdicom`.
 
 To communicate a concept in DICOM using a coding scheme, three elements are
 necessary:
 
-- A **coding scheme**: the pre-defined terminology used to define the concept.
+- A **coding scheme**: an identifier of the pre-defined terminology used to
+  define the concept.
 - A code **value**: the code value conveys a unique identifier for the specific
   concept. It is often a number or alphanumeric string that may not have any
   inherent meaning outside of the terminology.
@@ -34,7 +35,7 @@ Examples of widely used medical terminologies include:
   is used to refer to DICOM concepts, as well as other concepts
   within the radiology workflow.
 - `SNOMED-CT <http://snomed.info/sct>`_. This terminology contains codes to
-  describe medical concepts including anatomy, diseases and procedures.
+  describe medical concepts including anatomy, diseases, and procedures.
 - `RadLex <http://www.radlex.org/>`_. A standardized terminology for concepts
   in radiology.
 - `UCUM <https://ucum.org/>`_. A terminology specifically to describe units of
@@ -44,10 +45,10 @@ See
 `this page <https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_8.html>`_
 for a list of terminologies used within DICOM.
 
-Highdicom defines the :class:`highdicom.sr.CodedConcept` class to encapsulate a
-coded concept. To create a :class:`highdicom.sr.CodedConcept`, you pass values
-for the coding scheme, code value, and code meaning. For example, to describe a
-tumor using the SNOMED-CT terminology, you could do this:
+`Highdicom` defines the :class:`highdicom.sr.CodedConcept` class to encapsulate
+a coded concept. To create a :class:`highdicom.sr.CodedConcept`, you pass
+values for the coding scheme, code value, and code meaning. For example, to
+describe a tumor using the SNOMED-CT terminology, you could do this:
 
 .. code-block:: python
 
@@ -65,11 +66,11 @@ Codes within Pydicom
 The `pydicom` library, upon which `highdicom` is built, has its own class
 ``pydicom.sr.coding.Code`` that captures coded concepts in the same way that
 :class:`highdicom.sr.CodedConcept` does. The reason for the difference is that
-the `highdicom` class is a sub-class of `pydicom.Dataset` with the relevant
+the `highdicom` class is a sub-class of ``pydicom.Dataset`` with the relevant
 attributes such that it can be included directly into a DICOM object. `pydicom`
 also includes within it values for a large number of coded concepts within
 the DCM, SNOMED-CT, and UCUM terminologies. For example, instead of manually
-created the "tumor" concept above, we could have just used the pre-defined
+creating the "tumor" concept above, we could have just used the pre-defined
 value in `pydicom`:
 
 .. code-block:: python
@@ -130,8 +131,8 @@ Finding Suitable Codes
 ----------------------
 
 The `pydicom` code dictionary allows searching for concepts via simple string
-matching. However, generally it will be necessary to search the documentation
-for the coding scheme itself.
+matching. However, for more advanced searching it is generally advisable to
+search the documentation for the coding scheme itself.
 
 .. code-block:: python
 
@@ -142,3 +143,6 @@ for the coding scheme itself.
    # 'HistoryOfPrematureDelivery',
    # 'Liver',
    # 'LiverStructure']
+
+   print(codes.SCT.Liver)
+   # Code(value='10200004', scheme_designator='SCT', meaning='Liver', scheme_version=None)

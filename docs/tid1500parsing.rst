@@ -5,9 +5,9 @@ In addition to the ability to create TID 1500 Structured Reports, *highdicom*
 also includes functionality to help you find and extract information from
 existing SR documents in this format.
 
-First you must get the SR dataset into the format of a highdicom class. You
+First you must get the SR dataset into the format of a `highdicom` class. You
 can do this using the ``srread()`` function:
-highdicom SR object.
+`highdicom` SR object.
 
 .. code-block:: python
 
@@ -139,7 +139,7 @@ reflect how the SR document stores the information internally):
   SR indirectly by referencing a segment stored in a DICOM Segmentation Image.
 - ``CodedConcept(value="121191", meaning="Region In Space", scheme_designator="DCM")``
   For ROIs defined in the SR indirectly by referencing a region stored in a
-  DICOM RT Struct object (this is not currently supported by the highdicom
+  DICOM RT Struct object (this is not currently supported by the `highdicom`
   constructor, but is an option in the standard). Unfortunately this code is
   not including in ``pydicom.sr.codedict.codes`` at this time.
 
@@ -171,7 +171,7 @@ Accessing Data in Measurement Groups
 Once you have found measurement groups, there are various properties on the
 returned object that allow you to access the information that you may need.
 These may be in the form of basic Python within the measurement group's content
-items, or highdicom classes representing full sub-templates that in turn have
+items, or `highdicom` classes representing full sub-templates that in turn have
 methods and properties defined on them. These classes are the same classes that
 you use to construct the objects.
 
@@ -319,8 +319,8 @@ In addition to numerical measurements, measurement groups may also contain
 using a coded concept.
 
 Similar to measurements, you can search for evaluations with the
-`get_qualitative_evaluations()` method. You can optionally filter by name with
-the ``name`` parameter. You can access the name and value of the returned
+``get_qualitative_evaluations()`` method. You can optionally filter by name
+with the ``name`` parameter. You can access the name and value of the returned
 evaluations with the ``name`` and ``value`` properties.
 
 .. code-block:: python
