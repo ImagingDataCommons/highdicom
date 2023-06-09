@@ -573,6 +573,8 @@ objects in microscopy images in a space-efficient way.
 
     bulk_annotations.save_as('nuclei_annotations.dcm')
 
+For more information see :ref:`ann`.
+
 .. _parsing-ann:
 
 Parsing Microscopy Bulk Simple Annotation (ANN) objects
@@ -624,6 +626,8 @@ measurements corresponding to those annotations.
     assert units[0] == codes.UCUM.SquareMicrometer
     assert values.shape == (group.number_of_annotations, 1)
 
+
+For more information see :ref:`ann`.
 
 .. _creating-sc:
 
