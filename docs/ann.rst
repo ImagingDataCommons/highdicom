@@ -1,17 +1,17 @@
 .. _ann:
 
-Microscopy Bulk Simple Annotations
-==================================
+Microscopy Bulk Simple Annotation (ANN) Objects
+===============================================
 
 The Microscopy Bulk Simple Annotation IOD is an IOD designed specifically to
 store large numbers of similar annotations and measurements from microscopy
 images. Annotations of microscopy images typically refer to very large numbers
 of cells or cellular structures. Storing these in a Structured Report Document,
 with its highly nested structure, would be very inefficient in storage space
-and unnecessarily complex and slow to parse. Microscopy Bulk Simple Annotations
-("bulk annotations") solve this problem by allowing you to store large number
-of similar annotations or measurements in efficient arrays without duplication
-of the descriptive metadata.
+and unnecessarily complex and slow to parse. Microscopy Bulk Simple Annotation
+objects ("bulk annotations") solve this problem by allowing you to store large
+number of similar annotations or measurements in efficient arrays without
+duplication of the descriptive metadata.
 
 Each bulk annotation object contains one or more Annotation Groups, each of
 which contains a set of graphical annotations, and optionally one or more
@@ -282,18 +282,23 @@ list):
     # Access the annotated property type (returns a CodedConcept)
     assert group.annotated_property_type == Code('84640000', 'SCT', 'Nucleus')
 
+    # Access the graphic type, describing the "form" of each annotation
+    assert group.graphic_type == hd.ann.GraphicTypeValues.POINT
+
+
 You can access the entire array of annotations at once using
-:meth:`highdicom.ann.AnnotationGroup.get_graphic_data()`. You need to pass
-this to the group so that it knows how to interpret the coordinate data. This
-method returns a list of 2D numpy arrays of shape (*N* x *D*), mirroring how
-you would have passed the data in to create the annotation with `highdicom`.
+:meth:`highdicom.ann.AnnotationGroup.get_graphic_data()`. You need to pass the
+annotation coordinate type from the parent bulk annotation object to the group
+so that it knows how to interpret the coordinate data. This method returns a
+list of 2D numpy arrays of shape (*N* x *D*), mirroring how you would have
+passed the data in to create the annotation with `highdicom`.
 
 .. code-block:: python
 
     import numpy as np
 
     graphic_data = group.get_graphic_data(
-        coordinate_type=hd.ann.AnnotationCoordinateTypeValues.SCOORD
+        coordinate_type=ann.AnnotationCoordinateType,
     )
     assert len(graphic_data) == 2 and isinstance(graphic_data[0], np.ndarray)
 
@@ -308,7 +313,7 @@ using its (one-based) index in the annotation list:
     # Access an annotation using 1-based index
     first_annotation = group.get_coordinates(
         annotation_number=1,
-        coordinate_type=hd.ann.AnnotationCoordinateTypeValues.SCOORD,
+        coordinate_type=ann.AnnotationCoordinateType,
     )
     assert np.array_equal(first_annotation, np.array([[34.6, 18.4]]))
 

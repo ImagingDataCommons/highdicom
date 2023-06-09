@@ -503,6 +503,128 @@ items in the content tree of any structured report documents:
         print(regions)
 
 
+.. _creating-ann:
+
+Creating Microscopy Bulk Simple Annotation (ANN) objects
+--------------------------------------------------------
+
+Microscopy Bulk Simple Annotations store large numbers of annotations of
+objects in microscopy images in a space-efficient way.
+
+
+.. code-block:: python
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.sr.coding import Code
+    import highdicom as hd
+    import numpy as np
+
+    # Load a slide microscopy image from the highdicom test data (if you have
+    # cloned the highdicom git repo)
+    sm_image = dcmread('data/test_files/sm_image.dcm')
+
+    # Graphic data containing two nuclei, each represented by a single point
+    # expressed in 2D image coordinates
+    graphic_data = [
+        np.array([[34.6, 18.4]]),
+        np.array([[28.7, 34.9]]),
+    ]
+
+    # You may optionally include measurements corresponding to each annotation
+    # This is a measurement object representing the areas of each of the two
+    # nuclei
+    area_measurement = hd.ann.Measurements(
+        name=codes.SCT.Area,
+        unit=codes.UCUM.SquareMicrometer,
+        values=np.array([20.4, 43.8]),
+    )
+
+    # An annotation group represents a single set of annotations of the same
+    # type. Multiple such groups may be included in a bulk annotations object
+    # This group represents nuclei annotations produced by a manual "algorithm"
+    nuclei_group = hd.ann.AnnotationGroup(
+        number=1,
+        uid=hd.UID(),
+        label='nuclei',
+        annotated_property_category=codes.SCT.AnatomicalStructure,
+        annotated_property_type=Code('84640000', 'SCT', 'Nucleus'),
+        algorithm_type=hd.ann.AnnotationGroupGenerationTypeValues.MANUAL,
+        graphic_type=hd.ann.GraphicTypeValues.POINT,
+        graphic_data=graphic_data,
+        measurements=[area_measurement],
+    )
+
+    # Include the annotation group in a bulk annotation object
+    bulk_annotations = hd.ann.MicroscopyBulkSimpleAnnotations(
+        source_images=[sm_image],
+        annotation_coordinate_type=hd.ann.AnnotationCoordinateTypeValues.SCOORD,
+        annotation_groups=[nuclei_group],
+        series_instance_uid=hd.UID(),
+        series_number=10,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='MGH Pathology',
+        manufacturer_model_name='MGH Pathology Manual Annotations',
+        software_versions='0.0.1',
+        device_serial_number='1234',
+        content_description='Nuclei Annotations',
+    )
+
+    bulk_annotations.save_as('nuclei_annotations.dcm')
+
+.. _parsing-ann:
+
+Parsing Microscopy Bulk Simple Annotation (ANN) objects
+-------------------------------------------------------
+
+The following example demonstrates loading in a small bulk microscopy
+annotations file, finding an annotation group representing annotation of
+nuclei, and extracting the graphic data for the annotation as well as the area
+measurements corresponding to those annotations.
+
+.. code-block:: python
+
+    from pydicom import dcmread
+    from pydicom.sr.codedict import codes
+    from pydicom.sr.coding import Code
+    import highdicom as hd
+
+    # Load a bulk annotation file and convert to highdicom object
+    ann_dataset = dcmread('data/test_files/sm_annotations.dcm')
+    ann = hd.ann.MicroscopyBulkSimpleAnnotations.from_dataset(ann_dataset)
+
+    # Search for annotation groups by filtering for annotated property type of
+    # 'nucleus', and take the first such group
+    group = ann.get_annotation_groups(
+        annotated_property_type=Code('84640000', 'SCT', 'Nucleus'),
+    )[0]
+
+    # Determine the graphic type and the number of annotations
+    assert group.number_of_annotations == 2
+    assert group.graphic_type == hd.ann.GraphicTypeValues.POINT
+
+    # Get the graphic data as a list of numpy arrays, we have to pass the
+    # coordinate type from the parent object here
+    graphic_data = group.get_graphic_data(
+        coordinate_type=ann.AnnotationCoordinateType
+    )
+
+    # For annotations of graphic type "POINT" and coordinate type "SCOORD" (2D
+    # image coordinates), each annotation is a (1 x 2) NumPy array
+    assert graphic_data[0].shape == (1, group.number_of_annotations)
+
+    # Annotations may also optionally contain measurements
+    names, values, units = group.get_measurements(name=codes.SCT.Area)
+
+    # The name and the unit are returned as a list of CodedConcepts
+    # and the values are returned in a numpy array of shape (number of
+    # annotations x number of measurements)
+    assert names[0] == codes.SCT.Area
+    assert units[0] == codes.UCUM.SquareMicrometer
+    assert values.shape == (group.number_of_annotations, 1)
+
+
 .. _creating-sc:
 
 Creating Secondary Capture (SC) images

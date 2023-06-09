@@ -6,8 +6,7 @@ also includes functionality to help you find and extract information from
 existing SR documents in this format.
 
 First you must get the SR dataset into the format of a `highdicom` class. You
-can do this using the ``srread()`` function:
-`highdicom` SR object.
+can do this using the :func:`highdicom.sr.srread()` function:
 
 .. code-block:: python
 
