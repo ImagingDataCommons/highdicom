@@ -394,7 +394,7 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             version='1.0'
         )
 
-        annotation_coordinate_type = '3D'
+        annotation_coordinate_type = AnnotationCoordinateTypeValues.SCOORD3D
         first_property_type = Code('4421005', 'SCT', 'Cell')
         first_label = 'cells'
         first_uid = UID()
@@ -468,6 +468,12 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             dataset = dcmread(fp)
 
         annotations = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
+
+        assert isinstance(
+            annotations.annotation_coordinate_type,
+            AnnotationCoordinateTypeValues
+        )
+        assert annotations.annotation_coordinate_type == annotation_coordinate_type
 
         retrieved_groups = annotations.get_annotation_groups()
         assert len(retrieved_groups) == 2

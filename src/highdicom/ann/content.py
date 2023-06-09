@@ -620,6 +620,11 @@ class AnnotationGroup(Dataset):
             2D or 3D spatial coordinates of a graphical annotation
 
         """  # noqa: E501
+        if annotation_number < 1:
+            raise ValueError(
+                'Parameter "annotation_number" must be an integer greater '
+                ' than 1.'
+            )
         graphic_data = self.get_graphic_data(coordinate_type)
         annotation_index = annotation_number - 1
         return graphic_data[annotation_index]

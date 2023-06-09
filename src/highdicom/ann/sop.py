@@ -394,6 +394,15 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
         return groups
 
+    @property
+    def annotation_coordinate_type(
+        self
+    ) -> AnnotationCoordinateTypeValues:
+        """highdicom.ann.AnnotationCoordinateTypeValues: Annotation coordinate type."""  # noqa: E501
+        return AnnotationCoordinateTypeValues(
+            self.AnnotationCoordinateType
+        )
+
     @classmethod
     def from_dataset(
         cls,
