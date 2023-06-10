@@ -11,6 +11,10 @@ SRs are highly complex, and this page attempts to give a basic introduction
 while also describing the implementation within `highdicom`. A more thorough
 explanation my be found in:
 
+* *DICOM Structured Reporting*. David Clunie. PixelMed Publishing, 2000.
+  Digital copy available 
+  `here <http://www.dclunie.com/pixelmed/DICOMSR.book.pdf>`_.
+
 Content Items
 -------------
 
@@ -148,7 +152,9 @@ points. The permissible number of points depends upon the graphic type. For
 example, a ``POINT`` is described by exactly one point, a ``CIRCLE`` is
 described by exactly 2 points (the center and a point on the circumference),
 and a ``POLYLINE`` may contain 2 or more points. See the documentation of the
-relevant enumeration class for specific details on all graphic types.
+relevant enumeration class (:class:`highdicom.sr.GraphicTypeValues` or
+:class:`highdicom.sr.GraphicTypeValues3D`) for specific details on all graphic
+types.
 
 Furthermore, `highdicom` will reconstruct the graphic data stored into a
 content item into a NumPy array of the correct shape if you use the
@@ -187,7 +193,7 @@ accessing their graphic data:
         name=codes.DCM.ImageRegion,
         graphic_type=hd.sr.GraphicTypeValues3D.MULTIPOINT,
         graphic_data=multipoint_data,
-       frame_of_reference_uid="1.2.826.0.1.3680043.10.511.3.88131829333631241913772141475338566",
+        frame_of_reference_uid="1.2.826.0.1.3680043.10.511.3.88131829333631241913772141475338566",
     )
     assert np.array_equal(multipoint_data, multipoint_item.value)
 
@@ -199,7 +205,7 @@ Each content item in an SR document may additionally have an attribute named
 children of that Content Item. `Highdicom` has the class
 :class:`highdicom.sr.ContentSequence` to encapsulate this behavior.
 
-Using ContentSequences containing further Content Items, whose sequences may in
+Using Content Sequences containing further Content Items, whose sequences may in
 turn contain further items, and so on, it is possible to build highly nested
 structures of content items in a "tree" structure.
 
@@ -271,8 +277,8 @@ of them:
 
 The constructors for these classes take a number of parameters specifying the
 content of the structured report, the evidence from which it was derived in the
-form of a list of ``pydicom.Datasets``, as well as various metadata assocaited
-with the report.
+form of a list of ``pydicom.Dataset`` objects, as well as various metadata
+associated with the report.
 
 The content is provided as the ``content`` parameter, which should be a single
 content item representing the "root" of the (potentially) nested structure
@@ -306,7 +312,8 @@ standardized structure of Content Items.
 Structured Reporting Templates
 ------------------------------
 
-The DICOM standard defines a large number of Structured Reporting templates,
+The DICOM standard defines a large number of Structured Reporting
+`templates <https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html>`_,
 which are essentially sets of constraints on the pattern of Content Items
 within a report. Each template is intended for a particular purpose.
 

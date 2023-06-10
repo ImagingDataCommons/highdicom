@@ -25,13 +25,13 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="0.86020712"
-     inkscape:cx="416.76009"
-     inkscape:cy="469.07308"
-     inkscape:window-width="2560"
-     inkscape:window-height="1387"
-     inkscape:window-x="1728"
-     inkscape:window-y="25"
-     inkscape:window-maximized="1"
+     inkscape:cx="391.76611"
+     inkscape:cy="494.06706"
+     inkscape:window-width="1309"
+     inkscape:window-height="456"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
+     inkscape:window-maximized="0"
      inkscape:current-layer="layer1"
      inkscape:pageshadow="2"
      fit-margin-top="0"
@@ -356,10 +356,10 @@
        y="0"><tspan
          x="353.26562"
          y="134.64464"
-         id="tspan2226">Structured Report </tspan><tspan
+         id="tspan2555">Structured Report </tspan><tspan
          x="396.47266"
          y="154.64464"
-         id="tspan2228">Document</tspan></text>
+         id="tspan2557">Document</tspan></text>
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8"
@@ -377,7 +377,7 @@
        y="0"><tspan
          x="348.46484"
          y="134.64464"
-         id="tspan2230">Measurement Report
+         id="tspan2559">Measurement Report
 </tspan></text>
     <text
        xml:space="preserve"
@@ -388,11 +388,11 @@
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2236"><tspan
+         id="tspan2565"><tspan
            style="text-align:start"
-           id="tspan2232">- Observation </tspan><tspan
+           id="tspan2561">- Observation </tspan><tspan
            style="text-align:start"
-           id="tspan2234">Context</tspan></tspan></text>
+           id="tspan2563">Context</tspan></tspan></text>
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8-8"
@@ -418,49 +418,49 @@
        y="0"><tspan
          x="358.06641"
          y="134.64464"
-         id="tspan2238">Measurements and </tspan><tspan
+         id="tspan2567">Measurements and </tspan><tspan
          x="324.46094"
          y="154.64464"
-         id="tspan2240">Qualitative Evaluations
+         id="tspan2569">Qualitative Evaluations
 </tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,-68.15297,46.944132)"
+       transform="matrix(0.26458333,0,0,0.26458333,-68.15297,48.403356)"
        id="text831-5"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect833-4);display:inline;fill:#000000;stroke:#000000;stroke-width:2.13543"
        x="-66.959175"
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2244"><tspan
+         id="tspan2573"><tspan
            style="text-align:start"
-           id="tspan2242">- Source Images
+           id="tspan2571">- Source Images
 </tspan></tspan><tspan
          x="298.18555"
          y="334.13577"
-         id="tspan2248"><tspan
+         id="tspan2577"><tspan
            style="text-align:start"
-           id="tspan2246">- Tracking Identifier
+           id="tspan2575">- Tracking Identifier
 </tspan></tspan><tspan
          x="298.18555"
          y="350.80239"
-         id="tspan2254"><tspan
+         id="tspan2583"><tspan
            style="text-align:start"
-           id="tspan2250">- Finding Category and </tspan><tspan
+           id="tspan2579">- Finding Category and </tspan><tspan
            style="text-align:start"
-           id="tspan2252">Type
+           id="tspan2581">Type
 </tspan></tspan><tspan
          x="298.18555"
          y="367.46902"
-         id="tspan2258"><tspan
+         id="tspan2587"><tspan
            style="text-align:start"
-           id="tspan2256">- Algorithm ID
+           id="tspan2585">- Algorithm ID
 </tspan></tspan><tspan
          x="298.18555"
          y="384.13564"
-         id="tspan2262"><tspan
+         id="tspan2591"><tspan
            style="text-align:start"
-           id="tspan2260">- Finding Sites</tspan></tspan></text>
+           id="tspan2589">- Finding Sites</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,-26.773857,127.1295)"
@@ -470,51 +470,51 @@
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2266"><tspan
+         id="tspan2595"><tspan
            style="text-align:start"
-           id="tspan2264">- Numerical Measurement
+           id="tspan2593">- Numerical Measurement
 </tspan></tspan><tspan
          x="298.18555"
          y="334.13577"
-         id="tspan2270"><tspan
+         id="tspan2599"><tspan
            style="text-align:start"
-           id="tspan2268">- Unit
+           id="tspan2597">- Unit
 </tspan></tspan><tspan
          x="298.18555"
          y="350.80239"
-         id="tspan2274"><tspan
+         id="tspan2603"><tspan
            style="text-align:start"
-           id="tspan2272">- Qualifier
+           id="tspan2601">- Qualifier
 </tspan></tspan><tspan
          x="298.18555"
          y="367.46902"
-         id="tspan2278"><tspan
+         id="tspan2607"><tspan
            style="text-align:start"
-           id="tspan2276">- Tracking Identifier
+           id="tspan2605">- Tracking Identifier
 </tspan></tspan><tspan
          x="298.18555"
          y="384.13564"
-         id="tspan2282"><tspan
+         id="tspan2611"><tspan
            style="text-align:start"
-           id="tspan2280">- Algorithm ID
+           id="tspan2609">- Algorithm ID
 </tspan></tspan><tspan
          x="298.18555"
          y="400.80227"
-         id="tspan2286"><tspan
+         id="tspan2615"><tspan
            style="text-align:start"
-           id="tspan2284">- Derivation
+           id="tspan2613">- Derivation
 </tspan></tspan><tspan
          x="298.18555"
          y="417.4689"
-         id="tspan2290"><tspan
+         id="tspan2619"><tspan
            style="text-align:start"
-           id="tspan2288">- Method
+           id="tspan2617">- Method
 </tspan></tspan><tspan
          x="298.18555"
          y="434.13552"
-         id="tspan2294"><tspan
+         id="tspan2623"><tspan
            style="text-align:start"
-           id="tspan2292">- Finding Sites</tspan></tspan></text>
+           id="tspan2621">- Finding Sites</tspan></tspan></text>
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8-8-6"
@@ -532,51 +532,51 @@
        y="0"><tspan
          x="318.0752"
          y="134.64464"
-         id="tspan2296">Planar ROI Measurements and </tspan><tspan
+         id="tspan2625">Planar ROI Measurements and </tspan><tspan
          x="337.27832"
          y="154.64464"
-         id="tspan2298">Qualitative Evaluations
+         id="tspan2627">Qualitative Evaluations
 </tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,17.135502,48.510999)"
+       transform="matrix(0.26458333,0,0,0.26458333,17.135502,48.503264)"
        id="text831-5-3"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect833-4-0);display:inline;fill:#000000;stroke:#000000;stroke-width:2.13543"
        x="-66.959175"
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2304"><tspan
+         id="tspan2633"><tspan
            style="text-align:start"
-           id="tspan2300">- ROI or Referenced </tspan><tspan
+           id="tspan2629">- ROI or Referenced </tspan><tspan
            style="text-align:start"
-           id="tspan2302">Segment
+           id="tspan2631">Segment
 </tspan></tspan><tspan
          x="298.18555"
          y="334.13577"
-         id="tspan2308"><tspan
+         id="tspan2637"><tspan
            style="text-align:start"
-           id="tspan2306">- Tracking Identifier
+           id="tspan2635">- Tracking Identifier
 </tspan></tspan><tspan
          x="298.18555"
          y="350.80239"
-         id="tspan2314"><tspan
+         id="tspan2643"><tspan
            style="text-align:start"
-           id="tspan2310">- Finding Category and </tspan><tspan
+           id="tspan2639">- Finding Category and </tspan><tspan
            style="text-align:start"
-           id="tspan2312">Type
+           id="tspan2641">Type
 </tspan></tspan><tspan
          x="298.18555"
          y="367.46902"
-         id="tspan2318"><tspan
+         id="tspan2647"><tspan
            style="text-align:start"
-           id="tspan2316">- Algorithm ID
+           id="tspan2645">- Algorithm ID
 </tspan></tspan><tspan
          x="298.18555"
          y="384.13564"
-         id="tspan2322"><tspan
+         id="tspan2651"><tspan
            style="text-align:start"
-           id="tspan2320">- Finding Sites</tspan></tspan></text>
+           id="tspan2649">- Finding Sites</tspan></tspan></text>
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8-8-6-7"
@@ -594,51 +594,51 @@
        y="0"><tspan
          x="318.0752"
          y="134.64464"
-         id="tspan2324">Volumetric ROI Measurements </tspan><tspan
+         id="tspan2653">Volumetric ROI Measurements </tspan><tspan
          x="318.0752"
          y="154.64464"
-         id="tspan2326">and Qualitative Evaluations
+         id="tspan2655">and Qualitative Evaluations
 </tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,102.81301,54.039721)"
+       transform="matrix(0.26458333,0,0,0.26458333,102.81301,48.503264)"
        id="text831-5-3-9"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect833-4-0-7);display:inline;fill:#000000;stroke:#000000;stroke-width:2.13543"
        x="-66.959175"
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2332"><tspan
+         id="tspan2661"><tspan
            style="text-align:start"
-           id="tspan2328">- ROI or Referenced </tspan><tspan
+           id="tspan2657">- ROI or Referenced </tspan><tspan
            style="text-align:start"
-           id="tspan2330">Segment
+           id="tspan2659">Segment
 </tspan></tspan><tspan
          x="298.18555"
          y="334.13577"
-         id="tspan2336"><tspan
+         id="tspan2665"><tspan
            style="text-align:start"
-           id="tspan2334">- Tracking Identifier
+           id="tspan2663">- Tracking Identifier
 </tspan></tspan><tspan
          x="298.18555"
          y="350.80239"
-         id="tspan2342"><tspan
+         id="tspan2671"><tspan
            style="text-align:start"
-           id="tspan2338">- Finding Category and </tspan><tspan
+           id="tspan2667">- Finding Category and </tspan><tspan
            style="text-align:start"
-           id="tspan2340">Type
+           id="tspan2669">Type
 </tspan></tspan><tspan
          x="298.18555"
          y="367.46902"
-         id="tspan2346"><tspan
+         id="tspan2675"><tspan
            style="text-align:start"
-           id="tspan2344">- Algorithm ID
+           id="tspan2673">- Algorithm ID
 </tspan></tspan><tspan
          x="298.18555"
          y="384.13564"
-         id="tspan2350"><tspan
+         id="tspan2679"><tspan
            style="text-align:start"
-           id="tspan2348">- Finding Sites</tspan></tspan></text>
+           id="tspan2677">- Finding Sites</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="scale(0.26458333)"
@@ -651,9 +651,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2354"><tspan
+         id="tspan2683"><tspan
            style="stroke:#000000"
-           id="tspan2352">Contains 1</tspan></tspan></text>
+           id="tspan2681">Contains 1</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,-79.890792,133.81866)"
@@ -661,9 +661,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2358"><tspan
+         id="tspan2687"><tspan
            style="stroke:#000000"
-           id="tspan2356">Contains 0-n</tspan></tspan></text>
+           id="tspan2685">Contains 0-n</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,84.387276,132.90606)"
@@ -671,9 +671,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8-22);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2362"><tspan
+         id="tspan2691"><tspan
            style="stroke:#000000"
-           id="tspan2360">Contains 0-n</tspan></tspan></text>
+           id="tspan2689">Contains 0-n</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,18.004398,46.510993)"
@@ -681,9 +681,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8-2);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2366"><tspan
+         id="tspan2695"><tspan
            style="stroke:#000000"
-           id="tspan2364">Contains 0-n</tspan></tspan></text>
+           id="tspan2693">Contains 0-n</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,-70.099118,47.038429)"
@@ -691,9 +691,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8-2-2);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2370"><tspan
+         id="tspan2699"><tspan
            style="stroke:#000000"
-           id="tspan2368">Contains 0-n</tspan></tspan></text>
+           id="tspan2697">Contains 0-n</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,104.24813,47.167591)"
@@ -701,9 +701,9 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8-2-7);display:inline;fill:#ffffff;stroke:#ffffff;stroke-width:2.13543"><tspan
          x="427.71289"
          y="229.09414"
-         id="tspan2374"><tspan
+         id="tspan2703"><tspan
            style="stroke:#000000"
-           id="tspan2372">Contains 0-n</tspan></tspan></text>
+           id="tspan2701">Contains 0-n</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,-29.030177,167.33016)"
@@ -713,7 +713,7 @@
        y="0"><tspan
          x="380.7207"
          y="134.64464"
-         id="tspan2376">Measurement
+         id="tspan2705">Measurement
 </tspan></text>
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
@@ -732,14 +732,14 @@
        y="0"><tspan
          x="298.18555"
          y="317.46914"
-         id="tspan2380"><tspan
+         id="tspan2709"><tspan
            style="text-align:start"
-           id="tspan2378">- Coded (Categorical) </tspan></tspan><tspan
+           id="tspan2707">- Coded (Categorical) </tspan></tspan><tspan
          x="298.18555"
          y="334.13577"
-         id="tspan2384"><tspan
+         id="tspan2713"><tspan
            style="text-align:start"
-           id="tspan2382">Evaluation</tspan></tspan></text>
+           id="tspan2711">Evaluation</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,54.136836,167.22225)"
@@ -749,7 +749,7 @@
        y="0"><tspan
          x="327.91211"
          y="134.64464"
-         id="tspan2386">Qualitative Evaluation</tspan></text>
+         id="tspan2715">Qualitative Evaluation</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend)"
        d="M 128.67371,53.511612 V 65.803797"

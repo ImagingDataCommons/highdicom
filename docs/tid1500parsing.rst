@@ -169,10 +169,10 @@ Accessing Data in Measurement Groups
 
 Once you have found measurement groups, there are various properties on the
 returned object that allow you to access the information that you may need.
-These may be in the form of basic Python within the measurement group's content
-items, or `highdicom` classes representing full sub-templates that in turn have
-methods and properties defined on them. These classes are the same classes that
-you use to construct the objects.
+These may be in the form of basic Python data types extracted from the
+measurement group's content items, or `highdicom` classes representing full
+sub-templates that in turn have methods and properties defined on them. These
+classes are the same classes that you use to construct the objects.
 
 The following example demonstrates some examples, see the API documentation
 of the relevant class for a full list.
@@ -272,16 +272,16 @@ allows you to find measurements with a particular name.
 
 
 Note that although there will usually be only a single measurement with a given
-name within a measurement group, this is not disallowed by the standard.
-Consequently, the ``get_measurements()`` method returns a list containing 0
-or more measurements.
+name within a measurement group, multiple measurements with the same name are
+not disallowed by the standard. Consequently, the ``get_measurements()`` method
+returns a list containing 0 or more measurements.
 
 Accessing Data in Measurements
 ------------------------------
 
-You can access the name of a measurement with the `name` property (returns a
-:class:`highdicom.sr.CodedConcept`, its numerical value with the `value`
-property (returns a `float`), and the unit with the `unit` property.
+You can access the name of a measurement with the ``name`` property (returns a
+:class:`highdicom.sr.CodedConcept`), its numerical value with the ``value``
+property (returns a ``float``), and the unit with the ``unit`` property.
 
 .. code-block:: python
 
@@ -306,15 +306,15 @@ property (returns a `float`), and the unit with the `unit` property.
     # Access the measurement's unit
     assert measurement.unit == codes.UCUM.mm
 
-Additionally, the properties `method`, `finding_sites`, `qualifier`,
-`referenced_images`, and `derivation` allow you to access further optional
+Additionally, the properties ``method``, ``finding_sites``, ``qualifier``,
+``referenced_images``, and ``derivation`` allow you to access further optional
 metadata that may be present in the stored measurement.
 
 Searching for Evaluations
 -------------------------
 
 In addition to numerical measurements, measurement groups may also contain
-"qualitative evaluations". These contain an evaluation of the image represented
+"Qualitative Evaluations". These contain an evaluation of the image represented
 using a coded concept.
 
 Similar to measurements, you can search for evaluations with the
@@ -333,13 +333,13 @@ evaluations with the ``name`` and ``value`` properties.
     # Use the first planar measurement group as an example
     group = sr.content.get_planar_roi_measurement_groups()[0]
 
-    # Get the diameter measurement in this group
+    # Get the level of significance evaluation in this group
     evaluation = group.get_qualitative_evaluations(
         name=codes.DCM.LevelOfSignificance
     )[0]
 
-    # Access the measurement's name
+    # Access the evaluation's name
     assert evaluation.name == codes.DCM.LevelOfSignificance
 
-    # Access the measurement's value
+    # Access the evaluation's value
     assert evaluation.value == codes.SCT.NotSignificant

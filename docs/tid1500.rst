@@ -28,8 +28,8 @@ A diagram of the structure of TID1500 content is shown here:
 
 At the top level, the Measurement Report template
 (:class:`highdicom.sr.MeasurementReport`) represents a report containing
-various measurements and various metadata about the process through which it
-was created.
+various measurements and various metadata about the process through which they
+were created.
 
 A measurement report contains one or more "Measurement Groups", where each
 group contains measurements and/or qualitative evaluations about a particular image or
@@ -42,8 +42,8 @@ to different types of region:
 - :class:`highdicom.sr.PlanarROIMeasurementsAndQualitativeEvaluations`
   (`TID1410 <tid1410def_>`_): Refers to a 2D region within a single image.
 - :class:`highdicom.sr.VolumetricROIMeasurementsAndQualitativeEvaluations`
-  (`TID1411 <tid1411def_>`_): Refers to a 2D region within a single image.
-  Refers to a 3D region within an image or image series.
+  (`TID1411 <tid1411def_>`_): Refers to a 3D region within an image or image
+  series.
 
 A single Measurement Report may contain a mixture of Measurement Groups of
 these different types in any combination (as long as there is at least one
@@ -54,12 +54,11 @@ Each Measurement Group contains a number of Measurements
 length or volume - and/or Qualitative Evaluations - categorical values derived
 from an image, such as classification of a tumor morphology.
 
-
 When constructing the content, it is necessary to start at the bottom of the
-content tree with the Measurements and Evaluations, add them into Measurement
-Groups, add these groups to a Measurement Report, and then create the document
-that contains the report. However, here we will describe the structure from the
-top down, as this makes the big picture clearer.
+content tree with the Measurements and Evaluations and work up, by adding them
+into Measurement Groups, adding these groups to a Measurement Report, and then
+creating the document that contains the report. However, here we will describe
+the structure from the top down as it makes the big picture clearer.
 
 Measurement Report (`TID1500 <tid1500def_>`_)
 ---------------------------------------------
@@ -137,7 +136,7 @@ Measurements And Qualitative Evaluations Group (`TID1501 <tid1501def_>`_)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first, and simplest, type of Measurement Group applies to one or more
-entire images (or optionally one or more entire frames in the case of
+entire images (or alternatively one or more entire frames in the case of
 multiframe source images). This is implemented using
 :class:`highdicom.sr.MeasurementsAndQualitativeEvaluations`.
 
@@ -316,11 +315,11 @@ specifying the region. In this case there are three options:
 - ``referenced_regions``: The image region is specified directly in the SR in
   image coordinates using one or more objects of type
   :class:`highdicom.sr.ImageRegion` passed as the ``referenced_regions``
-  parameter, representing the volumetric region as set of 2D regions across
+  parameter, representing the volumetric region as a set of 2D regions across
   multiple images or frames.
-- ``referenced_volume_surface``: The region is specified as a single volumetric
-  region defined in frame of reference coordinates using a single
-  :class:`highdicom.sr.VolumeSurface` object passed to the
+- ``referenced_volume_surface``: The region is specified directly in the SR as
+  a single volumetric region defined in frame of reference coordinates using a
+  single :class:`highdicom.sr.VolumeSurface` object passed to the
   ``referenced_volume_surface`` parameter.
 - ``referenced_segment``: The region is specified indirectly as a reference to
   an entire segment (which may spread across multiple images or frames) of a
@@ -350,7 +349,7 @@ as the ``referenced_regions``:
        uid=hd.UID(),
     )
 
-    # Define the image region (a circle) using image coordinates
+    # Define the image regions (a circle in two images) using image coordinates
     region1 = hd.sr.ImageRegion(
        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
        graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
@@ -387,7 +386,7 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object as the
        uid=hd.UID(),
     )
 
-    # Define the image region (a circle) using image coordinates
+    # Define the image region (a point) using frame-of-reference coordinates
     volume_surface = hd.sr.VolumeSurface(
         graphic_type=hd.sr.GraphicTypeValues.POINT,
         graphic_data=np.array([[123.5, 234.1, -23.7]]),
@@ -480,7 +479,7 @@ Qualitative Evaluations
 
 A Qualitative Evaluation is essentially a categorical value inferred from an
 image. For example, this could represent a diagnosis derived from the
-referenced region, or a severity grading. These are represented in *highdicom*
+referenced region or a severity grading. These are represented in *highdicom*
 using the class :class:`highdicom.sr.QualitativeEvalution`, which is
 essentially a single :class:`highdicom.sr.CodeContentItem` within a special
 template.

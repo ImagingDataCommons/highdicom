@@ -91,14 +91,14 @@ Here is a simple example of constructing an annotation group:
     )
 
 Note that including two nuclei would be very unusual in practice: annotations
-often number in the thousands or even millions within large whole slide image.
+often number in the thousands or even millions within a large whole slide image.
 
 Including Measurements
 ----------------------
 
 In addition to the coordinates of the annotations themselves, it is also
-possible to attach one or more *measurements* corresponding to those
-annotations. The measurements are passed as a
+possible to attach one or more continuous-valued numeric *measurements*
+corresponding to those annotations. The measurements are passed as a
 :class:`highdicom.ann.Measurements` object, which contains the *name* of the
 measurement (as a coded value), the *unit* of the measurement (also as a coded
 value) and an array of the measurements themselves (as a ``numpy.ndarray``).
