@@ -1635,6 +1635,16 @@ class Segmentation(SOPClass):
                     'Maximum fractional value must not exceed image bit depth.'
                 )
             self.MaximumFractionalValue = max_fractional_value
+        elif self.SegmentationType == SegmentationTypeValues.LABELMAP.value:
+            if pixel_array.dtype in (np.bool_, np.uint8, np.uint16, np.uint32):
+            else:
+                raise ValueError(
+                    'Parameter "pixel_array" must have dtype np.bool_, np.uint8 '
+                    'np.uint16, or np.uint32.'
+                )
+            self.BitsAllocated = np.iinfo(pixel_array.dtype).bits
+            self.HighBit = self.BitsAllocated - 1
+            # TODO check transfer syntax here
         else:
             raise ValueError(
                 'Unknown segmentation type "{}"'.format(segmentation_type)
@@ -1754,6 +1764,21 @@ class Segmentation(SOPClass):
             segmentation_type,
         )
         self.SegmentsOverlap = segments_overlap.value
+
+        # Combine segments to create a labelmap image if needed
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            if pixel_array.ndim == 4:
+
+                # Decide on the output datatype and update the image metadata
+                # accordingly (this overwrites values from earlier)
+                output_dtype = _get_unsigned_dtype(number_of_segments)
+                self.BitsAllocated = np.iinfo(output_dtype).bits
+                self.HighBit = self.BitsAllocated - 1
+                self.BitsStored = self.BitsAllocated
+                pixel_array = self._combine_segments(
+                    pixel_array,
+                    output_dtype=output_dtype
+                )
 
         if has_ref_frame_uid:
             if tile_pixel_array:
@@ -2507,7 +2532,7 @@ class Segmentation(SOPClass):
                     f'({number_of_segments}).'
                 )
 
-        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
+        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16, np.uint32):
             max_pixel = pixel_array.max()
 
             if pixel_array.ndim == 3:
@@ -2557,7 +2582,10 @@ class Segmentation(SOPClass):
                     'Floating point pixel array values must be in the '
                     'range [0, 1].'
                 )
-            if segmentation_type == SegmentationTypeValues.BINARY:
+            if segmentation_type in (
+                SegmentationTypeValues.BINARY,
+                SegmentationTypeValues.LABELMAP,
+            ):
                 non_boolean_values = np.logical_and(
                     unique_values > 0.0,
                     unique_values < 1.0
@@ -2565,7 +2593,8 @@ class Segmentation(SOPClass):
                 if np.any(non_boolean_values):
                     raise ValueError(
                         'Floating point pixel array values must be either '
-                        '0.0 or 1.0 in case of BINARY segmentation type.'
+                        '0.0 or 1.0 in case of BINARY or LABELMAP segmentation '
+                        'type.'
                     )
                 pixel_array = pixel_array.astype(np.uint8)
 
@@ -2590,6 +2619,13 @@ class Segmentation(SOPClass):
                     segments_overlap = SegmentsOverlapValues.UNDEFINED
         else:
             raise TypeError('Pixel array has an invalid data type.')
+
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            if segments_overlap == SegmentsOverlapValues.YES:
+                raise ValueError(
+                    'Segments may not overlap if requesting a LABELMAP '
+                    'segmentation type.'
+                )
 
         return pixel_array, segments_overlap
 
@@ -2637,7 +2673,51 @@ class Segmentation(SOPClass):
         return (source_image_indices, False)
 
     @staticmethod
-    def _get_nonempty_tile_indices(
+    def _combine_segments(
+        pixel_array: np.ndarray,
+        output_dtype: type,
+    ):
+        """Combine multiple segments into a labelmap.
+
+        Parameters
+        ----------
+        pixel_array: np.ndarray
+            Segmentation pixel array with segments stacked along dimension 3.
+            Should consist of only values 0 and 1.
+        output_dtype: type
+            Numpy data type to use for the output array and intermediate
+            calculations.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            A 3D output array with consisting of the original segments combined
+            into a labelmap.
+
+        """
+        if segments_overlap == SegmentsOverlapValue.YES:
+            raise ValueError(
+                'It is not possible to store a Segmentation with '
+                'SegmentationType "LABELMAP" if segments overlap.'
+            )
+
+        if (pixel_array.ndim == 4):
+            # Take the indices along axis 3. However this does not
+            # distinguish between pixels that are empty and pixels that
+            # have class 1. Therefore need to multiply this by the max
+            # value
+            # Carefully control the dtype here to avoid creating huge
+            # interemdiate arrays
+            indices = np.zeros(pixel_array.shape[:3], dtype=output_dtype)
+            indices = pixel_array.argmax(axis=3, out=indices) + 1
+            is_non_empty = np.zeros(pixel_array.shape[:3], dtype=output_dtype)
+            is_non_empty = pixel_array.max(axis=3, out=is_non_empty)
+            pixel_array = indices * is_non_empty
+
+        return pixel_array
+
+    @staticmethod
+    def _omit_empty_frames(
         pixel_array: np.ndarray,
         plane_positions: Sequence[PlanePositionSequence],
         rows: int,
