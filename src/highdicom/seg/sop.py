@@ -1864,7 +1864,7 @@ class Segmentation(SOPClass):
                 if len(unique_values) == 1 and unique_values[0] == 0.0:
                     # All pixels are zero: there can be no overlap
                     segments_overlap = SegmentsOverlapValues.NO
-                elif pixel_array.shape[-1] == 1:
+                elif pixel_array.ndim == 3 or pixel_array.shape[-1] == 1:
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
                 elif pixel_array.sum(axis=-1).max() > 1:
