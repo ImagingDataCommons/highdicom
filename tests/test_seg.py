@@ -1859,7 +1859,6 @@ class TestSegmentation:
             multi_segment_exc = multi_segment_exc[np.newaxis, ...]
         additional_mask = 1 - mask
 
-        additional_mask = (1 - mask)
         # Find the expected encodings for the masks
         if mask.ndim > 2:
             # Expected encoding of the mask
@@ -1981,6 +1980,116 @@ class TestSegmentation:
             self.get_array_after_writing(instance),
             expected_enc_overlap
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
+    def test_pixel_types_labelmap(
+        self,
+        fractional_transfer_syntax_uid,
+        pix_type,
+        test_data,
+    ):
+        sources, mask = self._tests[test_data]
+
+        # Two segments non-overlapping
+        multi_segment_exc = np.stack([mask, 1 - mask], axis=-1)
+
+        if multi_segment_exc.ndim == 3:
+            multi_segment_exc = multi_segment_exc[np.newaxis, ...]
+        additional_mask = 1 - mask
+
+        # Find the expected encodings for the masks
+        if mask.ndim > 2:
+            # Expected encoding of the mask
+            expected_encoding = self.sort_frames(
+                sources,
+                mask
+            )
+            expected_encoding = self.remove_empty_frames(
+                expected_encoding
+            )
+
+            # Expected encoding of the complement
+            expected_encoding_comp = self.sort_frames(
+                sources,
+                additional_mask
+            )
+            expected_encoding_comp = self.remove_empty_frames(
+                expected_encoding_comp
+            )
+
+            # Expected encoding of the multi segment arrays
+            expected_enc_overlap = np.concatenate(
+                [expected_encoding, expected_encoding],
+                axis=0
+            )
+            expected_enc_exc = np.concatenate(
+                [expected_encoding, expected_encoding_comp],
+                axis=0
+            )
+            expected_encoding = expected_encoding.squeeze()
+        else:
+            expected_encoding = mask
+
+            # Expected encoding of the multi segment arrays
+            expected_enc_overlap = np.stack(
+                [expected_encoding, expected_encoding],
+                axis=0
+            )
+            expected_enc_exc = np.stack(
+                [expected_encoding, 1 - expected_encoding],
+                axis=0
+            )
+
+        instance = Segmentation(
+            sources,
+            mask.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+
+        # Ensure the recovered pixel array matches what is expected
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
+        # Multi-segment (exclusive)
+        instance = Segmentation(
+            sources,
+            multi_segment_exc.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+        assert (
+            instance.SegmentsOverlap ==
+            SegmentsOverlapValues.NO.value
+        )
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_enc_exc
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
     def test_odd_number_pixels(self):
