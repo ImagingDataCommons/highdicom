@@ -794,7 +794,12 @@ class TestSegmentation:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
             for f in seg.PerFrameFunctionalGroupsSequence:
-                posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
+                if seg.SegmentationType == "LABELMAP":
+                    # DimensionIndexValues has VM=1 in this case so returns int
+                    posn_index = f.FrameContentSequence[0].DimensionIndexValues
+                else:
+                    # DimensionIndexValues has VM>1 in this case so returns list
+                    posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
                 # This is not general, but all the tests run here use axial
                 # images so just check the z coordinate
                 posn_val = f.PlanePositionSequence[0].ImagePositionPatient[2]
@@ -815,16 +820,17 @@ class TestSegmentation:
                 old_v = index_mapping[k][0]
         else:
             # Build up the mapping from index to value
-            for dim_kw, dim_ind in zip([
-                'RowPositionInTotalImagePixelMatrix',
-                'ColumnPositionInTotalImagePixelMatrix',
-            ], [1, 2]):
+            for dim_kw, dim_ind in zip(
+                [
+                    'ColumnPositionInTotalImagePixelMatrix',
+                    'RowPositionInTotalImagePixelMatrix'
+                ],
+                [0, 1] if seg.SegmentationType == "LABELMAP" else [1, 2]
+            ):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
                     posn_index = content_item.DimensionIndexValues[dim_ind]
-                    # This is not general, but all the tests run here use axial
-                    # images so just check the z coordinate
                     posn_item = f.PlanePositionSlideSequence[0]
                     posn_val = getattr(posn_item, dim_kw)
                     index_mapping[posn_index].append(posn_val)
@@ -1995,50 +2001,26 @@ class TestSegmentation:
 
         if multi_segment_exc.ndim == 3:
             multi_segment_exc = multi_segment_exc[np.newaxis, ...]
-        additional_mask = 1 - mask
 
         # Find the expected encodings for the masks
         if mask.ndim > 2:
-            # Expected encoding of the mask
-            expected_encoding = self.sort_frames(
+            sorted_mask = self.sort_frames(
                 sources,
                 mask
             )
+
+            # Expected encoding of the mask
             expected_encoding = self.remove_empty_frames(
-                expected_encoding
-            )
-
-            # Expected encoding of the complement
-            expected_encoding_comp = self.sort_frames(
-                sources,
-                additional_mask
-            )
-            expected_encoding_comp = self.remove_empty_frames(
-                expected_encoding_comp
-            )
-
-            # Expected encoding of the multi segment arrays
-            expected_enc_overlap = np.concatenate(
-                [expected_encoding, expected_encoding],
-                axis=0
-            )
-            expected_enc_exc = np.concatenate(
-                [expected_encoding, expected_encoding_comp],
-                axis=0
-            )
-            expected_encoding = expected_encoding.squeeze()
+                sorted_mask
+            ).astype(np.uint8)
         else:
-            expected_encoding = mask
+            sorted_mask = mask
+            expected_encoding = mask.astype(np.uint8)
 
-            # Expected encoding of the multi segment arrays
-            expected_enc_overlap = np.stack(
-                [expected_encoding, expected_encoding],
-                axis=0
-            )
-            expected_enc_exc = np.stack(
-                [expected_encoding, 1 - expected_encoding],
-                axis=0
-            )
+        expected_enc_exc = np.zeros(sorted_mask.shape, np.uint8)
+        expected_enc_exc[sorted_mask > 0] = 1
+        expected_enc_exc[sorted_mask == 0] = 2
+        expected_encoding = expected_encoding.squeeze()
 
         instance = Segmentation(
             sources,

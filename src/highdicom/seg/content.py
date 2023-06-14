@@ -627,10 +627,15 @@ class DimensionIndexSequence(DataElementSequence):
         # X/Y/Z Offset In Slide Coordinate System and the Column/Row
         # Position in Total Image Pixel Matrix attributes in case of the
         # the slide coordinate system.
+        ref_seg_tag = tag_for_keyword("ReferencedSegmentNumber")
+        indexers = [
+            dim_ind for dim_ind in self
+            if dim_ind.DimensionIndexPointer != ref_seg_tag
+        ]
         plane_position_values = np.array([
             [
                 np.array(p[0][indexer.DimensionIndexPointer].value)
-                for indexer in self[1:]
+                for indexer in indexers
             ]
             for p in plane_positions
         ])
