@@ -178,8 +178,9 @@ class _SegDBManager:
 
     def __init__(
         self,
+        number_of_frames: int,
         referenced_uids: List[Tuple[str, str, str]],
-        segment_numbers: List[int],
+        segment_numbers: Optional[List[int]],
         dim_indices: Dict[int, List[int]],
         dim_values: Dict[int, List[Any]],
         referenced_instances: Optional[List[str]],
@@ -189,12 +190,15 @@ class _SegDBManager:
 
         Parameters
         ----------
+        number_of_frames: int
+            Number of frames in the segmentation image.
         referenced_uids: List[Tuple[str, str, str]]
             Triplet of UIDs for each image instance (Study Instance UID,
             Series Instance UID, SOP Instance UID) that is referenced
             in the segmentation image.
-        segment_numbers: List[int]
-            Segment numbers for each frame in the segmentation image.
+        segment_numbers: Optional[List[int]]
+            Segment numbers for each frame in the segmentation image. None
+            in the case of LABELMAP segmentations.
         dim_indices: Dict[int, List[int]]
             Dictionary mapping the integer tag value of each dimension index
             pointer (excluding SegmentNumber) to a list of dimension indices
@@ -218,7 +222,7 @@ class _SegDBManager:
 
         self._create_ref_instance_table(referenced_uids)
 
-        self._number_of_frames = len(segment_numbers)
+        self._number_of_frames = number_of_frames
 
         # Construct the columns and values to put into a frame look-up table
         # table within sqlite. There will be one row per frame in the
@@ -231,8 +235,9 @@ class _SegDBManager:
         col_data.append(list(range(1, self._number_of_frames + 1)))
 
         # Segment number column
-        col_defs.append('SegmentNumber INTEGER NOT NULL')
-        col_data.append(segment_numbers)
+        if segment_numbers is not None:
+            col_defs.append('SegmentNumber INTEGER NOT NULL')
+            col_data.append(segment_numbers)
 
         self._dim_ind_col_names = {}
         for i, t in enumerate(dim_indices.keys()):
@@ -3281,7 +3286,10 @@ class Segmentation(SOPClass):
             self.DimensionOrganizationType == 'TILED_FULL'
         )
 
-        segment_numbers = []
+        if self.segmentation_type == SegmentationTypeValues.LABELMAP:
+            segment_numbers = None
+        else:
+            segment_numbers = []
 
         # Get list of all dimension index pointers, excluding the segment
         # number, since this is treated differently
@@ -3364,10 +3372,11 @@ class Segmentation(SOPClass):
             locations_preserved: locations_list_type = []
 
             for frame_item in self.PerFrameFunctionalGroupsSequence:
-                # Get segment number for this frame
-                seg_id_seg = frame_item.SegmentIdentificationSequence[0]
-                seg_num = seg_id_seg.ReferencedSegmentNumber
-                segment_numbers.append(int(seg_num))
+                if self.segmentation_type != SegmentationTypeValues.LABELMAP:
+                    # Get segment number for this frame
+                    seg_id_seg = frame_item.SegmentIdentificationSequence[0]
+                    seg_num = seg_id_seg.ReferencedSegmentNumber
+                    segment_numbers.append(int(seg_num))
 
                 # Get dimension indices for this frame
                 content_seq = frame_item.FrameContentSequence[0]
@@ -3375,8 +3384,12 @@ class Segmentation(SOPClass):
                 if not isinstance(indices, (MultiValue, list)):
                     # In case there is a single dimension index
                     indices = [indices]
-                if len(indices) != len(self._dim_ind_pointers) + 1:
+                if self.segmentation_type == SegmentationTypeValues.LABELMAP:
+                    n_expected_dim_ind_pointers = len(self._dim_ind_pointers)
+                else:
                     # (+1 because referenced segment number is ignored)
+                    n_expected_dim_ind_pointers = len(self._dim_ind_pointers) + 1
+                if len(indices) != n_expected_dim_ind_pointers:
                     raise RuntimeError(
                         'Unexpected mismatch between dimension index values in '
                         'per-frames functional groups sequence and items in '
@@ -3469,6 +3482,7 @@ class Segmentation(SOPClass):
                 referenced_frames = None
 
         self._db_man = _SegDBManager(
+            number_of_frames=self.NumberOfFrames,
             referenced_uids=referenced_uids,
             segment_numbers=segment_numbers,
             dim_indices=dim_indices,
