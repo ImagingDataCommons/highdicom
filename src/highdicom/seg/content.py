@@ -340,11 +340,7 @@ class DimensionIndexSequence(DataElementSequence):
             segment_number_index.DimensionDescriptionLabel = 'Segment Number'
             self.append(segment_number_index)
 
-        if self._coordinate_system is None:
-            # TODO what on earth to do here?
-            pass
-
-        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
 
             x_axis_index = Dataset()
             x_axis_index.DimensionIndexPointer = tag_for_keyword(
@@ -428,6 +424,19 @@ class DimensionIndexSequence(DataElementSequence):
 
             self.append(image_position_index)
 
+        elif self._coordinate_system is None:
+            if not include_segment_number:
+                # Use frame label here just for the sake of using something
+                frame_label_index = Dataset()
+                frame_label_index.DimensionIndexPointer = tag_for_keyword(
+                    'FrameLabel'
+                )
+                frame_label_index.FunctionalGroupPointer = tag_for_keyword(
+                    'FrameContentSequence'
+                )
+                frame_label_index.DimensionOrganizationUID = dim_uid
+                frame_label_index.DimensionDescriptionLabel = 'Frame Label'
+                self.append(frame_label_index)
         else:
             raise ValueError(
                 f'Unknown coordinate system "{self._coordinate_system}"'

@@ -1,5 +1,13 @@
 import itertools
-from typing import Iterator, Generator, List, Optional, Sequence, Tuple
+from typing import (
+    Iterator,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 from pydicom.dataset import Dataset

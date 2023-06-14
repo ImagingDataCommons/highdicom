@@ -1442,6 +1442,35 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
 
+    def test_construction_8(self):
+        # A chest X-ray with no frame of reference, LABELMAP
+        instance = Segmentation(
+            [self._cr_image],
+            self._cr_pixel_array,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert (
+            instance.DimensionIndexSequence[0].DimensionIndexPointer ==
+            tag_for_keyword('FrameLabel')
+        )
+        dim_ind_vals = (
+            instance
+            .PerFrameFunctionalGroupsSequence[0]
+            .FrameContentSequence[0]
+            .DimensionIndexValues
+        )
+        assert dim_ind_vals == 1
+
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
         Segmentation(
