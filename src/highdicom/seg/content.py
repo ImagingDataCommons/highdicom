@@ -482,7 +482,7 @@ class DimensionIndexSequence(DataElementSequence):
         elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
                 plane_positions = [
-                    item.PlanePositionSlideSequence
+                    PlanePositionSequence.from_sequence(item.PlanePositionSlideSequence)
                     for item in image.PerFrameFunctionalGroupsSequence
                 ]
             else:
@@ -491,7 +491,7 @@ class DimensionIndexSequence(DataElementSequence):
                 plane_positions = compute_plane_position_slide_per_frame(image)
         else:
             plane_positions = [
-                item.PlanePositionSequence
+                PlanePositionSequence.from_sequence(item.PlanePositionSlideSequence)
                 for item in image.PerFrameFunctionalGroupsSequence
             ]
 
