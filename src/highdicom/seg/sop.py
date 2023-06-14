@@ -2121,7 +2121,13 @@ class Segmentation(SOPClass):
                             f'system based on dimension index values: {error}'
                         )
                 else:
-                    dimension_index_values = []
+                    if segmentation_type == SegmentationTypeValues.LABELMAP:
+                        # Here we have to use the "Frame Label" dimension value
+                        # (which is used just to have one index since Referenced
+                        # Segment cannot be used)
+                        dimension_index_values = [1]
+                    else:
+                        dimension_index_values = []
 
                 if (
                     dimension_organization_type !=
@@ -3015,6 +3021,13 @@ class Segmentation(SOPClass):
         else:
             all_index_values = [int(segment_number)] + dimension_index_values
         frame_content_item.DimensionIndexValues = all_index_values
+
+        # If this is an labelmap segmentation of an image that has no frame
+        # of reference, we need to create a dummy frame label to be pointed to
+        # as a dimension index because there is nothing else appropriate to
+        # use
+        if segment_number is None and coordinate_system is None:
+            frame_content_item.FrameLabel = "Segmentation Frame"
         pffg_item.FrameContentSequence = [frame_content_item]
         if has_ref_frame_uid:
             if coordinate_system == CoordinateSystemNames.SLIDE:
