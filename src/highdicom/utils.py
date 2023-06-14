@@ -234,7 +234,7 @@ def compute_plane_position_tiled_full(
 
 def iter_tiled_full_frame_data(
     dataset: Dataset,
-) -> Generator[Tuple[int, int, int, int, float, float, float], None, None]:
+) -> Generator[Tuple[Union[int, None], int, int, int, float, float, float], None, None]:
     """Get data on the position of each tile in a TILED_FULL image.
 
     This works only with images with Dimension Organization Type of
@@ -252,10 +252,12 @@ def iter_tiled_full_frame_data(
 
     Returns
     -------
-    channel: int
+    channel: Union[int, None]
         1-based integer index of the "channel". The meaning of "channel"
         depends on the image type. For segmentation images, the channel is the
-        segment number. For other images, it is the optical path number.
+        segment number. For other images, it is the optical path number. For
+        Segmentations of SegmentationType "LABELMAP", the returned value will
+        be None for all frames.
     focal_plane_index: int
         1-based integer index of the focal plane.
     column_position: int
@@ -317,13 +319,18 @@ def iter_tiled_full_frame_data(
     # The "channels" output is either segment for segmentations, or optical
     # path for other images
     if is_segmentation:
-        num_channels = len(dataset.SegmentSequence)
+        if dataset.SegmentationType == "LABELMAP":
+            # No "channel" in this case -> return None
+            channels = [None]
+        else:
+            channels = range(1, len(dataset.SegmentSequence))
     else:
-        num_channels = getattr(
+        num_optical_paths = getattr(
             dataset,
             'NumberOfOpticalPaths',
             len(dataset.OpticalPathSequence)
         )
+        channels = range(1, num_optical_paths)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -357,7 +364,7 @@ def iter_tiled_full_frame_data(
         (tile_indices - 1) * np.array([dataset.Columns, dataset.Rows])
     )
 
-    for channel in range(1, num_channels + 1):
+    for channel in channels:
         for slice_index in range(1, num_focal_planes + 1):
             # These checks are needed for mypy to determine the correct type
             z_offset = float(slice_index - 1) * spacing_between_slices
