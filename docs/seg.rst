@@ -590,14 +590,11 @@ retrieving individual frames from segmentation images in which each frame
 size is not divisible by 8 becomes problematic. No further compression may be
 applied to frames of ``"BINARY"`` segmentation images.
 
-Pixels in ``"FRACTIONAL"`` segmentation images may be compressed in the same
-manner as other DICOM images. However, since lossy compression methods such as
-standard JPEG are not designed to work with these sorts of images, we strongly
-advise using only lossless compression methods with Segmentation images.
-Currently *highdicom* supports the following compressed transfer syntaxes when
-creating ``"FRACTIONAL"`` segmentation images: ``"RLELossless"`` (lossless),
-``"JPEG2000Lossless"`` (lossless), ``"JPEGBaseline8Bit"`` (lossy, not
-recommended).
+Pixels in ``"FRACTIONAL"`` segmentation images may be compressed using one of
+the lossless compression methods available within DICOM. Currently *highdicom*
+supports the following compressed transfer syntaxes when creating
+``"FRACTIONAL"`` segmentation images: ``"RLELossless"``,
+``"JPEG2000Lossless"``, and ``"JPEGLSLossless"``.
 
 Note that there may be advantages to using ``"FRACTIONAL"`` segmentations to
 store segmentation images that are binary in nature (i.e. only taking values 0

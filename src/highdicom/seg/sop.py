@@ -1009,8 +1009,9 @@ class Segmentation(SOPClass):
             data elements. The following lossless compressed transfer syntaxes
             are supported for encapsulated format encoding in case of
             FRACTIONAL segmentation type:
-            RLE Lossless (``"1.2.840.10008.1.2.5"``) and
-            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
+            RLE Lossless (``"1.2.840.10008.1.2.5"``),
+            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``), and
+            JPEG LS Lossless (``"1.2.840.10008.1.2.4.00"``).
         pixel_measures: Union[highdicom.PixelMeasures, None], optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
