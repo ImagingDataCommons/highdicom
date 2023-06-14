@@ -217,12 +217,13 @@ def encode_frame(
                         'monochrome image frames with Lossless JPEG 2000 codec.'
                     )
                 if photometric_interpretation not in (
-                        'MONOCHROME1', 'MONOCHROME2'
+                        'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR',
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either "MONOCHROME1" '
-                        'or "MONOCHROME2" for encoding of monochrome image '
-                        'frames with Lossless JPEG 2000 codec.'
+                        'Photometric intpretation must be either '
+                        '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" for '
+                        'encoding of monochrome image frames with Lossless ' 
+                        'JPEG 2000 codec.'
                     )
                 if bits_allocated not in (8, 16):
                     raise ValueError(
@@ -266,12 +267,13 @@ def encode_frame(
                         'monochrome image frames with Lossless JPEG-LS codec.'
                     )
                 if photometric_interpretation not in (
-                        'MONOCHROME1', 'MONOCHROME2'
+                        'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR',
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either "MONOCHROME1" '
-                        'or "MONOCHROME2" for encoding of monochrome image '
-                        'frames with Lossless JPEG-LS codec.'
+                        'Photometric intpretation must be either '
+                        '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" for '
+                        'encoding of monochrome image frames with Lossless '
+                        'JPEG-LS codec.'
                     )
                 if bits_allocated not in (8, 16):
                     raise ValueError(
