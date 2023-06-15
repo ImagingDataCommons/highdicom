@@ -491,7 +491,7 @@ class DimensionIndexSequence(DataElementSequence):
                 plane_positions = compute_plane_position_slide_per_frame(image)
         else:
             plane_positions = [
-                PlanePositionSequence.from_sequence(item.PlanePositionSlideSequence)
+                PlanePositionSequence.from_sequence(item.PlanePositionSequence)
                 for item in image.PerFrameFunctionalGroupsSequence
             ]
 
