@@ -2512,6 +2512,31 @@ class TestSegmentation:
         assert po_item.ImageOrientationSlide == list(image_orientation)
         self.check_dimension_index_vals(instance)
 
+    def test_get_plane_positions_of_image_patient(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT'
+        )
+        plane_positions = seq.get_plane_positions_of_image(self._ct_multiframe)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
+
+    def test_get_plane_positions_of_image_slide(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='SLIDE'
+        )
+        plane_positions = seq.get_plane_positions_of_image(self._sm_image)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
+
+    def test_get_plane_positions_of_series(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT'
+        )
+        plane_positions = seq.get_plane_positions_of_series(self._ct_series)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
+
+
 
 class TestSegmentationParsing():
 
