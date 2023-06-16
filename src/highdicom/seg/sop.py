@@ -589,7 +589,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -690,7 +690,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -793,7 +793,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -2637,7 +2637,7 @@ class Segmentation(SOPClass):
         relabel: bool
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         rescale_fractional: bool
@@ -3009,7 +3009,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         ignore_spatial_locations: bool, optional
@@ -3228,7 +3228,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         ignore_spatial_locations: bool, optional
@@ -3493,7 +3493,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         assert_missing_frames_are_empty: bool, optional
