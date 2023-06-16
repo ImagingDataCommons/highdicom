@@ -389,7 +389,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         device_serial_number: Union[str, None]
             Manufacturer's serial number of the device
         palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
-            Description of the Palette Color LUT Transformation for tranforming
+            Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
         content_label: str
             A label used to describe the content of this presentation state.
@@ -419,10 +419,10 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             Identifying information for the person who created the content of
             this presentation state.
         modality_lut_transformation: Union[highdicom.ModalityLUTTransformation, None], optional
-            Description of the Modality LUT Transformation for tranforming modality
+            Description of the Modality LUT Transformation for transforming modality
             dependent into modality independent pixel values
         voi_lut_transformations: Union[Sequence[highdicom.pr.SoftcopyVOILUTTransformation], None], optional
-            Description of the VOI LUT Transformation for tranforming
+            Description of the VOI LUT Transformation for transforming
             modality pixel values into pixel values that are of interest to a
             user or an application
         icc_profile: Union[bytes, None], optional

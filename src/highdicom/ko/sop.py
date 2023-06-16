@@ -68,7 +68,7 @@ class KeyObjectSelectionDocument(SOPClass):
             Name of the department of the person or device that creates the
             document instance
         requested_procedures: Union[Sequence[pydicom.dataset.Dataset], None], optional
-            Requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fulfilled by creation of the
             document
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of

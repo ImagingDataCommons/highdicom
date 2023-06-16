@@ -2350,7 +2350,7 @@ class Measurement(Template):
             "General Region of Interest Measurement Modifiers"
             for options)
         finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
-            Coded description of one or more anatomic locations corresonding
+            Coded description of one or more anatomic locations corresponding
             to the image region from which measurement was taken
         method: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Measurement method (see
@@ -3274,7 +3274,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             Identification of algorithm used for making measurements
         finding_sites: Union[Sequence[highdicom.sr.FindingSite], None], optional
-            Coded description of one or more anatomic locations corresonding
+            Coded description of one or more anatomic locations corresponding
             to the image region from which measurement was taken
         session: Union[str, None], optional
             Description of the session
