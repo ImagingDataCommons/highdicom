@@ -1356,8 +1356,8 @@ class Segmentation(SOPClass):
         if pixel_measures is not None:
             sffg_item.PixelMeasuresSequence = pixel_measures
         if (
-            self._coordinate_system is not None
-            and self._coordinate_system == CoordinateSystemNames.PATIENT
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.PATIENT
         ):
             sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
