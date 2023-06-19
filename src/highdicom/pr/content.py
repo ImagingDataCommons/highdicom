@@ -431,7 +431,7 @@ class TextObject(Dataset):
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
                 )
-            self.AnchorPoint = anchor_point
+            self.AnchorPoint = list(anchor_point)
             self.AnchorPointAnnotationUnits = units.value
             self.AnchorPointVisibility = 'Y' if anchor_point_visible else 'N'
             if units == AnnotationUnitsValues.DISPLAY:
