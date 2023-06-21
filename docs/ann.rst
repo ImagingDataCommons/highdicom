@@ -184,8 +184,20 @@ transmitted over network, etc.
 Reading Existing Bulk Annotation Objects
 ----------------------------------------
 
-You can read an existing bulk annotation object using `pydicom` and then convert
-to the `highdicom` object like this:
+You can read an existing bulk annotation object from file using the
+:func:`highdicom.ann.annread()` function:
+
+.. code-block:: python
+
+    from pydicom import dcmread
+    import highdicom as hd
+
+    ann = hd.ann.annread('data/test_files/sm_annotations.dcm')
+
+    assert isinstance(ann, hd.ann.MicroscopyBulkSimpleAnnotations)
+
+Alternatively you can converting an existing ``pydicom.Dataset`` representing a
+bulk annotation object to the `highdicom` object like this:
 
 .. code-block:: python
 
@@ -198,7 +210,7 @@ to the `highdicom` object like this:
 
     assert isinstance(ann, hd.ann.MicroscopyBulkSimpleAnnotations)
 
-Note that this example (and the following examples) uses an example file that
+Note that these examples (and the following examples) uses an example file that
 you can access from the test data in the `highdicom` repository. It was created
 using exactly the code in the construction example above.
 
@@ -298,7 +310,7 @@ passed the data in to create the annotation with `highdicom`.
     import numpy as np
 
     graphic_data = group.get_graphic_data(
-        coordinate_type=ann.AnnotationCoordinateType,
+        coordinate_type=ann.annotation_coordinate_type,
     )
     assert len(graphic_data) == 2 and isinstance(graphic_data[0], np.ndarray)
 
