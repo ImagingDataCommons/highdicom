@@ -222,7 +222,7 @@ class ParametricMap(SOPClass):
             Identifying information for the person who created the content of
             this parametric map.
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
-            Description of the Palette Color LUT Transformation for tranforming
+            Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
@@ -737,9 +737,11 @@ class ParametricMap(SOPClass):
                 # Frame Content
                 frame_content_item = Dataset()
                 frame_content_item.DimensionIndexValues = [
-                    np.where(
-                        (dimension_position_values[idx] == pos)
-                    )[0][0] + 1
+                    int(
+                        np.where(
+                            (dimension_position_values[idx] == pos)
+                        )[0][0] + 1
+                    )
                     for idx, pos in enumerate(plane_position_values[i])
                 ]
 

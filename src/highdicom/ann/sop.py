@@ -90,7 +90,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             UID that should be assigned to the instance
         instance_number: int
             Number that should be assigned to the instance
-        manufacturer: Union[str, None], optional
+        manufacturer: Union[str, None]
             Name of the manufacturer (developer) of the device (software)
             that creates the instance
         manufacturer_model_name: str

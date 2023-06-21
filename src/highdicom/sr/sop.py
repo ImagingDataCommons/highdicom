@@ -127,7 +127,7 @@ class _SR(SOPClass):
         performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
-            Requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fulfilled by creation of the
             SR document
         previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
@@ -356,7 +356,7 @@ class EnhancedSR(_SR):
 
     """SOP class for an Enhanced Structured Report (SR) document, whose
     content may include textual and a minimal amount of coded information,
-    numeric measurement values, references to SOP Instances (retricted to the
+    numeric measurement values, references to SOP Instances (restricted to the
     leaves of the tree), as well as 2D spatial or temporal regions of interest
     within such SOP Instances.
     """
@@ -432,7 +432,7 @@ class EnhancedSR(_SR):
         performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
-            Requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fulfilled by creation of the
             SR document
         previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
@@ -563,7 +563,7 @@ class ComprehensiveSR(_SR):
         performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
-            Requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fulfilled by creation of the
             SR document
         previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
@@ -725,7 +725,7 @@ class Comprehensive3DSR(_SR):
         performed_procedure_codes: Union[List[highdicom.sr.CodedConcept], None], optional
             Codes of the performed procedures that resulted in the SR document
         requested_procedures: Union[List[pydicom.dataset.Dataset], None], optional
-            Requested procedures that are being fullfilled by creation of the
+            Requested procedures that are being fulfilled by creation of the
             SR document
         previous_versions: Union[List[pydicom.dataset.Dataset], None], optional
             Instances representing previous versions of the SR document
