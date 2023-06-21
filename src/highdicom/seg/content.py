@@ -481,8 +481,9 @@ class DimensionIndexSequence(DataElementSequence):
             )
         elif self._coordinate_system == CoordinateSystemNames.SLIDE:
             if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
-                plane_positions = [
-                    PlanePositionSequence.from_sequence(item.PlanePositionSlideSequence)
+                plane_positions = [PlanePositionSequence.from_sequence(
+                    item.PlanePositionSlideSequence
+                )
                     for item in image.PerFrameFunctionalGroupsSequence
                 ]
             else:
