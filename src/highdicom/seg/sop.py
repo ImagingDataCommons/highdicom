@@ -1612,9 +1612,11 @@ class Segmentation(SOPClass):
                             CoordinateSystemNames.SLIDE
                         ):
                             index_values = [
-                                np.where(
-                                    (dimension_position_values[idx] == pos)
-                                )[0][0] + 1
+                                int(
+                                    np.where(
+                                        (dimension_position_values[idx] == pos)
+                                    )[0][0] + 1
+                                )
                                 for idx, pos in enumerate(
                                     plane_position_values[j]
                                 )
@@ -1625,11 +1627,12 @@ class Segmentation(SOPClass):
                             # Sequence points to (Image Position Patient) has a
                             # value multiplicity greater than one.
                             index_values = [
-                                np.where(
-                                    (dimension_position_values[idx] == pos).all(
-                                        axis=1
-                                    )
-                                )[0][0] + 1
+                                int(
+                                    np.where(
+                                        (dimension_position_values[idx] == pos)
+                                        .all(axis=1)
+                                    )[0][0] + 1
+                                )
                                 for idx, pos in enumerate(
                                     plane_position_values[j]
                                 )
@@ -1641,7 +1644,7 @@ class Segmentation(SOPClass):
                             'dimension index values: {}'.format(j, error)
                         )
                 frame_content_item.DimensionIndexValues = (
-                    [segment_number] + index_values
+                    [int(segment_number)] + index_values
                 )
                 pffp_item.FrameContentSequence = [frame_content_item]
                 if has_ref_frame_uid:
@@ -1696,7 +1699,7 @@ class Segmentation(SOPClass):
                     logger.warning('spatial locations not preserved')
 
                 identification = Dataset()
-                identification.ReferencedSegmentNumber = segment_number
+                identification.ReferencedSegmentNumber = int(segment_number)
                 pffp_item.SegmentIdentificationSequence = [
                     identification,
                 ]
