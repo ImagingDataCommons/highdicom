@@ -351,7 +351,7 @@ Finding relevant content in the nested SR content tree:
     print(containers)
 
     # Query content of SR document, where content is structured according
-    # to TID 1500 "Measurment Report"
+    # to TID 1500 "Measurement Report"
     if sr_dataset.ContentTemplateSequence[0].TemplateIdentifier == 'TID1500':
         # Determine who made the observations reported in the document
         observers = hd.sr.utils.find_content_items(

@@ -222,7 +222,7 @@ class ParametricMap(SOPClass):
             Identifying information for the person who created the content of
             this parametric map.
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
-            Description of the Palette Color LUT Transformation for tranforming
+            Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
