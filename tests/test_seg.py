@@ -2537,7 +2537,6 @@ class TestSegmentation:
             assert isinstance(position, PlanePositionSequence)
 
 
-
 class TestSegmentationParsing():
 
     @pytest.fixture(autouse=True)
