@@ -107,7 +107,7 @@ image in the report.
 Scoord (spatial coordinate) Content Items describe locations in 2D image
 coordinates. Image coordinates are decimal numbers with sub-pixel accuracy that
 are defined in a coordinate system from (0.0, 0.0) at the top left corner of
-the top left pixel of the image and (rows, colums) at the bottom right corner
+the top left pixel of the image and (rows, columns) at the bottom right corner
 of the bottom right pixel of the image. I.e. the center of the top left pixel
 is at location (0.5, 0.5).
 
@@ -249,7 +249,7 @@ Content Items like this:
        relationship_type=hd.sr.RelationshipTypeValues.INFERRED_FROM,
     )
 
-    # A tracking identifier identifying the measurment
+    # A tracking identifier identifying the measurement
     tracking_item = hd.sr.UIDRefContentItem(
        name=codes.DCM.TrackingIdentifier,
        value=hd.UID(),  # a newly generated UID

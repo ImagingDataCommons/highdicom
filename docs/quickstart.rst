@@ -334,7 +334,7 @@ Parsing Structured Report (SR) documents
 ----------------------------------------
 
 Highdicom has special support for parsing structured reports conforming to the
-TID1500 "Measurment Report" template using specialized Python classes for
+TID1500 "Measurement Report" template using specialized Python classes for
 templates.
 
 .. code-block:: python

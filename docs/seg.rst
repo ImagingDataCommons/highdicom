@@ -146,7 +146,7 @@ to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
 how these values should be interpreted. There are two options, represented by
 the enumerated type :class:`highdicom.seg.SegmentationFractionalTypeValues`:
 
-- ``"PROBABILITY"``, i.e. the number between 0 and 1 respresents a probability
+- ``"PROBABILITY"``, i.e. the number between 0 and 1 represents a probability
   that a pixel belongs to the segment
 - ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of the
   pixel's (or voxel's) area (or volume) that belongs to the segment
@@ -292,8 +292,8 @@ a convenient shorthand for the special case where there is only a single source
 frame and a single segment. It is equivalent in every way to passing a 3D array
 with a single frame down axis 0.
 
-Constructing Binary SEG Images of Multiframe Souce Images
----------------------------------------------------------
+Constructing Binary SEG Images of Multiframe Source Images
+----------------------------------------------------------
 
 Alternatively, we could create a segmentation of a source image that is itself
 a multiframe image (such as an Enhanced CT, Enhanced MR image, or a Whole Slide
@@ -714,12 +714,12 @@ frames are stored within the SEG as an array indexed by a frame number
 SEG a lot of freedom about how to organize the resulting frames within the 1D
 list within the SEG. To complicate matters further, frames in the segmentation
 image that would otherwise be "empty" (contain only 0s) may be omitted from the
-SEG image entirely (this is `highdicom`'s default behavior but cant be turned
+SEG image entirely (this is `highdicom`'s default behavior but can be turned
 off if you prefer by specifying ``omit_empty_frames=False`` in the constructor).
 
 Every ``pydicom.Dataset`` has the ``.pixel_array`` property, which, in the case
 of a multiframe image, returns the full list of frames in the image as an array
-of shape (frames x rows x colums), with frames organized in whatever manner
+of shape (frames x rows x columns), with frames organized in whatever manner
 they were organized in by the creator of the object. A
 :class:`highdicom.seg.Segmentation` is a sub-class of ``pydicom.Dataset``, and
 therefore also has the ``.pixel_array`` property. However, given the
