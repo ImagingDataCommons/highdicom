@@ -89,8 +89,8 @@ class TestKeyObjectSelection(unittest.TestCase):
         container = content[0]
         assert isinstance(container, ContainerContentItem)
         assert container.ContentTemplateSequence[0].TemplateIdentifier == '2010'
-        # Oberver Context (Person): 2
-        # Oberver Context (Device): 3
+        # Observer Context (Person): 2
+        # Observer Context (Device): 3
         # Description: 1
         # Referenced Objects: 4
         assert len(container.ContentSequence) == 10

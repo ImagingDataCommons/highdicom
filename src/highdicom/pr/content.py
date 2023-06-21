@@ -136,7 +136,7 @@ class GraphicGroup(Dataset):
         label: str
             Name used to identify the Graphic Group (maximum 64 characters).
         description: Union[str, None], optional
-            Description of the group (maxiumum 10240 characters).
+            Description of the group (maximum 10240 characters).
 
         """
         super().__init__()
@@ -431,7 +431,7 @@ class TextObject(Dataset):
                 raise ValueError(
                     'All coordinates in the bounding box must be non-negative.'
                 )
-            self.AnchorPoint = anchor_point
+            self.AnchorPoint = list(anchor_point)
             self.AnchorPointAnnotationUnits = units.value
             self.AnchorPointVisibility = 'Y' if anchor_point_visible else 'N'
             if units == AnnotationUnitsValues.DISPLAY:

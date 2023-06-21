@@ -328,7 +328,7 @@ def _convert_legacy_to_enhanced(
     # All remaining unassigned attributes will be collected in either the
     # UnassignedSharedConvertedAttributesSequence or the
     # UnassignedPerFrameConvertedAttributesSequence, depending on whether
-    # values vary accross frames (original single-frame image instances).
+    # values vary across frames (original single-frame image instances).
     unassigned_shared_ca_item = Dataset()
     unassigned_perframe_ca_items = [
         Dataset()

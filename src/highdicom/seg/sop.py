@@ -589,7 +589,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -690,7 +690,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -793,7 +793,7 @@ class _SegDBManager:
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the output segment
             numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
 
@@ -1009,8 +1009,9 @@ class Segmentation(SOPClass):
             data elements. The following lossless compressed transfer syntaxes
             are supported for encapsulated format encoding in case of
             FRACTIONAL segmentation type:
-            RLE Lossless (``"1.2.840.10008.1.2.5"``) and
-            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``).
+            RLE Lossless (``"1.2.840.10008.1.2.5"``),
+            JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``), and
+            JPEG LS Lossless (``"1.2.840.10008.1.2.4.00"``).
         pixel_measures: Union[highdicom.PixelMeasures, None], optional
             Physical spacing of image pixels in `pixel_array`.
             If ``None``, it will be assumed that the segmentation image has the
@@ -2046,9 +2047,11 @@ class Segmentation(SOPClass):
                     CoordinateSystemNames.SLIDE
                 ):
                     index_values = [
-                        np.where(
-                            (dimension_position_values[idx] == pos)
-                        )[0][0] + 1
+                        int(
+                            np.where(
+                                (dimension_position_values[idx] == pos)
+                            )[0][0] + 1
+                        )
                         for idx, pos in enumerate(
                             plane_position_values[plane_index]
                         )
@@ -2059,11 +2062,13 @@ class Segmentation(SOPClass):
                     # Sequence points to (Image Position Patient) has a
                     # value multiplicity greater than one.
                     index_values = [
-                        np.where(
-                            (dimension_position_values[idx] == pos).all(
-                                axis=1
-                            )
-                        )[0][0] + 1
+                        int(
+                            np.where(
+                                (dimension_position_values[idx] == pos).all(
+                                    axis=1
+                                )
+                            )[0][0] + 1
+                        )
                         for idx, pos in enumerate(
                             plane_position_values[plane_index]
                         )
@@ -2123,7 +2128,7 @@ class Segmentation(SOPClass):
         frame_content_item = Dataset()
 
         frame_content_item.DimensionIndexValues = (
-            [segment_number] + index_values
+            [int(segment_number)] + index_values
         )
         pffg_item.FrameContentSequence = [frame_content_item]
         if has_ref_frame_uid:
@@ -2175,7 +2180,7 @@ class Segmentation(SOPClass):
             logger.debug('spatial locations not preserved')
 
         identification = Dataset()
-        identification.ReferencedSegmentNumber = segment_number
+        identification.ReferencedSegmentNumber = int(segment_number)
         pffg_item.SegmentIdentificationSequence = [
             identification,
         ]
@@ -2867,7 +2872,7 @@ class Segmentation(SOPClass):
         relabel: bool
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         rescale_fractional: bool
@@ -3239,7 +3244,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         ignore_spatial_locations: bool, optional
@@ -3458,7 +3463,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         ignore_spatial_locations: bool, optional
@@ -3723,7 +3728,7 @@ class Segmentation(SOPClass):
         relabel: bool, optional
             If True and ``combine_segments`` is ``True``, the pixel values in
             the output array are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) accoring to the position of
+            ``len(segment_numbers)`` (inclusive) according to the position of
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         assert_missing_frames_are_empty: bool, optional

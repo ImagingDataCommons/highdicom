@@ -63,7 +63,7 @@ def encode_frame(
     -------
     bytes
         Encoded pixel data (potentially compressed in case of encapsulated
-        format encoding, depending on the transfer snytax)
+        format encoding, depending on the transfer syntax)
 
     Raises
     ------

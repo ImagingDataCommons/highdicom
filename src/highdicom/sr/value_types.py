@@ -1458,7 +1458,7 @@ class ImageContentItem(ContentItem):
             Number of frame(s) to which the reference applies in case of a
             multi-frame image
         referenced_segment_numbers: Union[int, Sequence[int], None], optional
-            Number of segment(s) to which the refernce applies in case of a
+            Number of segment(s) to which the reference applies in case of a
             segmentation image
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             Type of relationship with parent content item
@@ -1702,7 +1702,7 @@ class Scoord3DContentItem(ContentItem):
     Note
     ----
     Spatial coordinates are defined in the patient or specimen-based coordinate
-    system and have milimeter unit.
+    system and have millimeter unit.
 
     """
 
@@ -1955,7 +1955,7 @@ class WaveformContentItem(ContentItem):
         referenced_waveform_channels: Union[Sequence[Tuple[int, int]], None], optional
             Pairs of waveform number (number of item in the Waveform Sequence)
             and channel definition number (number of item in the Channel
-            Defition Sequence) to which the reference applies in case of a
+            Definition Sequence) to which the reference applies in case of a
             multi-channel waveform
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
             Type of relationship with parent content item

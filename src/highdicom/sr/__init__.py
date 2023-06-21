@@ -1,4 +1,4 @@
-"""Package for creationg of Structured Report (SR) instances."""
+"""Package for creation of Structured Report (SR) instances."""
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
     FindingSite,
@@ -72,6 +72,7 @@ from highdicom.sr.value_types import (
     TextContentItem,
     TimeContentItem,
     UIDRefContentItem,
+    WaveformContentItem,
 )
 
 SOP_CLASS_UIDS = {
