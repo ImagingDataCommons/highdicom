@@ -1677,7 +1677,7 @@ class Segmentation(SOPClass):
             Whether spatial locations are preserved between the source image
             and the segmentation.
         is_tiled: bool
-            Whether the souce image is a tiled image.
+            Whether the source image is a tiled image.
 
         """
         plane_position_names = self.DimensionIndexSequence.get_index_keywords()
