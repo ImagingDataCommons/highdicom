@@ -1598,7 +1598,7 @@ class Segmentation(SOPClass):
         has_ref_frame_uid: bool,
         is_multiframe: bool,
     ) -> Optional[PixelMeasuresSequence]:
-        """Get a pixel measures sequences from the source image.
+        """Get a Pixel Measures Sequence from the source image.
 
         This is a helper method used in the constructor.
 
@@ -1942,7 +1942,7 @@ class Segmentation(SOPClass):
         segmentation_type: SegmentationTypeValues,
         max_fractional_value: int
     ) -> np.ndarray:
-        """Get segmentation array for a specific segment.
+        """Get pixel data array for a specific segment.
 
         This is a helper method used during the constructor.
 
@@ -2014,7 +2014,7 @@ class Segmentation(SOPClass):
         has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
     ) -> List[int]:
-        """Get dimension index values for a frame.
+        """Get Dimension Index Values for a frame.
 
         Parameters
         ----------
@@ -2093,7 +2093,7 @@ class Segmentation(SOPClass):
         has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
     ) -> Dataset:
-        """Get a single item of the PerFrameFunctionalGroupsSequence.
+        """Get a single item of the Per Frame Functional Groups Sequence.
 
         This is a helper method used in the constructor.
 
@@ -2121,7 +2121,7 @@ class Segmentation(SOPClass):
         -------
         pydicom.Dataset
             Dataset representing the item of the
-            PerFrameFunctionalGroupsSequence for this segmentation frame.
+            Per Frame Functional Groups Sequence for this segmentation frame.
 
         """
         pffg_item = Dataset()
