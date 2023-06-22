@@ -1,6 +1,6 @@
 """Module for SOP classes of the SEG modality."""
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
@@ -2163,8 +2163,15 @@ class Segmentation(SOPClass):
         # the list without changing the order
         unique_instance_data = list(dict.fromkeys(instance_data))
         if len(unique_instance_data) != len(instance_data):
+            counts = Counter(instance_data)
+            duplicate_sop_uids = [
+                f"'{key[2]}'" for key, value in counts.items() if value > 1
+            ]
+            display_str = ', '.join(duplicate_sop_uids)
             logger.warning(
-                'Duplicate entries found in the ReferencedSeriesSequence.'
+                'Duplicate entries found in the ReferencedSeriesSequence. '
+                f"Segmentation SOP Instance UID: '{self.SOPInstanceUID}', "
+                f'duplicated referenced SOP Instance UID items: {display_str}.'
             )
 
         return list(unique_instance_data)
