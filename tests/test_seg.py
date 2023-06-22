@@ -953,7 +953,7 @@ class TestSegmentation:
         src_pm_item = src_shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == src_pm_item.PixelSpacing
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
-        assert len(shared_item.PlaneOrientationSequence) == 1
+        assert not hasattr(shared_item, "PlaneOrientationSequence")
         assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
         assert instance.TotalPixelMatrixOriginSequence == \
@@ -2507,10 +2507,32 @@ class TestSegmentation:
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == list(pixel_spacing)
         assert pm_item.SliceThickness == slice_thickness
-        assert len(shared_item.PlaneOrientationSequence) == 1
-        po_item = shared_item.PlaneOrientationSequence[0]
-        assert po_item.ImageOrientationSlide == list(image_orientation)
+        assert not hasattr(shared_item, 'PlaneOrientationSequence')
         self.check_dimension_index_vals(instance)
+
+    def test_get_plane_positions_of_image_patient(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT'
+        )
+        plane_positions = seq.get_plane_positions_of_image(self._ct_multiframe)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
+
+    def test_get_plane_positions_of_image_slide(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='SLIDE'
+        )
+        plane_positions = seq.get_plane_positions_of_image(self._sm_image)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
+
+    def test_get_plane_positions_of_series(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT'
+        )
+        plane_positions = seq.get_plane_positions_of_series(self._ct_series)
+        for position in plane_positions:
+            assert isinstance(position, PlanePositionSequence)
 
 
 class TestSegmentationParsing():

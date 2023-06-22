@@ -2,7 +2,7 @@ Documentation of the highdicom package
 ======================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    introduction
@@ -12,8 +12,8 @@ Documentation of the highdicom package
    conformance
    citation
    license
-   package
    release_notes
+   package
 
 
 

@@ -1,0 +1,4 @@
+[codespell]
+skip = .git,*.pdf,*.svg,*.ipynb
+# te,fo - either abbreviations of variables
+ignore-words-list = te,fo

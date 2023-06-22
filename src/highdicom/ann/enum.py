@@ -57,7 +57,7 @@ class GraphicTypeValues(Enum):
     """
 
     POINT = 'POINT'
-    """An individual piont defined by a single coordinate."""
+    """An individual point defined by a single coordinate."""
 
     POLYLINE = 'POLYLINE'
     """Connected line segments defined by two or more ordered coordinates.
