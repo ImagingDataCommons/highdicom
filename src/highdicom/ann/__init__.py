@@ -6,7 +6,7 @@ from highdicom.ann.enum import (
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
-from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations
+from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations, annread
 
 SOP_CLASS_UIDS = {
     '1.2.840.10008.5.1.4.1.1.91.1',  # Microscopy Bulk Simple Annotations
@@ -20,4 +20,5 @@ __all__ = [
     'Measurements',
     'MicroscopyBulkSimpleAnnotations',
     'PixelOriginInterpretationValues',
+    'annread',
 ]

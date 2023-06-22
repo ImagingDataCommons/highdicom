@@ -15,7 +15,7 @@ from highdicom.ann.enum import (
     AnnotationGroupGenerationTypeValues,
     GraphicTypeValues,
 )
-from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations
+from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations, annread
 from highdicom.content import AlgorithmIdentificationSequence
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
@@ -394,7 +394,7 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             version='1.0'
         )
 
-        annotation_coordinate_type = '3D'
+        annotation_coordinate_type = AnnotationCoordinateTypeValues.SCOORD3D
         first_property_type = Code('4421005', 'SCT', 'Cell')
         first_label = 'cells'
         first_uid = UID()
@@ -468,6 +468,17 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             dataset = dcmread(fp)
 
         annotations = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
+
+        with BytesIO() as fp:
+            annotations.save_as(fp)
+            fp.seek(0)
+            annotations = annread(fp)
+
+        assert isinstance(
+            annotations.annotation_coordinate_type,
+            AnnotationCoordinateTypeValues
+        )
+        assert annotations.annotation_coordinate_type == annotation_coordinate_type
 
         retrieved_groups = annotations.get_annotation_groups()
         assert len(retrieved_groups) == 2

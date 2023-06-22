@@ -115,13 +115,21 @@ class Measurements(Dataset):
         return values
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'Measurements':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> 'Measurements':
         """Construct instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an item of the Measurements Sequence.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -138,17 +146,22 @@ class Measurements(Dataset):
             module='microscopy-bulk-simple-annotations',
             base_path=['AnnotationGroupSequence', 'MeasurementsSequence'],
         )
-        measurements = deepcopy(dataset)
+        if copy:
+            measurements = deepcopy(dataset)
+        else:
+            measurements = dataset
         measurements.__class__ = cls
 
         measurements.ConceptNameCodeSequence = [
             CodedConcept.from_dataset(
-                measurements.ConceptNameCodeSequence[0]
+                measurements.ConceptNameCodeSequence[0],
+                copy=copy,
             )
         ]
         measurements.MeasurementUnitsCodeSequence = [
             CodedConcept.from_dataset(
-                measurements.MeasurementUnitsCodeSequence[0]
+                measurements.MeasurementUnitsCodeSequence[0],
+                copy=copy,
             )
         ]
 
@@ -246,8 +259,10 @@ class AnnotationGroup(Dataset):
                     'Argument "algorithm_identification" must be provided if '
                     f'argument "algorithm_type" is "{algorithm_type.value}".'
                 )
-            if not isinstance(algorithm_identification,
-                              AlgorithmIdentificationSequence):
+            if not isinstance(
+                algorithm_identification,
+                AlgorithmIdentificationSequence
+            ):
                 raise TypeError(
                     'Argument "algorithm_identification" must have type '
                     'AlgorithmIdentificationSequence.'
@@ -620,6 +635,11 @@ class AnnotationGroup(Dataset):
             2D or 3D spatial coordinates of a graphical annotation
 
         """  # noqa: E501
+        if annotation_number < 1:
+            raise ValueError(
+                'Parameter "annotation_number" must be an integer greater '
+                ' than 1.'
+            )
         graphic_data = self.get_graphic_data(coordinate_type)
         annotation_index = annotation_number - 1
         return graphic_data[annotation_index]
@@ -745,13 +765,21 @@ class AnnotationGroup(Dataset):
         return coordinate_index
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'AnnotationGroup':
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> 'AnnotationGroup':
         """Construct instance from an existing dataset.
 
         Parameters
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset representing an item of the Annotation Group Sequence.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -768,38 +796,44 @@ class AnnotationGroup(Dataset):
             module='microscopy-bulk-simple-annotations',
             base_path=['AnnotationGroupSequence'],
         )
-        group = deepcopy(dataset)
+        if copy:
+            group = deepcopy(dataset)
+        else:
+            group = dataset
         group.__class__ = cls
         group._graphic_data = {}  # will be handled by get_graphic_data()
 
         group.AnnotationPropertyCategoryCodeSequence = [
             CodedConcept.from_dataset(
-                group.AnnotationPropertyCategoryCodeSequence[0]
+                group.AnnotationPropertyCategoryCodeSequence[0],
+                copy=copy,
             )
         ]
         group.AnnotationPropertyTypeCodeSequence = [
             CodedConcept.from_dataset(
-                group.AnnotationPropertyTypeCodeSequence[0]
+                group.AnnotationPropertyTypeCodeSequence[0],
+                copy=copy,
             )
         ]
         if hasattr(group, 'AnnotationGroupAlgorithmIdentificationSequence'):
             group.AnnotationGroupAlgorithmIdentificationSequence = \
                 AlgorithmIdentificationSequence.from_sequence(
-                    group.AnnotationGroupAlgorithmIdentificationSequence
+                    group.AnnotationGroupAlgorithmIdentificationSequence,
+                    copy=copy,
                 )
         if hasattr(group, 'MeasurementsSequence'):
             group.MeasurementsSequence = [
-                Measurements.from_dataset(ds)
+                Measurements.from_dataset(ds, copy=copy)
                 for ds in group.MeasurementsSequence
             ]
         if hasattr(group, 'AnatomicRegionSequence'):
             group.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=copy)
                 for ds in group.AnatomicRegionSequence
             ]
         if hasattr(group, 'PrimaryAnatomicStructureSequence'):
             group.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds)
+                CodedConcept.from_dataset(ds, copy=copy)
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
