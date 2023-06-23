@@ -1126,6 +1126,40 @@ class SpecimenPreparationStep(Dataset):
             return None
         return items[0].value
 
+    @property
+    def processing_description(self) -> Union[str, CodedConcept, None]:
+        """Union[str, highdicom.sr.CodedConcept]: Processing description"""
+        if isinstance(self._processing_procedure, SpecimenProcessing):
+            return None
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.DCM.ProcessingStepDescription
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @property
+    def processing_datetime(self) -> Union[datetime.datetime, None]:
+        """datetime.datetime: Processing datetime"""
+
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.DCM.DatetimeOfProcessing
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @property
+    def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+        """highdicom.content.IssuerOfIdentifier: Issuer of specimen id"""
+
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.DCM.IssuerOfSpecimenIdentifier
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
     @classmethod
     def from_dataset(
         cls,
