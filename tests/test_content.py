@@ -1,3 +1,4 @@
+import datetime
 from unittest import TestCase
 
 import pytest
@@ -10,6 +11,7 @@ import numpy as np
 
 from highdicom.sr import CodedConcept
 from highdicom import (
+    IssuerOfIdentifier,
     PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUT,
@@ -31,7 +33,11 @@ from highdicom import (
     VOILUTTransformation,
     VOILUTFunctionValues,
 )
-from highdicom.sr.value_types import CodeContentItem, TextContentItem
+from highdicom.sr.value_types import (
+    CodeContentItem,
+    TextContentItem,
+    DateTimeContentItem
+)
 
 from .utils import write_and_read_dataset
 
@@ -1068,7 +1074,7 @@ class TestPaletteColorLUTTransformation(TestCase):
         description = codes.SCT.SpecimenFreezing
         instance = SpecimenPreparationStep(
             specimen_id=specimen_id,
-            processing_procedure=SpecimenProcessing(description=description)
+            processing_procedure=SpecimenProcessing(description=description),
         )
         seq = instance.SpecimenPreparationStepContentItemSequence
         assert len(seq) == 3
@@ -1077,6 +1083,8 @@ class TestPaletteColorLUTTransformation(TestCase):
 
         assert instance.specimen_id == specimen_id
         assert instance.processing_type == processing_type
+        assert instance.processing_datetime is None
+        assert instance.issuer_of_specimen_id is None
         assert instance.fixative is None
         assert instance.embedding_medium is None
 
@@ -1090,10 +1098,74 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert processing_type_item.value == processing_type
         assert processing_type_item.relationship_type is None
 
-        staining_item = seq[2]
-        assert staining_item.name == codes.DCM.ProcessingStepDescription
-        assert staining_item.value == description
-        assert staining_item.relationship_type is None
+        processing_step_description_item = seq[2]
+        assert processing_step_description_item.name == codes.DCM.ProcessingStepDescription
+        assert processing_step_description_item.value == description
+        assert processing_step_description_item.relationship_type is None
+
+    def test_construction_processing_optionals(self):
+        specimen_id = 'specimen id'
+        processing_type = codes.SCT.SpecimenCollection
+        procedure = codes.SCT.Excision
+        processing_procedure = SpecimenCollection(procedure=procedure)
+        processing_datetime = datetime.datetime(2023, 6, 17, 21, 38, 14)
+        processing_description = 'processing description'
+        issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
+        fixative = CodedConcept("fixative", "test", "test fixative")
+        embedding_medium = CodedConcept("embedding", "test", "test embedding")
+
+        instance = SpecimenPreparationStep(
+            specimen_id=specimen_id,
+            processing_procedure=processing_procedure,
+            processing_description=processing_description,
+            processing_datetime=processing_datetime,
+            issuer_of_specimen_id=issuer_of_specimen_id,
+            fixative=fixative,
+            embedding_medium=embedding_medium
+        )
+
+        seq = instance.SpecimenPreparationStepContentItemSequence
+        assert len(seq) == 8
+
+        specimen_id_item = seq[0]
+        assert specimen_id_item.name == codes.DCM.SpecimenIdentifier
+        assert specimen_id_item.value == specimen_id
+        assert specimen_id_item.relationship_type is None
+
+        issuer_of_specimen_id_item = seq[1]
+        assert issuer_of_specimen_id_item.name == codes.DCM.IssuerOfSpecimenIdentifier
+        assert issuer_of_specimen_id_item.value == issuer_of_specimen_id.LocalNamespaceEntityID
+        assert issuer_of_specimen_id_item.relationship_type is None
+
+        processing_type_item = seq[2]
+        assert processing_type_item.name == codes.DCM.ProcessingType
+        assert processing_type_item.value == processing_type
+        assert processing_type_item.relationship_type is None
+
+        processing_datetime_item = seq[3]
+        assert processing_datetime_item.name == codes.DCM.DatetimeOfProcessing
+        assert processing_datetime_item.value == processing_datetime
+        assert processing_datetime_item.relationship_type is None
+
+        processing_description_item = seq[4]
+        assert processing_description_item.name == codes.DCM.ProcessingStepDescription
+        assert processing_description_item.value == processing_description
+        assert processing_description_item.relationship_type is None
+
+        collection_step_item = seq[5]
+        assert collection_step_item.name == codes.SCT.SpecimenCollection
+        assert collection_step_item.value == procedure
+        assert collection_step_item.relationship_type is None
+
+        fixative_item = seq[6]
+        assert fixative_item.name == codes.SCT.TissueFixative
+        assert fixative_item.value == fixative
+        assert fixative_item.relationship_type is None
+
+        embedding_item = seq[7]
+        assert embedding_item.name == codes.SCT.TissueEmbeddingMedium
+        assert embedding_item.value == embedding_medium
+        assert embedding_item.relationship_type is None
 
     def test_construction_processing_from_dataset(self):
         specimen_id = 'specimen id'
@@ -1125,6 +1197,65 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert isinstance(processing_procedure, SpecimenProcessing)
         assert processing_procedure.description == description
 
+    def test_construction_processing_from_dataset_optionals(self):
+        specimen_id = 'specimen id'
+        processing_type = codes.SCT.SpecimenCollection
+        procedure = codes.SCT.Excision
+        processing_procedure = SpecimenCollection(procedure=procedure)
+        processing_description = "processing description"
+        processing_datetime = datetime.datetime(2023, 6, 17, 21, 38, 14)
+        issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
+        fixative = CodedConcept("fixative", "test", "test fixative")
+        embedding_medium = CodedConcept("embedding", "test", "test embedding")
+        dataset = Dataset()
+        dataset.SpecimenPreparationStepContentItemSequence = [
+            TextContentItem(
+                name=codes.DCM.SpecimenIdentifier,
+                value=specimen_id
+            ),
+            TextContentItem(
+                name=codes.DCM.IssuerOfSpecimenIdentifier,
+                value=issuer_of_specimen_id.LocalNamespaceEntityID
+            ),
+            DateTimeContentItem(
+                name=codes.DCM.DatetimeOfProcessing,
+                value=processing_datetime
+            ),
+            CodeContentItem(
+                name=codes.DCM.ProcessingType,
+                value=processing_type
+            ),
+            TextContentItem(
+                name=codes.DCM.ProcessingStepDescription,
+                value=processing_description
+            ),
+            CodeContentItem(
+                name=codes.SCT.SpecimenCollection,
+                value=procedure
+            ),
+            CodeContentItem(
+                name=codes.SCT.TissueFixative,
+                value=fixative
+            ),
+            CodeContentItem(
+                name=codes.SCT.TissueEmbeddingMedium,
+                value=embedding_medium
+            )
+
+        ]
+        dataset_reread = write_and_read_dataset(dataset)
+        instance = SpecimenPreparationStep.from_dataset(dataset_reread)
+        assert isinstance(instance, SpecimenPreparationStep)
+        assert instance.specimen_id == specimen_id
+        assert instance.processing_type == processing_type
+        assert instance.fixative == fixative
+        assert instance.embedding_medium == embedding_medium
+        assert instance.processing_description == processing_description
+        processing_procedure = instance.processing_procedure
+        assert isinstance(processing_procedure, SpecimenCollection)
+        assert processing_procedure.procedure == procedure
+        assert instance.processing_datetime == processing_datetime
+        assert instance.issuer_of_specimen_id == issuer_of_specimen_id.LocalNamespaceEntityID
 
 class TestSpecimenDescription(TestCase):
 
