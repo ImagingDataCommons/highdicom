@@ -981,6 +981,14 @@ class SpecimenPreparationStep(Dataset):
 
         """  # noqa: E501
         super().__init__()
+        if (
+            isinstance(processing_procedure, SpecimenProcessing) and
+            processing_description is not None
+        ):
+            raise ValueError(
+                'Processing description must be None if procedure is of type '
+                '"SpecimenProcessing".'
+            )
         sequence = ContentSequence(is_root=False, is_sr=False)
         specimen_identifier_item = TextContentItem(
             name=codes.DCM.SpecimenIdentifier,
@@ -1184,7 +1192,7 @@ class SpecimenPreparationStep(Dataset):
                 raise ValueError(
                     'Specimen Preparation Step Content Item Sequence must '
                     'contain exactly one content item "Processing Step '
-                    'Description" when processing type is "Specimen .'
+                    'Description" when processing type is "Specimen '
                     'Processing".'
                 )
             instance._processing_procedure = SpecimenProcessing(
