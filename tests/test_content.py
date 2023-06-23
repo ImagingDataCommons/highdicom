@@ -1038,6 +1038,7 @@ class TestPaletteColorLUTTransformation(TestCase):
                 blue_lut=b_lut,
             )
 
+class TestSpecimenPreparationStep:
     def test_construction_staining_from_dataset(self):
         specimen_id = 'specimen id'
         processing_type = codes.SCT.Staining
@@ -1113,6 +1114,8 @@ class TestPaletteColorLUTTransformation(TestCase):
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
         fixative = CodedConcept("fixative", "test", "test fixative")
         embedding_medium = CodedConcept("embedding", "test", "test embedding")
+        specimen_container = CodedConcept("specimen container", "test", "test specimen container")
+        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
 
         instance = SpecimenPreparationStep(
             specimen_id=specimen_id,
@@ -1121,11 +1124,13 @@ class TestPaletteColorLUTTransformation(TestCase):
             processing_datetime=processing_datetime,
             issuer_of_specimen_id=issuer_of_specimen_id,
             fixative=fixative,
-            embedding_medium=embedding_medium
+            embedding_medium=embedding_medium,
+            specimen_container=specimen_container,
+            specimen_type=specimen_type
         )
 
         seq = instance.SpecimenPreparationStepContentItemSequence
-        assert len(seq) == 8
+        assert len(seq) == 10
 
         specimen_id_item = seq[0]
         assert specimen_id_item.name == codes.DCM.SpecimenIdentifier
@@ -1167,6 +1172,16 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert embedding_item.value == embedding_medium
         assert embedding_item.relationship_type is None
 
+        specimen_container_item = seq[8]
+        assert specimen_container_item.name == codes.SCT.SpecimenContainer
+        assert specimen_container_item.value == specimen_container
+        assert specimen_container_item.relationship_type is None
+
+        specimen_type_item = seq[9]
+        assert specimen_type_item.name == codes.SCT.SpecimenType
+        assert specimen_type_item.value == specimen_type
+        assert specimen_type_item.relationship_type is None
+
     def test_construction_processing_from_dataset(self):
         specimen_id = 'specimen id'
         processing_type = codes.SCT.SpecimenProcessing
@@ -1207,6 +1222,8 @@ class TestPaletteColorLUTTransformation(TestCase):
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
         fixative = CodedConcept("fixative", "test", "test fixative")
         embedding_medium = CodedConcept("embedding", "test", "test embedding")
+        specimen_container = CodedConcept("specimen container", "test", "test specimen container")
+        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
         dataset = Dataset()
         dataset.SpecimenPreparationStepContentItemSequence = [
             TextContentItem(
@@ -1240,8 +1257,15 @@ class TestPaletteColorLUTTransformation(TestCase):
             CodeContentItem(
                 name=codes.SCT.TissueEmbeddingMedium,
                 value=embedding_medium
+            ),
+            CodeContentItem(
+                name=codes.SCT.SpecimenContainer,
+                value=specimen_container
+            ),
+            CodeContentItem(
+                name=codes.SCT.SpecimenType,
+                value=specimen_type
             )
-
         ]
         dataset_reread = write_and_read_dataset(dataset)
         instance = SpecimenPreparationStep.from_dataset(dataset_reread)
@@ -1256,6 +1280,8 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert processing_procedure.procedure == procedure
         assert instance.processing_datetime == processing_datetime
         assert instance.issuer_of_specimen_id == issuer_of_specimen_id.LocalNamespaceEntityID
+        assert instance.specimen_container == specimen_container
+        assert instance.specimen_type == specimen_type
 
 class TestSpecimenDescription(TestCase):
 

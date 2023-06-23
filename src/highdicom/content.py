@@ -960,7 +960,9 @@ class SpecimenPreparationStep(Dataset):
         processing_datetime: Optional[datetime.datetime] = None,
         issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
         fixative: Optional[Union[Code, CodedConcept]] = None,
-        embedding_medium: Optional[Union[Code, CodedConcept]] = None
+        embedding_medium: Optional[Union[Code, CodedConcept]] = None,
+        specimen_container: Optional[Union[Code, CodedConcept]] = None,
+        specimen_type: Optional[Union[Code, CodedConcept]] = None,
     ):
         """
         Parameters
@@ -978,6 +980,10 @@ class SpecimenPreparationStep(Dataset):
             Fixative used during processing
         embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Embedding medium used during processing
+        specimen_container: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+            Container the specimen resides in.
+        specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+            The anatomic pathology specimen type of the specimen.
 
         """  # noqa: E501
         super().__init__()
@@ -1067,6 +1073,20 @@ class SpecimenPreparationStep(Dataset):
             sequence.append(embedding_medium_item)
         self.SpecimenPreparationStepContentItemSequence = sequence
 
+        if specimen_container is not None:
+            specimen_container_item = CodeContentItem(
+                name=codes.SCT.SpecimenContainer,
+                value=specimen_container
+            )
+            sequence.append(specimen_container_item)
+
+        if specimen_type is not None:
+            specimen_type_item = CodeContentItem(
+                name=codes.SCT.SpecimenType,
+                value=specimen_type
+            )
+            sequence.append(specimen_type_item)
+
     @property
     def specimen_id(self) -> str:
         """str: Specimen identifier"""
@@ -1155,6 +1175,24 @@ class SpecimenPreparationStep(Dataset):
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.DCM.IssuerOfSpecimenIdentifier
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @property
+    def specimen_container(self) -> Union[CodedConcept, None]:
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.SCT.SpecimenContainer
+        )
+        if len(items) == 0:
+            return None
+        return items[0].value
+
+    @property
+    def specimen_type(self) -> Union[CodedConcept, None]:
+        items = self.SpecimenPreparationStepContentItemSequence.find(
+            codes.SCT.SpecimenType
         )
         if len(items) == 0:
             return None
