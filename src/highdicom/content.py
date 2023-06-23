@@ -1030,7 +1030,7 @@ class SpecimenPreparationStep(Dataset):
 
         if processing_datetime is not None:
             processing_datetime_item = DateTimeContentItem(
-                name=codes.DCM.DateTimeOfProcessing,
+                name=codes.DCM.DatetimeOfProcessing,
                 value=processing_datetime
             )
             sequence.append(processing_datetime_item)
