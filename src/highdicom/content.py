@@ -1170,7 +1170,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+    def issuer_of_specimen_id(self) -> Union[str, None]:
         """highdicom.content.IssuerOfIdentifier: Issuer of specimen id"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
