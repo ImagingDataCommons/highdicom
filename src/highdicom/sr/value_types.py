@@ -878,13 +878,15 @@ class TimeContentItem(ContentItem):
     def value(self) -> datetime.time:
         """datetime.time: time"""
         if isinstance(self.Time, TM):
-            return self.Time
-        try:
-            return TM(self.Time)
-        except ValueError as exception:
-            raise ValueError(
-                f'Could not decode time value "{self.Time}"'
-            ) from exception
+            value = self.Time
+        else:
+            try:
+                value = TM(self.Time)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode time value "{self.Time}"'
+                ) from exception
+        return value.replace()
 
 
     @classmethod
@@ -949,13 +951,15 @@ class DateContentItem(ContentItem):
     def value(self) -> datetime.date:
         """datetime.date: date"""
         if isinstance(self.Date, DA):
-            return self.Date
-        try:
-            return DA(self.Date)
-        except ValueError as exception:
-            raise ValueError(
-                f'Could not decode date value "{self.Date}"'
-            ) from exception
+            value = self.Date
+        else:
+            try:
+                value = DA(self.Date)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode date value "{self.Date}"'
+                ) from exception
+        return value.replace()
 
     @classmethod
     def from_dataset(
@@ -1019,13 +1023,15 @@ class DateTimeContentItem(ContentItem):
     def value(self) -> datetime.datetime:
         """datetime.datetime: datetime"""
         if isinstance(self.DateTime, DT):
-            return self.DateTime
-        try:
-            return DT(self.DateTime)
-        except ValueError as exception:
-            raise ValueError(
-                f'Could not decode datetime value "{self.DateTime}"'
-            ) from exception
+            value = self.DateTime
+        else:
+            try:
+                value = DT(self.DateTime)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode datetime value "{self.DateTime}"'
+                ) from exception
+        return value.replace()
 
     @classmethod
     def from_dataset(
