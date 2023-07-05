@@ -1481,13 +1481,15 @@ class Segmentation(SOPClass):
 
                 # Get the item of the PerFrameFunctionalGroupsSequence for this
                 # segmentation frame
-                index_values = self._get_dimension_index_values(
-                    plane_index=plane_index,
-                    dimension_position_values=dimension_position_values,
-                    plane_position_values=plane_position_values,
-                    has_ref_frame_uid=has_ref_frame_uid,
-                    coordinate_system=self._coordinate_system,
-                )
+                if has_ref_frame_uid:
+                    index_values = self._get_dimension_index_values(
+                        plane_index=plane_index,
+                        dimension_position_values=dimension_position_values,
+                        plane_position_values=plane_position_values,
+                        coordinate_system=self._coordinate_system,
+                    )
+                else:
+                    index_values = []
                 pffg_item = self._get_pffg_item(
                     segment_number=segment_number,
                     index_values=index_values,
@@ -2014,7 +2016,6 @@ class Segmentation(SOPClass):
         plane_index: int,
         dimension_position_values: List[np.ndarray],
         plane_position_values: np.ndarray,
-        has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
     ) -> List[int]:
         """Get Dimension Index Values for a frame.
@@ -2027,8 +2028,6 @@ class Segmentation(SOPClass):
             Relative locations of each plane.
         plane_position_values: numpy.ndarray
             Plane positions of each plane.
-        has_ref_frame_uid: bool
-            Whether the source images have a frame of reference.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             The type of coordinate system used (if any).
 
@@ -2039,49 +2038,46 @@ class Segmentation(SOPClass):
             given plane.
 
         """
-        if not has_ref_frame_uid:
-            index_values = []
-        else:
-            # Look up the position of the plane relative to the indexed
-            # dimension.
-            try:
-                if (
-                    coordinate_system ==
-                    CoordinateSystemNames.SLIDE
-                ):
-                    index_values = [
-                        int(
-                            np.where(
-                                (dimension_position_values[idx] == pos)
-                            )[0][0] + 1
-                        )
-                        for idx, pos in enumerate(
-                            plane_position_values[plane_index]
-                        )
-                    ]
-                else:
-                    # In case of the patient coordinate system, the
-                    # value of the attribute the Dimension Index
-                    # Sequence points to (Image Position Patient) has a
-                    # value multiplicity greater than one.
-                    index_values = [
-                        int(
-                            np.where(
-                                (dimension_position_values[idx] == pos).all(
-                                    axis=1
-                                )
-                            )[0][0] + 1
-                        )
-                        for idx, pos in enumerate(
-                            plane_position_values[plane_index]
-                        )
-                    ]
-            except IndexError as error:
-                raise IndexError(
-                    'Could not determine position of plane #{} in '
-                    'three dimensional coordinate system based on '
-                    'dimension index values: {}'.format(plane_index, error)
-                )
+        # Look up the position of the plane relative to the indexed
+        # dimension.
+        try:
+            if (
+                coordinate_system ==
+                CoordinateSystemNames.SLIDE
+            ):
+                index_values = [
+                    int(
+                        np.where(
+                            (dimension_position_values[idx] == pos)
+                        )[0][0] + 1
+                    )
+                    for idx, pos in enumerate(
+                        plane_position_values[plane_index]
+                    )
+                ]
+            else:
+                # In case of the patient coordinate system, the
+                # value of the attribute the Dimension Index
+                # Sequence points to (Image Position Patient) has a
+                # value multiplicity greater than one.
+                index_values = [
+                    int(
+                        np.where(
+                            (dimension_position_values[idx] == pos).all(
+                                axis=1
+                            )
+                        )[0][0] + 1
+                    )
+                    for idx, pos in enumerate(
+                        plane_position_values[plane_index]
+                    )
+                ]
+        except IndexError as error:
+            raise IndexError(
+                'Could not determine position of plane #{} in '
+                'three dimensional coordinate system based on '
+                'dimension index values: {}'.format(plane_index, error)
+            )
 
         return index_values
 
