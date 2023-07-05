@@ -1577,7 +1577,7 @@ class Segmentation(SOPClass):
                         # future to the list for encapsulation at the end
                         future = process_pool.submit(
                             encode_frame,
-                            array=segment_array[plane_index].copy(),
+                            array=segment_array[plane_index],
                             **encode_frame_kwargs,
                         )
                         frame_futures_list.append(future)
