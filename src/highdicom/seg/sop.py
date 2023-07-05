@@ -1503,22 +1503,23 @@ class Segmentation(SOPClass):
         pffg_sequence: List[Dataset] = []
 
         for segment_number in described_segment_numbers:
-            # Pixel array for just this segment
-            segment_array = self._get_segment_pixel_array(
-                pixel_array,
-                segment_number=segment_number,
-                number_of_segments=number_of_segments,
-                segmentation_type=segmentation_type,
-                max_fractional_value=max_fractional_value,
-            )
-
             for plane_index in plane_sort_index:
-                # Even though completely empty slices were removed earlier,
-                # there may still be slices in which this specific segment is
+
+                # Pixel array for just this segment and this position
+                segment_array = self._get_segment_pixel_array(
+                    pixel_array[plane_index],
+                    segment_number=segment_number,
+                    number_of_segments=number_of_segments,
+                    segmentation_type=segmentation_type,
+                    max_fractional_value=max_fractional_value,
+                )
+
+                # Even though completely empty planes were removed earlier,
+                # there may still be planes in which this specific segment is
                 # absent. Such frames should be removed
                 if (
                     omit_empty_frames and not
-                    np.any(segment_array[plane_index])
+                    np.any(segment_array)
                 ):
                     logger.debug(
                         f'skip empty plane {plane_index} of segment '
@@ -1568,7 +1569,7 @@ class Segmentation(SOPClass):
                         # for encapsulation at the end
                         compressed_frames_list.append(
                             encode_frame(
-                                segment_array[plane_index],
+                                segment_array,
                                 **encode_frame_kwargs,
                             )
                         )
@@ -1577,15 +1578,13 @@ class Segmentation(SOPClass):
                         # future to the list for encapsulation at the end
                         future = process_pool.submit(
                             encode_frame,
-                            array=segment_array[plane_index],
+                            array=segment_array,
                             **encode_frame_kwargs,
                         )
                         frame_futures_list.append(future)
                 else:
                     # Concatenate the 1D array for encoding at the end
-                    full_frames_list.append(
-                        segment_array[plane_index].flatten()
-                    )
+                    full_frames_list.append(segment_array.flatten())
 
         self.PerFrameFunctionalGroupsSequence = pffg_sequence
         self.NumberOfFrames = len(pffg_sequence)
@@ -2021,7 +2020,9 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Full segmentation pixel array containing all segments.
+            Full segmentation pixel array containing all segments for a single
+            plane. Array is therefore either (Rows x Columns x Segments) or
+            (Rows x Columns) in case of a "label map" style array.
         segment_number: int
             The segment of interest.
         number_of_segments: int
@@ -2044,8 +2045,8 @@ class Segmentation(SOPClass):
             # output is a FRACTIONAL segmentation Floating-point numbers must
             # be mapped to 8-bit integers in the range [0,
             # max_fractional_value].
-            if pixel_array.ndim == 4:
-                segment_array = pixel_array[:, :, :, segment_number - 1]
+            if pixel_array.ndim == 3:
+                segment_array = pixel_array[:, :, segment_number - 1]
             else:
                 segment_array = pixel_array
             segment_array = np.around(
@@ -2053,7 +2054,7 @@ class Segmentation(SOPClass):
             )
             segment_array = segment_array.astype(np.uint8)
         else:
-            if pixel_array.ndim == 3:
+            if pixel_array.ndim == 2:
                 # "Label maps" that must be converted to binary masks.
                 if number_of_segments == 1:
                     # We wish to avoid unnecessary comparison or casting
@@ -2069,7 +2070,7 @@ class Segmentation(SOPClass):
                         pixel_array == segment_number
                     ).astype(np.uint8)
             else:
-                segment_array = pixel_array[:, :, :, segment_number - 1]
+                segment_array = pixel_array[:, :, segment_number - 1]
                 if segment_array.dtype != np.uint8:
                     segment_array = segment_array.astype(np.uint8)
 
