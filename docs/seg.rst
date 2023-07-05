@@ -606,6 +606,21 @@ and 1):
 - The clear frame boundaries make retrieving individual frames from
   ``"FRACTIONAL"`` image files possible.
 
+Multiprocessing
+---------------
+
+When creating large, multiframe ``"FRACTIONAL"`` segmentations using a
+compressed transfer syntax, the time taken to compress the frames can become
+large and dominate the time taken to create the segmentation. By default,
+frames are compressed in series using the main process, however the ``workers``
+parameter allows you to specify a number of additional worker processes that
+will be used to compress frames in parallel. Setting ``workers`` to a negative
+number uses all available processes on your machine. Note that while this is
+likely to result in significantly lower creations times for segmentations with
+a very large number of frames, for segmentations with only a few frames the
+additional overhead of spawning processes may in fact slow the entire
+segmentation creation process down.
+
 Geometry of SEG Images
 ----------------------
 
