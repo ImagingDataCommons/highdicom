@@ -1482,17 +1482,17 @@ class Segmentation(SOPClass):
                 # Get the item of the PerFrameFunctionalGroupsSequence for this
                 # segmentation frame
                 if has_ref_frame_uid:
-                    index_values = self._get_dimension_index_values(
+                    dimension_index_values = self._get_dimension_index_values(
                         plane_index=plane_index,
                         dimension_position_values=dimension_position_values,
                         plane_position_values=plane_position_values,
                         coordinate_system=self._coordinate_system,
                     )
                 else:
-                    index_values = []
+                    dimension_index_values = []
                 pffg_item = self._get_pffg_item(
                     segment_number=segment_number,
-                    index_values=index_values,
+                    dimension_index_values=dimension_index_values,
                     plane_position=plane_positions[plane_index],
                     source_images=source_images,
                     source_image_index=source_image_index,
@@ -2033,7 +2033,7 @@ class Segmentation(SOPClass):
 
         Returns
         -------
-        index_values: List[int]
+        dimension_index_values: List[int]
             The dimension index values (except the segment number) for the
             given plane.
 
@@ -2084,7 +2084,7 @@ class Segmentation(SOPClass):
     @staticmethod
     def _get_pffg_item(
         segment_number: int,
-        index_values: List[int],
+        dimension_index_values: List[int],
         plane_position: PlanePositionSequence,
         source_images: List[Dataset],
         source_image_index: int,
@@ -2100,7 +2100,7 @@ class Segmentation(SOPClass):
         ----------
         segment_number: int
             Segment number of this segmentation frame.
-        index_values: List[int]
+        dimension_index_values: List[int]
             Dimension index values (except segment number) for this frame.
         plane_position: highdicom.seg.PlanePositionSequence
             Plane position of this frame.
