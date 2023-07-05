@@ -1955,6 +1955,13 @@ class Segmentation(SOPClass):
         max_fractional_value: int
             Value for scaling FRACTIONAL segmentations.
 
+        Returns
+        -------
+        numpy.ndarray:
+            Pixel data array consisting of pixel data for a single segment for
+            all planes. Output array has dtype np.uint8 and binary values (0 or
+            1).
+
         """
         if pixel_array.dtype in (np.float_, np.float32, np.float64):
             # Based on the previous checks and casting, if we get here the
