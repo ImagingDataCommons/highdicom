@@ -2127,7 +2127,7 @@ class Segmentation(SOPClass):
         frame_content_item = Dataset()
 
         frame_content_item.DimensionIndexValues = (
-            [int(segment_number)] + index_values
+            [int(segment_number)] + dimension_index_values
         )
         pffg_item.FrameContentSequence = [frame_content_item]
         if has_ref_frame_uid:
