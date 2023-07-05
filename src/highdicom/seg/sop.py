@@ -1288,7 +1288,6 @@ class Segmentation(SOPClass):
         if pixel_measures is None:
             pixel_measures = self._get_pixel_measures(
                 source_image=src_img,
-                has_ref_frame_uid=has_ref_frame_uid,
                 is_multiframe=is_multiframe,
             )
 
@@ -1595,7 +1594,6 @@ class Segmentation(SOPClass):
     @staticmethod
     def _get_pixel_measures(
         source_image: Dataset,
-        has_ref_frame_uid: bool,
         is_multiframe: bool,
     ) -> Optional[PixelMeasuresSequence]:
         """Get a Pixel Measures Sequence from the source image.
@@ -1606,8 +1604,6 @@ class Segmentation(SOPClass):
         ----------
         source_image: pydicom.Dataset
             The first source image.
-        has_ref_frame_uid: bool
-            Whether the source image has a frame of reference uid.
         is_multiframe: bool
             Whether the source image is multiframe.
 
@@ -1622,7 +1618,7 @@ class Segmentation(SOPClass):
             src_shared_fg = source_image.SharedFunctionalGroupsSequence[0]
             pixel_measures = src_shared_fg.PixelMeasuresSequence
         else:
-            if has_ref_frame_uid:
+            if hasattr(source_image, 'FrameOfReferenceUID'):
                 pixel_measures = PixelMeasuresSequence(
                     pixel_spacing=source_image.PixelSpacing,
                     slice_thickness=source_image.SliceThickness,
