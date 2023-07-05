@@ -1407,6 +1407,25 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
 
+    def test_construction_workers(self):
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_pixel_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            transfer_syntax_uid=RLELossless,
+            workers=2,
+        )
+
     def test_pixel_types_fractional(
         self,
         fractional_transfer_syntax_uid,
