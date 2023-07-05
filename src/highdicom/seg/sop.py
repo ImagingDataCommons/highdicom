@@ -1,6 +1,7 @@
 """Module for SOP classes of the SEG modality."""
 import logging
 from collections import defaultdict
+from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
@@ -20,6 +21,7 @@ from typing import (
     Union,
     cast,
 )
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -886,6 +888,7 @@ class Segmentation(SOPClass):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
+        workers: int = 0,
         **kwargs: Any
     ) -> None:
         """
@@ -1038,6 +1041,11 @@ class Segmentation(SOPClass):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this segmentation.
+        workers: int, optional
+            Number of worker processes to use for frame compression. If 0, no
+            workers are used and compression is performed in the main process
+            (this is the default behavior). If negative, as many processes are
+            created as the machine has processors.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1447,13 +1455,45 @@ class Segmentation(SOPClass):
             )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
+        process_pool: Optional[ProcessPoolExecutor] = None
 
-        # In the case of encapsulated transfer syntaxes, we will accumulate
-        # a list of encoded frames to encapsulate at the end
-        # In the case of non-encapsulated (uncompressed) transfer syntaxes
-        # we will accumulate a list of flattened pixels from all frames for
-        # bitpacking at the end
-        full_frames_list: List[np.ndarray] = []
+        if is_encaps:
+            if workers == 0:
+                # In the case of encapsulated transfer syntaxes with no
+                # workers, we will accumulate a list of encoded frames to
+                # encapsulate at the end
+                compressed_frames_list: List[bytes] = []
+            else:
+                # In the case of encapsulated transfer syntaxes with multiple
+                # workers, we will create a process pool and accumulate a list
+                # of encoded frames to encapsulate at the end
+                frame_futures_list: List[Future] = []
+
+                # If workers is negative, pass None to use all processors
+                process_pool = ProcessPoolExecutor(
+                    workers if workers > 0 else None
+                )
+
+            # Parameters to use when calling the encode_frame function in
+            # either of the above two cases
+            encode_frame_kwargs = dict(
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
+        else:
+            # In the case of non-encapsulated (uncompressed) transfer syntaxes
+            # we will accumulate a list of flattened pixels from all frames for
+            # bitpacking at the end
+            full_frames_list: List[np.ndarray] = []
+            if workers != 0:
+                warnings.warn(
+                    "Setting workers != 0 when using a non-encapsulated "
+                    "transfer syntax has no effect.",
+                    UserWarning
+                )
 
         # Information about individual frames is placed into the
         # PerFrameFunctionalGroupsSequence. Note that a *very* significant
@@ -1523,11 +1563,26 @@ class Segmentation(SOPClass):
 
                 # Add the segmentation pixel array for this frame to the list
                 if is_encaps:
-                    # Encode this frame and add to the list for encapsulation
-                    # at the end
-                    full_frames_list.append(segment_array[plane_index])
+                    if process_pool is None:
+                        # Encode this frame and add resulting bytes to the list
+                        # for encapsulation at the end
+                        compressed_frames_list.append(
+                            encode_frame(
+                                segment_array[plane_index],
+                                **encode_frame_kwargs,
+                            )
+                        )
+                    else:
+                        # Submit this frame for encoding this frame and add the
+                        # future to the list for encapsulation at the end
+                        future = process_pool.submit(
+                            encode_frame,
+                            array=segment_array[plane_index].copy(),
+                            **encode_frame_kwargs,
+                        )
+                        frame_futures_list.append(future)
                 else:
-                    # Concatenate the 1D array for re-encoding at the end
+                    # Concatenate the 1D array for encoding at the end
                     full_frames_list.append(
                         segment_array[plane_index].flatten()
                     )
@@ -1536,16 +1591,19 @@ class Segmentation(SOPClass):
         self.NumberOfFrames = len(pffg_sequence)
 
         if is_encaps:
+            if process_pool is not None:
+                compressed_frames_list = [
+                    fut.result() for fut in frame_futures_list
+                ]
+                process_pool.shutdown()
+
             # Encapsulate all pre-compressed frames
-            compressed_frames = [
-                self._encode_pixels(frm) for frm in full_frames_list
-            ]
-            self.PixelData = encapsulate(compressed_frames)
+            self.PixelData = encapsulate(compressed_frames_list)
         else:
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
-            self.PixelData = self._encode_pixels(
+            self.PixelData = self._encode_pixels_native(
                 np.concatenate(full_frames_list)
             )
 
@@ -2204,53 +2262,26 @@ class Segmentation(SOPClass):
 
         return pffg_item
 
-    def _encode_pixels(self, planes: np.ndarray) -> bytes:
-        """Encodes pixel planes.
+    def _encode_pixels_native(self, planes: np.ndarray) -> bytes:
+        """Encode pixel planes using a native transfer syntax.
 
         Parameters
         ----------
         planes: numpy.ndarray
-            Array representing one or more segmentation image planes.
-            For encapsulated transfer syntaxes, only a single frame may be
-            processed. For other transfer syntaxes, multiple planes in a 3D
-            array may be processed.
+            Array representing one or more segmentation image planes. If
+            multiple image planes, planes stacked down the first dimension
+            (index 0).
 
         Returns
         -------
         bytes
             Encoded pixels
 
-        Raises
-        ------
-        ValueError
-            If multiple frames are passed when using an encapsulated
-            transfer syntax.
-
         """
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            # Check that only a single plane was passed
-            if planes.ndim == 3:
-                if planes.shape[0] == 1:
-                    planes = planes[0, ...]
-                else:
-                    raise ValueError(
-                        'Only single frame can be encoded at at time '
-                        'in case of encapsulated format encoding.'
-                    )
-            return encode_frame(
-                planes,
-                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
-                bits_allocated=self.BitsAllocated,
-                bits_stored=self.BitsStored,
-                photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation
-            )
+        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+            return pack_bits(planes)
         else:
-            # The array may represent more than one frame item.
-            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                return pack_bits(planes)
-            else:
-                return planes.tobytes()
+            return planes.tobytes()
 
     @classmethod
     def from_dataset(
