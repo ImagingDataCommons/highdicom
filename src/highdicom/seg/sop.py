@@ -2020,6 +2020,11 @@ class Segmentation(SOPClass):
     ) -> List[int]:
         """Get Dimension Index Values for a frame.
 
+        The Dimension Index Values are a list of integer indices that describe
+        the position of a frame as indices along each of the dimensions of
+        the Dimension Index Sequence. See
+        :class:`highdicom.seg.DimensionIndexSequence`.
+
         Parameters
         ----------
         plane_index: int
