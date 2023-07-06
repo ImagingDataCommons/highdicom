@@ -1404,8 +1404,8 @@ class Segmentation(SOPClass):
 
         # Remove empty slices
         if omit_empty_frames:
-            plane_positions, source_image_indices, is_empty = \
-                self._omit_empty_frames(pixel_array, plane_positions)
+            source_image_indices, is_empty = \
+                self._get_nonempty_frame_indices(pixel_array)
             if is_empty:
                 # Cannot omit empty frames when all frames are empty
                 omit_empty_frames = False
@@ -1493,7 +1493,7 @@ class Segmentation(SOPClass):
                 pffg_item = self._get_pffg_item(
                     segment_number=segment_number,
                     dimension_index_values=dimension_index_values,
-                    plane_position=plane_positions[plane_index],
+                    plane_position=plane_positions[source_image_index],
                     source_images=source_images,
                     source_image_index=source_image_index,
                     are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
@@ -1884,27 +1884,23 @@ class Segmentation(SOPClass):
         return pixel_array, segments_overlap
 
     @staticmethod
-    def _omit_empty_frames(
-        pixel_array: np.ndarray,
-        plane_positions: Sequence[Optional[PlanePositionSequence]]
-    ) -> Tuple[List[Optional[PlanePositionSequence]], List[int], bool]:
-        """Remove empty frames from the plane positions.
+    def _get_nonempty_frame_indices(
+        pixel_array: np.ndarray
+    ) -> Tuple[List[int], bool]:
+        """Get a list of all indices of original frames that are non-empty.
 
         Empty frames (without any positive pixels) do not need to be included
-        in the segmentation image. This method updates the plane positions such
-        that the empty frames are omitted.
+        in the segmentation image. This method finds a list of indices of
+        the input frames that are non-empty, and therefore should be included
+        in the segmentation image.
 
         Parameters
         ----------
         pixel_array: numpy.ndarray
             Segmentation pixel array
-        plane_positions: Sequence[Optional[highdicom.PlanePositionSequence]]
-            Plane positions for each of the frames
 
         Returns
         -------
-        plane_positions: List[Optional[highdicom.PlanePositionSequence]]
-            Plane positions with entries corresponding to empty frames removed.
         source_image_indices: List[int]
             List giving for each frame in the output pixel array the index of
             the corresponding frame in the original pixel array
@@ -1913,24 +1909,21 @@ class Segmentation(SOPClass):
             be omitted.
 
         """
-        non_empty_plane_positions = []
-
         # This list tracks which source image each non-empty frame came from
         source_image_indices = []
-        for i, (frm, pos) in enumerate(zip(pixel_array, plane_positions)):
+        for i, frm in enumerate(pixel_array):
             if np.any(frm):
-                non_empty_plane_positions.append(pos)
                 source_image_indices.append(i)
 
-        if len(non_empty_plane_positions) == 0:
+        if len(source_image_indices) == 0:
             logger.warning(
                 'Encoding an empty segmentation with "omit_empty_frames" '
                 'set to True. Reverting to encoding all frames since omitting '
                 'all frames is not possible.'
             )
-            return (plane_positions, list(range(len(plane_positions))), True)
+            return (list(range(pixel_array.shape[0])), True)
 
-        return (non_empty_plane_positions, source_image_indices, False)
+        return (source_image_indices, False)
 
     @staticmethod
     def _get_segment_array(
