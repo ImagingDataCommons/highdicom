@@ -1910,10 +1910,10 @@ class Segmentation(SOPClass):
 
         """
         # This list tracks which source image each non-empty frame came from
-        source_image_indices = []
-        for i, frm in enumerate(pixel_array):
-            if np.any(frm):
-                source_image_indices.append(i)
+        source_image_indices = [
+            i for i, frm in enumerate(pixel_array)
+            if np.any(frm)
+        ]
 
         if len(source_image_indices) == 0:
             logger.warning(
