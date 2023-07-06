@@ -2010,7 +2010,7 @@ class Segmentation(SOPClass):
         segmentation_type: SegmentationTypeValues,
         max_fractional_value: int
     ) -> np.ndarray:
-        """Get pixel data array for a specific segment.
+        """Get pixel data array for a specific segment and plane.
 
         This is a helper method used during the constructor. Note that the
         pixel array is expected to have been processed using the
@@ -2020,9 +2020,9 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Full segmentation pixel array containing all segments for a single
-            plane. Array is therefore either (Rows x Columns x Segments) or
-            (Rows x Columns) in case of a "label map" style array.
+            Segmentation pixel array containing all segments for a single plane.
+            Array is therefore either (Rows x Columns x Segments) or (Rows x
+            Columns) in case of a "label map" style array.
         segment_number: int
             The segment of interest.
         number_of_segments: int
@@ -2036,8 +2036,8 @@ class Segmentation(SOPClass):
         -------
         numpy.ndarray:
             Pixel data array consisting of pixel data for a single segment for
-            all planes. Output array has dtype np.uint8 and binary values (0 or
-            1).
+            a single plane. Output array has dtype np.uint8 and binary values
+            (0 or 1).
 
         """
         if pixel_array.dtype in (np.float_, np.float32, np.float64):
