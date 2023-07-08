@@ -1955,7 +1955,9 @@ class Segmentation(SOPClass):
     ) -> np.ndarray:
         """Get pixel data array for a specific segment.
 
-        This is a helper method used during the constructor.
+        This is a helper method used during the constructor. Note that the
+        pixel array is expected to have been processed using the
+        _check_and_cast_pixel_array method before being passed to this method.
 
         Parameters
         ----------
