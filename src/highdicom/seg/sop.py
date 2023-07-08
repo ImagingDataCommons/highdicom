@@ -2228,9 +2228,9 @@ class Segmentation(SOPClass):
         else:
             # The array may represent more than one frame item.
             if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                return pack_bits(planes.flatten())
+                return pack_bits(planes)
             else:
-                return planes.flatten().tobytes()
+                return planes.tobytes()
 
     @classmethod
     def from_dataset(
