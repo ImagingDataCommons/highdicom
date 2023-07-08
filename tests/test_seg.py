@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 import unittest
 from pathlib import Path
@@ -1408,9 +1409,10 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
 
     def test_construction_workers(self):
+        # Create a segmentation with multiple workers
         instance = Segmentation(
-            [self._ct_image],
-            self._ct_pixel_array,
+            self._ct_series,
+            self._ct_series_mask_array,
             SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
@@ -1425,6 +1427,27 @@ class TestSegmentation:
             transfer_syntax_uid=RLELossless,
             workers=2,
         )
+
+    def test_construction_workers_manual(self):
+        # Create a segmentation with multiple workers created manually
+        with ProcessPoolExecutor(2) as pool:
+            instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                content_label=self._content_label,
+                transfer_syntax_uid=RLELossless,
+                workers=pool,
+            )
 
     def test_pixel_types_fractional(
         self,

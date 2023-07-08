@@ -1,7 +1,7 @@
 """Module for SOP classes of the SEG modality."""
 import logging
 from collections import defaultdict
-from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
@@ -888,7 +888,7 @@ class Segmentation(SOPClass):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
-        workers: int = 0,
+        workers: Union[int, Executor] = 0,
         **kwargs: Any
     ) -> None:
         """
@@ -1041,11 +1041,23 @@ class Segmentation(SOPClass):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this segmentation.
-        workers: int, optional
+        workers: Union[int, concurrent.futures.Executor], optional
             Number of worker processes to use for frame compression. If 0, no
             workers are used and compression is performed in the main process
             (this is the default behavior). If negative, as many processes are
             created as the machine has processors.
+
+            Alternatively, you may directly pass an instance of a class derived
+            from ``concurrent.futures.Executor`` (most likely an instance of
+            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
+            You may wish to do this either to have greater control over the
+            setup of the executor, or to avoid the setup cost of spawning new
+            processes each time this ``__init__`` method is called if your
+            application creates a large number of Segmentations.
+
+            Note that if you use worker processes, you must ensure that your
+            main process uses the ``if __name__ == "__main__"`` idiom to guard
+            against spawned child processes creating further workers.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1455,24 +1467,37 @@ class Segmentation(SOPClass):
             )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
-        process_pool: Optional[ProcessPoolExecutor] = None
+        process_pool: Optional[Executor] = None
+
+        if not isinstance(workers, (int, Executor)):
+            raise TypeError(
+                'Argument "workers" must be of type int or '
+                'concurrent.futures.Executor (or a derived class).'
+            )
+        using_multiprocessing = (
+            isinstance(workers, Executor) or workers != 0
+        )
 
         if is_encaps:
-            if workers == 0:
+            if using_multiprocessing:
+                # In the case of encapsulated transfer syntaxes with multiple
+                # workers, we will accumulate a list of encoded frames to
+                # encapsulate at the end
+                frame_futures_list: List[Future] = []
+
+                # Use the existing executor or create one
+                if isinstance(workers, Executor):
+                    process_pool = workers
+                else:
+                    # If workers is negative, pass None to use all processors
+                    process_pool = ProcessPoolExecutor(
+                        workers if workers > 0 else None
+                    )
+            else:
                 # In the case of encapsulated transfer syntaxes with no
                 # workers, we will accumulate a list of encoded frames to
                 # encapsulate at the end
                 compressed_frames_list: List[bytes] = []
-            else:
-                # In the case of encapsulated transfer syntaxes with multiple
-                # workers, we will create a process pool and accumulate a list
-                # of encoded frames to encapsulate at the end
-                frame_futures_list: List[Future] = []
-
-                # If workers is negative, pass None to use all processors
-                process_pool = ProcessPoolExecutor(
-                    workers if workers > 0 else None
-                )
 
             # Parameters to use when calling the encode_frame function in
             # either of the above two cases
@@ -1488,12 +1513,14 @@ class Segmentation(SOPClass):
             # we will accumulate a list of flattened pixels from all frames for
             # bitpacking at the end
             full_frames_list: List[np.ndarray] = []
-            if workers != 0:
+            if using_multiprocessing:
                 warnings.warn(
-                    "Setting workers != 0 when using a non-encapsulated "
+                    "Setting workers != 0 or passing an instance of "
+                    "concurrent.futures.Executor when using a non-encapsulated "
                     "transfer syntax has no effect.",
                     UserWarning
                 )
+                using_multiprocessing = False
 
         # Information about individual frames is placed into the
         # PerFrameFunctionalGroupsSequence. Note that a *very* significant
@@ -1594,7 +1621,11 @@ class Segmentation(SOPClass):
                 compressed_frames_list = [
                     fut.result() for fut in frame_futures_list
                 ]
-                process_pool.shutdown()
+
+                # Shutdown the pool if we created it, otherwise it is the
+                # caller's responsibility
+                if process_pool is not workers:
+                    process_pool.shutdown()
 
             # Encapsulate all pre-compressed frames
             self.PixelData = encapsulate(compressed_frames_list)
