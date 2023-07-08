@@ -613,7 +613,11 @@ class DimensionIndexSequence(DataElementSequence):
         Returns
         -------
         dimension_index_values: numpy.ndarray
-            2D array of dimension index values
+            Array of dimension index values. The first dimension corresponds
+            to the items in the input plane_positions sequence. The second
+            dimension corresponds to the dimensions of the dimension index.
+            The third dimension (if any) corresponds to the multiplicity
+            of the values, and is omitted if this is 1 for all dimensions.
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index

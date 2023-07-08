@@ -1380,6 +1380,14 @@ class Segmentation(SOPClass):
                 plane_orientation == source_plane_orientation
             )
 
+            # plane_position_values is an array giving, for each plane of the
+            # input array, the raw values of all attributes that describe its
+            # position. The first dimension is sorted the same way as the input
+            # pixel array and the the second is sorted the same way as the
+            # dimension index sequence (without segment number)
+            # plane_sort_index is a list of indices into the input planes
+            # giving the order in which they should be arranged to correctly
+            # sort them for inclusion into the segmentation
             plane_position_values, plane_sort_index = \
                 self.DimensionIndexSequence.get_index_values(plane_positions)
         else:
@@ -1388,6 +1396,42 @@ class Segmentation(SOPClass):
             plane_position_values = [None]
             plane_sort_index = np.array([0])
             are_spatial_locations_preserved = True
+
+        # Find indices such that empty planes are removed
+        if omit_empty_frames:
+            included_plane_indices, is_empty = \
+                self._get_nonempty_plane_indices(pixel_array)
+            if is_empty:
+                # Cannot omit empty frames when all frames are empty
+                omit_empty_frames = False
+                included_plane_indices = list(range(pixel_array.shape[0]))
+            else:
+                # Remove all empty plane positions from the list of sorted
+                # plane position indices
+                included_plane_indices_set = set(included_plane_indices)
+                plane_sort_index = [
+                    ind for ind in plane_sort_index
+                    if ind in included_plane_indices_set
+                ]
+        else:
+            included_plane_indices = list(range(pixel_array.shape[0]))
+
+        if has_ref_frame_uid:
+            # Get unique values of attributes in the Plane Position Sequence or
+            # Plane Position Slide Sequence, which define the position of the
+            # plane with respect to the three dimensional patient or slide
+            # coordinate system, respectively. These can subsequently be used
+            # to look up the relative position of a plane relative to the
+            # indexed dimension.
+            unique_dimension_values = [
+                np.unique(
+                    plane_position_values[included_plane_indices, index],
+                    axis=0
+                )
+                for index in range(plane_position_values.shape[1])
+            ]
+        else:
+            unique_dimension_values = [None]
 
         if (
             has_ref_frame_uid and
@@ -1401,37 +1445,6 @@ class Segmentation(SOPClass):
                 are_spatial_locations_preserved=are_spatial_locations_preserved,
                 is_tiled=is_tiled,
             )
-
-        # Remove empty slices
-        if omit_empty_frames:
-            source_image_indices, is_empty = \
-                self._get_nonempty_frame_indices(pixel_array)
-            if is_empty:
-                # Cannot omit empty frames when all frames are empty
-                omit_empty_frames = False
-        else:
-            source_image_indices = list(range(pixel_array.shape[0]))
-
-        if has_ref_frame_uid:
-            plane_position_values = plane_position_values[source_image_indices]
-            _, plane_sort_index = np.unique(
-                plane_position_values,
-                axis=0,
-                return_index=True
-            )
-
-            # Get unique values of attributes in the Plane Position Sequence or
-            # Plane Position Slide Sequence, which define the position of the
-            # plane with respect to the three dimensional patient or slide
-            # coordinate system, respectively. These can subsequently be used
-            # to look up the relative position of a plane relative to the
-            # indexed dimension.
-            dimension_position_values = [
-                np.unique(plane_position_values[:, index], axis=0)
-                for index in range(plane_position_values.shape[1])
-            ]
-        else:
-            dimension_position_values = [None]
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
 
@@ -1460,15 +1473,12 @@ class Segmentation(SOPClass):
             )
 
             for plane_index in plane_sort_index:
-                # Index of this frame in the original list of source frames
-                source_image_index = source_image_indices[plane_index]
-
                 # Even though completely empty slices were removed earlier,
                 # there may still be slices in which this specific segment is
                 # absent. Such frames should be removed
                 if (
                     omit_empty_frames and not
-                    np.any(segment_array[source_image_index])
+                    np.any(segment_array[plane_index])
                 ):
                     logger.debug(
                         f'skip empty plane {plane_index} of segment '
@@ -1482,20 +1492,29 @@ class Segmentation(SOPClass):
                 # Get the item of the PerFrameFunctionalGroupsSequence for this
                 # segmentation frame
                 if has_ref_frame_uid:
-                    dimension_index_values = self._get_dimension_index_values(
-                        plane_index=plane_index,
-                        dimension_position_values=dimension_position_values,
-                        plane_position_values=plane_position_values,
-                        coordinate_system=self._coordinate_system,
-                    )
+                    plane_pos_val = plane_position_values[plane_index]
+                    try:
+                        dimension_index_values = (
+                            self._get_dimension_index_values(
+                                unique_dimension_values=unique_dimension_values,
+                                plane_position_value=plane_pos_val,
+                                coordinate_system=self._coordinate_system,
+                            )
+                        )
+                    except IndexError as error:
+                        raise IndexError(
+                            'Could not determine position of plane '
+                            f'#{plane_index} in three dimensional coordinate '
+                            f'system based on dimension index values: {error}'
+                        )
                 else:
                     dimension_index_values = []
                 pffg_item = self._get_pffg_item(
                     segment_number=segment_number,
                     dimension_index_values=dimension_index_values,
-                    plane_position=plane_positions[source_image_index],
+                    plane_position=plane_positions[plane_index],
                     source_images=source_images,
-                    source_image_index=source_image_index,
+                    source_image_index=plane_index,
                     are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
                     has_ref_frame_uid=has_ref_frame_uid,
                     coordinate_system=self._coordinate_system,
@@ -1506,11 +1525,11 @@ class Segmentation(SOPClass):
                 if is_encaps:
                     # Encode this frame and add to the list for encapsulation
                     # at the end
-                    full_frames_list.append(segment_array[source_image_index])
+                    full_frames_list.append(segment_array[plane_index])
                 else:
                     # Concatenate the 1D array for re-encoding at the end
                     full_frames_list.append(
-                        segment_array[source_image_index].flatten()
+                        segment_array[plane_index].flatten()
                     )
 
         self.PerFrameFunctionalGroupsSequence = pffg_sequence
@@ -1884,15 +1903,15 @@ class Segmentation(SOPClass):
         return pixel_array, segments_overlap
 
     @staticmethod
-    def _get_nonempty_frame_indices(
+    def _get_nonempty_plane_indices(
         pixel_array: np.ndarray
     ) -> Tuple[List[int], bool]:
-        """Get a list of all indices of original frames that are non-empty.
+        """Get a list of all indices of original planes that are non-empty.
 
-        Empty frames (without any positive pixels) do not need to be included
-        in the segmentation image. This method finds a list of indices of
-        the input frames that are non-empty, and therefore should be included
-        in the segmentation image.
+        Empty planes (without any positive pixels in any of the segments) do
+        not need to be included in the segmentation image. This method finds a
+        list of indices of the input frames that are non-empty, and therefore
+        should be included in the segmentation image.
 
         Parameters
         ----------
@@ -1901,9 +1920,10 @@ class Segmentation(SOPClass):
 
         Returns
         -------
-        source_image_indices: List[int]
-            List giving for each frame in the output pixel array the index of
-            the corresponding frame in the original pixel array
+        included_plane_indices : List[int]
+            List giving for each plane position in the resulting segmentation
+            image the index of the corresponding frame in the original pixel
+            array.
         is_empty: bool
             Whether the entire image is empty. If so, empty frames should not
             be omitted.
@@ -2006,9 +2026,8 @@ class Segmentation(SOPClass):
 
     @staticmethod
     def _get_dimension_index_values(
-        plane_index: int,
-        dimension_position_values: List[np.ndarray],
-        plane_position_values: np.ndarray,
+        unique_dimension_values: List[np.ndarray],
+        plane_position_value: np.ndarray,
         coordinate_system: Optional[CoordinateSystemNames],
     ) -> List[int]:
         """Get Dimension Index Values for a frame.
@@ -2020,12 +2039,21 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        plane_index: int
-            Index of the plane in the sorted planes list.
-        dimension_position_values: List[numpy.ndarray]
-            Relative locations of each plane.
-        plane_position_values: numpy.ndarray
-            Plane positions of each plane.
+        unique_dimension_values: List[numpy.ndarray]
+            List of arrays containing, for each dimension in the dimension
+            index sequence (except ReferencedSegment), the sorted unique
+            values of all planes along that dimension. Each array in the list
+            corresponds to one dimension, and has shape (N x m) where N is the
+            number of unique values for that dimension and m is the
+            multiplicity of values for that dimension.
+        plane_position_value: numpy.ndarray
+            Plane position of the plane. This is a 1D or 2D array containing
+            each of the raw values for this plane of the attributes listed as
+            dimension index pointers (except ReferencedSegment). For dimension
+            indices where the value multiplicity of all attributes is 1, the
+            array will be 1D. If the value multiplicity of attributes is
+            greater than 1, these values are stacked along the second
+            dimension.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             The type of coordinate system used (if any).
 
@@ -2038,44 +2066,33 @@ class Segmentation(SOPClass):
         """
         # Look up the position of the plane relative to the indexed
         # dimension.
-        try:
-            if (
-                coordinate_system ==
-                CoordinateSystemNames.SLIDE
-            ):
-                index_values = [
-                    int(
-                        np.where(
-                            (dimension_position_values[idx] == pos)
-                        )[0][0] + 1
-                    )
-                    for idx, pos in enumerate(
-                        plane_position_values[plane_index]
-                    )
-                ]
-            else:
-                # In case of the patient coordinate system, the
-                # value of the attribute the Dimension Index
-                # Sequence points to (Image Position Patient) has a
-                # value multiplicity greater than one.
-                index_values = [
-                    int(
-                        np.where(
-                            (dimension_position_values[idx] == pos).all(
-                                axis=1
-                            )
-                        )[0][0] + 1
-                    )
-                    for idx, pos in enumerate(
-                        plane_position_values[plane_index]
-                    )
-                ]
-        except IndexError as error:
-            raise IndexError(
-                'Could not determine position of plane #{} in '
-                'three dimensional coordinate system based on '
-                'dimension index values: {}'.format(plane_index, error)
-            )
+        if (
+            coordinate_system ==
+            CoordinateSystemNames.SLIDE
+        ):
+            index_values = [
+                int(
+                    np.where(
+                        (unique_dimension_values[idx] == pos)
+                    )[0][0] + 1
+                )
+                for idx, pos in enumerate(plane_position_value)
+            ]
+        else:
+            # In case of the patient coordinate system, the
+            # value of the attribute the Dimension Index
+            # Sequence points to (Image Position Patient) has a
+            # value multiplicity greater than one.
+            index_values = [
+                int(
+                    np.where(
+                        (unique_dimension_values[idx] == pos).all(
+                            axis=1
+                        )
+                    )[0][0] + 1
+                )
+                for idx, pos in enumerate(plane_position_value)
+            ]
 
         return index_values
 
