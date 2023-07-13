@@ -145,11 +145,11 @@ class ColorManager(object):
         logger.debug(f'found ICC Profile "{name}": "{description}"')
 
         logger.debug('build ICC Transform')
-        intent = ImageCms.INTENT_RELATIVE_COLORIMETRIC
+        intent = ImageCms.Intent.RELATIVE_COLORIMETRIC
         if not isIntentSupported(
             profile,
             intent=intent,
-            direction=ImageCms.DIRECTION_INPUT
+            direction=ImageCms.Direction.INPUT
         ):
             raise ValueError(
                 'ICC Profile does not support desired '

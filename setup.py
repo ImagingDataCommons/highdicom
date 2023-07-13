@@ -53,7 +53,7 @@ setuptools.setup(
     install_requires=[
         'pydicom>=2.3.0,!=2.4.0',
         'numpy>=1.19',
-        'pillow>=8.3',
+        'pillow>=10.0.0',
         'pillow-jpls>=1.0',
     ],
     extras_require={
