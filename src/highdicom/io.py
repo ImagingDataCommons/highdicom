@@ -492,6 +492,12 @@ class ImageFileReader(object):
             #   are packed into 12.5 -> 13 bytes
             return n_pixels // 8 + (n_pixels % 8 > 0)
         else:
+            if self.metadata.PhotometricInterpretation == 'YBR_FULL_422':
+                # Account for subsampling of CB and CR when calculating
+                # expected number of samples
+                # See https://dicom.nema.org/medical/dicom/current/output/chtml
+                # /part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2
+                n_pixels = self.metadata.Rows * self.metadata.Columns * 2
             return n_pixels * bits_allocated // 8
 
     def close(self) -> None:
