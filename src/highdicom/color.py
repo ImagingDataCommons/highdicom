@@ -160,7 +160,7 @@ class ColorManager(object):
         if not isIntentSupported(
             profile,
             intent=intent,
-            direction=ImageCms.Direction.INPUT
+            direction=direction,
         ):
             raise ValueError(
                 'ICC Profile does not support desired '
