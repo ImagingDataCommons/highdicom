@@ -145,11 +145,22 @@ class ColorManager(object):
         logger.debug(f'found ICC Profile "{name}": "{description}"')
 
         logger.debug('build ICC Transform')
-        intent = ImageCms.INTENT_RELATIVE_COLORIMETRIC
+        if hasattr(ImageCms, "Intent"):
+            # This is the API for pillow>=10.0.0
+            intent = ImageCms.Intent.RELATIVE_COLORIMETRIC
+            direction = ImageCms.Direction.INPUT
+        else:
+            # This is the API for pillow<10.0.0
+            # Ideally we would simply require pillow>=10.0.0, but unfortunately
+            # this would rule out supporting python < 3.8. Once we drop support
+            # for 3.7 and below, we can require pillow>=10.0.0 and drop this
+            # branch
+            intent = ImageCms.INTENT_RELATIVE_COLORIMETRIC
+            direction = ImageCms.DIRECTION_INPUT
         if not isIntentSupported(
             profile,
             intent=intent,
-            direction=ImageCms.DIRECTION_INPUT
+            direction=direction,
         ):
             raise ValueError(
                 'ICC Profile does not support desired '
