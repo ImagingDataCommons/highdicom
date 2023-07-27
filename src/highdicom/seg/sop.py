@@ -1286,7 +1286,7 @@ class Segmentation(SOPClass):
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         sffg_item = Dataset()
         if pixel_measures is None:
-            pixel_measures = self._get_pixel_measures(
+            pixel_measures = self._get_pixel_measures_sequence(
                 source_image=src_img,
                 is_multiframe=is_multiframe,
             )
@@ -1464,7 +1464,7 @@ class Segmentation(SOPClass):
 
         for segment_number in described_segment_numbers:
             # Pixel array for just this segment
-            segment_array = self._get_segment_array(
+            segment_array = self._get_segment_pixel_array(
                 pixel_array,
                 segment_number=segment_number,
                 number_of_segments=number_of_segments,
@@ -1613,7 +1613,7 @@ class Segmentation(SOPClass):
             )
 
     @staticmethod
-    def _get_pixel_measures(
+    def _get_pixel_measures_sequence(
         source_image: Dataset,
         is_multiframe: bool,
     ) -> Optional[PixelMeasuresSequence]:
@@ -1946,7 +1946,7 @@ class Segmentation(SOPClass):
         return (source_image_indices, False)
 
     @staticmethod
-    def _get_segment_array(
+    def _get_segment_pixel_array(
         pixel_array: np.ndarray,
         segment_number: int,
         number_of_segments: int,
@@ -1957,7 +1957,8 @@ class Segmentation(SOPClass):
 
         This is a helper method used during the constructor. Note that the
         pixel array is expected to have been processed using the
-        ``_check_and_cast_pixel_array`` method before being passed to this method.
+        ``_check_and_cast_pixel_array`` method before being passed to this
+        method.
 
         Parameters
         ----------
