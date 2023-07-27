@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 import unittest
 from pathlib import Path
 
@@ -1490,16 +1491,10 @@ class TestSegmentation:
         )
 
         # Ensure the recovered pixel array matches what is expected
-        if pix_type in (np.bool_, np.float_):
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding * max_fractional_value
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
-        else:
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding * max_fractional_value
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
         # Multi-segment (exclusive)
@@ -1516,7 +1511,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1532,7 +1527,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_exc
+            expected_enc_exc * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1550,7 +1545,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1566,7 +1561,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_overlap
+            expected_enc_overlap * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1871,7 +1866,7 @@ class TestSegmentation:
             )
 
     def test_construction_empty_source_seg_sparse(self):
-        # Can encoding an empty segmentation with omit_empty_frames=True issues
+        # Encoding an empty segmentation with omit_empty_frames=True issues
         # a warning and encodes the full segmentation
         empty_pixel_array = np.zeros_like(self._ct_pixel_array)
         seg = Segmentation(
@@ -1921,9 +1916,7 @@ class TestSegmentation:
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-                segment_descriptions=(
-                    self._segment_descriptions
-                ),
+                segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -1941,9 +1934,35 @@ class TestSegmentation:
                 source_images=self._ct_series + [self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-                segment_descriptions=(
-                    self._additional_segment_descriptions  # seg num 2
-                ),
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_nonunqiue_plane_positions(self):
+        # It should not be possible to construct a segmentation with input
+        # images with the same plane location, even if they are otherwise
+        # distinct
+        ct_image_2 = deepcopy(self._ct_image)
+        ct_image_2.SOPInstanceUID = UID()
+        ct_image_2.InstanceNumber = 2
+        pixel_array = np.zeros(
+            (2, *self._ct_image.pixel_array.shape),
+            dtype=bool
+        )
+        pixel_array[0, 1:5, 10:15] = True
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image, ct_image_2],
+                pixel_array=pixel_array,
+                segmentation_type=SegmentationTypeValues.BINARY,
+                segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
