@@ -1630,7 +1630,7 @@ class Segmentation(SOPClass):
 
         Returns
         -------
-        Optional[highdicom.PixelMeasuresSequence]
+        Union[highdicom.PixelMeasuresSequence, None]
             A PixelMeasuresSequence derived from the source image, if this is
             possible. Otherwise None.
 
