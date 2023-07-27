@@ -51,7 +51,10 @@ from highdicom.content import (
     PlanePositionSequence,
     PixelMeasuresSequence
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
+)
 from highdicom.frame import encode_frame
 from highdicom.seg.content import (
     DimensionIndexSequence,
@@ -889,6 +892,11 @@ class Segmentation(SOPClass):
             ContentCreatorIdentificationCodeSequence
         ] = None,
         workers: Union[int, Executor] = 0,
+        dimension_organization_type: Union[
+            DimensionOrganizationTypeValues,
+            str,
+            None,
+        ] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -1058,6 +1066,8 @@ class Segmentation(SOPClass):
             Note that if you use worker processes, you must ensure that your
             main process uses the ``if __name__ == "__main__"`` idiom to guard
             against spawned child processes creating further workers.
+        dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None], optional
+            Dimension organization type to use for the output image.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1417,6 +1427,15 @@ class Segmentation(SOPClass):
             plane_sort_index = np.array([0])
             are_spatial_locations_preserved = True
 
+        # Dimension Organization Type
+        dimension_organization_type = self._check_dimension_organization_type(
+            dimension_organization_type=dimension_organization_type,
+            is_tiled=is_tiled,
+            are_spatial_locations_preserved=are_spatial_locations_preserved,
+        )
+        if dimension_organization_type is not None:
+            self.DimensionOrganizationType = dimension_organization_type.value
+
         # Find indices such that empty planes are removed
         if omit_empty_frames:
             included_plane_indices, is_empty = \
@@ -1577,17 +1596,23 @@ class Segmentation(SOPClass):
                         )
                 else:
                     dimension_index_values = []
-                pffg_item = self._get_pffg_item(
-                    segment_number=segment_number,
-                    dimension_index_values=dimension_index_values,
-                    plane_position=plane_positions[plane_index],
-                    source_images=source_images,
-                    source_image_index=plane_index,
-                    are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
-                    has_ref_frame_uid=has_ref_frame_uid,
-                    coordinate_system=self._coordinate_system,
-                )
-                pffg_sequence.append(pffg_item)
+
+                if (
+                    dimension_organization_type !=
+                    DimensionOrganizationTypeValues.TILED_FULL
+                ):
+                    # No per-frame functional group for TILED FULL
+                    pffg_item = self._get_pffg_item(
+                        segment_number=segment_number,
+                        dimension_index_values=dimension_index_values,
+                        plane_position=plane_positions[plane_index],
+                        source_images=source_images,
+                        source_image_index=plane_index,
+                        are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
+                        has_ref_frame_uid=has_ref_frame_uid,
+                        coordinate_system=self._coordinate_system,
+                    )
+                    pffg_sequence.append(pffg_item)
 
                 # Add the segmentation pixel array for this frame to the list
                 if is_encaps:
@@ -1613,8 +1638,11 @@ class Segmentation(SOPClass):
                     # Concatenate the 1D array for encoding at the end
                     full_frames_list.append(segment_array.flatten())
 
-        self.PerFrameFunctionalGroupsSequence = pffg_sequence
-        self.NumberOfFrames = len(pffg_sequence)
+        if (
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            self.PerFrameFunctionalGroupsSequence = pffg_sequence
 
         if is_encaps:
             if process_pool is not None:
@@ -1628,11 +1656,13 @@ class Segmentation(SOPClass):
                     process_pool.shutdown()
 
             # Encapsulate all pre-compressed frames
+            self.NumberOfFrames = len(compressed_frames_list)
             self.PixelData = encapsulate(compressed_frames_list)
         else:
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
+            self.NumberOfFrames = len(full_frames_list)
             self.PixelData = self._encode_pixels_native(
                 np.concatenate(full_frames_list)
             )
@@ -1864,6 +1894,85 @@ class Segmentation(SOPClass):
                 center_item.ZOffsetInSlideCoordinateSystem = \
                     format_number_as_ds(z_center)
                 self.ImageCenterPointCoordinatesSequence = [center_item]
+
+    @staticmethod
+    def _check_dimension_organization_type(
+        dimension_organization_type: Union[
+            DimensionOrganizationTypeValues,
+            str,
+            None,
+        ],
+        is_tiled: bool,
+        are_spatial_locations_preserved: bool,
+    ) -> Optional[DimensionOrganizationTypeValues]:
+        """Checks that the specified Dimension Organization Type is valid.
+
+        Parameters
+        ----------
+        dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None]
+           The specified DimensionOrganizationType for the output Segmentation.
+        is_tiled: bool
+            Whether the source image is a tiled image.
+        are_spatial_locations_preserved: bool
+            Whether spatial locations are preserved between the source image
+            and the segmentation pixel array.
+
+        Returns
+        -------
+        Optional[highdicom.enum.DimensionOrganizationTypeValues]:
+            DimensionOrganizationType to use for the output Segmentation.
+
+        """  # noqa: E501
+        if is_tiled and dimension_organization_type is None:
+            dimension_organization_type = \
+                DimensionOrganizationTypeValues.TILED_SPARSE
+
+        if dimension_organization_type is not None:
+            dimension_organization_type = DimensionOrganizationTypeValues(
+                dimension_organization_type
+            )
+            tiled_dimension_organization_types = [
+                DimensionOrganizationTypeValues.TILED_SPARSE,
+                DimensionOrganizationTypeValues.TILED_FULL
+            ]
+
+            if (
+                dimension_organization_type in
+                tiled_dimension_organization_types
+            ):
+                if not is_tiled:
+                    raise ValueError(
+                        f"A value of {dimension_organization_type.value} "
+                        'for parameter "dimension_organization_type" is '
+                        'only valid if the source images are tiled.'
+                    )
+
+            if (
+                dimension_organization_type ==
+                DimensionOrganizationTypeValues.TILED_FULL
+            ):
+                # Only allow TILED_FULL if the source image is TILED_FULL
+                # and spatial locations are preserved. This could be
+                # relaxed in the future by checking the plane positions.
+                if (
+                    not hasattr(src_img, 'DimensionOrganizationType') or
+                    src_img.DimensionOrganizationType != 'TILED_FULL'
+                ):
+                    raise ValueError(
+                        'A value of "TILED_FULL" for parameter '
+                        '"dimension_organization_type" is not permitted unless '
+                        'the source images also have '
+                        'DimensionOrganizationType of "TILED_FULL".'
+                    )
+                if not are_spatial_locations_preserved:
+                    raise ValueError(
+                        'A value of "TILED_FULL" for parameter '
+                        '"dimension_organization_type" is not permitted if '
+                        'the "plane_positions" of the segmentation do not '
+                        'match the plane positions of the source image.'
+                    )
+
+        return dimension_organization_type
 
     @staticmethod
     def _check_and_cast_pixel_array(
