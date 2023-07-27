@@ -1432,6 +1432,8 @@ class Segmentation(SOPClass):
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
             are_spatial_locations_preserved=are_spatial_locations_preserved,
+            omit_empty_frames=omit_empty_frames,
+            source_image=src_img,
         )
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
@@ -1675,7 +1677,11 @@ class Segmentation(SOPClass):
         self.copy_patient_and_study_information(src_img)
 
         # Build lookup tables for efficient decoding
-        self._build_luts()
+        if (
+            dimension_organization_type is not None and
+            dimension_organization_type.value != "TILED_FULL"
+        ):
+            self._build_luts()
 
     def add_segments(
         self,
@@ -1904,6 +1910,8 @@ class Segmentation(SOPClass):
         ],
         is_tiled: bool,
         are_spatial_locations_preserved: bool,
+        omit_empty_frames: bool,
+        source_image: Dataset,
     ) -> Optional[DimensionOrganizationTypeValues]:
         """Checks that the specified Dimension Organization Type is valid.
 
@@ -1916,6 +1924,10 @@ class Segmentation(SOPClass):
         are_spatial_locations_preserved: bool
             Whether spatial locations are preserved between the source image
             and the segmentation pixel array.
+        omit_empty_frames: bool
+           Whether it was specified to omit empty frames.
+        source_image: pydicom.Dataset
+           Representative dataset of the source images.
 
         Returns
         -------
@@ -1955,8 +1967,8 @@ class Segmentation(SOPClass):
                 # and spatial locations are preserved. This could be
                 # relaxed in the future by checking the plane positions.
                 if (
-                    not hasattr(src_img, 'DimensionOrganizationType') or
-                    src_img.DimensionOrganizationType != 'TILED_FULL'
+                    not hasattr(source_image, 'DimensionOrganizationType') or
+                    source_image.DimensionOrganizationType != 'TILED_FULL'
                 ):
                     raise ValueError(
                         'A value of "TILED_FULL" for parameter '
@@ -1970,6 +1982,11 @@ class Segmentation(SOPClass):
                         '"dimension_organization_type" is not permitted if '
                         'the "plane_positions" of the segmentation do not '
                         'match the plane positions of the source image.'
+                    )
+                if omit_empty_frames:
+                    raise ValueError(
+                        'Parameter "omit_empty_frames" should be False if '
+                        'using "dimension_organization_type" of "TILED_FULL".'
                     )
 
         return dimension_organization_type
