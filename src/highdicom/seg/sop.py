@@ -1791,7 +1791,7 @@ class Segmentation(SOPClass):
         ----------
         pixel_array: numpy.ndarray
             The segmentation pixel array.
-        number_of_segments: int,
+        number_of_segments: int
             The segment numbers from the segment descriptions, in the order
             they were passed. 1D array of integers.
         segmentation_type: highdicom.seg.SegmentationTypeValues
@@ -1957,12 +1957,12 @@ class Segmentation(SOPClass):
 
         This is a helper method used during the constructor. Note that the
         pixel array is expected to have been processed using the
-        _check_and_cast_pixel_array method before being passed to this method.
+        ``_check_and_cast_pixel_array`` method before being passed to this method.
 
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Full segmentation array containing all segments.
+            Full segmentation pixel array containing all segments.
         segment_number: int
             The segment of interest.
         number_of_segments: int
