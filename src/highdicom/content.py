@@ -19,6 +19,7 @@ from highdicom.enum import (
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
 )
+from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
     CodeContentItem,
@@ -1348,6 +1349,9 @@ class SpecimenDescription(Dataset):
         specimen_preparation_steps: Optional[
             Sequence[SpecimenPreparationStep]
         ] = None,
+        specimen_type: Optional[Union[Code, CodedConcept]] = None,
+        specimen_short_description: Optional[str] = None,
+        specimen_detailed_description: Optional[str] = None,
         issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
         primary_anatomic_structures: Optional[
             Sequence[Union[Code, CodedConcept]]
@@ -1369,6 +1373,12 @@ class SpecimenDescription(Dataset):
         specimen_preparation_steps: Sequence[highdicom.SpecimenPreparationStep], optional
             Steps that were applied during the preparation of the examined
             specimen in the laboratory prior to image acquisition
+        specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
+            The type of the examined specimen.
+        specimen_short_description: str, optional
+            Short description of the examined specimen.
+        specimen_detailed_description: str, optional
+            Detailed description of the examined specimen.
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
             Description of the issuer of the specimen identifier
         primary_anatomic_structures: Sequence[Union[pydicom.sr.Code, highdicom.sr.CodedConcept]]
@@ -1388,7 +1398,6 @@ class SpecimenDescription(Dataset):
                     )
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
-            loc_item: Union[TextContentItem, NumContentItem]
             loc_seq: List[Union[TextContentItem, NumContentItem]] = []
             if isinstance(specimen_location, str):
                 loc_item = TextContentItem(
@@ -1416,6 +1425,12 @@ class SpecimenDescription(Dataset):
                     loc_seq.append(loc_item)
             self.SpecimenLocalizationContentItemSequence = loc_seq
 
+        if specimen_type is not None:
+            self.SpecimenTypeCodeSequence = [specimen_type]
+        if specimen_short_description is not None:
+            self.SpecimenShortDescription = specimen_short_description
+        if specimen_detailed_description is not None:
+            self.SpecimenDetailedDescription = specimen_detailed_description
         self.IssuerOfTheSpecimenIdentifierSequence: List[Dataset] = []
         if issuer_of_specimen_id is not None:
             self.IssuerOfTheSpecimenIdentifierSequence.append(
@@ -1458,9 +1473,44 @@ class SpecimenDescription(Dataset):
         return UID(self.SpecimenUID)
 
     @property
+    def specimen_location(self) -> Union[str, Tuple[float, float, float], None]:
+        sequence = self.get("SpecimenLocalizationContentItemSequence")
+        if sequence is None:
+            return None
+        if isinstance(sequence[0], TextContentItem):
+            return sequence[0].value
+        return tuple(item.value for item in sequence)
+
+    @property
     def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
         """highdicom.SpecimenPreparationStep: Specimen preparation steps"""
         return list(self.SpecimenPreparationSequence)
+
+    @property
+    def specimen_type(self) -> Union[CodedConcept, None]:
+        sequence = self.get("SpecimenTypeCodeSequence")
+        if sequence is None:
+            return None
+        return sequence[0]
+
+    @property
+    def specimen_short_description(self) -> Union[str, None]:
+        return self.get("SpecimenShortDescription")
+
+    @property
+    def specimen_detailed_description(self) -> Union[str, None]:
+        return self.get("SpecimenDetailedDescription")
+
+    @property
+    def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+        sequence = self.get("IssuerOfTheSpecimenIdentifierSequence")
+        if len(sequence) == 0:
+            return None
+        return sequence[0]
+
+    @property
+    def primary_anatomic_structures(self) -> Union[List[CodedConcept], None]:
+        return self.get("PrimaryAnatomicStructureSequence")
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'SpecimenDescription':
@@ -1505,6 +1555,16 @@ class SpecimenDescription(Dataset):
                 CodedConcept.from_dataset(ds)
                 for ds in desc.SpecimenTypeCodeSequence
             ]
+        if hasattr(desc, 'SpecimenLocalizationContentItemSequence'):
+            if desc.SpecimenLocalizationContentItemSequence[0].ValueType == ValueTypeValues.TEXT.value:
+                content_item_type = TextContentItem
+            else:
+                content_item_type = NumContentItem
+            desc.SpecimenLocalizationContentItemSequence = [
+                content_item_type.from_dataset(ds)
+                for ds in desc.SpecimenLocalizationContentItemSequence
+            ]
+
 
         return desc
 

@@ -1294,7 +1294,45 @@ class TestSpecimenDescription(TestCase):
         )
         assert instance.specimen_id == specimen_id
         assert instance.specimen_uid == specimen_uid
+        assert instance.specimen_location is None
         assert len(instance.specimen_preparation_steps) == 0
+        assert instance.specimen_type is None
+        assert instance.specimen_short_description is None
+        assert instance.specimen_detailed_description is None
+        assert instance.issuer_of_specimen_id is None
+        assert instance.primary_anatomic_structures is None
+
+    def test_construction_optionals(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        specimen_location = "specimen location"
+        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_short_description = "specimen short description"
+        specimen_detailed_description = "specimen detailed description"
+        issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
+        primary_anatomic_structures = [
+            CodedConcept(
+                "anatomic strucutre",
+                "test",
+                "test anatomic structure"
+            )
+        ]
+        instance = SpecimenDescription(
+            specimen_id=specimen_id,
+            specimen_uid=specimen_uid,
+            specimen_location=specimen_location,
+            specimen_type=specimen_type,
+            specimen_short_description=specimen_short_description,
+            specimen_detailed_description=specimen_detailed_description,
+            issuer_of_specimen_id=issuer_of_specimen_id,
+            primary_anatomic_structures=primary_anatomic_structures
+        )
+        assert instance.specimen_location == specimen_location
+        assert instance.specimen_type == specimen_type
+        assert instance.specimen_short_description == specimen_short_description
+        assert instance.specimen_detailed_description == specimen_detailed_description
+        assert instance.issuer_of_specimen_id == issuer_of_specimen_id
+        assert instance.primary_anatomic_structures == primary_anatomic_structures
 
     def test_construction_with_preparation_steps(self):
         parent_specimen_id = 'surgical specimen'
@@ -1347,3 +1385,50 @@ class TestSpecimenDescription(TestCase):
         assert instance.specimen_id == specimen_id
         assert instance.specimen_uid == specimen_uid
         assert len(instance.specimen_preparation_steps) == 0
+
+    def test_construction_from_dataset_with_optionals(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        specimen_location = "specimen location"
+        specimen_preparation_steps = [
+            SpecimenPreparationStep(
+                specimen_id,
+                SpecimenCollection(procedure=codes.SCT.Biopsy)
+            )
+        ]
+        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_short_description = "specimen short description"
+        specimen_detailed_description = "specimen detailed description"
+        issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
+        primary_anatomic_structures = [
+            CodedConcept(
+                "anatomic strucutre",
+                "test",
+                "test anatomic structure"
+            )
+        ]
+        dataset = Dataset()
+        dataset.SpecimenIdentifier = specimen_id
+        dataset.SpecimenUID = str(specimen_uid)
+        dataset.SpecimenLocalizationContentItemSequence = [
+            TextContentItem(
+                name=codes.DCM.LocationOfSpecimen,
+                value=specimen_location
+            )
+        ]
+        dataset.SpecimenTypeCodeSequence = [specimen_type]
+        dataset.SpecimenPreparationSequence = specimen_preparation_steps
+        dataset.SpecimenShortDescription = specimen_short_description
+        dataset.SpecimenDetailedDescription = specimen_detailed_description
+        dataset.IssuerOfTheSpecimenIdentifierSequence = [issuer_of_specimen_id]
+        dataset.PrimaryAnatomicStructureSequence = primary_anatomic_structures
+        dataset_reread = write_and_read_dataset(dataset)
+        instance = SpecimenDescription.from_dataset(dataset_reread)
+        assert instance.specimen_location == specimen_location
+        assert instance.specimen_preparation_steps == specimen_preparation_steps
+        assert instance.specimen_type == specimen_type
+        assert instance.specimen_short_description == specimen_short_description
+        assert instance.specimen_detailed_description == specimen_detailed_description
+        assert instance.issuer_of_specimen_id == issuer_of_specimen_id
+        assert instance.primary_anatomic_structures == primary_anatomic_structures
+
