@@ -888,7 +888,6 @@ class TimeContentItem(ContentItem):
                 ) from exception
         return value.replace()
 
-
     @classmethod
     def from_dataset(
         cls,

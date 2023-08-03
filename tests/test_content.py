@@ -691,7 +691,10 @@ class TestSpecimenPreparationStep(TestCase):
         assert processing_type_item.relationship_type is None
 
         processing_step_description_item = seq[2]
-        assert processing_step_description_item.name == codes.DCM.ProcessingStepDescription
+        assert (
+            processing_step_description_item.name ==
+            codes.DCM.ProcessingStepDescription
+        )
         assert processing_step_description_item.value == description
         assert processing_step_description_item.relationship_type is None
 
@@ -705,8 +708,16 @@ class TestSpecimenPreparationStep(TestCase):
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
         fixative = CodedConcept("fixative", "test", "test fixative")
         embedding_medium = CodedConcept("embedding", "test", "test embedding")
-        specimen_container = CodedConcept("specimen container", "test", "test specimen container")
-        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_container = CodedConcept(
+            "specimen container",
+            "test",
+            "test specimen container"
+        )
+        specimen_type = CodedConcept(
+            "specimen type",
+            "test",
+            "test specimen type"
+        )
 
         instance = SpecimenPreparationStep(
             specimen_id=specimen_id,
@@ -729,27 +740,42 @@ class TestSpecimenPreparationStep(TestCase):
         assert specimen_id_item.relationship_type is None
 
         issuer_of_specimen_id_item = seq[1]
-        assert issuer_of_specimen_id_item.name == codes.DCM.IssuerOfSpecimenIdentifier
-        assert issuer_of_specimen_id_item.value == issuer_of_specimen_id.LocalNamespaceEntityID
+        assert (
+            issuer_of_specimen_id_item.name ==
+            codes.DCM.IssuerOfSpecimenIdentifier
+        )
+        assert (
+            issuer_of_specimen_id_item.value ==
+            issuer_of_specimen_id.LocalNamespaceEntityID
+        )
         assert issuer_of_specimen_id_item.relationship_type is None
 
         processing_type_item = seq[2]
-        assert processing_type_item.name == codes.DCM.ProcessingType
+        assert (
+            processing_type_item.name == codes.DCM.ProcessingType
+        )
         assert processing_type_item.value == processing_type
         assert processing_type_item.relationship_type is None
 
         processing_datetime_item = seq[3]
-        assert processing_datetime_item.name == codes.DCM.DatetimeOfProcessing
+        assert (
+            processing_datetime_item.name == codes.DCM.DatetimeOfProcessing
+        )
         assert processing_datetime_item.value == processing_datetime
         assert processing_datetime_item.relationship_type is None
 
         processing_description_item = seq[4]
-        assert processing_description_item.name == codes.DCM.ProcessingStepDescription
+        assert (
+            processing_description_item.name ==
+            codes.DCM.ProcessingStepDescription
+        )
         assert processing_description_item.value == processing_description
         assert processing_description_item.relationship_type is None
 
         collection_step_item = seq[5]
-        assert collection_step_item.name == codes.SCT.SpecimenCollection
+        assert (
+            collection_step_item.name == codes.SCT.SpecimenCollection
+        )
         assert collection_step_item.value == procedure
         assert collection_step_item.relationship_type is None
 
@@ -813,8 +839,16 @@ class TestSpecimenPreparationStep(TestCase):
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
         fixative = CodedConcept("fixative", "test", "test fixative")
         embedding_medium = CodedConcept("embedding", "test", "test embedding")
-        specimen_container = CodedConcept("specimen container", "test", "test specimen container")
-        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_container = CodedConcept(
+            "specimen container",
+            "test",
+            "test specimen container"
+        )
+        specimen_type = CodedConcept(
+            "specimen type",
+            "test",
+            "test specimen type"
+        )
         dataset = Dataset()
         dataset.SpecimenPreparationStepContentItemSequence = [
             TextContentItem(
@@ -870,7 +904,10 @@ class TestSpecimenPreparationStep(TestCase):
         assert isinstance(processing_procedure, SpecimenCollection)
         assert processing_procedure.procedure == procedure
         assert instance.processing_datetime == processing_datetime
-        assert instance.issuer_of_specimen_id == issuer_of_specimen_id.LocalNamespaceEntityID
+        assert (
+            instance.issuer_of_specimen_id ==
+            issuer_of_specimen_id.LocalNamespaceEntityID
+        )
         assert instance.specimen_container == specimen_container
         assert instance.specimen_type == specimen_type
 
@@ -1281,8 +1318,8 @@ class TestPaletteColorLUTTransformation(TestCase):
                 blue_lut=b_lut,
             )
 
-class TestSpecimenDescription(TestCase):
 
+class TestSpecimenDescription(TestCase):
     def test_construction(self):
         specimen_id = 'specimen 1'
         specimen_uid = UID()
@@ -1304,7 +1341,11 @@ class TestSpecimenDescription(TestCase):
         specimen_id = 'specimen 1'
         specimen_uid = UID()
         specimen_location = "specimen location"
-        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_type = CodedConcept(
+            "specimen type",
+            "test",
+            "test specimen type"
+        )
         specimen_short_description = "specimen short description"
         specimen_detailed_description = "specimen detailed description"
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
@@ -1328,9 +1369,16 @@ class TestSpecimenDescription(TestCase):
         assert instance.specimen_location == specimen_location
         assert instance.specimen_type == specimen_type
         assert instance.specimen_short_description == specimen_short_description
-        assert instance.specimen_detailed_description == specimen_detailed_description
-        assert instance.issuer_of_specimen_id == issuer_of_specimen_id
-        assert instance.primary_anatomic_structures == primary_anatomic_structures
+        assert (
+            instance.specimen_detailed_description ==
+            specimen_detailed_description
+        )
+        assert (
+            instance.issuer_of_specimen_id == issuer_of_specimen_id
+        )
+        assert (
+            instance.primary_anatomic_structures == primary_anatomic_structures
+        )
 
     def test_construction_with_preparation_steps(self):
         parent_specimen_id = 'surgical specimen'
@@ -1394,7 +1442,11 @@ class TestSpecimenDescription(TestCase):
                 SpecimenCollection(procedure=codes.SCT.Biopsy)
             )
         ]
-        specimen_type = CodedConcept("specimen type", "test", "test specimen type")
+        specimen_type = CodedConcept(
+            "specimen type",
+            "test",
+            "test specimen type"
+        )
         specimen_short_description = "specimen short description"
         specimen_detailed_description = "specimen detailed description"
         issuer_of_specimen_id = IssuerOfIdentifier("issuer id")
@@ -1426,7 +1478,11 @@ class TestSpecimenDescription(TestCase):
         assert instance.specimen_preparation_steps == specimen_preparation_steps
         assert instance.specimen_type == specimen_type
         assert instance.specimen_short_description == specimen_short_description
-        assert instance.specimen_detailed_description == specimen_detailed_description
+        assert (
+            instance.specimen_detailed_description ==
+            specimen_detailed_description
+        )
         assert instance.issuer_of_specimen_id == issuer_of_specimen_id
-        assert instance.primary_anatomic_structures == primary_anatomic_structures
-
+        assert (
+            instance.primary_anatomic_structures == primary_anatomic_structures
+        )

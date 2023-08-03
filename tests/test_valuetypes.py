@@ -8,7 +8,11 @@ from pydicom.valuerep import DT, DA, TM
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
-from highdicom.sr.value_types import DateContentItem, DateTimeContentItem, TimeContentItem
+from highdicom.sr.value_types import (
+    DateContentItem,
+    DateTimeContentItem,
+    TimeContentItem
+)
 from tests.utils import write_and_read_dataset
 
 
@@ -38,7 +42,6 @@ class TestDateTimeContentItem:
         assert item.value_type == value_type
         assert isinstance(item.value, datetime.datetime)
         assert item.value.isoformat() == datetime_value.isoformat()
-
 
     @pytest.mark.parametrize("datetime_value", test_datetime_values)
     def test_from_dataset(self, datetime_value: DT):
@@ -77,7 +80,6 @@ class TestDateContentItem:
         assert isinstance(item.value, datetime.date)
         assert item.value.isoformat() == date_value.isoformat()
 
-
     def test_from_dataset(self):
         date_value = DA("20230623")
         name = codes.DCM.AcquisitionDate
@@ -96,6 +98,7 @@ class TestDateContentItem:
         assert item.value_type == value_type
         assert isinstance(item.value, datetime.date)
         assert item.value.isoformat() == date_value.isoformat()
+
 
 class TestTimeContentItem:
     test_time_values = [
@@ -120,7 +123,6 @@ class TestTimeContentItem:
         assert item.value_type == value_type
         assert isinstance(item.value, datetime.time)
         assert item.value.isoformat() == time_value.isoformat()
-
 
     @pytest.mark.parametrize("time_value", test_time_values)
     def test_from_dataset(self, time_value: TM):

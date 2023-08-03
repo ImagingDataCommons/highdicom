@@ -1556,7 +1556,10 @@ class SpecimenDescription(Dataset):
                 for ds in desc.SpecimenTypeCodeSequence
             ]
         if hasattr(desc, 'SpecimenLocalizationContentItemSequence'):
-            if desc.SpecimenLocalizationContentItemSequence[0].ValueType == ValueTypeValues.TEXT.value:
+            if (
+                desc.SpecimenLocalizationContentItemSequence[0].ValueType ==
+                ValueTypeValues.TEXT.value
+            ):
                 content_item_type = TextContentItem
             else:
                 content_item_type = NumContentItem
@@ -1564,7 +1567,6 @@ class SpecimenDescription(Dataset):
                 content_item_type.from_dataset(ds)
                 for ds in desc.SpecimenLocalizationContentItemSequence
             ]
-
 
         return desc
 
