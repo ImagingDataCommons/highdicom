@@ -1478,12 +1478,19 @@ class Segmentation(SOPClass):
             isinstance(workers, Executor) or workers != 0
         )
 
+        # List of frames. In the case of native transfer syntaxes, we will
+        # collect a list of frames as flattened NumPy arrays for bitpacking at
+        # the end. In the case of encapsulated transfer syntaxes with no
+        # workers, we will accumulate a list of encoded frames to encapsulate
+        # at the end
+        frames: Union[List[bytes], List[np.ndarray]] = []
+
         if is_encaps:
             if using_multiprocessing:
                 # In the case of encapsulated transfer syntaxes with multiple
                 # workers, we will accumulate a list of encoded frames to
                 # encapsulate at the end
-                frame_futures_list: List[Future] = []
+                frame_futures: List[Future] = []
 
                 # Use the existing executor or create one
                 if isinstance(workers, Executor):
@@ -1493,11 +1500,6 @@ class Segmentation(SOPClass):
                     process_pool = ProcessPoolExecutor(
                         workers if workers > 0 else None
                     )
-            else:
-                # In the case of encapsulated transfer syntaxes with no
-                # workers, we will accumulate a list of encoded frames to
-                # encapsulate at the end
-                compressed_frames_list: List[bytes] = []
 
             # Parameters to use when calling the encode_frame function in
             # either of the above two cases
@@ -1509,10 +1511,6 @@ class Segmentation(SOPClass):
                 pixel_representation=self.PixelRepresentation
             )
         else:
-            # In the case of non-encapsulated (uncompressed) transfer syntaxes
-            # we will accumulate a list of flattened pixels from all frames for
-            # bitpacking at the end
-            full_frames_list: List[np.ndarray] = []
             if using_multiprocessing:
                 warnings.warn(
                     "Setting workers != 0 or passing an instance of "
@@ -1594,7 +1592,7 @@ class Segmentation(SOPClass):
                     if process_pool is None:
                         # Encode this frame and add resulting bytes to the list
                         # for encapsulation at the end
-                        compressed_frames_list.append(
+                        frames.append(
                             encode_frame(
                                 segment_array,
                                 **encode_frame_kwargs,
@@ -1608,18 +1606,18 @@ class Segmentation(SOPClass):
                             array=segment_array,
                             **encode_frame_kwargs,
                         )
-                        frame_futures_list.append(future)
+                        frame_futures.append(future)
                 else:
                     # Concatenate the 1D array for encoding at the end
-                    full_frames_list.append(segment_array.flatten())
+                    frames.append(segment_array.flatten())
 
         self.PerFrameFunctionalGroupsSequence = pffg_sequence
         self.NumberOfFrames = len(pffg_sequence)
 
         if is_encaps:
             if process_pool is not None:
-                compressed_frames_list = [
-                    fut.result() for fut in frame_futures_list
+                frames = [
+                    fut.result() for fut in frame_futures
                 ]
 
                 # Shutdown the pool if we created it, otherwise it is the
@@ -1628,13 +1626,13 @@ class Segmentation(SOPClass):
                     process_pool.shutdown()
 
             # Encapsulate all pre-compressed frames
-            self.PixelData = encapsulate(compressed_frames_list)
+            self.PixelData = encapsulate(frames)
         else:
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
             self.PixelData = self._encode_pixels_native(
-                np.concatenate(full_frames_list)
+                np.concatenate(frames)
             )
 
         # Add a null trailing byte if required
