@@ -384,32 +384,32 @@ class DimensionIndexSequence(DataElementSequence):
             z_axis_index.DimensionDescriptionLabel = \
                 'Z Offset in Slide Coordinate System'
 
-            row_dimension_index = Dataset()
-            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'ColumnPositionInTotalImagePixelMatrix'
-            )
-            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            row_dimension_index.DimensionOrganizationUID = dim_uid
-            row_dimension_index.DimensionDescriptionLabel = \
-                'Column Position In Total Image Pixel Matrix'
-
             column_dimension_index = Dataset()
             column_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'RowPositionInTotalImagePixelMatrix'
+                'ColumnPositionInTotalImagePixelMatrix'
             )
             column_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
             column_dimension_index.DimensionOrganizationUID = dim_uid
             column_dimension_index.DimensionDescriptionLabel = \
+                'Column Position In Total Image Pixel Matrix'
+
+            row_dimension_index = Dataset()
+            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            row_dimension_index.DimensionOrganizationUID = dim_uid
+            row_dimension_index.DimensionDescriptionLabel = \
                 'Row Position In Total Image Pixel Matrix'
 
-            # Organize frames for each segment similar to TILED_FULL, first
-            # along the row dimension (column indices from left to right) and
-            # then along the column dimension (row indices from top to bottom)
-            # of the Total Pixel Matrix.
+            # Organize frames for each segment similar to TILED_FULL, with
+            # segment position changing least frequently, followed by position
+            # of the row (from top to bottom) and then position of the column
+            # (from left to right) changing most frequently
             self.extend([
                 segment_number_index,
                 row_dimension_index,
