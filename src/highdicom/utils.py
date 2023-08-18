@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterator, List, Optional, Sequence, Tuple
+from typing import Iterator, Generator, List, Optional, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -149,30 +149,64 @@ def compute_plane_position_tiled_full(
     )
 
 
-def compute_plane_position_slide_per_frame(
-    dataset: Dataset
-) -> List[PlanePositionSequence]:
-    """Computes the plane position for each frame in given dataset with
-    respect to the slide coordinate system.
+def iter_tiled_full_frame_data(
+    dataset: Dataset,
+) -> Generator[Tuple[int, int, int, int, float, float, float], None, None]:
+    """Get data on the position of each tile in a TILED_FULL image.
+
+    This works only with images with Dimension Organization Type of
+    "TILED_FULL".
+
+    Unlike :func:`highdicom.utils.compute_plane_position_slide_per_frame`,
+    this functions returns the data in their basic Python types rather than
+    wrapping as :class:`highdicom.PlanePositionSequence`
 
     Parameters
     ----------
     dataset: pydicom.dataset.Dataset
-        VL Whole Slide Microscopy Image
+        VL Whole Slide Microscopy Image or Segmentation Image using the
+        "TILED_FULL" DimensionOrganizationType.
 
     Returns
     -------
-    List[highdicom.PlanePositionSequence]
-        Plane Position Sequence per frame
-
-    Raises
-    ------
-    ValueError
-        When `dataset` does not represent a VL Whole Slide Microscopy Image
+    channel: int
+        1-based integer index of the "channel". The meaning of "channel"
+        depends on the image type. For segmentation images, the channel is the
+        segment number. For other images, it is the optical path number.
+    focal_plane_index: int
+        1-based integer index of the focal plane.
+    column_position: int
+        1-based column position of the tile (measured left from the left side
+        of the total pixel matrix).
+    row_position: int
+        1-based row position of the tile (measured down from the top of the
+        total pixel matrix).
+    x: float
+        X coordinate in the frame-of-reference coordinate system in millimeter
+        units.
+    y: float
+        Y coordinate in the frame-of-reference coordinate system in millimeter
+        units.
+    z: float
+        Z coordinate in the frame-of-reference coordinate system in millimeter
+        units.
 
     """
-    if not dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.77.1.6':
-        raise ValueError('Expected a VL Whole Slide Microscopy Image')
+    allowed_sop_class_uids = {
+        '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
+        '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
+    }
+    if dataset.SOPClassUID not in allowed_sop_class_uids:
+        raise ValueError(
+            'Expected a VL Whole Slide Microscopy Image or Segmentation Image.'
+        )
+    if (
+        not hasattr(dataset, "DimensionOrganizationType") or
+        dataset.DimensionOrganizationType != "TILED_FULL"
+    ):
+        raise ValueError(
+            'Expected an image with "TILED_FULL" dimension organization type.'
+        )
 
     image_origin = dataset.TotalPixelMatrixOriginSequence[0]
     image_orientation = (
@@ -194,11 +228,19 @@ def compute_plane_position_slide_per_frame(
         'TotalPixelMatrixFocalPlanes',
         1
     )
-    num_optical_paths = getattr(
-        dataset,
-        'NumberOfOpticalPaths',
-        len(dataset.OpticalPathSequence)
-    )
+
+    is_segmentation = dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
+
+    # The "channels" output is either segment for segmentations, or optical
+    # path for other images
+    if is_segmentation:
+        num_channels = len(dataset.SegmentSequence)
+    else:
+        num_channels = getattr(
+            dataset,
+            'NumberOfOpticalPaths',
+            len(dataset.OpticalPathSequence)
+        )
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -216,91 +258,82 @@ def compute_plane_position_slide_per_frame(
     x_offset = image_origin.XOffsetInSlideCoordinateSystem
     y_offset = image_origin.YOffsetInSlideCoordinateSystem
 
-    transformer_lut = {}
-    for slice_index in range(1, num_focal_planes + 1):
-        # These checks are needed for mypy to determine the correct type
-        z_offset = float(slice_index - 1) * spacing_between_slices
-        transformer_lut[slice_index] = PixelToReferenceTransformer(
-            image_position=(x_offset, y_offset, z_offset),
-            image_orientation=image_orientation,
-            pixel_spacing=pixel_spacing
-        )
+    # Array of tile indices (col_index, row_index)
+    tile_indices = np.array(
+        [
+            (c, r) for (r, c) in
+            itertools.product(
+                range(1, tiles_per_column + 1),
+                range(1, tiles_per_row + 1)
+            )
+        ]
+    )
 
-    def _compute_plane_position_tiled_full_efficiently(
-        row_index: int,
-        column_index: int,
-        rows: int,
-        columns: int,
-        transformer: PixelToReferenceTransformer
-    ) -> PlanePositionSequence:
-        """More efficient implementation of `compute_plane_position_tiled_full`.
+    # Pixel offsets of each in the total pixel matrix
+    frame_pixel_offsets = (
+        (tile_indices - 1) * np.array([dataset.Columns, dataset.Rows])
+    )
 
-        Function re-uses an existing `transformer` instance instead of creating
-        one for every function call. This can hurt performance if the number
-        of frames in an image is large.
+    for channel in range(1, num_channels + 1):
+        for slice_index in range(1, num_focal_planes + 1):
+            # These checks are needed for mypy to determine the correct type
+            z_offset = float(slice_index - 1) * spacing_between_slices
+            transformer = PixelToReferenceTransformer(
+                image_position=(x_offset, y_offset, z_offset),
+                image_orientation=image_orientation,
+                pixel_spacing=pixel_spacing
+            )
 
-        Parameters
-        ----------
-        row_index: int
-            One-based Row index value for a given frame (tile) along the column
-            direction of the tiled Total Pixel Matrix, which is defined by
-            the second triplet in `image_orientation` (values should be in the
-            range [1, *n*], where *n* is the number of tiles per column)
-        column_index: int
-            One-based Column index value for a given frame (tile) along the row
-            direction of the tiled Total Pixel Matrix, which is defined by
-            the first triplet in `image_orientation` (values should be in the
-            range [1, *n*], where *n* is the number of tiles per row)
-        rows: int
-            Number of rows per Frame (tile)
-        columns: int
-            Number of columns per Frame (tile)
-        transformer: highdicom.spatial.PixelToReferenceTransformer
-            Callable transformer instance to map pixel indices into reference
-            slide coordinates
+            reference_coordinates = transformer(frame_pixel_offsets)
 
-        Returns
-        -------
-        highdicom.PlanePositionSequence
-            Position, of the plane in the slide coordinate system
+            for offsets, coords in zip(
+                frame_pixel_offsets,
+                reference_coordinates
+            ):
+                yield (
+                    channel,
+                    slice_index,
+                    offsets[0] + 1,
+                    offsets[1] + 1,
+                    coords[0],
+                    coords[1],
+                    coords[2],
+                )
 
-        """
-        row_offset_frame = ((row_index - 1) * rows)
-        column_offset_frame = ((column_index - 1) * columns)
 
-        # We should only be dealing with planar rotations.
-        transformed_coordinates = transformer(
-            np.array([(column_offset_frame, row_offset_frame)], dtype=int)
-        )
-        x = transformed_coordinates[0, 0]
-        y = transformed_coordinates[0, 1]
-        z = transformed_coordinates[0, 2]
+def compute_plane_position_slide_per_frame(
+    dataset: Dataset
+) -> List[PlanePositionSequence]:
+    """Computes the plane position for each frame in given dataset with
+    respect to the slide coordinate system for an image using the TILED_FULL
+    DimensionOrganizationType.
 
-        return PlanePositionSequence(
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        VL Whole Slide Microscopy Image or Segmentation Image using the
+        "TILED_FULL" DimensionOrganizationType.
+
+    Returns
+    -------
+    List[highdicom.PlanePositionSequence]
+        Plane Position Sequence per frame
+
+    Raises
+    ------
+    ValueError
+        When `dataset` does not represent a VL Whole Slide Microscopy Image or
+        Segmentation Image or the image does not use the "TILED_FULL" dimension
+        organization type.
+
+    """
+    return [
+        PlanePositionSequence(
             coordinate_system=CoordinateSystemNames.SLIDE,
             image_position=(x, y, z),
-            # Position of plane (tile) in Total Pixel Matrix:
-            # First tile has position (1, 1)
-            pixel_matrix_position=(
-                column_offset_frame + 1,
-                row_offset_frame + 1,
-            )
+            pixel_matrix_position=(c, r),
         )
-
-    return [
-        _compute_plane_position_tiled_full_efficiently(
-            row_index=r,
-            column_index=c,
-            rows=dataset.Rows,
-            columns=dataset.Columns,
-            transformer=transformer_lut[s],
-        )
-        for _, s, r, c in itertools.product(
-            range(num_optical_paths),
-            range(1, num_focal_planes + 1),
-            range(1, tiles_per_column + 1),  # column direction, top to bottom
-            range(1, tiles_per_row + 1),  # row direction, left to right
-        )
+        for _, _, c, r, x, y, z in iter_tiled_full_frame_data(dataset)
     ]
 
 

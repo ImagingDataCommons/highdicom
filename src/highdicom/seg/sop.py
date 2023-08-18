@@ -1677,11 +1677,7 @@ class Segmentation(SOPClass):
         self.copy_patient_and_study_information(src_img)
 
         # Build lookup tables for efficient decoding
-        if (
-            dimension_organization_type is not None and
-            dimension_organization_type.value != "TILED_FULL"
-        ):
-            self._build_luts()
+        self._build_luts()
 
     def add_segments(
         self,
@@ -2610,6 +2606,11 @@ class Segmentation(SOPClass):
         referenced_uids = self._get_ref_instance_uids()
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
+        is_tiled_full = (
+            hasattr(self, 'DimensionOrganizationType')
+            and self.DimensionOrganizationType == 'TILED_FULL'
+        )
+
         segment_numbers = []
         referenced_instances: Optional[List[str]] = []
         referenced_frames: Optional[List[int]] = []
@@ -2636,80 +2637,95 @@ class Segmentation(SOPClass):
         locations_list_type = List[Optional[SpatialLocationsPreservedValues]]
         locations_preserved: locations_list_type = []
         self._single_source_frame_per_seg_frame = True
-        for frame_item in self.PerFrameFunctionalGroupsSequence:
-            # Get segment number for this frame
-            seg_id_seg = frame_item.SegmentIdentificationSequence[0]
-            seg_num = seg_id_seg.ReferencedSegmentNumber
-            segment_numbers.append(int(seg_num))
 
-            # Get dimension indices for this frame
-            indices = frame_item.FrameContentSequence[0].DimensionIndexValues
-            if not isinstance(indices, (MultiValue, list)):
-                # In case there is a single dimension index
-                indices = [indices]
-            if len(indices) != len(self._dim_ind_pointers) + 1:
-                # (+1 because referenced segment number is ignored)
+        if is_tiled_full:
+            tiled_full_dim_indices = {
+                tag_for_keyword('RowPositionInTotalImagePixelMatrix'),
+                tag_for_keyword('ColumnPositionInTotalImagePixelMatrix'),
+            }
+            if set(dim_indices.keys()) != tiled_full_dim_indices:
                 raise RuntimeError(
-                    'Unexpected mismatch between dimension index values in '
-                    'per-frames functional groups sequence and items in the '
-                    'dimension index sequence.'
+                    'Expected segmentation images with '
+                    '"DimensionOrganizationType" of "TILED_FULL" are expected '
+                    'to have the following dimension index pointers: '
+                    'SegmentNumber, RowPositionInTotalImagePixelMatrix, '
+                    'ColumnPositionInTotalImagePixelMatrix.'
                 )
-            for ptr in self._dim_ind_pointers:
-                dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
+        else:
+            for frame_item in self.PerFrameFunctionalGroupsSequence:
+                # Get segment number for this frame
+                seg_id_seg = frame_item.SegmentIdentificationSequence[0]
+                seg_num = seg_id_seg.ReferencedSegmentNumber
+                segment_numbers.append(int(seg_num))
 
-            frame_source_instances = []
-            frame_source_frames = []
-            for der_im in frame_item.DerivationImageSequence:
-                for src_im in der_im.SourceImageSequence:
-                    frame_source_instances.append(
-                        src_im.ReferencedSOPInstanceUID
+                # Get dimension indices for this frame
+                indices = frame_item.FrameContentSequence[0].DimensionIndexValues
+                if not isinstance(indices, (MultiValue, list)):
+                    # In case there is a single dimension index
+                    indices = [indices]
+                if len(indices) != len(self._dim_ind_pointers) + 1:
+                    # (+1 because referenced segment number is ignored)
+                    raise RuntimeError(
+                        'Unexpected mismatch between dimension index values in '
+                        'per-frames functional groups sequence and items in the '
+                        'dimension index sequence.'
                     )
-                    if hasattr(src_im, 'SpatialLocationsPreserved'):
-                        locations_preserved.append(
-                            SpatialLocationsPreservedValues(
-                                src_im.SpatialLocationsPreserved
-                            )
-                        )
-                    else:
-                        locations_preserved.append(
-                            None
-                        )
+                for ptr in self._dim_ind_pointers:
+                    dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
 
-                    if hasattr(src_im, 'ReferencedFrameNumber'):
-                        if isinstance(
-                            src_im.ReferencedFrameNumber,
-                            MultiValue
-                        ):
-                            frame_source_frames.extend(
-                                [
-                                    int(f)
-                                    for f in src_im.ReferencedFrameNumber
-                                ]
+                frame_source_instances = []
+                frame_source_frames = []
+                for der_im in frame_item.DerivationImageSequence:
+                    for src_im in der_im.SourceImageSequence:
+                        frame_source_instances.append(
+                            src_im.ReferencedSOPInstanceUID
+                        )
+                        if hasattr(src_im, 'SpatialLocationsPreserved'):
+                            locations_preserved.append(
+                                SpatialLocationsPreservedValues(
+                                    src_im.SpatialLocationsPreserved
+                                )
                             )
                         else:
-                            frame_source_frames.append(
-                                int(src_im.ReferencedFrameNumber)
+                            locations_preserved.append(
+                                None
                             )
-                    else:
-                        frame_source_frames.append(_NO_FRAME_REF_VALUE)
 
-            if (
-                len(set(frame_source_instances)) != 1 or
-                len(set(frame_source_frames)) != 1
-            ):
-                self._single_source_frame_per_seg_frame = False
-            else:
-                ref_instance_uid = frame_source_instances[0]
-                if ref_instance_uid not in all_referenced_sops:
-                    raise AttributeError(
-                        f'SOP instance {ref_instance_uid} referenced in the '
-                        'source image sequence is not included in the '
-                        'Referenced Series Sequence or Studies Containing '
-                        'Other Referenced Instances Sequence. This is an '
-                        'error with the integrity of the Segmentation object.'
-                    )
-                referenced_instances.append(ref_instance_uid)
-                referenced_frames.append(frame_source_frames[0])
+                        if hasattr(src_im, 'ReferencedFrameNumber'):
+                            if isinstance(
+                                src_im.ReferencedFrameNumber,
+                                MultiValue
+                            ):
+                                frame_source_frames.extend(
+                                    [
+                                        int(f)
+                                        for f in src_im.ReferencedFrameNumber
+                                    ]
+                                )
+                            else:
+                                frame_source_frames.append(
+                                    int(src_im.ReferencedFrameNumber)
+                                )
+                        else:
+                            frame_source_frames.append(_NO_FRAME_REF_VALUE)
+
+                if (
+                    len(set(frame_source_instances)) != 1 or
+                    len(set(frame_source_frames)) != 1
+                ):
+                    self._single_source_frame_per_seg_frame = False
+                else:
+                    ref_instance_uid = frame_source_instances[0]
+                    if ref_instance_uid not in all_referenced_sops:
+                        raise AttributeError(
+                            f'SOP instance {ref_instance_uid} referenced in the '
+                            'source image sequence is not included in the '
+                            'Referenced Series Sequence or Studies Containing '
+                            'Other Referenced Instances Sequence. This is an '
+                            'error with the integrity of the Segmentation object.'
+                        )
+                    referenced_instances.append(ref_instance_uid)
+                    referenced_frames.append(frame_source_frames[0])
 
         # Summarise
         if any(
