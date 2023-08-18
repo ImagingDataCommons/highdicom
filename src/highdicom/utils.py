@@ -293,11 +293,11 @@ def iter_tiled_full_frame_data(
                 yield (
                     channel,
                     slice_index,
-                    offsets[0] + 1,
-                    offsets[1] + 1,
-                    coords[0],
-                    coords[1],
-                    coords[2],
+                    int(offsets[0] + 1),
+                    int(offsets[1] + 1),
+                    float(coords[0]),
+                    float(coords[1]),
+                    float(coords[2]),
                 )
 
 
