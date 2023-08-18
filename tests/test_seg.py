@@ -544,9 +544,9 @@ class TestDimensionIndexSequence(unittest.TestCase):
         assert len(seq) == 6
         assert seq[0].DimensionIndexPointer == 0x0062000B
         assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0048021E
+        assert seq[1].DimensionIndexPointer == 0x0048021F
         assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0048021F
+        assert seq[2].DimensionIndexPointer == 0x0048021E
         assert seq[2].FunctionalGroupPointer == 0x0048021A
         assert seq[3].DimensionIndexPointer == 0x0040072A
         assert seq[3].FunctionalGroupPointer == 0x0048021A
@@ -788,8 +788,8 @@ class TestSegmentation:
         else:
             # Build up the mapping from index to value
             for dim_kw, dim_ind in zip([
+                'RowPositionInTotalImagePixelMatrix',
                 'ColumnPositionInTotalImagePixelMatrix',
-                'RowPositionInTotalImagePixelMatrix'
             ], [1, 2]):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
