@@ -20,6 +20,9 @@ def tile_pixel_matrix(
 ) -> Iterator[Tuple[int, int]]:
     """Tiles an image into smaller frames (rectangular regions).
 
+    Follows the convention used in image with Dimension Organization Type
+    "TILED_FULL" images.
+
     Parameters
     ----------
     total_pixel_matrix_rows: int
@@ -41,7 +44,85 @@ def tile_pixel_matrix(
     tiles_per_row = int(np.ceil(total_pixel_matrix_columns / columns))
     tile_row_indices = iter(range(1, tiles_per_col + 1))
     tile_col_indices = iter(range(1, tiles_per_row + 1))
-    return itertools.product(tile_col_indices, tile_row_indices)
+    return (
+        (c, r) for (r, c) in itertools.product(
+            tile_row_indices,
+            tile_col_indices
+        )
+    )
+
+
+def get_tile_array(
+    pixel_array: np.ndarray,
+    row_offset: int,
+    column_offset: int,
+    tile_rows: int,
+    tile_columns: int,
+    pad: bool = True,
+) -> np.ndarray:
+    """Extract a tile from a total pixel matrix array.
+
+    Parameters
+    ----------
+    pixel_array: np.ndarray
+        Array representing a total pixel matrix. The first two dimensions
+        are treated as the rows and columns, respectively, of the total pixel
+        matrix. Any subsequent dimensions are not used but are retained in the
+        output array.
+    row_offset: int
+        Offset of the first row of the requested tile from the top of the total
+        pixel matrix (1-based index).
+    column_offset: int
+        Offset of the first column of the requested tile from the left of the
+        total pixel matrix (1-based index).
+    tile_rows: int
+        Number of rows per tile.
+    tile_columns:
+        Number of columns per tile.
+    pad: bool
+        Whether to pad the returned array with zeros at the right and/or bottom
+        to ensure that it matches the correct tile size. Otherwise, the returned
+        array is not padded and may be smaller than the full tile size.
+
+    Returns
+    -------
+    np.ndarray:
+        Returned pixel array for the requested tile.
+
+    """
+    if row_offset < 1 or row_offset > pixel_array.shape[0]:
+        raise ValueError(
+            "Row offset must be between 1 and the size of dimension 0 of the "
+            "pixel array."
+        )
+    if column_offset < 1 or column_offset > pixel_array.shape[1]:
+        raise ValueError(
+            "Column offset must be between 1 and the size of dimension 1 of "
+            "the pixel array."
+        )
+    # Move to pythonic 1-based indexing
+    row_offset -= 1
+    column_offset -= 1
+    row_end = row_offset + tile_rows
+    if row_end > pixel_array.shape[0]:
+        pad_rows = row_end - pixel_array.shape[0]
+        row_end = pixel_array.shape[0]
+    else:
+        pad_rows = 0
+    column_end = column_offset + tile_columns
+    if column_end > pixel_array.shape[1]:
+        pad_columns = column_end - pixel_array.shape[1]
+        column_end = pixel_array.shape[1]
+    else:
+        pad_columns = 0
+    # Account for 1-based to 0-based index conversion
+    tile_array = pixel_array[row_offset:row_end, column_offset:column_end]
+    if pad_rows > 0 or pad_columns > 0:
+        extra_dims = pixel_array.ndim - 2
+        padding = [(0, pad_rows), (0, pad_columns)] + [(0, 0)] * extra_dims
+        tile_array = np.pad(tile_array, padding)
+
+    return tile_array
 
 
 def compute_plane_position_tiled_full(
@@ -114,6 +195,8 @@ def compute_plane_position_tiled_full(
         When only one of `slice_index` and `spacing_between_slices` is provided
 
     """
+    if row_index < 1 or column_index < 1:
+        raise ValueError("Row and column indices must be positive intergers.")
     row_offset_frame = ((row_index - 1) * rows)
     column_offset_frame = ((column_index - 1) * columns)
 
