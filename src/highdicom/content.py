@@ -473,6 +473,11 @@ class PlanePositionSequence(DataElementSequence):
             item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
             item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
             item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
+            if row_position < 0 or col_position < 0:
+                raise ValueError(
+                    'Both items in "pixel_matrix_position" must be positive '
+                    'integers.'
+                )
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:

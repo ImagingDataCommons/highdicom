@@ -478,7 +478,10 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             annotations.annotation_coordinate_type,
             AnnotationCoordinateTypeValues
         )
-        assert annotations.annotation_coordinate_type == annotation_coordinate_type
+        assert (
+            annotations.annotation_coordinate_type ==
+            annotation_coordinate_type
+        )
 
         retrieved_groups = annotations.get_annotation_groups()
         assert len(retrieved_groups) == 2

@@ -57,6 +57,7 @@ from highdicom.enum import (
 )
 from highdicom.frame import encode_frame
 from highdicom.utils import (
+    are_plane_positions_tiled_full,
     compute_plane_position_tiled_full,
     get_tile_array,
     iter_tiled_full_frame_data,
@@ -1184,8 +1185,8 @@ class Segmentation(SOPClass):
         if tile_pixel_array and pixel_array.shape[0] != 1:
             raise ValueError(
                 'When argument "tile_pixel_array" is True, the input pixel '
-                'array must contain only one frame representing the total '
-                'pixel matrix.'
+                'array must contain only one "frame" representing the entire '
+                'entire pixel matrix.'
             )
 
         super().__init__(
@@ -1452,8 +1453,20 @@ class Segmentation(SOPClass):
                     y_offset = origin_seq.YOffsetInSlideCoordinateSystem
                 else:
                     # Use the provided image origin
-                    x_offset = plane_positions[0].XOffsetInSlideCoordinateSystem
-                    y_offset = plane_positions[0].YOffsetInSlideCoordinateSystem
+                    pp = plane_positions[0][0]
+                    rp = pp.RowPositionInTotalImagePixelMatrix
+                    cp = pp.ColumnPositionInTotalImagePixelMatrix
+                    if rp != 1 or cp != 1:
+                        raise ValueError(
+                            "When specifying a single plane position when "
+                            'the "tile_pixel_array" argument is True, the '
+                            "plane position must be at the top left corner "
+                            "of the total pixel matrix. I.e. it must have "
+                            "RowPositionInTotalImagePixelMatrix and "
+                            "ColumnPositionInTotalImagePixelMatrix equal to 1."
+                        )
+                    x_offset = pp.XOffsetInSlideCoordinateSystem
+                    y_offset = pp.YOffsetInSlideCoordinateSystem
                 orientation = plane_orientation[0].ImageOrientationSlide
 
                 plane_positions = [
@@ -1521,6 +1534,26 @@ class Segmentation(SOPClass):
             plane_sort_index = np.array([0])
             are_spatial_locations_preserved = True
 
+        if are_spatial_locations_preserved:
+            if tile_pixel_array:
+                if (
+                    pixel_array.shape[1:3] !=
+                    (
+                        src_img.TotalPixelMatrixRows,
+                        src_img.TotalPixelMatrixColumns
+                    )
+                ):
+                    raise ValueError(
+                        "Shape of input pixel_array does not match shape of "
+                        "the total pixel matrix of the source image."
+                    )
+            else:
+                if pixel_array.shape[1:3] != (src_img.Rows, src_img.Columns):
+                    raise ValueError(
+                        "Shape of input pixel_array does not match shape of "
+                        "the source image."
+                    )
+
         # Dimension Organization Type
         dimension_organization_type = self._check_dimension_organization_type(
             dimension_organization_type=dimension_organization_type,
@@ -1528,18 +1561,30 @@ class Segmentation(SOPClass):
             are_spatial_locations_preserved=are_spatial_locations_preserved,
             omit_empty_frames=omit_empty_frames,
             source_image=src_img,
+            plane_positions=plane_positions,
+            rows=self.Rows,
+            columns=self.Columns,
         )
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
 
         # Find indices such that empty planes are removed
         if omit_empty_frames:
-            included_plane_indices, is_empty = \
-                self._get_nonempty_plane_indices(pixel_array)
+            if tile_pixel_array:
+                included_plane_indices, is_empty = \
+                    self._get_nonempty_tile_indices(
+                        pixel_array,
+                        plane_positions=plane_positions,
+                        rows=self.Rows,
+                        columns=self.Columns,
+                    )
+            else:
+                included_plane_indices, is_empty = \
+                    self._get_nonempty_plane_indices(pixel_array)
             if is_empty:
                 # Cannot omit empty frames when all frames are empty
                 omit_empty_frames = False
-                included_plane_indices = list(range(pixel_array.shape[0]))
+                included_plane_indices = list(range(len(plane_positions)))
             else:
                 # Remove all empty plane positions from the list of sorted
                 # plane position indices
@@ -1549,10 +1594,7 @@ class Segmentation(SOPClass):
                     if ind in included_plane_indices_set
                 ]
         else:
-            if tile_pixel_array:
-                included_plane_indices = list(range(len(plane_positions)))
-            else:
-                included_plane_indices = list(range(pixel_array.shape[0]))
+            included_plane_indices = list(range(len(plane_positions)))
 
         if has_ref_frame_uid:
             # Get unique values of attributes in the Plane Position Sequence or
@@ -2018,6 +2060,9 @@ class Segmentation(SOPClass):
         are_spatial_locations_preserved: bool,
         omit_empty_frames: bool,
         source_image: Dataset,
+        plane_positions: Sequence[PlanePositionSequence],
+        rows: int,
+        columns: int,
     ) -> Optional[DimensionOrganizationTypeValues]:
         """Checks that the specified Dimension Organization Type is valid.
 
@@ -2031,9 +2076,15 @@ class Segmentation(SOPClass):
             Whether spatial locations are preserved between the source image
             and the segmentation pixel array.
         omit_empty_frames: bool
-           Whether it was specified to omit empty frames.
+            Whether it was specified to omit empty frames.
         source_image: pydicom.Dataset
-           Representative dataset of the source images.
+            Representative dataset of the source images.
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
+            Plane positions of all frames.
+        rows: int
+            Number of rows in each frame of the segmentation image.
+        columns: int
+            Number of columns in each frame of the segmentation image.
 
         Returns
         -------
@@ -2069,25 +2120,18 @@ class Segmentation(SOPClass):
                 dimension_organization_type ==
                 DimensionOrganizationTypeValues.TILED_FULL
             ):
-                # Only allow TILED_FULL if the source image is TILED_FULL
-                # and spatial locations are preserved. This could be
-                # relaxed in the future by checking the plane positions.
-                if (
-                    not hasattr(source_image, 'DimensionOrganizationType') or
-                    source_image.DimensionOrganizationType != 'TILED_FULL'
+                if not are_plane_positions_tiled_full(
+                    plane_positions,
+                    rows,
+                    columns,
                 ):
                     raise ValueError(
                         'A value of "TILED_FULL" for parameter '
                         '"dimension_organization_type" is not permitted unless '
-                        'the source images also have '
-                        'DimensionOrganizationType of "TILED_FULL".'
-                    )
-                if not are_spatial_locations_preserved:
-                    raise ValueError(
-                        'A value of "TILED_FULL" for parameter '
-                        '"dimension_organization_type" is not permitted if '
                         'the "plane_positions" of the segmentation do not '
-                        'match the plane positions of the source image.'
+                        'do not follow the relevant requirements. See '
+                        'https://dicom.nema.org/medical/dicom/current/output/'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
                     )
                 if omit_empty_frames:
                     raise ValueError(
@@ -2262,6 +2306,68 @@ class Segmentation(SOPClass):
                 'all frames is not possible.'
             )
             return (list(range(pixel_array.shape[0])), True)
+
+        return (source_image_indices, False)
+
+    @staticmethod
+    def _get_nonempty_tile_indices(
+        pixel_array: np.ndarray,
+        plane_positions: Sequence[PlanePositionSequence],
+        rows: int,
+        columns: int,
+    ) -> Tuple[List[int], bool]:
+        """Get a list of all indices of tile locations that are non-empty.
+
+        This is similar to _get_nonempty_plane_indices, but works on a total
+        pixel matrix rather than a set of frames. Empty planes (without any
+        positive pixels in any of the segments) do not need to be included in
+        the segmentation image. This method finds a list of indices of the
+        input frames that are non-empty, and therefore should be included in
+        the segmentation image.
+
+        Parameters
+        ----------
+        pixel_array: numpy.ndarray
+            Segmentation pixel array
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
+            Plane positions of each tile.
+        rows: int
+            Number of rows in each tile.
+        columns: int
+            Number of columns in each tile.
+
+        Returns
+        -------
+        included_plane_indices : List[int]
+            List giving for each plane position in the resulting segmentation
+            image the index of the corresponding frame in the original pixel
+            array.
+        is_empty: bool
+            Whether the entire image is empty. If so, empty frames should not
+            be omitted.
+
+        """
+        # This list tracks which source image each non-empty frame came from
+        source_image_indices = [
+            i for i, pos in enumerate(plane_positions)
+            if np.any(
+                get_tile_array(
+                    pixel_array[0],
+                    row_offset=pos[0].RowPositionInTotalImagePixelMatrix,
+                    column_offset=pos[0].ColumnPositionInTotalImagePixelMatrix,
+                    tile_rows=rows,
+                    tile_columns=columns,
+                )
+            )
+        ]
+
+        if len(source_image_indices) == 0:
+            logger.warning(
+                'Encoding an empty segmentation with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.'
+            )
+            return (list(range(len(plane_positions))), True)
 
         return (source_image_indices, False)
 
@@ -2717,8 +2823,8 @@ class Segmentation(SOPClass):
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
         is_tiled_full = (
-            hasattr(self, 'DimensionOrganizationType')
-            and self.DimensionOrganizationType == 'TILED_FULL'
+            hasattr(self, 'DimensionOrganizationType') and
+            self.DimensionOrganizationType == 'TILED_FULL'
         )
 
         segment_numbers = []
@@ -2742,10 +2848,6 @@ class Segmentation(SOPClass):
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
-        # Create a list of source images and check for spatial locations
-        # preserved and that there is a single source frame per seg frame
-        locations_list_type = List[Optional[SpatialLocationsPreservedValues]]
-        locations_preserved: locations_list_type = []
         self._single_source_frame_per_seg_frame = True
 
         if is_tiled_full:
@@ -2775,7 +2877,18 @@ class Segmentation(SOPClass):
                 dim_indices[y_tag],
                 dim_indices[z_tag],
             ) = zip(*iter_tiled_full_frame_data(self))
+
+            # There is no way to deduce whether the spatial locations are
+            # preserved in the tiled full case
+            self._locations_preserved = None
         else:
+            # Create a list of source images and check for spatial locations
+            # preserved
+            locations_list_type = List[
+                Optional[SpatialLocationsPreservedValues]
+            ]
+            locations_preserved: locations_list_type = []
+
             for frame_item in self.PerFrameFunctionalGroupsSequence:
                 # Get segment number for this frame
                 seg_id_seg = frame_item.SegmentIdentificationSequence[0]
@@ -2783,7 +2896,8 @@ class Segmentation(SOPClass):
                 segment_numbers.append(int(seg_num))
 
                 # Get dimension indices for this frame
-                indices = frame_item.FrameContentSequence[0].DimensionIndexValues
+                content_seq = frame_item.FrameContentSequence[0]
+                indices = content_seq.DimensionIndexValues
                 if not isinstance(indices, (MultiValue, list)):
                     # In case there is a single dimension index
                     indices = [indices]
@@ -2791,8 +2905,8 @@ class Segmentation(SOPClass):
                     # (+1 because referenced segment number is ignored)
                     raise RuntimeError(
                         'Unexpected mismatch between dimension index values in '
-                        'per-frames functional groups sequence and items in the '
-                        'dimension index sequence.'
+                        'per-frames functional groups sequence and items in '
+                        'the dimension index sequence.'
                     )
                 for ptr in self._dim_ind_pointers:
                     dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
@@ -2842,35 +2956,37 @@ class Segmentation(SOPClass):
                     ref_instance_uid = frame_source_instances[0]
                     if ref_instance_uid not in all_referenced_sops:
                         raise AttributeError(
-                            f'SOP instance {ref_instance_uid} referenced in the '
-                            'source image sequence is not included in the '
+                            f'SOP instance {ref_instance_uid} referenced in '
+                            'the source image sequence is not included in the '
                             'Referenced Series Sequence or Studies Containing '
                             'Other Referenced Instances Sequence. This is an '
-                            'error with the integrity of the Segmentation object.'
+                            'error with the integrity of the Segmentation '
+                            'object.'
                         )
                     referenced_instances.append(ref_instance_uid)
                     referenced_frames.append(frame_source_frames[0])
 
-        # Summarise
-        if any(
-            isinstance(v, SpatialLocationsPreservedValues) and
-            v == SpatialLocationsPreservedValues.NO
-            for v in locations_preserved
-        ):
-            Type = Optional[SpatialLocationsPreservedValues]
-            self._locations_preserved: Type = SpatialLocationsPreservedValues.NO
-        elif all(
-            isinstance(v, SpatialLocationsPreservedValues) and
-            v == SpatialLocationsPreservedValues.YES
-            for v in locations_preserved
-        ):
-            self._locations_preserved = SpatialLocationsPreservedValues.YES
-        else:
-            self._locations_preserved = None
+            # Summarise
+            if any(
+                isinstance(v, SpatialLocationsPreservedValues) and
+                v == SpatialLocationsPreservedValues.NO
+                for v in locations_preserved
+            ):
+                Type = Optional[SpatialLocationsPreservedValues]
+                self._locations_preserved: Type = \
+                    SpatialLocationsPreservedValues.NO
+            elif all(
+                isinstance(v, SpatialLocationsPreservedValues) and
+                v == SpatialLocationsPreservedValues.YES
+                for v in locations_preserved
+            ):
+                self._locations_preserved = SpatialLocationsPreservedValues.YES
+            else:
+                self._locations_preserved = None
 
-        if not self._single_source_frame_per_seg_frame:
-            referenced_instances = None
-            referenced_frames = None
+            if not self._single_source_frame_per_seg_frame:
+                referenced_instances = None
+                referenced_frames = None
 
         self._db_man = _SegDBManager(
             referenced_uids=referenced_uids,
@@ -3492,7 +3608,17 @@ class Segmentation(SOPClass):
         """
         # Checks that it is possible to index using source frames in this
         # dataset
-        if self._locations_preserved is None:
+        is_tiled_full = (
+            hasattr(self, 'DimensionOrganizationType') and
+            self.DimensionOrganizationType == 'TILED_FULL'
+        )
+        if is_tiled_full:
+            raise RuntimeError(
+                'Indexing via source frames is not possible when a '
+                'segmentation is stored using the DimensionOrganizationType '
+                '"TILED_FULL".'
+            )
+        elif self._locations_preserved is None:
             if not ignore_spatial_locations:
                 raise RuntimeError(
                     'Indexing via source frames is not permissible since this '

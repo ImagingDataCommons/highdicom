@@ -436,3 +436,67 @@ def is_tiled_image(dataset: Dataset) -> bool:
     ):
         return True
     return False
+
+
+def are_plane_positions_tiled_full(
+    plane_positions: Sequence[PlanePositionSequence],
+    rows: int,
+    columns: int,
+) -> bool:
+    """Determine whether a list of plane positions matches "TILED_FULL".
+
+    This takes a list of plane positions for each frame and determines whether
+    the plane positions satisfy the requirements of "TILED_FULL". Plane
+    positions match the TILED_FULL dimension organization type if they are
+    non-overlapping, and cover the entire image plane in the order specified in
+    the standard.
+
+    The test implemented in this function is necessary and sufficient for the
+    use of TILED_FULL in a newly created tiled image (thus allowing the plane
+    positions to be omitted from the image and defined implicitly).
+
+    Parameters
+    ----------
+    plane_positions: Sequence[PlanePositionSequence]
+        Plane positions of each frame.
+    rows: int
+        Number of rows in each frame.
+    columns: int
+        Number of columns in each frame.
+
+    Returns
+    -------
+    bool:
+        True if the supplied plane positions satisfy the requirements for
+        TILED_FULL. False otherwise.
+
+    """
+    max_r = -1
+    max_c = -1
+    for plane_position in plane_positions:
+        r = plane_position[0].RowPositionInTotalImagePixelMatrix
+        c = plane_position[0].ColumnPositionInTotalImagePixelMatrix
+        if r > max_r:
+            max_r = r
+        if c > max_c:
+            max_c = c
+
+    expected_positions = [
+        (r, c) for (r, c) in itertools.product(
+            range(1, max_r + 1, rows),
+            range(1, max_c + 1, columns),
+        )
+    ]
+    if len(expected_positions) != len(plane_positions):
+        return False
+
+    for (r_exp, c_exp), plane_position in zip(
+        expected_positions,
+        plane_positions
+    ):
+        r = plane_position[0].RowPositionInTotalImagePixelMatrix
+        c = plane_position[0].ColumnPositionInTotalImagePixelMatrix
+        if r != r_exp or c != c_exp:
+            return False
+
+    return True

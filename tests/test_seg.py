@@ -3,6 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 import unittest
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pytest
@@ -25,7 +26,10 @@ from highdicom.content import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
+)
 from highdicom.seg import (
     segread,
     DimensionIndexSequence,
@@ -657,6 +661,16 @@ class TestSegmentation:
             dtype=bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
+
+        # Total pixel matrix segmentation array for tests
+        self._sm_total_pixel_array = np.zeros(
+            (
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            ),
+            dtype=bool
+        )
+        self._sm_total_pixel_array[45:60, 5:70] = True
 
         # A series of single frame CT images
         ct_series = [
@@ -1410,7 +1424,7 @@ class TestSegmentation:
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
-        instance = Segmentation(
+        Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
             SegmentationTypeValues.FRACTIONAL.value,
@@ -1431,9 +1445,9 @@ class TestSegmentation:
     def test_construction_workers_manual(self):
         # Create a segmentation with multiple workers created manually
         with ProcessPoolExecutor(2) as pool:
-            instance = Segmentation(
-            self._ct_series,
-            self._ct_series_mask_array,
+            Segmentation(
+                self._ct_series,
+                self._ct_series_mask_array,
                 SegmentationTypeValues.FRACTIONAL.value,
                 self._segment_descriptions,
                 self._series_instance_uid,
@@ -1467,6 +1481,115 @@ class TestSegmentation:
             omit_empty_frames=False,
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
+        assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            DimensionOrganizationTypeValues.TILED_FULL,
+            DimensionOrganizationTypeValues.TILED_SPARSE,
+        ])
+    def dimension_organization_type(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            SegmentationTypeValues.FRACTIONAL,
+            SegmentationTypeValues.BINARY,
+        ])
+    def segmentation_type(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            None,
+            (10, 10),
+            (10, 25),
+            (25, 25),
+            (30, 30),
+        ])
+    def tile_size(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def locations_preserved(request):
+        return request.param
+
+    # with and without omitting frames
+    # with tiled full and tiled sparse
+    # single and multiple segments
+    # with and without spatial locations preserved
+    def test_construction_autotile(
+        self,
+        tile_size,
+        dimension_organization_type,
+        segmentation_type,
+        locations_preserved,
+    ):
+
+        if locations_preserved:
+            pixel_measures = None
+            plane_orientation = None
+            plane_positions = None
+        else:
+            pixel_measures = PixelMeasuresSequence(
+               pixel_spacing=(0.0001, 0.0001),
+               slice_thickness=0.001,
+            )
+            plane_orientation = PlaneOrientationSequence(
+                coordinate_system="SLIDE",
+                image_orientation=[0.0, -1.0, 0.0, 1.0, 0.0, 0.0]
+            )
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system="SLIDE",
+                    image_position=[1.1234, -5.4323214, 0.0],
+                    pixel_matrix_position=(1, 1),
+                )
+            ]
+
+        if dimension_organization_type.value == "TILED_FULL":
+            # Cannot omit empty frames with TILED_FULL
+            omit_empty_frames_values = [False]
+        else:
+            omit_empty_frames_values = [False, True]
+
+        for omit_empty_frames in omit_empty_frames_values:
+            instance = Segmentation(
+                [self._sm_image],
+                pixel_array=self._sm_total_pixel_array,
+                segmentation_type=segmentation_type,
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                dimension_organization_type=dimension_organization_type,
+                omit_empty_frames=omit_empty_frames,
+                plane_orientation=plane_orientation,
+                plane_positions=plane_positions,
+                pixel_measures=pixel_measures,
+                tile_pixel_array=True,
+                tile_size=tile_size,
+            )
+            assert (
+                instance.DimensionOrganizationType ==
+                dimension_organization_type.value
+            )
+            if tile_size is not None:
+                assert instance.Rows == tile_size[0]
+                assert instance.Columns == tile_size[1]
+
+            with warnings.catch_warnings(record=True) as w:
+                self.get_array_after_writing(instance)
+                assert len(w) == 0
 
     def test_pixel_types_fractional(
         self,
