@@ -3295,9 +3295,10 @@ class Segmentation(SOPClass):
 
     def _get_pixels_by_seg_frame(
         self,
-        num_output_frames: int,
+        output_shape: Union[int, Tuple[int, int]],
         indices_iterator: Iterable[Tuple[int, int, int]],
         segment_numbers: np.ndarray,
+        tiled_output: bool = False,
         combine_segments: bool = False,
         relabel: bool = False,
         rescale_fractional: bool = True,
@@ -3312,17 +3313,29 @@ class Segmentation(SOPClass):
 
         Parameters
         ----------
-        num_output_frames: int
-            Number of frames in the output array.
-        indices_iterator: Iterable[Tuple[int, int, int]],
-            An iterable object that yields tuples of (out_frame_index,
-            seg_frame_index, output_segment_number) that describes how to
-            construct the desired output pixel array from the segmentation
-            image's pixel array. out_frame_index is the (0-based) index of a
-            frame of the output array. 'seg_frame_index' is the (0-based)
-            frame index of a frame of the segmentation image that should be
-            placed into that output frame with as segment number
+        output_shape: Union[int, Tuple[int, int]]
+            Shape of the output array. If tiled_output is False, this is the
+            number of frames in the output array. If tiled_output is True, it
+            is a tuple containing the number of (rows, columns) in the output
+            array.
+        indices_iterator: Union[Iterable[Tuple[int, int, int]], Iterable[Tuple[Tuple[int, int], int, int]]]
+            An iterable object that yields tuples of ((output_row_position,
+            output_column_position), seg_frame_index, output_segment_number) (if
+            tiled_output is True) or (out_frame_index, seg_frame_index,
+            output_segment_number) (if tiled_output is False) that describes
+            how to construct the desired output pixel array from the
+            segmentation image's pixel array. 'out_frame_index' is the
+            (0-based) index of a frame of the output array.
+            'output_row_position' and 'output_column_position' give the
+            (0-based) position in the full output array of the top left pixel
+            of the segmentation frame. 'seg_frame_index' is the (0-based) frame
+            index of a frame of the segmentation image that should be placed
+            into that output frame (or tile position) with as segment number
             'output_segment_number'.
+        tiled_output: bool, optional
+            Whether the output array is (a region of) a total pixel matrix
+            formed by tiling frames in two dimensions. If False, the output
+            array is a 3D stack of frames.
         segment_numbers: np.ndarray
             One dimensional numpy array containing segment numbers
             corresponding to the columns of the seg frames matrix.
@@ -3415,6 +3428,23 @@ class Segmentation(SOPClass):
         else:
             _, h, w = self.pixel_array.shape
 
+        def _get_tiled_indices(ro: int, co: int) -> Tuple[int, int, int, int]:
+            if ro + h <= output_shape[0]:
+                r_end = ro + h
+                r_in = h
+            else:
+                r_end = output_shape[0]
+                r_in = output_shape[0] - (ro + h)
+
+            if co + w <= output_shape[1]:
+                c_end = co + w
+                c_in = w
+            else:
+                c_end = output_shape[1]
+                c_in = output_shape[1] - (co + w)
+
+            return r_end, r_in, c_end, c_in
+
         if combine_segments:
             # Check whether segmentation is binary, or fractional with only
             # binary values
@@ -3448,47 +3478,77 @@ class Segmentation(SOPClass):
                 pixel_array = pixel_array[None, :, :]
 
             # Initialize empty pixel array
+            full_output_shape = (
+                output_shape if tiled_output else (output_shape, h, w)
+            )
             out_array = np.zeros(
-                (num_output_frames, h, w),
+                full_output_shape,
                 dtype=intermediate_dtype
             )
 
             # Loop over the supplied iterable
-            for fo, fi, seg_n in indices_iterator:
+            for output_location, fi, seg_n in indices_iterator:
                 pix_value = intermediate_dtype.type(seg_n)
+
+                if tiled_output:
+                    ro, co = output_location
+                    r_end, r_in, c_end, c_in = _get_tiled_indices(ro, co)
+
+                    input_indexer = (fi, slice(None, r_in), slice(None, c_in))
+                    output_indexer = (slice(ro, r_end), slice(co, c_end))
+                else:
+                    fo = output_location
+                    input_indexer = (fi, slice(None), slice(None))
+                    output_indexer = (fo, slice(None), slice(None))
+
                 if not skip_overlap_checks:
                     if np.any(
                         np.logical_and(
-                            pixel_array[fi, :, :] > 0,
-                            out_array[fo, :, :] > 0
+                            pixel_array[input_indexer] > 0,
+                            out_array[output_indexer] > 0
                         )
                     ):
                         raise RuntimeError(
                             "Cannot combine segments because segments "
                             "overlap."
                         )
-                out_array[fo, :, :] = np.maximum(
-                    pixel_array[fi, :, :] * pix_value,
-                    out_array[fo, :, :]
+                out_array[output_indexer] = np.maximum(
+                    pixel_array[input_indexer] * pix_value,
+                    out_array[output_indexer]
                 )
 
         else:
             # Initialize empty pixel array
+            full_output_shape = (
+                (*output_shape, num_segments) if tiled_output else
+                (output_shape, h, w, num_segments)
+            )
             out_array = np.zeros(
-                (num_output_frames, h, w, num_segments),
-                intermediate_dtype
+                full_output_shape,
+                dtype=intermediate_dtype
             )
 
-            # Loop through output frames
-            for fo, fi, seg_n in indices_iterator:
+            # loop through output frames
+            for output_location, fi, seg_n in indices_iterator:
+                if tiled_output:
+                    ro, co = output_location
+                    r_end, r_in, c_end, c_in = _get_tiled_indices(ro, co)
+
+                    input_indexer = (fi, slice(None, r_in), slice(None, c_in))
+                    output_indexer = (slice(ro, r_end), slice(co, c_end), seg_n)
+                else:
+                    fo = output_location
+                    input_indexer = (fi, slice(None), slice(None))
+                    output_indexer = (fo, slice(None), slice(None), seg_n)
+
                 # Copy data to to output array
                 if self.pixel_array.ndim == 2:
                     # Special case with a single segmentation frame
-                    out_array[fo, :, :, seg_n] = \
+                    out_array[output_indexer] = \
                         self.pixel_array.copy()
                 else:
-                    out_array[fo, :, :, seg_n] = \
-                        self.pixel_array[fi, :, :].copy()
+                    out_array[output_indexer] = \
+                        self.pixel_array[input_indexer].copy()
 
             if rescale_fractional:
                 if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
@@ -3848,7 +3908,7 @@ class Segmentation(SOPClass):
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                num_output_frames=len(source_sop_instance_uids),
+                output_shape=len(source_sop_instance_uids),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4102,7 +4162,7 @@ class Segmentation(SOPClass):
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                num_output_frames=len(source_frame_numbers),
+                output_shape=len(source_frame_numbers),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4351,7 +4411,7 @@ class Segmentation(SOPClass):
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                num_output_frames=len(dimension_index_values),
+                output_shape=len(dimension_index_values),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
