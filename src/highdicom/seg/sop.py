@@ -25,7 +25,7 @@ import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
-from pydicom.datadict import keyword_for_tag, tag_for_keyword
+from pydicom.datadict import get_entry, keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
 from pydicom.multival import MultiValue
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
@@ -59,6 +59,7 @@ from highdicom.frame import encode_frame
 from highdicom.utils import (
     are_plane_positions_tiled_full,
     compute_plane_position_tiled_full,
+    is_tiled_image,
     get_tile_array,
     iter_tiled_full_frame_data,
     tile_pixel_matrix,
@@ -149,11 +150,34 @@ class _SegDBManager:
 
     """Database manager for data associated with a segmentation image."""
 
+    # Dictionary mapping DCM VRs to appropriate SQLite types
+    _DCM_SQL_TYPE_MAP = {
+        'CS': 'VARCHAR',
+        'DS': 'REAL',
+        'FD': 'REAL',
+        'FL': 'REAL',
+        'IS': 'INTEGER',
+        'LO': 'TEXT',
+        'LT': 'TEXT',
+        'PN': 'TEXT',
+        'SH': 'TEXT',
+        'SL': 'INTEGER',
+        'SS': 'INTEGER',
+        'ST': 'TEXT',
+        'UI': 'TEXT',
+        'UL': 'INTEGER',
+        'UR': 'TEXT',
+        'US or SS': 'INTEGER',
+        'US': 'INTEGER',
+        'UT': 'TEXT',
+    }
+
     def __init__(
         self,
         referenced_uids: List[Tuple[str, str, str]],
         segment_numbers: List[int],
         dim_indices: Dict[int, List[int]],
+        dim_values: Dict[int, List[Any]],
         referenced_instances: Optional[List[str]],
         referenced_frames: Optional[List[int]],
     ):
@@ -170,7 +194,11 @@ class _SegDBManager:
         dim_indices: Dict[int, List[int]]
             Dictionary mapping the integer tag value of each dimension index
             pointer (excluding SegmentNumber) to a list of dimension indices
-            for each frames in the segmentation image.
+            for each frame in the segmentation image.
+        dim_values: Dict[int, List[Values]]
+            Dictionary mapping the integer tag value of each dimension index
+            pointer (excluding SegmentNumber) to a list of dimension values
+            for each frame in the segmentation image.
         referenced_instances: Optional[List[str]]
             SOP Instance UID of each referenced image instance for each frame
             in the segmentation image. Should be omitted if there is not a
@@ -188,14 +216,6 @@ class _SegDBManager:
 
         self._number_of_frames = len(segment_numbers)
 
-        self._dim_ind_col_names = {}
-        for i, t in enumerate(dim_indices.keys()):
-            kw = keyword_for_tag(t)
-            if kw == '':
-                kw = f'UnknownDimensionIndex{i}'
-            col_name = kw + '_DimensionIndexValues'
-            self._dim_ind_col_names[t] = col_name
-
         # Construct the columns and values to put into a frame look-up table
         # table within sqlite. There will be one row per frame in the
         # segmentation instance
@@ -210,12 +230,40 @@ class _SegDBManager:
         col_defs.append('SegmentNumber INTEGER NOT NULL')
         col_data.append(segment_numbers)
 
-        # Columns for other dimension index values
-        col_defs += [
-            f'{col_name} INTEGER NOT NULL'
-            for col_name in self._dim_ind_col_names.values()
-        ]
-        col_data.extend(list(dim_indices.values()))
+        self._dim_ind_col_names = {}
+        for i, t in enumerate(dim_indices.keys()):
+            vr, vm_str, _, _, kw = get_entry(t)
+            if kw == '':
+                kw = f'UnknownDimensionIndex{i}'
+            ind_col_name = kw + '_DimensionIndexValues'
+            self._dim_ind_col_names[t] = ind_col_name
+
+            # Add column for dimension index
+            col_defs.append(f'{ind_col_name} INTEGER NOT NULL')
+            col_data.append(dim_indices[t])
+
+            # Add column for dimension value
+            # For this to be possible, must have a fixed VM
+            # and a VR that we can map to a sqlite type
+            # Otherwise, we just omit the data from the db
+            try:
+                vm = int(vm_str)
+            except ValueError:
+                continue
+            try:
+                sql_type = self._DCM_SQL_TYPE_MAP[vr]
+            except KeyError:
+                continue
+
+            if vm > 1:
+                for d in range(vm):
+                    data = [el[d] for el in dim_values[t]]
+                    col_defs.append(f'{kw}_{d} {sql_type} NOT NULL')
+                    col_data.append(data)
+            else:
+                # Single column
+                col_defs.append(f'{kw} {sql_type} NOT NULL')
+                col_data.append(dim_values[t])
 
         # Columns related to source frames, if they are usable for indexing
         if (referenced_frames is None) != (referenced_instances is None):
@@ -441,6 +489,23 @@ class _SegDBManager:
             )
         }
 
+    def is_indexable_as_total_pixel_matrix(self) -> bool:
+        """Whether the segmentation can be indexed as a total pixel matrix.
+
+        Returns
+        -------
+        bool:
+            True if the segmentation may be indexed using row and column
+            positions in the total pixel matrix. False otherwise.
+
+        """
+        row_pos_kw = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
+        col_pos_kw = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
+        return (
+            row_pos_kw in self._dim_ind_col_names and
+            col_pos_kw in self._dim_ind_col_names
+        )
+
     @contextmanager
     def _generate_temp_table(
         self,
@@ -568,7 +633,17 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
         """Iterate over segmentation frame indices for given source image
         instances.
 
@@ -607,15 +682,17 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterator[Tuple[int, int, int]]:
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
             Indices required to construct the requested mask. Each
-            triplet denotes the (output frame index, segmentation frame index,
+            triplet denotes the (output indexer, segmentation indexer,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
             segmentation dataset and inserting them into the output array with
-            a given segment value.
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
 
-        """
+        """  # noqa: E501
         # Run query to create the iterable of indices needed to construct the
         # desired pixel array. The approach here is to create two temporary
         # tables in the SQLite database, one for the desired source UIDs, and
@@ -657,7 +734,14 @@ class _SegDBManager:
                 combine_segments=combine_segments,
                 relabel=relabel
             ):
-                yield self._db_con.execute(query)
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
 
     @contextmanager
     def iterate_indices_by_source_frame(
@@ -667,7 +751,17 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
         """Iterate over frame indices for given source image frames.
 
         This is intended for the case of a segmentation image that references a
@@ -708,15 +802,17 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterator[Tuple[int, int, int]]:
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
             Indices required to construct the requested mask. Each
-            triplet denotes the (output frame index, segmentation frame index,
+            triplet denotes the (output indexer, segmentation indexer,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
             segmentation dataset and inserting them into the output array with
-            a given segment value.
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
 
-        """
+        """  # noqa: E501
         # Run query to create the iterable of indices needed to construct the
         # desired pixel array. The approach here is to create two temporary
         # tables in the SQLite database, one for the desired frame numbers, and
@@ -758,7 +854,14 @@ class _SegDBManager:
                 combine_segments=combine_segments,
                 relabel=relabel
             ):
-                yield self._db_con.execute(query)
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
 
     @contextmanager
     def iterate_indices_by_dimension_index_values(
@@ -768,7 +871,17 @@ class _SegDBManager:
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
-    ) -> Generator[Iterator[Tuple[int, int, int]], None, None]:
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
         """Iterate over frame indices for given dimension index values.
 
         This is intended to be the most flexible and lowest-level (and there
@@ -811,15 +924,17 @@ class _SegDBManager:
 
         Yields
         ------
-        Iterator[Tuple[int, int, int]]:
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
             Indices required to construct the requested mask. Each
-            triplet denotes the (output frame index, segmentation frame index,
+            triplet denotes the (output indexer, segmentation indexer,
             output segment number) representing a list of "instructions" to
             create the requested output array by copying frames from the
             segmentation dataset and inserting them into the output array with
-            a given segment value.
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
 
-        """
+        """  # noqa: E501
         # Create temporary table of desired dimension indices
         table_name = 'TemporaryDimensionIndexValues'
 
@@ -862,7 +977,160 @@ class _SegDBManager:
                 combine_segments=combine_segments,
                 relabel=relabel
             ):
-                yield self._db_con.execute(query)
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
+
+    @contextmanager
+    def iterate_indices_for_tiled_region(
+        self,
+        row_start: int,
+        row_end: int,
+        column_start: int,
+        column_end: int,
+        tile_shape: Tuple[int, int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over segmentation frame indices for a given region of the
+        segmentation's total pixel matrix.
+
+        This is intended for the case of a segmentation image that is stored as
+        a tiled representation of total pixel matrix.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        row_start: int
+            Row index (1-based) in the total pixel matrix of the first row of
+            the output array. May be negative (last row is -1).
+        row_end: int
+            Row index (1-based) in the total pixel matrix one beyond the last
+            row of the output array. May be negative (last row is -1).
+        column_start: int
+            Column index (1-based) in the total pixel matrix of the first
+            column of the output array. May be negative (last column is -1).
+        column_end: int
+            Column index (1-based) in the total pixel matrix one beyond the last
+            column of the output array. May be negative (last column is -1).
+        tile_shape: Tuple[int, int]
+            Shape of each tile (rows, columns).
+        segment_numbers: Sequence[int]
+            Numbers of segments to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        th, tw = tile_shape
+
+        oh = row_end - row_start
+        ow = column_end - column_start
+
+        row_offset_start = row_start - th + 1
+        column_offset_start = column_start - tw + 1
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            '    L.RowPositionInTotalImagePixelMatrix,'
+            '    L.ColumnPositionInTotalImagePixelMatrix,'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM FrameLUT L '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.SegmentNumber = S.SegmentNumber '
+            'WHERE ('
+            '    L.RowPositionInTotalImagePixelMatrix >= '
+            f'        {row_offset_start}'
+            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
+            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
+            f'        {column_offset_start}'
+            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+            ')'
+            'ORDER BY '
+            '     L.RowPositionInTotalImagePixelMatrix,'
+            '     L.ColumnPositionInTotalImagePixelMatrix,'
+            '     S.OutputSegmentNumber'
+        )
+
+        with self._generate_temp_segment_table(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel
+        ):
+            yield (
+                (
+                    (
+                        slice(
+                            max(rp - row_start, 0),
+                            min(rp + th - row_start, oh)
+                        ),
+                        slice(
+                            max(cp - column_start, 0),
+                            min(cp + tw - column_start, ow)
+                        ),
+                    ),
+                    (
+                        fi,
+                        slice(
+                            max(row_start - rp, 0),
+                            min(row_end - rp, th)
+                        ),
+                        slice(
+                            max(column_start - cp, 0),
+                            min(column_end - cp, tw)
+                        ),
+                    ),
+                    seg_no
+                )
+                for (rp, cp, fi, seg_no) in self._db_con.execute(query)
+            )
 
 
 class Segmentation(SOPClass):
@@ -2839,12 +3107,23 @@ class Segmentation(SOPClass):
             for dim_ind in self.DimensionIndexSequence
             if dim_ind.DimensionIndexPointer != seg_num_tag
         ]
+
+        func_grp_pointers = {}
+        for dim_ind in self.DimensionIndexSequence:
+            ptr = dim_ind.DimensionIndexPointer
+            if ptr in self._dim_ind_pointers:
+                grp_ptr = getattr(dim_ind, "FunctionalGroupPointer", None)
+                func_grp_pointers[ptr] = grp_ptr
+
         dim_ind_positions = {
             dim_ind.DimensionIndexPointer: i
             for i, dim_ind in enumerate(self.DimensionIndexSequence)
             if dim_ind.DimensionIndexPointer != seg_num_tag
         }
         dim_indices: Dict[int, List[int]] = {
+            ptr: [] for ptr in self._dim_ind_pointers
+        }
+        dim_values: Dict[int, List[Any]] = {
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
@@ -2871,12 +3150,17 @@ class Segmentation(SOPClass):
             (
                 segment_numbers,
                 _,
-                dim_indices[row_tag],
-                dim_indices[col_tag],
-                dim_indices[x_tag],
-                dim_indices[y_tag],
-                dim_indices[z_tag],
+                dim_values[row_tag],
+                dim_values[col_tag],
+                dim_values[x_tag],
+                dim_values[y_tag],
+                dim_values[z_tag],
             ) = zip(*iter_tiled_full_frame_data(self))
+
+            # Create indices for each of the dimensions
+            for ptr, vals in dim_values.items():
+                _, indices = np.unique(vals, return_inverse=True)
+                dim_indices[ptr] = (indices + 1).tolist()
 
             # There is no way to deduce whether the spatial locations are
             # preserved in the tiled full case
@@ -2910,6 +3194,12 @@ class Segmentation(SOPClass):
                     )
                 for ptr in self._dim_ind_pointers:
                     dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
+                    grp_ptr = func_grp_pointers[ptr]
+                    if grp_ptr is not None:
+                        dim_val = frame_item[grp_ptr][0][ptr].value
+                    else:
+                        dim_val = frame_item[ptr].value
+                    dim_values[ptr].append(dim_val)
 
                 frame_source_instances = []
                 frame_source_frames = []
@@ -2992,6 +3282,7 @@ class Segmentation(SOPClass):
             referenced_uids=referenced_uids,
             segment_numbers=segment_numbers,
             dim_indices=dim_indices,
+            dim_values=dim_values,
             referenced_instances=referenced_instances,
             referenced_frames=referenced_frames,
         )
@@ -3296,9 +3587,14 @@ class Segmentation(SOPClass):
     def _get_pixels_by_seg_frame(
         self,
         output_shape: Union[int, Tuple[int, int]],
-        indices_iterator: Iterable[Tuple[int, int, int]],
+        indices_iterator: Iterator[
+            Tuple[
+                Tuple[Union[slice, int], ...],
+                Tuple[Union[slice, int], ...],
+                int
+            ]
+        ],
         segment_numbers: np.ndarray,
-        tiled_output: bool = False,
         combine_segments: bool = False,
         relabel: bool = False,
         rescale_fractional: bool = True,
@@ -3314,28 +3610,25 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         output_shape: Union[int, Tuple[int, int]]
-            Shape of the output array. If tiled_output is False, this is the
-            number of frames in the output array. If tiled_output is True, it
-            is a tuple containing the number of (rows, columns) in the output
-            array.
-        indices_iterator: Union[Iterable[Tuple[int, int, int]], Iterable[Tuple[Tuple[int, int], int, int]]]
-            An iterable object that yields tuples of ((output_row_position,
-            output_column_position), seg_frame_index, output_segment_number) (if
-            tiled_output is True) or (out_frame_index, seg_frame_index,
-            output_segment_number) (if tiled_output is False) that describes
-            how to construct the desired output pixel array from the
-            segmentation image's pixel array. 'out_frame_index' is the
-            (0-based) index of a frame of the output array.
-            'output_row_position' and 'output_column_position' give the
-            (0-based) position in the full output array of the top left pixel
-            of the segmentation frame. 'seg_frame_index' is the (0-based) frame
-            index of a frame of the segmentation image that should be placed
-            into that output frame (or tile position) with as segment number
-            'output_segment_number'.
-        tiled_output: bool, optional
-            Whether the output array is (a region of) a total pixel matrix
-            formed by tiling frames in two dimensions. If False, the output
-            array is a 3D stack of frames.
+            Shape of the output array. If an integer is False, this is the
+            number of frames in the output array and the number of rows and
+            columns are taken to match those of each segmentation frame. If a
+            tuple of integers, it contains the number of (rows, columns) in the
+            output array and there is no frame dimension (this is the tiled
+            case). Note in either case, the segments dimension (if relevant) is
+            omitted.
+        indices_iterator: Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int ]]
+            An iterable object that yields tuples of (output_indexer,
+            segmentation_indexer, output_segment_number) that describes how to
+            construct the desired output pixel array from the segmentation
+            image's pixel array. 'output_indexer' is a tuple that may be used
+            directly to index the output array to place a single frame's pixels
+            into the output array. Similarly 'segmentation_indexer' is a tuple
+            that may be used directly to index the segmentation pixel array
+            to retrieve the pixels to place into the output array.
+            with as segment number 'output_segment_number'. Note that in both
+            cases the indexers access the frame, row and column dimensions of
+            the relevant array, but not the segment dimension (if relevant).
         segment_numbers: np.ndarray
             One dimensional numpy array containing segment numbers
             corresponding to the columns of the seg frames matrix.
@@ -3376,7 +3669,7 @@ class Segmentation(SOPClass):
         pixel_array: np.ndarray
             Segmentation pixel array
 
-        """
+        """  # noqa: E501
         if (
             segment_numbers.min() < 1 or
             segment_numbers.max() > self.number_of_segments
@@ -3428,23 +3721,6 @@ class Segmentation(SOPClass):
         else:
             _, h, w = self.pixel_array.shape
 
-        def _get_tiled_indices(ro: int, co: int) -> Tuple[int, int, int, int]:
-            if ro + h <= output_shape[0]:
-                r_end = ro + h
-                r_in = h
-            else:
-                r_end = output_shape[0]
-                r_in = output_shape[0] - (ro + h)
-
-            if co + w <= output_shape[1]:
-                c_end = co + w
-                c_in = w
-            else:
-                c_end = output_shape[1]
-                c_in = output_shape[1] - (co + w)
-
-            return r_end, r_in, c_end, c_in
-
         if combine_segments:
             # Check whether segmentation is binary, or fractional with only
             # binary values
@@ -3479,7 +3755,9 @@ class Segmentation(SOPClass):
 
             # Initialize empty pixel array
             full_output_shape = (
-                output_shape if tiled_output else (output_shape, h, w)
+                output_shape
+                if isinstance(output_shape, tuple)
+                else (output_shape, h, w)
             )
             out_array = np.zeros(
                 full_output_shape,
@@ -3487,24 +3765,13 @@ class Segmentation(SOPClass):
             )
 
             # Loop over the supplied iterable
-            for output_location, fi, seg_n in indices_iterator:
+            for (output_indexer, seg_indexer, seg_n) in indices_iterator:
                 pix_value = intermediate_dtype.type(seg_n)
-
-                if tiled_output:
-                    ro, co = output_location
-                    r_end, r_in, c_end, c_in = _get_tiled_indices(ro, co)
-
-                    input_indexer = (fi, slice(None, r_in), slice(None, c_in))
-                    output_indexer = (slice(ro, r_end), slice(co, c_end))
-                else:
-                    fo = output_location
-                    input_indexer = (fi, slice(None), slice(None))
-                    output_indexer = (fo, slice(None), slice(None))
 
                 if not skip_overlap_checks:
                     if np.any(
                         np.logical_and(
-                            pixel_array[input_indexer] > 0,
+                            pixel_array[seg_indexer] > 0,
                             out_array[output_indexer] > 0
                         )
                     ):
@@ -3513,33 +3780,28 @@ class Segmentation(SOPClass):
                             "overlap."
                         )
                 out_array[output_indexer] = np.maximum(
-                    pixel_array[input_indexer] * pix_value,
+                    pixel_array[seg_indexer] * pix_value,
                     out_array[output_indexer]
                 )
 
         else:
             # Initialize empty pixel array
             full_output_shape = (
-                (*output_shape, num_segments) if tiled_output else
-                (output_shape, h, w, num_segments)
+                (*output_shape, num_segments)
+                if isinstance(output_shape, tuple)
+                else (output_shape, h, w, num_segments)
             )
+            print(full_output_shape)
             out_array = np.zeros(
                 full_output_shape,
                 dtype=intermediate_dtype
             )
 
             # loop through output frames
-            for output_location, fi, seg_n in indices_iterator:
-                if tiled_output:
-                    ro, co = output_location
-                    r_end, r_in, c_end, c_in = _get_tiled_indices(ro, co)
+            for (output_indexer, seg_indexer, seg_n) in indices_iterator:
 
-                    input_indexer = (fi, slice(None, r_in), slice(None, c_in))
-                    output_indexer = (slice(ro, r_end), slice(co, c_end), seg_n)
-                else:
-                    fo = output_location
-                    input_indexer = (fi, slice(None), slice(None))
-                    output_indexer = (fo, slice(None), slice(None), seg_n)
+                # Output indexer needs segment index
+                output_indexer = (*output_indexer, seg_n)
 
                 # Copy data to to output array
                 if self.pixel_array.ndim == 2:
@@ -3548,7 +3810,7 @@ class Segmentation(SOPClass):
                         self.pixel_array.copy()
                 else:
                     out_array[output_indexer] = \
-                        self.pixel_array[input_indexer].copy()
+                        self.pixel_array[seg_indexer].copy()
 
             if rescale_fractional:
                 if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
@@ -3999,19 +4261,19 @@ class Segmentation(SOPClass):
             the original segment numbers in ``segment_numbers`` parameter.  If
             ``combine_segments`` is ``False``, this has no effect.
         ignore_spatial_locations: bool, optional
-           Ignore whether or not spatial locations were preserved in the
-           derivation of the segmentation frames from the source frames. In
-           some segmentation images, the pixel locations in the segmentation
-           frames may not correspond to pixel locations in the frames of the
-           source image from which they were derived. The segmentation image
-           may or may not specify whether or not spatial locations are
-           preserved in this way through use of the optional (0028,135A)
-           SpatialLocationsPreserved attribute. If this attribute specifies
-           that spatial locations are not preserved, or is absent from the
-           segmentation image, highdicom's default behavior is to disallow
-           indexing by source frames. To override this behavior and retrieve
-           segmentation pixels regardless of the presence or value of the
-           spatial locations preserved attribute, set this parameter to True.
+            Ignore whether or not spatial locations were preserved in the
+            derivation of the segmentation frames from the source frames. In
+            some segmentation images, the pixel locations in the segmentation
+            frames may not correspond to pixel locations in the frames of the
+            source image from which they were derived. The segmentation image
+            may or may not specify whether or not spatial locations are
+            preserved in this way through use of the optional (0028,135A)
+            SpatialLocationsPreserved attribute. If this attribute specifies
+            that spatial locations are not preserved, or is absent from the
+            segmentation image, highdicom's default behavior is to disallow
+            indexing by source frames. To override this behavior and retrieve
+            segmentation pixels regardless of the presence or value of the
+            spatial locations preserved attribute, set this parameter to True.
         assert_missing_frames_are_empty: bool, optional
             Assert that requested source frame numbers that are not referenced
             by the segmentation image contain no segments. If a source frame
@@ -4412,6 +4674,223 @@ class Segmentation(SOPClass):
 
             return self._get_pixels_by_seg_frame(
                 output_shape=len(dimension_index_values),
+                indices_iterator=indices,
+                segment_numbers=np.array(segment_numbers),
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                skip_overlap_checks=skip_overlap_checks,
+                dtype=dtype,
+            )
+
+    def get_total_pixel_matrix(
+        self,
+        row_start: int = 1,
+        row_end: Optional[int] = None,
+        column_start: int = 1,
+        column_end: Optional[int] = None,
+        segment_numbers: Optional[Sequence[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ):
+        """Get the pixel array as a (region of) the total pixel matrix.
+
+        This is intended for retrieving segmentation masks derived from
+        multi-frame (enhanced) source images that are tiled. The method
+        returns (a region of) the 2D total pixel matrix implied by the
+        frames within the segmentation.
+
+        The output array will have 3 dimensions under the default behavior, and
+        2 dimensions if ``combine_segments`` is set to ``True``. The first two
+        dimensions are the rows and columns of the total pixel matrix,
+        respectively. By default, the full total pixel matrix is returned,
+        however a smaller region may be requested using the ``row_start``,
+        ``row_end``, ``column_start`` and ``column_end`` parameters as 1-based
+        indices into the total pixel matrix.
+
+        When ``combine_segments`` is ``False`` (the default behavior), the
+        segments are stacked down the final (3rd) dimension of the pixel array.
+        If ``segment_numbers`` was specified, then ``pixel_array[:, :, i]``
+        represents the data for segment ``segment_numbers[i]``. If
+        ``segment_numbers`` was unspecified, then ``pixel_array[:, :, i]``
+        represents the data for segment ``parser.segment_numbers[i]``. Note
+        that in neither case does ``pixel_array[:, :, i]`` represent
+        the segmentation data for the segment with segment number ``i``, since
+        segment numbers begin at 1 in DICOM.
+
+        When ``combine_segments`` is ``True``, then the segmentation data from
+        all specified segments is combined into a multi-class array in which
+        pixel value is used to denote the segment to which a pixel belongs.
+        This is only possible if the segments do not overlap and either the
+        type of the segmentation is ``BINARY`` or the type of the segmentation
+        is ``FRACTIONAL`` but all values are exactly 0.0 or 1.0.  the segments
+        do not overlap. If the segments do overlap, a ``RuntimeError`` will be
+        raised. After combining, the value of a pixel depends upon the
+        ``relabel`` parameter. In both cases, pixels that appear in no segments
+        with have a value of ``0``.  If ``relabel`` is ``False``, a pixel that
+        appears in the segment with segment number ``i`` (according to the
+        original segment numbering of the segmentation object) will have a
+        value of ``i``. If ``relabel`` is ``True``, the value of a pixel in
+        segment ``i`` is related not to the original segment number, but to the
+        index of that segment number in the ``segment_numbers`` parameter of
+        this method. Specifically, pixels belonging to the segment with segment
+        number ``segment_numbers[i]`` is given the value ``i + 1`` in the
+        output pixel array (since 0 is reserved for pixels that belong to no
+        segments). In this case, the values in the output pixel array will
+        always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        Parameters
+        ----------
+        row_start: int, optional
+            1-based row index in the total pixel matrix of the first row to
+            include in the output array. May be negative, in which case the
+            last row is considered index -1.
+        row_end: Union[int, None], optional
+            1-based row index in the total pixel matrix of the first row beyond
+            the last row to include in the output array. A ``row_end`` value of
+            ``n`` will include rows ``n - 1`` and below, similar to standard
+            Python indexing. If ``None``, rows up until the final row of the
+            total pixel matrix are included. May be negative, in which case the
+            last row is considered index -1.
+        column_start: int, optional
+            1-based column index in the total pixel matrix of the first column
+            to include in the output array. May be negative, in which case the
+            last column is considered index -1.
+        column_end: Union[int, None], optional
+            1-based column index in the total pixel matrix of the first column
+            beyond the last column to include in the output array. A
+            ``column_end`` value of ``n`` will include columns ``n - 1`` and
+            below, similar to standard Python indexing. If ``None``, columns up
+            until the final column of the total pixel matrix are included. May
+            be negative, in which case the last column is considered index -1.
+        segment_numbers: Optional[Sequence[int]], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlap between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Pixel array representing the segmentation's total pixel matrix.
+
+        Note
+        ----
+        This method uses 1-based indexing of rows and columns in order to match
+        the conventions used in the DICOM standard. The first row of the total
+        pixel matrix is row 1, and the last is ``self.TotalPixelMatrixRows``.
+        This is is unlike standard Python and NumPy indexing which is 0-based.
+        For negative indices, the two are equavalent with the final row/column
+        having index -1.
+
+        """
+        # Check whether this segmentation is appropriate for tile-based indexing
+        if not is_tiled_image(self):
+            raise RuntimeError("Segmentation is not a tiled image.")
+        if not self._db_man.is_indexable_as_total_pixel_matrix():
+            raise RuntimeError(
+                "Segmentation does not have appropriate dimension indices "
+                "to be indexed as a total pixel matrix."
+            )
+
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+
+        if row_start is None:
+            row_start = 1
+        if row_end is None:
+            row_end = self.TotalPixelMatrixRows + 1
+        if column_start is None:
+            column_start = 1
+        if column_end is None:
+            column_end = self.TotalPixelMatrixColumns + 1
+
+        if column_start == 0 or row_start == 0:
+            raise ValueError(
+                'Arguments "row_start" and "column_start" may not be 0.'
+            )
+
+        if row_start > self.TotalPixelMatrixRows + 1:
+            raise ValueError(
+                'Invalid value for "row_start".'
+            )
+        elif row_start < 0:
+            row_start = self.TotalPixelMatrixRows + row_start + 1
+        if row_end > self.TotalPixelMatrixRows + 1:
+            raise ValueError(
+                'Invalid value for "row_end".'
+            )
+        elif row_end < 0:
+            row_end = self.TotalPixelMatrixRows + row_end + 1
+
+        if column_start > self.TotalPixelMatrixColumns + 1:
+            raise ValueError(
+                'Invalid value for "column_start".'
+            )
+        elif column_start < 0:
+            column_start = self.TotalPixelMatrixColumns + column_start + 1
+        if column_end > self.TotalPixelMatrixColumns + 1:
+            raise ValueError(
+                'Invalid value for "column_end".'
+            )
+        elif column_end < 0:
+            column_end = self.TotalPixelMatrixColumns + column_end + 1
+
+        output_shape = (
+            row_end - row_start,
+            column_end - column_start,
+        )
+
+        with self._db_man.iterate_indices_for_tiled_region(
+            row_start=row_start,
+            row_end=row_end,
+            column_start=column_start,
+            column_end=column_end,
+            tile_shape=(self.Rows, self.Columns),
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel,
+        ) as indices:
+
+            return self._get_pixels_by_seg_frame(
+                output_shape=output_shape,
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
