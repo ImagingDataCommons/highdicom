@@ -1885,6 +1885,9 @@ class Segmentation(SOPClass):
             has_ref_frame_uid and
             self._coordinate_system == CoordinateSystemNames.SLIDE
         ):
+            total_pixel_matrix_size = (
+                pixel_array.shape[1:3] if tile_pixel_array else None
+            )
             self._add_slide_coordinate_metadata(
                 source_image=src_img,
                 plane_orientation=plane_orientation,
@@ -1892,6 +1895,7 @@ class Segmentation(SOPClass):
                 pixel_measures=pixel_measures,
                 are_spatial_locations_preserved=are_spatial_locations_preserved,
                 is_tiled=is_tiled,
+                total_pixel_matrix_size=total_pixel_matrix_size,
             )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
@@ -2215,6 +2219,7 @@ class Segmentation(SOPClass):
         pixel_measures: PixelMeasuresSequence,
         are_spatial_locations_preserved: bool,
         is_tiled: bool,
+        total_pixel_matrix_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         """Add metadata related to the slide coordinate system.
 
@@ -2235,6 +2240,12 @@ class Segmentation(SOPClass):
             and the segmentation.
         is_tiled: bool
             Whether the source image is a tiled image.
+        total_pixel_matrix_size: Optional[Tuple[int, int]]
+            Size (rows, columns) of the total pixel matrix, if known. If None,
+            this will be deduced from the specified plane position values.
+            Explicitly providing the total pixel matrix size is required if the
+            total pixel matrix is smaller than the total area covered by the
+            provided tiles (i.e. the provided plane positions are padded).
 
         """
         plane_position_names = self.DimensionIndexSequence.get_index_keywords()
@@ -2284,14 +2295,18 @@ class Segmentation(SOPClass):
                 origin_item.YOffsetInSlideCoordinateSystem = \
                     format_number_as_ds(y_origin)
                 self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = int(
-                    plane_position_values[last_frame_index, row_index] +
-                    self.Rows
-                )
-                self.TotalPixelMatrixColumns = int(
-                    plane_position_values[last_frame_index, col_index] +
-                    self.Columns
-                )
+                if total_pixel_matrix_size is None:
+                    self.TotalPixelMatrixRows = int(
+                        plane_position_values[last_frame_index, row_index] +
+                        self.Rows - 1
+                    )
+                    self.TotalPixelMatrixColumns = int(
+                        plane_position_values[last_frame_index, col_index] +
+                        self.Columns - 1
+                    )
+                else:
+                    self.TotalPixelMatrixRows = total_pixel_matrix_size[0]
+                    self.TotalPixelMatrixColumns = total_pixel_matrix_size[1]
             else:
                 transform = ImageToReferenceTransformer(
                     image_position=(x_origin, y_origin, z_origin),
@@ -3096,8 +3111,6 @@ class Segmentation(SOPClass):
         )
 
         segment_numbers = []
-        referenced_instances: Optional[List[str]] = []
-        referenced_frames: Optional[List[int]] = []
 
         # Get list of all dimension index pointers, excluding the segment
         # number, since this is treated differently
@@ -3150,8 +3163,8 @@ class Segmentation(SOPClass):
             (
                 segment_numbers,
                 _,
-                dim_values[row_tag],
                 dim_values[col_tag],
+                dim_values[row_tag],
                 dim_values[x_tag],
                 dim_values[y_tag],
                 dim_values[z_tag],
@@ -3165,7 +3178,13 @@ class Segmentation(SOPClass):
             # There is no way to deduce whether the spatial locations are
             # preserved in the tiled full case
             self._locations_preserved = None
+
+            referenced_instances = None
+            referenced_frames = None
         else:
+            referenced_instances: Optional[List[str]] = []
+            referenced_frames: Optional[List[int]] = []
+
             # Create a list of source images and check for spatial locations
             # preserved
             locations_list_type = List[
@@ -3791,7 +3810,6 @@ class Segmentation(SOPClass):
                 if isinstance(output_shape, tuple)
                 else (output_shape, h, w, num_segments)
             )
-            print(full_output_shape)
             out_array = np.zeros(
                 full_output_shape,
                 dtype=intermediate_dtype
