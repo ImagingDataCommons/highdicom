@@ -486,6 +486,140 @@ segments.
         device_serial_number='1234567890',
     )
 
+Constructing SEG Images from a Total Pixel Matrix
+-------------------------------------------------
+
+Some digital pathology images are represented as "tiled" images,
+in which the full image (known as the "total pixel matrix") is divided up
+into smaller rectangular regions in the row and column dimensions and each
+region ("tile") is stored as a frame in a multiframe DICOM image.
+
+Segmentations of such images are stored as a tiled image in the same manner.
+There are a two options in `highdicom` for doing this. You can either pass each
+tile/frame individually stacked as a 1D list down the first dimension of the
+``pixel_array`` as we have already seen (with the location of each frame either
+matching that of the corresponding frame in the source image or explicitly
+specified in the ``plane_positions`` argument), or you can pass the 2D total
+pixel matrix of the segmentation and have `highdicom` automatically create the
+tiles for you.
+
+To enable this latter option, pass the ``pixel_array`` as a single frame (i.e.
+a 2D labelmap array, a 3D labelmap array with a single frame stacked down the
+first axis, or a 4D array with a single frame stacked down the first dimension
+and any number of segments stacked down the last dimension) and set the
+``tile_pixel_array`` argument to ``True``. You can optionally choose the size
+(in pixels) of each tile using the ``tile_size`` argument, or, by default, the
+tile size of the source image will be used (regardless of whether the
+segmentation is represented at the same resolution as the source image).
+
+If you need to specify the plane positions of the image explicitly, you should
+pass a single item to the ``plane_positions`` argument giving the location of
+the top left corner of the full total pixel matrix. Otherwise, all the usual
+options are available to you.
+
+.. code-block:: python
+
+    # Use an example slide microscopy image from the highdicom test data
+    # directory
+    sm_image = dcmread('data/test_files/sm_image.dcm')
+
+    # The source image has multiple frames/tiles, but here we create a mask
+    # corresponding to the entire total pixel matrix
+    mask = np.zeros(
+        (
+            sm_image.TotalPixelMatrixRows,
+            sm_image.TotalPixelMatrixColumns
+        ),
+        dtype=np.uint8,
+    )
+    mask[38:43, 5:41] = 1
+
+    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Stucture")
+    property_type = hd.sr.CodedConcept("84640000", "SCT", "Nucleus")
+    segment_descriptions = [
+        hd.seg.SegmentDescription(
+            segment_number=1,
+            segment_label='Segment #1',
+            segmented_property_category=property_category,
+            segmented_property_type=property_type,
+            algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+        ),
+    ]
+
+    seg = hd.seg.Segmentation(
+        source_images=[sm_image],
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=segment_descriptions,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Slide Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+        tile_pixel_array=True,
+    )
+
+    # The result stores the mask as a set of 10 tiles of the non-empty region of
+    # the total pixel matrix, each of size (10, 10), matching # the tile size of
+    # the source image
+    assert seg.NumberOfFrames == 10
+    assert seg.pixel_array.shape == (10, 10, 10)
+
+``"TILED_FULL"`` and ``"TILED_SPARSE"``
+---------------------------------------
+
+When the segmentation is stored as a tiled image, there are two ways in which
+the locations of each frame/tile may be specified in the resulting object.
+These are defined by the value of the *DimensionOrganizationType* attribute:
+
+- ``"TILED_SPARSE"``: The position of each tile is explicitly defined in the
+  *PerFrameFunctionalGroupsSequence* of the object. This requires a potentially
+  very long sequence to store all the per-frame metadata, but does allow for
+  the omission of empty frames from the segmentation and other irregular tiling
+  strategies.
+- ``"TILED_FULL"``: The position of each tile is implicitly defined using a
+  predetermined order of the frames. This saves the need to store the pre-frame
+  metadata but does not allow for the omission of empty frames of the
+  segmentation and is generally less flexible. It may also be simpler for a
+  receiving application to process, since the tiles are guaranteed to be
+  regularly and consistently ordered.
+
+You can control tihs behavior by specifying the
+``dimension_organization_type`` parameter and passing a value of the
+:class:`highdicom.DimensionOrganizationType` enum. The default value is
+``"TILED_SPARSE"``. Generally, the ``"TILED_FULL"`` option will be used in
+combination with ``tile_pixel_array`` argument.
+
+
+.. code-block:: python
+
+    # Using the same example as above, this time as TILED_FULL
+    seg = hd.seg.Segmentation(
+        source_images=[sm_image],
+        pixel_array=mask,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=segment_descriptions,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Slide Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+        tile_pixel_array=True,
+        omit_empty_frames=False,
+        dimeension_organization_type=hd.DimensionOrganizationTypeValues.TILED_FULL,
+    )
+
+    # The result stores the mask as a set of 25 tiles of the entire region of
+    # the total pixel matrix, each of size (10, 10), matching the tile size of
+    # the source image
+    assert seg.NumberOfFrames == 25
+    assert seg.pixel_array.shape == (25, 10, 10)
 
 Representation of Fractional SEGs
 ---------------------------------
@@ -1115,6 +1249,88 @@ as stored in the SEG will be returned.
     print(np.unique(pixels))
     # [0.        0.2509804 0.5019608]
 
+
+Reconstructing Total Pixel Matrices from Tiled Segmentations
+------------------------------------------------------------
+
+For segmentations of digital pathology images that are stored as tiled images,
+the :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` method will
+return the segmentation mask as a set of frames stacked down the first
+dimension of the array. However, for such images, you typically want to work
+with the large 2D total pixel matrix that is formed by correctly arranging the
+tiles into a 2D array. `highdicom` provides the
+:meth:`highdicom.seg.Segmentation.get_total_pixel_matrix()` method for this
+purpose.
+
+Called without any parameters, it returns a 3D array containing the full total
+pixel matrix. The first two dimensions are the spatial dimensions, and the
+third is the segments dimension. Behind the scenes highdicom has stitched
+together the required frames stored in the original file for you. Like with the
+other methods described above, setting ``combine_segments`` to ``True``
+combines all the segments into, in this case, a 2D array.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_control.dcm')
+
+    # Get the full total pixel matrix
+    mask = seg.get_total_pixel_matrix()
+
+    expected_shape = (
+        seg.TotalPixelMatrixRows,
+        seg.TotalPixelMatrixColumns,
+        seg.number_of_segments,
+    )
+    assert mask.shape == expected_shape
+
+    # Combine the segments into a single array
+    mask = seg.get_total_pixel_matrix(combine_segments=True)
+
+    assert mask.shape == (seg.TotalPixelMatrixRows, seg.TotalPixelMatrixColumns)
+
+Furthermore, you can request a sub-region of the full total pixel matrix by
+specifying the start and/or stop indices for the rows and/or columns within the
+total pixel matrix. Note that this method follows DICOM 1-based convention for
+indexing rows and columns, i.e. the first row and column of the total pixel
+matrix are indexed by the number 1 (not 0 as is common within Python). Negative
+indices are also supported to index relative to the last row or column, with -1
+being the index of the last row or column. Like for standard Python indexing,
+the stop indices are specified as one beyond the final row/column in the
+returned array. Note that the requested region does not have to start or stop
+at the edges of the underlying frames: `highdicom` stitches together only the
+relevant parts of the frames to create the requested image for you.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Read in the segmentation using highdicom
+    seg = hd.seg.segread('data/test_files/seg_image_sm_control.dcm')
+
+    # Get a region of the total pixel matrix
+    mask = seg.get_total_pixel_matrix(
+        combine_segments=True,
+        row_start=20,
+        row_end=40,
+        column_start=10,
+        column_end=20,
+    )
+
+    assert mask.shape == (20, 10)
+
+    # A further example using negative indices. Since row_end is not provided,
+    # the default behavior is to include the last row in the total pixel matrix.
+    mask = seg.get_total_pixel_matrix(
+        combine_segments=True,
+        row_start=21,
+        column_start=-30,
+        column_end=-25,
+    )
+
+    assert mask.shape == (30, 5)
 
 Viewing DICOM SEG Images
 ------------------------
