@@ -573,13 +573,17 @@ options are available to you.
 
 When the segmentation is stored as a tiled image, there are two ways in which
 the locations of each frame/tile may be specified in the resulting object.
-These are defined by the value of the *DimensionOrganizationType* attribute:
+These are defined by the value of the
+`"DimensionOrganizationType"
+<https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.17.html#table_C.7.6.17-1>`_
+attribute:
 
 - ``"TILED_SPARSE"``: The position of each tile is explicitly defined in the
-  *PerFrameFunctionalGroupsSequence* of the object. This requires a potentially
-  very long sequence to store all the per-frame metadata, but does allow for
-  the omission of empty frames from the segmentation and other irregular tiling
-  strategies.
+  `"PerFrameFunctionalGroupsSequence"
+  <https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.html#table_C.7.6.16-1>`_
+  of the object. This requires a potentially very long sequence to store all
+  the per-frame metadata, but does allow for the omission of empty frames from
+  the segmentation and other irregular tiling strategies.
 - ``"TILED_FULL"``: The position of each tile is implicitly defined using a
   predetermined order of the frames. This saves the need to store the pre-frame
   metadata but does not allow for the omission of empty frames of the
@@ -589,7 +593,7 @@ These are defined by the value of the *DimensionOrganizationType* attribute:
 
 You can control tihs behavior by specifying the
 ``dimension_organization_type`` parameter and passing a value of the
-:class:`highdicom.DimensionOrganizationType` enum. The default value is
+:class:`highdicom.DimensionOrganizationTypeValues` enum. The default value is
 ``"TILED_SPARSE"``. Generally, the ``"TILED_FULL"`` option will be used in
 combination with ``tile_pixel_array`` argument.
 
