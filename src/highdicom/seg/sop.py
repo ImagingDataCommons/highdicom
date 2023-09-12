@@ -1345,7 +1345,7 @@ class Segmentation(SOPClass):
             against spawned child processes creating further workers.
         dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None], optional
             Dimension organization type to use for the output image.
-        tile_pixel_array: bool
+        tile_pixel_array: bool, optional
             If True, `highdicom` will automatically convert an input total
             pixel matrix into a sequence of frames representing tiles of the
             segmentation. This is valid only when the source image supports
@@ -1369,7 +1369,7 @@ class Segmentation(SOPClass):
 
             If False, the pixel array is already considered to consist of one
             or more existing frames, as described above.
-        tile_size: Union[Sequence[int], None] = None
+        tile_size: Union[Sequence[int], None], optional
             Tile size to use when tiling the input pixel array. If ``None``
             (the default), the tile size is copied from the source image.
             Otherwise the tile size is specified explicitly as (number of rows,
