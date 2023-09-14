@@ -42,6 +42,15 @@ def create_segmentation_pyramid(
     n_sources = len(source_images)
     n_pix_arrays = len(pixel_arrays)
 
+    if n_sources == 0:
+        raise ValueError(
+            'Argument "source_images" must not be empty.'
+        )
+    if n_pix_arrays == 0:
+        raise ValueError(
+            'Argument "pixel_arrays" must not be empty.'
+        )
+
     if n_sources == 1 and n_pix_arrays == 1:
         if downsample_factors is None:
             raise TypeError(
@@ -55,18 +64,22 @@ def create_segmentation_pyramid(
                 'All items in "downsample_factors" must be greater than 1.'
             )
         n_outputs = len(downsample_factors) + 1  # including original
-    elif downsample_factors is not None:
-        raise TypeError(
-            'Argument "downsample_factors" must not be provided when multiple '
-            'source images or pixel arrays are provided.'
-        )
-    if n_sources > 1 and n_pix_arrays > 1:
-        if n_sources != n_pix_arrays:
-            raise ValueError(
-                "If providing multiple source images and multiple pixel "
-                "arrays, the number of items in the two lists must match."
+    else:
+        if downsample_factors is not None:
+            raise TypeError(
+                'Argument "downsample_factors" must not be provided when  '
+                'multiple source images or pixel arrays are provided.'
             )
-        n_outputs = n_sources
+        if n_sources > 1 and n_pix_arrays > 1:
+            if n_sources != n_pix_arrays:
+                raise ValueError(
+                    "If providing multiple source images and multiple pixel "
+                    "arrays, the number of items in the two lists must match."
+                )
+            n_outputs = n_sources
+        else:
+            # Either n_sources > 1 or n_pix_arrays > 1 but not both
+            n_outputs = max(n_sources, n_pix_arrays)
 
     if n_pix_arrays == 1:
         # Create a pillow image for use later with resizing
