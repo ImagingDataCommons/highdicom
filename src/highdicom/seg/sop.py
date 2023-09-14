@@ -3069,25 +3069,26 @@ class Segmentation(SOPClass):
             sf_groups.PixelMeasuresSequence = pixel_measures
 
         # Per-frame functional group items
-        for pffg_item in seg.PerFrameFunctionalGroupsSequence:
-            if hasattr(pffg_item, 'PlanePositionSequence'):
-                plane_pos = PlanePositionSequence.from_sequence(
-                    pffg_item.PlanePositionSequence,
-                    copy=False
-                )
-                pffg_item.PlanePositionSequence = plane_pos
-            if hasattr(pffg_item, 'PlaneOrientationSequence'):
-                plane_ori = PlaneOrientationSequence.from_sequence(
-                    pffg_item.PlaneOrientationSequence,
-                    copy=False,
-                )
-                pffg_item.PlaneOrientationSequence = plane_ori
-            if hasattr(pffg_item, 'PixelMeasuresSequence'):
-                pixel_measures = PixelMeasuresSequence.from_sequence(
-                    pffg_item.PixelMeasuresSequence,
-                    copy=False,
-                )
-                pffg_item.PixelMeasuresSequence = pixel_measures
+        if hasattr(seg, 'PerFrameFunctionalGroupsSequence'):
+            for pffg_item in seg.PerFrameFunctionalGroupsSequence:
+                if hasattr(pffg_item, 'PlanePositionSequence'):
+                    plane_pos = PlanePositionSequence.from_sequence(
+                        pffg_item.PlanePositionSequence,
+                        copy=False
+                    )
+                    pffg_item.PlanePositionSequence = plane_pos
+                if hasattr(pffg_item, 'PlaneOrientationSequence'):
+                    plane_ori = PlaneOrientationSequence.from_sequence(
+                        pffg_item.PlaneOrientationSequence,
+                        copy=False,
+                    )
+                    pffg_item.PlaneOrientationSequence = plane_ori
+                if hasattr(pffg_item, 'PixelMeasuresSequence'):
+                    pixel_measures = PixelMeasuresSequence.from_sequence(
+                        pffg_item.PixelMeasuresSequence,
+                        copy=False,
+                    )
+                    pffg_item.PixelMeasuresSequence = pixel_measures
 
         seg._build_luts()
 
