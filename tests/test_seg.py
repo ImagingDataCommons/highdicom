@@ -2898,6 +2898,8 @@ class TestSegmentationParsing():
         assert isinstance(seg, Segmentation)
         seg = segread('data/test_files/seg_image_sm_numbers.dcm')
         assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_dots_tiled_full.dcm')
+        assert isinstance(seg, Segmentation)
 
     def test_properties(self):
         # SM segs
