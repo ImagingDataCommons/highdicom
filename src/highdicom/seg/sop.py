@@ -78,7 +78,11 @@ from highdicom.seg.enum import (
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import ImageToReferenceTransformer
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_code_string,
+    _check_long_string,
+)
 from highdicom.uid import UID as hd_UID
 
 
@@ -1174,6 +1178,8 @@ class Segmentation(SOPClass):
         ] = None,
         tile_pixel_array: bool = False,
         tile_size: Union[Sequence[int], None] = None,
+        pyramid_uid: Optional[str] = None,
+        pyramid_label: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -1375,6 +1381,14 @@ class Segmentation(SOPClass):
             Otherwise the tile size is specified explicitly as (number of rows,
             number of columns). This value is ignored if ``tile_pixel_array``
             is False.
+        pyramid_uid: Optional[str], optional
+            Unique identifier for the pyramid containing this segmentation.
+            Should only be used if this segmentation is part of a
+            multi-resolution pyramid.
+        pyramid_label: Optional[str], optional
+            Human readable label for the pyramid containing this segmentation.
+            Should only be used if this segmentation is part of a
+            multi-resolution pyramid.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1637,6 +1651,33 @@ class Segmentation(SOPClass):
                 src_img.LossyImageCompressionRatio
             self.LossyImageCompressionMethod = \
                 src_img.LossyImageCompressionMethod
+
+        # Multi-Resolution Pyramid
+        if pyramid_uid is not None:
+            if not is_tiled:
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified '
+                    'for tiled images.'
+                )
+            if (
+                self._coordinate_system is None or
+                self._coordinate_system != CoordinateSystemNames.SLIDE
+            ):
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified for '
+                    'segmentations in the SLIDE coordinate system.'
+                )
+            self.PyramidUID = pyramid_uid
+
+            if pyramid_label is not None:
+                _check_long_string(pyramid_label)
+                self.PyramidLabel = pyramid_label
+
+        elif pyramid_label is not None:
+            raise TypeError(
+                'Argument "pyramid_label" should not be specified if '
+                '"pyramid_uid" is not specified.'
+            )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         sffg_item = Dataset()
