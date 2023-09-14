@@ -35,9 +35,114 @@ def create_segmentation_pyramid(
 ) -> List[Segmentation]:
     """Construct a multi-resolution segmentation pyramid series.
 
+    A multi-resolution pyramid represents the same segmentation array at
+    multiple resolutions
+
+    This function handles multiple related scenarios:
+
+    * Constructing a segmentation of a source image pyramid given a
+      segmentation pixel array of the highest resolution source image, with
+      highdicom performing the downsampling automatically to match the
+      resolution of the other source images (pass multiple ``source_images``
+      and a single item in ``pixel_arrays``).
+    * Constructing a segmentation of a source image pyramid given user-provided
+      segmentation pixel arrays for each level in the source pyramid (pass
+      multiple ``source_images`` and a matching number of ``pixel_arrays``).
+    * Constructing a segmentation of a single source image given multiple
+      user-provided downsampled segmentation pixel arrays (pass a single item
+      in ``source_images``, and multiple items in ``pixel_arrays``).
+    * Constructing a segmentation of a single source image and a single
+      segmentation pixel array by downsampling by a given list of
+      ``downsample_factors`` (pass a single item in ``source_images``, a single
+      item in ``pixel_arrays``, and a list of one or more desired
+      ``downsample_factors``).
+
+    In all cases, the items in both ``source_images`` and ``pixel_arrays``
+    should be sorted in pyramid order from highest resolution (smallest
+    spacing) to lowest resolution (largest spacing), and the pixel array
+    in ``pixel_arrays[0]`` must be the segmentation of the source image in
+    ``source_images[0]`` with spatial locations preserved (a one-to-one
+    correspondence between pixels in the source image's total pixel matrix and
+    the provided segmentation pixel array).
+
+    In all cases, the provided pixel arrays should be total pixel matrices.
+    Tiling is performed automatically.
+
+    Parameters
+    ----------
+    source_images: Sequence[pydicom.Dataset]
+        List of source images. If there are multiple source images, they should
+        represent be from the same series and pyramid.
+    pixel_arrays: Sequence[numpy.ndarray]
+        List of segmentation pixel arrays. Each should be a total pixel matrix.
+    segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
+        Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
+    segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
+        Description of each segment encoded in `pixel_array`. In the case of
+        pixel arrays with multiple integer values, the segment description
+        with the corresponding segment number is used to describe each segment.
+    series_number: int
+        Number of the output segmentation series.
+    manufacturer: str
+        Name of the manufacturer of the device (developer of the software)
+        that creates the instance
+    manufacturer_model_name: str
+        Name of the device model (name of the software library or
+        application) that creates the instance
+    software_versions: Union[str, Tuple[str]]
+        Version(s) of the software that creates the instance.
+    device_serial_number: str
+        Manufacturer's serial number of the device
+    downsample_factors: Optional[Sequence[float]], optional
+        Factors by which to downsample the pixel array to create each of the
+        output segmentation objects. This should be provided if and only if a
+        single source image and single pixel array are provided. Note that the
+        original array is always used to create the first segmentation output,
+        so the number of created segmententation instances is one greater than
+        the number of items in this list. Items must be numbers greater than
+        1 and sorted in ascending order. A downsampling factor of *n* implies
+        that the output array is *1/n* time the size of input pixel array. For
+        example a list ``[2, 4, 8]`` would be produce 4 output segmentation
+        instances. The first is the same size as the original pixel array, the
+        next is half the size, the next is a quarter of the size of the
+        original, and the last is one eighth the size of the original.
+        Output sizes are rounded to the nearest integer.
+    series_instance_uid: Optional[str], optional
+        UID of the output segmentation series. If not specified, UIDs are
+        generated automatically using highdicom's prefix.
+    sop_instance_uids: Optional[List[str]], optional
+        SOP instance UIDS of the output instances. If not specified, UIDs are
+        generated automatically using highdicom's prefix.
+    pyramid_uid: Optional[str], optional
+        UID for the output imaging pyramid. If not specified, a UID is generated
+        using highdicom's prefix.
+    pyramid_label: Optional[str], optional
+        A human readable label for the output pyramid.
+    **kwargs: Any
+        Any further parameters are passed directly to the constructor of the
+        :class:highdicom.seg.Segmentation object. However the following
+        parameters are disallowed: ``instance_number``, ``sop_instance_uid``,
+        ``plane_orientation``, ``plane_positions``, ``pixel_measures``,
+        ``pixel_array``, ``tile_pixel_array``.
+
+    Note
+    ----
+    Downsampling is performed via simple nearest neighbor interpolation. If
+    more control is needed over the downsampling process (for example
+    anti-aliasing), explicitly pass the downsampled arrays.
+
     """
+    # TODO check dimensions of input arrays
+    # TODO check total pixel matrix sizes correspond
+    # TODO check ordering of items in list
+    # TODO check source images are same series and pyramid
+    # TODO add support for single source image with predefined downsampled
+    # arrays
+    # TODO disallow duplicate items in kwargs
     if pyramid_uid is None:
         pyramid_uid = UID()
+    if series_instance_uid is None:
+        series_instance_uid = UID()
 
     n_sources = len(source_images)
     n_pix_arrays = len(pixel_arrays)

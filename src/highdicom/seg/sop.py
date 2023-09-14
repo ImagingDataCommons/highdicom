@@ -1273,7 +1273,7 @@ class Segmentation(SOPClass):
         series_instance_uid: str
             UID of the series
         series_number: int
-            Number of the series within the study
+            Number of the output segmentation series.
         sop_instance_uid: str
             UID that should be assigned to the instance
         instance_number: int
