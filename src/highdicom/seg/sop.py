@@ -1,6 +1,7 @@
 """Module for SOP classes of the SEG modality."""
 import logging
 from collections import defaultdict
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
@@ -20,6 +21,7 @@ from typing import (
     Union,
     cast,
 )
+import warnings
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -886,6 +888,7 @@ class Segmentation(SOPClass):
         content_creator_identification: Optional[
             ContentCreatorIdentificationCodeSequence
         ] = None,
+        workers: Union[int, Executor] = 0,
         **kwargs: Any
     ) -> None:
         """
@@ -1038,6 +1041,23 @@ class Segmentation(SOPClass):
         content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
             Identifying information for the person who created the content of
             this segmentation.
+        workers: Union[int, concurrent.futures.Executor], optional
+            Number of worker processes to use for frame compression. If 0, no
+            workers are used and compression is performed in the main process
+            (this is the default behavior). If negative, as many processes are
+            created as the machine has processors.
+
+            Alternatively, you may directly pass an instance of a class derived
+            from ``concurrent.futures.Executor`` (most likely an instance of
+            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
+            You may wish to do this either to have greater control over the
+            setup of the executor, or to avoid the setup cost of spawning new
+            processes each time this ``__init__`` method is called if your
+            application creates a large number of Segmentations.
+
+            Note that if you use worker processes, you must ensure that your
+            main process uses the ``if __name__ == "__main__"`` idiom to guard
+            against spawned child processes creating further workers.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1447,13 +1467,58 @@ class Segmentation(SOPClass):
             )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
+        process_pool: Optional[Executor] = None
 
-        # In the case of encapsulated transfer syntaxes, we will accumulate
-        # a list of encoded frames to encapsulate at the end
-        # In the case of non-encapsulated (uncompressed) transfer syntaxes
-        # we will accumulate a list of flattened pixels from all frames for
-        # bitpacking at the end
-        full_frames_list: List[np.ndarray] = []
+        if not isinstance(workers, (int, Executor)):
+            raise TypeError(
+                'Argument "workers" must be of type int or '
+                'concurrent.futures.Executor (or a derived class).'
+            )
+        using_multiprocessing = (
+            isinstance(workers, Executor) or workers != 0
+        )
+
+        # List of frames. In the case of native transfer syntaxes, we will
+        # collect a list of frames as flattened NumPy arrays for bitpacking at
+        # the end. In the case of encapsulated transfer syntaxes with no
+        # workers, we will accumulate a list of encoded frames to encapsulate
+        # at the end
+        frames: Union[List[bytes], List[np.ndarray]] = []
+
+        if is_encaps:
+            if using_multiprocessing:
+                # In the case of encapsulated transfer syntaxes with multiple
+                # workers, we will accumulate a list of encoded frames to
+                # encapsulate at the end
+                frame_futures: List[Future] = []
+
+                # Use the existing executor or create one
+                if isinstance(workers, Executor):
+                    process_pool = workers
+                else:
+                    # If workers is negative, pass None to use all processors
+                    process_pool = ProcessPoolExecutor(
+                        workers if workers > 0 else None
+                    )
+
+            # Parameters to use when calling the encode_frame function in
+            # either of the above two cases
+            encode_frame_kwargs = dict(
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
+        else:
+            if using_multiprocessing:
+                warnings.warn(
+                    "Setting workers != 0 or passing an instance of "
+                    "concurrent.futures.Executor when using a non-encapsulated "
+                    "transfer syntax has no effect.",
+                    UserWarning
+                )
+                using_multiprocessing = False
 
         # Information about individual frames is placed into the
         # PerFrameFunctionalGroupsSequence. Note that a *very* significant
@@ -1463,22 +1528,23 @@ class Segmentation(SOPClass):
         pffg_sequence: List[Dataset] = []
 
         for segment_number in described_segment_numbers:
-            # Pixel array for just this segment
-            segment_array = self._get_segment_pixel_array(
-                pixel_array,
-                segment_number=segment_number,
-                number_of_segments=number_of_segments,
-                segmentation_type=segmentation_type,
-                max_fractional_value=max_fractional_value,
-            )
-
             for plane_index in plane_sort_index:
-                # Even though completely empty slices were removed earlier,
-                # there may still be slices in which this specific segment is
+
+                # Pixel array for just this segment and this position
+                segment_array = self._get_segment_pixel_array(
+                    pixel_array[plane_index],
+                    segment_number=segment_number,
+                    number_of_segments=number_of_segments,
+                    segmentation_type=segmentation_type,
+                    max_fractional_value=max_fractional_value,
+                )
+
+                # Even though completely empty planes were removed earlier,
+                # there may still be planes in which this specific segment is
                 # absent. Such frames should be removed
                 if (
                     omit_empty_frames and not
-                    np.any(segment_array[plane_index])
+                    np.any(segment_array)
                 ):
                     logger.debug(
                         f'skip empty plane {plane_index} of segment '
@@ -1523,30 +1589,50 @@ class Segmentation(SOPClass):
 
                 # Add the segmentation pixel array for this frame to the list
                 if is_encaps:
-                    # Encode this frame and add to the list for encapsulation
-                    # at the end
-                    full_frames_list.append(segment_array[plane_index])
+                    if process_pool is None:
+                        # Encode this frame and add resulting bytes to the list
+                        # for encapsulation at the end
+                        frames.append(
+                            encode_frame(
+                                segment_array,
+                                **encode_frame_kwargs,
+                            )
+                        )
+                    else:
+                        # Submit this frame for encoding this frame and add the
+                        # future to the list for encapsulation at the end
+                        future = process_pool.submit(
+                            encode_frame,
+                            array=segment_array,
+                            **encode_frame_kwargs,
+                        )
+                        frame_futures.append(future)
                 else:
-                    # Concatenate the 1D array for re-encoding at the end
-                    full_frames_list.append(
-                        segment_array[plane_index].flatten()
-                    )
+                    # Concatenate the 1D array for encoding at the end
+                    frames.append(segment_array.flatten())
 
         self.PerFrameFunctionalGroupsSequence = pffg_sequence
         self.NumberOfFrames = len(pffg_sequence)
 
         if is_encaps:
+            if process_pool is not None:
+                frames = [
+                    fut.result() for fut in frame_futures
+                ]
+
+                # Shutdown the pool if we created it, otherwise it is the
+                # caller's responsibility
+                if process_pool is not workers:
+                    process_pool.shutdown()
+
             # Encapsulate all pre-compressed frames
-            compressed_frames = [
-                self._encode_pixels(frm) for frm in full_frames_list
-            ]
-            self.PixelData = encapsulate(compressed_frames)
+            self.PixelData = encapsulate(frames)
         else:
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
-            self.PixelData = self._encode_pixels(
-                np.concatenate(full_frames_list)
+            self.PixelData = self._encode_pixels_native(
+                np.concatenate(frames)
             )
 
         # Add a null trailing byte if required
@@ -1953,7 +2039,7 @@ class Segmentation(SOPClass):
         segmentation_type: SegmentationTypeValues,
         max_fractional_value: int
     ) -> np.ndarray:
-        """Get pixel data array for a specific segment.
+        """Get pixel data array for a specific segment and plane.
 
         This is a helper method used during the constructor. Note that the
         pixel array is expected to have been processed using the
@@ -1963,7 +2049,9 @@ class Segmentation(SOPClass):
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Full segmentation pixel array containing all segments.
+            Segmentation pixel array containing all segments for a single plane.
+            Array is therefore either (Rows x Columns x Segments) or (Rows x
+            Columns) in case of a "label map" style array.
         segment_number: int
             The segment of interest.
         number_of_segments: int
@@ -1977,8 +2065,8 @@ class Segmentation(SOPClass):
         -------
         numpy.ndarray:
             Pixel data array consisting of pixel data for a single segment for
-            all planes. Output array has dtype np.uint8 and binary values (0 or
-            1).
+            a single plane. Output array has dtype np.uint8 and binary values
+            (0 or 1).
 
         """
         if pixel_array.dtype in (np.float_, np.float32, np.float64):
@@ -1986,8 +2074,8 @@ class Segmentation(SOPClass):
             # output is a FRACTIONAL segmentation Floating-point numbers must
             # be mapped to 8-bit integers in the range [0,
             # max_fractional_value].
-            if pixel_array.ndim == 4:
-                segment_array = pixel_array[:, :, :, segment_number - 1]
+            if pixel_array.ndim == 3:
+                segment_array = pixel_array[:, :, segment_number - 1]
             else:
                 segment_array = pixel_array
             segment_array = np.around(
@@ -1995,7 +2083,7 @@ class Segmentation(SOPClass):
             )
             segment_array = segment_array.astype(np.uint8)
         else:
-            if pixel_array.ndim == 3:
+            if pixel_array.ndim == 2:
                 # "Label maps" that must be converted to binary masks.
                 if number_of_segments == 1:
                     # We wish to avoid unnecessary comparison or casting
@@ -2011,7 +2099,7 @@ class Segmentation(SOPClass):
                         pixel_array == segment_number
                     ).astype(np.uint8)
             else:
-                segment_array = pixel_array[:, :, :, segment_number - 1]
+                segment_array = pixel_array[:, :, segment_number - 1]
                 if segment_array.dtype != np.uint8:
                     segment_array = segment_array.astype(np.uint8)
 
@@ -2204,53 +2292,26 @@ class Segmentation(SOPClass):
 
         return pffg_item
 
-    def _encode_pixels(self, planes: np.ndarray) -> bytes:
-        """Encodes pixel planes.
+    def _encode_pixels_native(self, planes: np.ndarray) -> bytes:
+        """Encode pixel planes using a native transfer syntax.
 
         Parameters
         ----------
         planes: numpy.ndarray
-            Array representing one or more segmentation image planes.
-            For encapsulated transfer syntaxes, only a single frame may be
-            processed. For other transfer syntaxes, multiple planes in a 3D
-            array may be processed.
+            Array representing one or more segmentation image planes. If
+            multiple image planes, planes stacked down the first dimension
+            (index 0).
 
         Returns
         -------
         bytes
             Encoded pixels
 
-        Raises
-        ------
-        ValueError
-            If multiple frames are passed when using an encapsulated
-            transfer syntax.
-
         """
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            # Check that only a single plane was passed
-            if planes.ndim == 3:
-                if planes.shape[0] == 1:
-                    planes = planes[0, ...]
-                else:
-                    raise ValueError(
-                        'Only single frame can be encoded at at time '
-                        'in case of encapsulated format encoding.'
-                    )
-            return encode_frame(
-                planes,
-                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
-                bits_allocated=self.BitsAllocated,
-                bits_stored=self.BitsStored,
-                photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation
-            )
+        if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+            return pack_bits(planes)
         else:
-            # The array may represent more than one frame item.
-            if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-                return pack_bits(planes)
-            else:
-                return planes.tobytes()
+            return planes.tobytes()
 
     @classmethod
     def from_dataset(
