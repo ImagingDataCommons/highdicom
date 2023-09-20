@@ -1665,7 +1665,7 @@ class Segmentation(SOPClass):
             # Encode the whole pixel array at once
             # This allows for correct bit-packing in cases where
             # number of pixels per frame is not a multiple of 8
-            self.NumberOfFrames = len(full_frames_list)
+            self.NumberOfFrames = len(frames)
             self.PixelData = self._encode_pixels_native(
                 np.concatenate(frames)
             )
