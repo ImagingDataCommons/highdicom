@@ -26,7 +26,7 @@ class KeyObjectSelection(ContentSequence):
 
     """Sequence of structured reporting content item describing a selection
     of DICOM objects according to structured reporting template
-    :dcm:`TID 2010 Key Object Selection <part16/chapter_C.html#sect_TID_2010>`.
+    :dcm:`TID 2010 Key Object Selection <part16/chapter_A.html#sect_TID_2010>`.
     """
 
     def __init__(

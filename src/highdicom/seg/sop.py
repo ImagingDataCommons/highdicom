@@ -1,6 +1,6 @@
 """Module for SOP classes of the SEG modality."""
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
@@ -1354,7 +1354,10 @@ class Segmentation(SOPClass):
 
         if pixel_measures is not None:
             sffg_item.PixelMeasuresSequence = pixel_measures
-        if plane_orientation is not None:
+        if (
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.PATIENT
+        ):
             sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
@@ -2463,7 +2466,24 @@ class Segmentation(SOPClass):
                             )
                         )
 
-        return instance_data
+        # There shouldn't be duplicates here, but there's no explicit rule
+        # preventing it.
+        # Since dictionary ordering is preserved, this trick deduplicates
+        # the list without changing the order
+        unique_instance_data = list(dict.fromkeys(instance_data))
+        if len(unique_instance_data) != len(instance_data):
+            counts = Counter(instance_data)
+            duplicate_sop_uids = [
+                f"'{key[2]}'" for key, value in counts.items() if value > 1
+            ]
+            display_str = ', '.join(duplicate_sop_uids)
+            logger.warning(
+                'Duplicate entries found in the ReferencedSeriesSequence. '
+                f"Segmentation SOP Instance UID: '{self.SOPInstanceUID}', "
+                f'duplicated referenced SOP Instance UID items: {display_str}.'
+            )
+
+        return list(unique_instance_data)
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
