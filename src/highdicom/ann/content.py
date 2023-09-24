@@ -485,7 +485,7 @@ class AnnotationGroup(Dataset):
     @property
     def primary_anatomic_structures(self) -> List[CodedConcept]:
         """List[highdicom.sr.CodedConcept]:
-            List of anatomic anatomic structures the annotations represent.
+            List of anatomic structures the annotations represent.
             May be empty.
 
         """
