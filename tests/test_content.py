@@ -904,6 +904,7 @@ class TestSpecimenPreparationStep(TestCase):
         assert isinstance(processing_procedure, SpecimenCollection)
         assert processing_procedure.procedure == procedure
         assert instance.processing_datetime == processing_datetime
+        assert isinstance(instance.issuer_of_specimen_id, str)
         assert (
             instance.issuer_of_specimen_id ==
             issuer_of_specimen_id.LocalNamespaceEntityID
