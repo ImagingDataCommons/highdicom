@@ -1072,21 +1072,21 @@ class SpecimenPreparationStep(Dataset):
                 value=embedding_medium
             )
             sequence.append(embedding_medium_item)
-        self.SpecimenPreparationStepContentItemSequence = sequence
-
         if specimen_container is not None:
             specimen_container_item = CodeContentItem(
                 name=codes.SCT.SpecimenContainer,
                 value=specimen_container
             )
             sequence.append(specimen_container_item)
-
         if specimen_type is not None:
             specimen_type_item = CodeContentItem(
                 name=codes.SCT.SpecimenType,
                 value=specimen_type
             )
             sequence.append(specimen_type_item)
+        self.SpecimenPreparationStepContentItemSequence = sequence
+
+
 
     @property
     def specimen_id(self) -> str:
