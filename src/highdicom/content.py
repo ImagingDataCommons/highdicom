@@ -978,15 +978,17 @@ class SpecimenPreparationStep(Dataset):
             Description of processing
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
         fixative: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            Fixative used during processing
+            Fixative used during processing (see :dcm:`CID 8114 <part16/sect_CID_8114.html>`
+            "Specimen Fixative" for options).
         embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            Embedding medium used during processing
+            Embedding medium used during processing see :dcm:`CID 8115 <part16/sect_CID_8115.html>`
+            "Specimen Embedding Media" for options).
         specimen_container: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            Container the specimen resides in (see
-            :dcm:`CID 8101 <part16/sect_CID_8101.html>`
+            Container the specimen resides in (see :dcm:`CID 8101 <part16/sect_CID_8101.html>`
             "Container Type" for options).
         specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            The anatomic pathology specimen type of the specimen.
+            The anatomic pathology specimen type of the specimen (see :dcm:`CID 8103 <part16/sect_CID_8103.html>`
+            "Anatomic Pathology Specimen Type" for options).
 
         """  # noqa: E501
         super().__init__()
@@ -1087,8 +1089,6 @@ class SpecimenPreparationStep(Dataset):
             )
             sequence.append(specimen_type_item)
         self.SpecimenPreparationStepContentItemSequence = sequence
-
-
 
     @property
     def specimen_id(self) -> str:
