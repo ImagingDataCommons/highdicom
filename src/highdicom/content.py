@@ -1353,13 +1353,13 @@ class SpecimenDescription(Dataset):
         specimen_preparation_steps: Optional[
             Sequence[SpecimenPreparationStep]
         ] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None,
-        specimen_short_description: Optional[str] = None,
-        specimen_detailed_description: Optional[str] = None,
         issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
         primary_anatomic_structures: Optional[
             Sequence[Union[Code, CodedConcept]]
-        ] = None
+        ] = None,
+        specimen_type: Optional[Union[Code, CodedConcept]] = None,
+        specimen_short_description: Optional[str] = None,
+        specimen_detailed_description: Optional[str] = None,
     ):
         """
         Parameters

@@ -1360,11 +1360,11 @@ class TestSpecimenDescription(TestCase):
             specimen_id=specimen_id,
             specimen_uid=specimen_uid,
             specimen_location=specimen_location,
+            issuer_of_specimen_id=issuer_of_specimen_id,
+            primary_anatomic_structures=primary_anatomic_structures,
             specimen_type=specimen_type,
             specimen_short_description=specimen_short_description,
             specimen_detailed_description=specimen_detailed_description,
-            issuer_of_specimen_id=issuer_of_specimen_id,
-            primary_anatomic_structures=primary_anatomic_structures
         )
         assert instance.specimen_location == specimen_location
         assert instance.specimen_type == specimen_type
