@@ -1470,16 +1470,17 @@ class SpecimenDescription(Dataset):
 
     @property
     def specimen_id(self) -> str:
-        """str: Specimen identifier"""
+        """str: Specimen identifier."""
         return str(self.SpecimenIdentifier)
 
     @property
     def specimen_uid(self) -> UID:
-        """highdicom.UID: Unique specimen identifier"""
+        """highdicom.UID: Unique specimen identifier."""
         return UID(self.SpecimenUID)
 
     @property
     def specimen_location(self) -> Union[str, Tuple[float, float, float], None]:
+        """Tuple[float, float, float]: Specimen location in container."""
         sequence = self.get("SpecimenLocalizationContentItemSequence")
         if sequence is None:
             return None
@@ -1489,11 +1490,12 @@ class SpecimenDescription(Dataset):
 
     @property
     def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
-        """highdicom.SpecimenPreparationStep: Specimen preparation steps"""
+        """highdicom.SpecimenPreparationStep: Specimen preparation steps."""
         return list(self.SpecimenPreparationSequence)
 
     @property
     def specimen_type(self) -> Union[CodedConcept, None]:
+        """highdicom.sr.CodedConcept: Specimen type."""
         sequence = self.get("SpecimenTypeCodeSequence")
         if sequence is None:
             return None
@@ -1501,14 +1503,17 @@ class SpecimenDescription(Dataset):
 
     @property
     def specimen_short_description(self) -> Union[str, None]:
+        """str: Short description of specimen."""
         return self.get("SpecimenShortDescription")
 
     @property
     def specimen_detailed_description(self) -> Union[str, None]:
+        """str: Detailed description of specimen."""
         return self.get("SpecimenDetailedDescription")
 
     @property
     def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+        """IssuerOfIdentifier: Issuer of identifier for the specimen."""
         sequence = self.get("IssuerOfTheSpecimenIdentifierSequence")
         if len(sequence) == 0:
             return None
@@ -1516,6 +1521,8 @@ class SpecimenDescription(Dataset):
 
     @property
     def primary_anatomic_structures(self) -> Union[List[CodedConcept], None]:
+        """List[highdicom.sr.CodedConcept]: List of anatomic structures of the
+         specimen."""
         return self.get("PrimaryAnatomicStructureSequence")
 
     @classmethod
