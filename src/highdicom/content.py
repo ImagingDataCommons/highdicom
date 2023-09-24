@@ -1183,6 +1183,8 @@ class SpecimenPreparationStep(Dataset):
 
     @property
     def specimen_container(self) -> Union[CodedConcept, None]:
+        """highdicom.sr.CodedConcept: Specimen container"""
+
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.SpecimenContainer
         )
@@ -1192,6 +1194,8 @@ class SpecimenPreparationStep(Dataset):
 
     @property
     def specimen_type(self) -> Union[CodedConcept, None]:
+        """highdicom.sr.CodedConcept: Specimen type"""
+
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.SpecimenType
         )
