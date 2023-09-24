@@ -982,7 +982,9 @@ class SpecimenPreparationStep(Dataset):
         embedding_medium: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Embedding medium used during processing
         specimen_container: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            Container the specimen resides in.
+            Container the specimen resides in (see
+            :dcm:`CID 8101 <part16/sect_CID_8101.html>`
+            "Container Type" for options).
         specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             The anatomic pathology specimen type of the specimen.
 
