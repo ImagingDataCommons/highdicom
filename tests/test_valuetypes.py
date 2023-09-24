@@ -5,6 +5,7 @@ from pydicom import Dataset
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.valuerep import DT, DA, TM
+from pydicom import config
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
@@ -44,7 +45,13 @@ class TestDateTimeContentItem:
         assert item.value.isoformat() == datetime_value.isoformat()
 
     @pytest.mark.parametrize("datetime_value", test_datetime_values)
-    def test_from_dataset(self, datetime_value: DT):
+    @pytest.mark.parametrize("datetime_conversion", [True, False])
+    def test_from_dataset(
+        self,
+        datetime_value: DT,
+        datetime_conversion: bool
+    ):
+        config.datetime_conversion = datetime_conversion
         name = codes.DCM.DatetimeOfProcessing
         assert isinstance(name, Code)
         value_type = ValueTypeValues.DATETIME
@@ -80,7 +87,9 @@ class TestDateContentItem:
         assert isinstance(item.value, datetime.date)
         assert item.value.isoformat() == date_value.isoformat()
 
-    def test_from_dataset(self):
+    @pytest.mark.parametrize("datetime_conversion", [True, False])
+    def test_from_dataset(self, datetime_conversion: bool):
+        config.datetime_conversion = datetime_conversion
         date_value = DA("20230623")
         name = codes.DCM.AcquisitionDate
         assert isinstance(name, Code)
@@ -125,7 +134,13 @@ class TestTimeContentItem:
         assert item.value.isoformat() == time_value.isoformat()
 
     @pytest.mark.parametrize("time_value", test_time_values)
-    def test_from_dataset(self, time_value: TM):
+    @pytest.mark.parametrize("datetime_conversion", [True, False])
+    def test_from_dataset(
+        self,
+        time_value: TM,
+        datetime_conversion: bool
+    ):
+        config.datetime_conversion = datetime_conversion
         name = codes.DCM.AcquisitionDate
         assert isinstance(name, Code)
         value_type = ValueTypeValues.TIME
