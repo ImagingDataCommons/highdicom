@@ -712,14 +712,72 @@ class IssuerOfIdentifier(Dataset):
 
         """  # noqa: E501
         super().__init__()
+        self._issuer_of_identifier = issuer_of_identifier
         if issuer_of_identifier_type is None:
             self.LocalNamespaceEntityID = issuer_of_identifier
+            self._issuer_of_identifier_type = None
         else:
             self.UniversalEntityID = issuer_of_identifier
             issuer_of_identifier_type = UniversalEntityIDTypeValues(
                 issuer_of_identifier_type
             )
             self.UniversalEntityIDType = issuer_of_identifier_type.value
+            self._issuer_of_identifier_type = issuer_of_identifier_type
+
+    @property
+    def issuer_of_identifier(self) -> str:
+        """str: Identifier of the issuer."""
+        return self._issuer_of_identifier
+
+    @property
+    def issuer_of_identifier_type(self) -> Union[
+        UniversalEntityIDTypeValues, None
+    ]:
+        """highdicom.UniversalEntityIDTypeValues: Type of the issuer."""
+        return self._issuer_of_identifier_type
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+    ) -> 'IssuerOfIdentifier':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset
+
+        Returns
+        -------
+        highdicom.IssuerOfIdentifier
+            Issuer of identifier
+
+        """
+        issuer_of_identifier = deepcopy(dataset)
+        issuer_of_identifier.__class__ = cls
+        if hasattr(issuer_of_identifier, "LocalNamespaceEntityID"):
+            issuer_id = issuer_of_identifier.LocalNamespaceEntityID
+            issuer_type = None
+        elif hasattr(issuer_of_identifier, 'UniversalEntityID'):
+            if not hasattr(issuer_of_identifier, 'UniversalEntityIDType'):
+                raise ValueError(
+                    'Dataset with UniversalEntityID must have ',
+                    '"UniversalEntityIDType set".'
+                )
+            issuer_id = issuer_of_identifier.UniversalEntityID
+            issuer_type = UniversalEntityIDTypeValues(
+                issuer_of_identifier.UniversalEntityIDType
+            )
+        else:
+            raise ValueError(
+                'Dataset must have "LocalNamespaceEntityID" or ',
+                '"UniversalEntityID" and "UniversalEntityIDType" set.'
+            )
+        issuer_of_identifier._issuer_of_identifier = issuer_id
+        issuer_of_identifier._issuer_of_identifier_type = issuer_type
+
+        return cast(IssuerOfIdentifier, issuer_of_identifier)
 
 
 class SpecimenCollection(ContentSequence):
@@ -1174,7 +1232,7 @@ class SpecimenPreparationStep(Dataset):
 
     @property
     def issuer_of_specimen_id(self) -> Union[str, None]:
-        """highdicom.content.IssuerOfIdentifier: Issuer of specimen id"""
+        """str: Issuer of specimen id"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.DCM.IssuerOfSpecimenIdentifier
@@ -1579,6 +1637,11 @@ class SpecimenDescription(Dataset):
             desc.SpecimenLocalizationContentItemSequence = [
                 content_item_type.from_dataset(ds)
                 for ds in desc.SpecimenLocalizationContentItemSequence
+            ]
+        if hasattr(desc, 'IssuerOfTheSpecimenIdentifierSequence'):
+            desc.IssuerOfTheSpecimenIdentifierSequence = [
+                IssuerOfIdentifier.from_dataset(ds)
+                for ds in desc.IssuerOfTheSpecimenIdentifierSequence
             ]
 
         return desc

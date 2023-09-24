@@ -8,6 +8,7 @@ from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file, get_testdata_files
 
 import numpy as np
+from highdicom.enum import UniversalEntityIDTypeValues
 
 from highdicom.sr import CodedConcept
 from highdicom import (
@@ -1483,7 +1484,48 @@ class TestSpecimenDescription(TestCase):
             instance.specimen_detailed_description ==
             specimen_detailed_description
         )
+        assert isinstance(instance.issuer_of_specimen_id, IssuerOfIdentifier)
         assert instance.issuer_of_specimen_id == issuer_of_specimen_id
         assert (
             instance.primary_anatomic_structures == primary_anatomic_structures
         )
+
+
+class TestIssuerOfIdentifier(TestCase):
+    def test_construction(self):
+        issuer_of_identifier = "issuer of identifier"
+        instance = IssuerOfIdentifier(issuer_of_identifier)
+        assert instance.issuer_of_identifier == issuer_of_identifier
+        assert instance.issuer_of_identifier_type is None
+
+    def test_construction_with_optionals(self):
+        issuer_of_identifier = "issuer of identifier id"
+        issuer_of_identifier_type = UniversalEntityIDTypeValues.DNS
+        instance = IssuerOfIdentifier(
+            issuer_of_identifier,
+            issuer_of_identifier_type
+        )
+        assert instance.issuer_of_identifier == issuer_of_identifier
+        assert instance.issuer_of_identifier_type == issuer_of_identifier_type
+
+    def test_construction_from_dataset(self):
+        issuer_of_identifier = "issuer of identifier"
+        dataset = Dataset()
+        dataset.LocalNamespaceEntityID = issuer_of_identifier
+        dataset_reread = write_and_read_dataset(dataset)
+        instance = IssuerOfIdentifier.from_dataset(dataset_reread)
+        assert isinstance(instance, IssuerOfIdentifier)
+        assert instance.issuer_of_identifier == issuer_of_identifier
+        assert instance.issuer_of_identifier_type is None
+
+    def test_construction_from_dataset_with_optionals(self):
+        issuer_of_identifier = "issuer of identifier"
+        issuer_of_identifier_type = UniversalEntityIDTypeValues.DNS
+        dataset = Dataset()
+        dataset.UniversalEntityID = issuer_of_identifier
+        dataset.UniversalEntityIDType = issuer_of_identifier_type.value
+        dataset_reread = write_and_read_dataset(dataset)
+        instance = IssuerOfIdentifier.from_dataset(dataset_reread)
+        assert isinstance(instance, IssuerOfIdentifier)
+        assert instance.issuer_of_identifier == issuer_of_identifier
+        assert instance.issuer_of_identifier_type == issuer_of_identifier_type
