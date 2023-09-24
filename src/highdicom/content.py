@@ -1035,6 +1035,7 @@ class SpecimenPreparationStep(Dataset):
         processing_description: Union[str, pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Description of processing
         issuer_of_specimen_id: highdicom.IssuerOfIdentifier, optional
+            The issuer of the identifier of the processed specimen.
         fixative: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
             Fixative used during processing (see :dcm:`CID 8114 <part16/sect_CID_8114.html>`
             "Specimen Fixative" for options).
