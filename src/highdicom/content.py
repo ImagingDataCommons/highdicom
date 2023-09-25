@@ -1447,7 +1447,8 @@ class SpecimenDescription(Dataset):
             Steps that were applied during the preparation of the examined
             specimen in the laboratory prior to image acquisition
         specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept], optional
-            The type of the examined specimen.
+            The anatomic pathology specimen type of the specimen (see :dcm:`CID 8103 <part16/sect_CID_8103.html>`
+            "Anatomic Pathology Specimen Type" for options).
         specimen_short_description: str, optional
             Short description of the examined specimen.
         specimen_detailed_description: str, optional
