@@ -1501,6 +1501,7 @@ class SpecimenDescription(Dataset):
         if specimen_type is not None:
             self.SpecimenTypeCodeSequence = [specimen_type]
         if specimen_short_description is not None:
+            _check_long_string(specimen_short_description)
             self.SpecimenShortDescription = specimen_short_description
         if specimen_detailed_description is not None:
             self.SpecimenDetailedDescription = specimen_detailed_description
