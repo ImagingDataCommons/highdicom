@@ -1421,7 +1421,6 @@ class TestSpecimenDescription(TestCase):
         assert isinstance(instance.specimen_type, CodedConcept)
         assert instance.specimen_type == specimen_type
 
-
     def test_construction_with_preparation_steps(self):
         parent_specimen_id = 'surgical specimen'
         specimen_id = 'section specimen'
