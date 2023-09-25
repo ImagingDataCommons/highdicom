@@ -1382,6 +1382,28 @@ class TestSpecimenDescription(TestCase):
             instance.primary_anatomic_structures == primary_anatomic_structures
         )
 
+    def test_construction_with_to_long_short_description(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        specimen_short_description = "x" * 65
+        with pytest.raises(ValueError):
+            SpecimenDescription(
+                specimen_id=specimen_id,
+                specimen_uid=specimen_uid,
+                specimen_short_description=specimen_short_description
+            )
+
+    def test_construction_with_backslash_in_short_description(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        specimen_short_description = 'short_description_with_backslash\\'
+        with pytest.raises(ValueError):
+            SpecimenDescription(
+                specimen_id=specimen_id,
+                specimen_uid=specimen_uid,
+                specimen_short_description=specimen_short_description
+            )
+
     def test_construction_with_preparation_steps(self):
         parent_specimen_id = 'surgical specimen'
         specimen_id = 'section specimen'
