@@ -740,6 +740,7 @@ class IssuerOfIdentifier(Dataset):
     def from_dataset(
         cls,
         dataset: Dataset,
+        copy: bool = True,
     ) -> 'IssuerOfIdentifier':
         """Construct object from an existing dataset.
 
@@ -747,6 +748,10 @@ class IssuerOfIdentifier(Dataset):
         ----------
         dataset: pydicom.dataset.Dataset
             Dataset
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
@@ -754,7 +759,10 @@ class IssuerOfIdentifier(Dataset):
             Issuer of identifier
 
         """
-        issuer_of_identifier = deepcopy(dataset)
+        if copy:
+            issuer_of_identifier = deepcopy(dataset)
+        else:
+            issuer_of_identifier = dataset
         issuer_of_identifier.__class__ = cls
         if hasattr(issuer_of_identifier, "LocalNamespaceEntityID"):
             issuer_id = issuer_of_identifier.LocalNamespaceEntityID
