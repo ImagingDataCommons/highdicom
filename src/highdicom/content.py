@@ -1500,7 +1500,10 @@ class SpecimenDescription(Dataset):
             self.SpecimenLocalizationContentItemSequence = loc_seq
 
         if specimen_type is not None:
+            if isinstance(specimen_type, Code):
+                specimen_type = CodedConcept.from_code(specimen_type)
             self.SpecimenTypeCodeSequence = [specimen_type]
+
         if specimen_short_description is not None:
             _check_long_string(specimen_short_description)
             self.SpecimenShortDescription = specimen_short_description

@@ -5,6 +5,7 @@ import pytest
 from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.codedict import codes
+from pydicom.sr.coding import Code
 from pydicom.data import get_testdata_file, get_testdata_files
 
 import numpy as np
@@ -1403,6 +1404,23 @@ class TestSpecimenDescription(TestCase):
                 specimen_uid=specimen_uid,
                 specimen_short_description=specimen_short_description
             )
+
+    def test_construction_with_code_specimen_type(self):
+        specimen_id = 'specimen 1'
+        specimen_uid = UID()
+        specimen_type = Code(
+            "specimen type",
+            "test",
+            "test specimen type"
+        )
+        instance = SpecimenDescription(
+            specimen_id=specimen_id,
+            specimen_uid=specimen_uid,
+            specimen_type=specimen_type,
+        )
+        assert isinstance(instance.specimen_type, CodedConcept)
+        assert instance.specimen_type == specimen_type
+
 
     def test_construction_with_preparation_steps(self):
         parent_specimen_id = 'surgical specimen'
