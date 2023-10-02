@@ -1410,7 +1410,7 @@ class TestSegmentation:
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
-        instance = Segmentation(
+        Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
             SegmentationTypeValues.FRACTIONAL.value,
@@ -1431,9 +1431,9 @@ class TestSegmentation:
     def test_construction_workers_manual(self):
         # Create a segmentation with multiple workers created manually
         with ProcessPoolExecutor(2) as pool:
-            instance = Segmentation(
-            self._ct_series,
-            self._ct_series_mask_array,
+            Segmentation(
+                self._ct_series,
+                self._ct_series_mask_array,
                 SegmentationTypeValues.FRACTIONAL.value,
                 self._segment_descriptions,
                 self._series_instance_uid,
