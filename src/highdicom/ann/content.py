@@ -402,7 +402,8 @@ class AnnotationGroup(Dataset):
             ])
             self.LongPrimitivePointIndexList = point_indices.tobytes()
 
-        self.AnnotationAppliesToAllZPlanes = 'NO'
+        if coordinate_type == AnnotationCoordinateTypeValues.SCOORD3D:
+            self.AnnotationAppliesToAllZPlanes = 'NO'
         self.AnnotationAppliesToAllOpticalPaths = 'YES'
 
         if measurements is not None:
