@@ -185,6 +185,8 @@ class TestAnnotationGroup(unittest.TestCase):
         assert group.anatomic_regions[0] == self._anatomic_region
         assert len(group.PrimaryAnatomicStructureSequence) == 1
         assert group.primary_anatomic_structures[0] == self._anatomic_structure
+        assert group.CommonZCoordinateValue == 0.0
+        assert hasattr(group, 'AnnotationAppliesToAllZPlanes')
 
         decoded_graphic_data = group.get_graphic_data(coordinate_type='3D')
         assert len(decoded_graphic_data) == len(graphic_data)
@@ -199,6 +201,108 @@ class TestAnnotationGroup(unittest.TestCase):
         )
         np.testing.assert_allclose(
             group.get_coordinates(annotation_number=2, coordinate_type='3D'),
+            graphic_data[1]
+        )
+
+        names, values, units = group.get_measurements()
+        assert len(names) == 1
+        assert names[0] == measurement_names[0]
+        assert len(units) == 1
+        assert units[0] == measurement_units[0]
+        assert values.dtype == np.float32
+        assert values.shape == (2, 1)
+        np.testing.assert_allclose(values, measurement_values)
+
+        names, values, units = group.get_measurements(
+            name=measurement_names[0]
+        )
+        assert len(names) == 1
+        assert names[0] == measurement_names[0]
+        assert len(units) == 1
+        assert units[0] == measurement_units[0]
+        assert values.dtype == np.float32
+        assert values.shape == (2, 1)
+        np.testing.assert_allclose(values, measurement_values)
+
+        names, values, units = group.get_measurements(
+            name=codes.SCT.Volume
+        )
+        assert names == []
+        assert units == []
+        assert values.size == 0
+        assert values.dtype == np.float32
+        assert values.shape == (2, 0)
+
+    def test_construction_2d(self):
+        number = 1
+        label = 'first'
+        uid = UID()
+        graphic_type = GraphicTypeValues.POLYGON
+        graphic_data = [
+            np.array([
+                [1.0, 1.0],
+                [0.5, 3.0],
+                [1.0, 3.0],
+            ]),
+            np.array([
+                [1.0, 1.0],
+                [1.0, 2.0],
+                [2.0, 2.0],
+                [2.0, 1.0],
+            ]),
+        ]
+
+        measurement_values = np.array([[0.5], [1.0]])
+        measurement_names = [codes.SCT.Area]
+        measurement_units = [codes.UCUM.SquareMicrometer]
+        measurements = [
+            Measurements(
+                name=measurement_names[0],
+                unit=measurement_units[0],
+                values=measurement_values
+            ),
+        ]
+
+        group = AnnotationGroup(
+            number=number,
+            uid=uid,
+            label=label,
+            annotated_property_category=self._property_category,
+            annotated_property_type=self._property_type,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            algorithm_type=self._algorithm_type,
+            algorithm_identification=self._algorithm_identification,
+            measurements=measurements,
+            description='annotation',
+            anatomic_regions=[self._anatomic_region],
+            primary_anatomic_structures=[self._anatomic_structure]
+        )
+
+        assert group.graphic_type == graphic_type
+        assert group.annotated_property_category == self._property_category
+        assert group.annotated_property_type == self._property_type
+        assert group.algorithm_type == self._algorithm_type
+        assert group.algorithm_identification == self._algorithm_identification
+        assert group.anatomic_regions[0] == self._anatomic_region
+        assert len(group.PrimaryAnatomicStructureSequence) == 1
+        assert group.primary_anatomic_structures[0] == self._anatomic_structure
+        assert not hasattr(group, 'CommonZCoordinateValue')
+        assert not hasattr(group, 'AnnotationAppliesToAllZPlanes')
+
+        decoded_graphic_data = group.get_graphic_data(coordinate_type='2D')
+        assert len(decoded_graphic_data) == len(graphic_data)
+        for i in range(len(decoded_graphic_data)):
+            np.testing.assert_allclose(
+                decoded_graphic_data[i],
+                graphic_data[i]
+            )
+        np.testing.assert_allclose(
+            group.get_coordinates(annotation_number=1, coordinate_type='2D'),
+            graphic_data[0]
+        )
+        np.testing.assert_allclose(
+            group.get_coordinates(annotation_number=2, coordinate_type='2D'),
             graphic_data[1]
         )
 

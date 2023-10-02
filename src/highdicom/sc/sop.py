@@ -166,7 +166,7 @@ class SCImage(SOPClass):
             `coordinate_system` is ``"SLIDE"``)
         issuer_of_container_identifier: Union[highdicom.IssuerOfIdentifier, None], optional
             Issuer of `container_identifier`
-        specimen_descriptions: Union[Sequence[highdicom.SpecimenDescriptions], None], optional
+        specimen_descriptions: Union[Sequence[highdicom.SpecimenDescription], None], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
         transfer_syntax_uid: str, optional
@@ -491,7 +491,7 @@ class SCImage(SOPClass):
             `coordinate_system` is ``"SLIDE"``)
         issuer_of_container_identifier: Union[highdicom.IssuerOfIdentifier, None], optional
             Issuer of `container_identifier`
-        specimen_descriptions: Union[Sequence[highdicom.SpecimenDescriptions], None], optional
+        specimen_descriptions: Union[Sequence[highdicom.SpecimenDescription], None], optional
             Description of each examined specimen (required if
             `coordinate_system` is ``"SLIDE"``)
         transfer_syntax_uid: str, optional
