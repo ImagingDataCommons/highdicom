@@ -85,7 +85,7 @@ def check_required_attributes(
         AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN
     ]
 
-    # Construct tree once and re-use in all recursive calls
+    # Construct tree once and reuse in all recursive calls
     tree = construct_module_tree(module)
 
     if base_path is not None:

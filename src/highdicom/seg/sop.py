@@ -1573,7 +1573,7 @@ class Segmentation(SOPClass):
                 planes = planes.astype(np.uint8)
                 # It may happen that a boolean array is passed that should be
                 # interpreted as fractional segmentation type. In this case, we
-                # also need to stretch pixel valeus to 8-bit unsigned integer
+                # also need to stretch pixel values to 8-bit unsigned integer
                 # range by multiplying with the maximum fractional value.
                 if segmentation_type == SegmentationTypeValues.FRACTIONAL:
                     planes *= int(self.MaximumFractionalValue)
