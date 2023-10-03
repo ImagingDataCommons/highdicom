@@ -2260,6 +2260,7 @@ class Segmentation(SOPClass):
             )
             self.TotalPixelMatrixRows = source_image.TotalPixelMatrixRows
             self.TotalPixelMatrixColumns = source_image.TotalPixelMatrixColumns
+            self.TotalPixelMatrixFocalPlanes = 1
         elif are_spatial_locations_preserved and not is_tiled:
             self.ImageCenterPointCoordinatesSequence = deepcopy(
                 source_image.ImageCenterPointCoordinatesSequence
@@ -2296,6 +2297,7 @@ class Segmentation(SOPClass):
                 origin_item.YOffsetInSlideCoordinateSystem = \
                     format_number_as_ds(y_origin)
                 self.TotalPixelMatrixOriginSequence = [origin_item]
+                self.TotalPixelMatrixFocalPlanes = 1
                 if total_pixel_matrix_size is None:
                     self.TotalPixelMatrixRows = int(
                         plane_position_values[last_frame_index, row_index] +
