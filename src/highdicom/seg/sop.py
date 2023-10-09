@@ -2174,7 +2174,7 @@ class Segmentation(SOPClass):
                 f'duplicated referenced SOP Instance UID items: {display_str}.'
             )
 
-        return list(unique_instance_data)
+        return unique_instance_data.copy()
 
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
