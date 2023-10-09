@@ -217,7 +217,7 @@ def _stop_after_group_2(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
     return tag.group > 2
 
 
-class ImageFileReader(object):
+class ImageFileReader:
 
     """Reader for DICOM datasets representing Image Information Entities.
 
