@@ -35,17 +35,17 @@ class CodedConcept(Dataset):
         super(CodedConcept, self).__init__()
         if len(value) > 16:
             if value.startswith('urn') or '://' in value:
-                self.URNCodeValue = str(value)
+                self.URNCodeValue = value
             else:
-                self.LongCodeValue = str(value)
+                self.LongCodeValue = value
         else:
-            self.CodeValue = str(value)
+            self.CodeValue = value
         if len(meaning) > 64:
             raise ValueError('Code meaning can have maximally 64 characters.')
-        self.CodeMeaning = str(meaning)
-        self.CodingSchemeDesignator = str(scheme_designator)
+        self.CodeMeaning = meaning
+        self.CodingSchemeDesignator = scheme_designator
         if scheme_version is not None:
-            self.CodingSchemeVersion = str(scheme_version)
+            self.CodingSchemeVersion = scheme_version
         # TODO: Enhanced Code Sequence Macro Attributes
 
     def __hash__(self) -> int:

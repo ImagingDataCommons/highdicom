@@ -18,10 +18,10 @@ class CodingSchemeResourceItem(Dataset):
 
         """
         super().__init__()
-        self.CodingSchemeURL = str(url)
+        self.CodingSchemeURL = url
         if url_type not in {"DOC", "OWL", "CSV"}:
             raise ValueError('Unknonw URL type.')
-        self.CodingSchemeURLType = str(url_type)
+        self.CodingSchemeURLType = url_type
 
 
 class CodingSchemeIdentificationItem(Dataset):
@@ -65,16 +65,16 @@ class CodingSchemeIdentificationItem(Dataset):
 
         """  # noqa: E501
         super().__init__()
-        self.CodingSchemeDesignator = str(designator)
+        self.CodingSchemeDesignator = designator
         if name is not None:
-            self.CodingSchemeName = str(name)
+            self.CodingSchemeName = name
         if version is not None:
-            self.CodingSchemeVersion = str(version)
+            self.CodingSchemeVersion = version
         if responsible_organization is not None:
             self.CodingSchemeResponsibleOrganization = \
                 str(responsible_organization)
         if registry is not None:
-            self.CodingSchemeRegistry = str(registry)
+            self.CodingSchemeRegistry = registry
             if uid is None and external_id is None:
                 raise ValueError(
                     'UID or external ID is required if coding scheme is '

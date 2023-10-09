@@ -88,8 +88,8 @@ class RealWorldValueMapping(Dataset):
                 f'given {len(lut_label)}.'
             )
 
-        self.LUTExplanation = str(lut_explanation)
-        self.LUTLabel = str(lut_label)
+        self.LUTExplanation = lut_explanation
+        self.LUTLabel = lut_label
 
         is_floating_point = any(isinstance(v, float) for v in value_range)
         if lut_data is not None:
@@ -111,7 +111,7 @@ class RealWorldValueMapping(Dataset):
                     'The LUT data sequence contains wrong number of entries: '
                     f'expected n={n_expected}, actual n={n_actual}.'
                 )
-            self.RealWorldValueLUTData = [float(v) for v in lut_data]
+            self.RealWorldValueLUTData = [v for v in lut_data]
         else:
             if slope is None or intercept is None:
                 raise TypeError(

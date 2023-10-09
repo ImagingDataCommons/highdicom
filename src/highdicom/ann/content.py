@@ -233,8 +233,8 @@ class AnnotationGroup(Dataset):
             raise ValueError('Argument "number" must be a positive integer.')
 
         self.AnnotationGroupNumber = number
-        self.AnnotationGroupUID = str(uid)
-        self.AnnotationGroupLabel = str(label)
+        self.AnnotationGroupUID = uid
+        self.AnnotationGroupLabel = label
         if description is not None:
             self.AnnotationGroupDescription = description
 

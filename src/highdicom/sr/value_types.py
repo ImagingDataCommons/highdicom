@@ -809,7 +809,7 @@ class TextContentItem(ContentItem):
         super(TextContentItem, self).__init__(
             ValueTypeValues.TEXT, name, relationship_type
         )
-        self.TextValue = str(value)
+        self.TextValue = value
 
     @property
     def value(self) -> str:
@@ -1859,7 +1859,7 @@ class TcoordContentItem(ContentItem):
         self.TemporalRangeType = temporal_range_type.value
         if referenced_sample_positions is not None:
             self.ReferencedSamplePositions = [
-                int(v) for v in referenced_sample_positions
+                v for v in referenced_sample_positions
             ]
         elif referenced_time_offsets is not None:
             self.ReferencedTimeOffsets = [

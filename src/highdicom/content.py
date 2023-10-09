@@ -1624,7 +1624,7 @@ class LUT(Dataset):
 
         self.LUTDescriptor = [
             len_data,
-            int(first_mapped_value),
+            first_mapped_value,
             bits_per_entry
         ]
 
@@ -1829,7 +1829,7 @@ class VOILUTTransformation(Dataset):
                         'Argument "window_width" must not be an empty sequence.'
                     )
                 self.WindowWidth = [
-                    format_number_as_ds(float(x)) for x in window_width
+                    format_number_as_ds(x) for x in window_width
                 ]
             else:
                 if window_is_sequence:
@@ -2149,7 +2149,7 @@ class PaletteColorLUT(Dataset):
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
-            [number_of_entries, int(first_mapped_value), bits_per_entry]
+            [number_of_entries, first_mapped_value, bits_per_entry]
         )
 
     @property
@@ -2345,7 +2345,7 @@ class SegmentedPaletteColorLUT(Dataset):
         setattr(
             self,
             f'{self._attr_name_prefix}Descriptor',
-            [number_of_entries, int(first_mapped_value), bits_per_entry]
+            [number_of_entries, first_mapped_value, bits_per_entry]
         )
 
     @property

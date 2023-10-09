@@ -178,7 +178,7 @@ class SOPClass(Dataset):
         self.PatientSex = patient_sex
 
         # Study
-        self.StudyInstanceUID = str(study_instance_uid)
+        self.StudyInstanceUID = study_instance_uid
         self.AccessionNumber = accession_number
         self.StudyID = study_id
         self.StudyDate = DA(study_date) if study_date is not None else None
@@ -186,7 +186,7 @@ class SOPClass(Dataset):
         self.ReferringPhysicianName = referring_physician_name
 
         # Series
-        self.SeriesInstanceUID = str(series_instance_uid)
+        self.SeriesInstanceUID = series_instance_uid
         if series_number is None:
             raise TypeError('Argument "series_number" is required.')
         if series_number < 1:
@@ -219,8 +219,8 @@ class SOPClass(Dataset):
                 self.InstitutionalDepartmentName = institutional_department_name
 
         # Instance
-        self.SOPInstanceUID = str(sop_instance_uid)
-        self.SOPClassUID = str(sop_class_uid)
+        self.SOPInstanceUID = sop_instance_uid
+        self.SOPClassUID = sop_class_uid
         if instance_number is None:
             raise TypeError('Argument "instance_number" is required.')
         if instance_number < 1:
