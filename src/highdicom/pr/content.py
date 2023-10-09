@@ -1486,15 +1486,15 @@ def _get_softcopy_voi_lut_transformations(
                 )].append(ref_im)
             elif has_lut:
                 # Create a unique identifier for this list of LUTs
-                lut_info = []
-                for voi_lut in ref_im.VOILUTSequence:
-                    lut_info.append((
+                lut_id = (
+                    (
                         voi_lut.LUTDescriptor[1],
                         voi_lut.LUTDescriptor[2],
                         getattr(voi_lut, 'LUTExplanation', None),
                         voi_lut.LUTData
-                    ))
-                lut_id = tuple(lut_info)
+                    )
+                    for voi_lut in ref_im.VOILUTSequence
+                )
                 by_lut[lut_id].append(ref_im)
 
         for (width, center, exp, func), im_list in by_window.items():
