@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import io
 import re
 
 import setuptools
@@ -13,7 +12,7 @@ long_description = readme_filepath.read_text()
 
 def get_version():
     version_filepath = Path('src', 'highdicom', 'version.py')
-    with io.open(version_filepath, 'rt', encoding='utf8') as f:
+    with open(version_filepath, 'rt', encoding='utf8') as f:
         version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
     return version
 
