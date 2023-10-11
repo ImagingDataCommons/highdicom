@@ -110,8 +110,8 @@ def _count_roi_items(
     n_region_in_space_items = 0
     for item in group_item.ContentSequence:
         if (item.name == codes.DCM.ImageRegion and
-                (item.value_type == ValueTypeValues.SCOORD or
-                 item.value_type == ValueTypeValues.SCOORD3D)):
+                item.value_type in (ValueTypeValues.SCOORD,
+                                    ValueTypeValues.SCOORD3D)):
             n_image_region_items += 1
         if (item.name == codes.DCM.VolumeSurface and
                 item.value_type == ValueTypeValues.SCOORD3D):
