@@ -198,7 +198,7 @@ def _create_inv_affine_transformation_matrix(
     )
 
 
-class PixelToReferenceTransformer(object):
+class PixelToReferenceTransformer:
 
     """Class for transforming pixel indices to reference coordinates.
 
@@ -338,7 +338,7 @@ class PixelToReferenceTransformer(object):
         return reference_coordinates[:3, :].T
 
 
-class ReferenceToPixelTransformer(object):
+class ReferenceToPixelTransformer:
 
     """Class for transforming reference coordinates to pixel indices.
 
@@ -481,7 +481,7 @@ class ReferenceToPixelTransformer(object):
         return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
 
 
-class ImageToReferenceTransformer(object):
+class ImageToReferenceTransformer:
 
     """Class for transforming coordinates from image to reference space.
 
@@ -619,7 +619,7 @@ class ImageToReferenceTransformer(object):
         return reference_coordinates[:3, :].T
 
 
-class ReferenceToImageTransformer(object):
+class ReferenceToImageTransformer:
 
     """Class for transforming coordinates from reference to image space.
 

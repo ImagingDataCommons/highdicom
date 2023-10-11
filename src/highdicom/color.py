@@ -17,7 +17,7 @@ from PIL.ImageCms import (
 logger = logging.getLogger(__name__)
 
 
-class CIELabColor(object):
+class CIELabColor:
 
     """Class to represent a color value in CIELab color space."""
 
@@ -67,7 +67,7 @@ class CIELabColor(object):
         return self._value
 
 
-class ColorManager(object):
+class ColorManager:
 
     """Class for color management using ICC profiles."""
 
