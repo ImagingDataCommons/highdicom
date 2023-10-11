@@ -2595,9 +2595,12 @@ class Segmentation(SOPClass):
             descriptions in this SEG image.
 
         """
-        return list(
-            {desc.segmented_property_category for desc in self.SegmentSequence}
-        )
+        categories = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_category not in categories:
+                categories.append(desc.segmented_property_category)
+
+        return categories
 
     @property
     def segmented_property_types(self) -> List[CodedConcept]:
@@ -2610,9 +2613,12 @@ class Segmentation(SOPClass):
             descriptions in this SEG image.
 
         """
-        return list(
-            {desc.segmented_property_type for desc in self.SegmentSequence}
-        )
+        types = []
+        for desc in self.SegmentSequence:
+            if desc.segmented_property_type not in types:
+                types.append(desc.segmented_property_type)
+
+        return types
 
     def _get_pixels_by_seg_frame(
         self,
