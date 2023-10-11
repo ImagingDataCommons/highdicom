@@ -306,7 +306,7 @@ def encode_frame(
                     'encoding of image frames with Lossless JPEG-LS codec.'
                 )
 
-        if transfer_syntax_uid in compression_lut.keys():
+        if transfer_syntax_uid in compression_lut:
             image_format, kwargs = compression_lut[transfer_syntax_uid]
             if samples_per_pixel == 3:
                 image = Image.fromarray(array, mode='RGB')
