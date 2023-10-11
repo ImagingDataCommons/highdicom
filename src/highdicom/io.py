@@ -106,13 +106,13 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
 
     Raises
     ------
-    IOError
+    OSError
         When file pointer is not positioned at first byte of Pixel Data element
 
     """
     tag = TupleTag(fp.read_tag())
     if int(tag) not in _PIXEL_DATA_TAGS:
-        raise IOError(
+        raise OSError(
             'Expected file pointer at first byte of Pixel Data element.'
         )
     # Skip Pixel Data element header (tag, VR, length)
@@ -148,7 +148,7 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
 
     Raises
     ------
-    IOError
+    OSError
         When file pointer is not positioned at first byte of first Frame item
         after Basic Offset Table item or when parsing of Frame item headers
         fails
@@ -167,20 +167,20 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
             break
         if int(tag) != ItemTag:
             fp.seek(initial_position, 0)
-            raise IOError(
+            raise OSError(
                 'Building Basic Offset Table (BOT) failed. '
                 f'Expected tag of Frame item #{i} at position {frame_position}.'
             )
         length = fp.read_UL()
         if length % 2:
             fp.seek(initial_position, 0)
-            raise IOError(
+            raise OSError(
                 'Building Basic Offset Table (BOT) failed. '
                 f'Length of Frame item #{i} is not a multiple of 2.'
             )
         elif length == 0:
             fp.seek(initial_position, 0)
-            raise IOError(
+            raise OSError(
                 'Building Basic Offset Table (BOT) failed. '
                 f'Length of Frame item #{i} is zero.'
             )
@@ -299,7 +299,7 @@ class ImageFileReader:
             When file cannot be found
         OSError
             When file cannot be opened
-        IOError
+        OSError
             When DICOM metadata cannot be read from file
         ValueError
             When DICOM dataset contained in file does not represent an image
@@ -373,12 +373,12 @@ class ImageFileReader:
         """
         logger.debug('read metadata elements')
         if self._fp is None:
-            raise IOError('File has not been opened for reading.')
+            raise OSError('File has not been opened for reading.')
 
         try:
             metadata = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
-            raise IOError(f'DICOM metadata cannot be read from file: "{err}"')
+            raise OSError(f'DICOM metadata cannot be read from file: "{err}"')
 
         # Cache Transfer Syntax UID, since we need it to decode frame items
         self._transfer_syntax_uid = UID(metadata.file_meta.TransferSyntaxUID)
@@ -413,7 +413,7 @@ class ImageFileReader:
             try:
                 self._basic_offset_table = _get_bot(self._fp, number_of_frames)
             except Exception as err:
-                raise IOError(f'Failed to build Basic Offset Table: "{err}"')
+                raise OSError(f'Failed to build Basic Offset Table: "{err}"')
             self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:
@@ -516,7 +516,7 @@ class ImageFileReader:
 
         Raises
         ------
-        IOError
+        OSError
             When frame could not be read
 
         """
@@ -549,7 +549,7 @@ class ImageFileReader:
             frame_data = self._fp.read(self._bytes_per_frame_uncompressed)
 
         if len(frame_data) == 0:
-            raise IOError(f'Failed to read frame #{index}.')
+            raise OSError(f'Failed to read frame #{index}.')
 
         return frame_data
 
@@ -574,7 +574,7 @@ class ImageFileReader:
 
         Raises
         ------
-        IOError
+        OSError
             When frame could not be read
 
         """

@@ -105,9 +105,9 @@ if __name__ == '__main__':
     except IndexError:
         raise ValueError('Path to directory must be provided.')
     if not os.path.exists(directory):
-        raise IOError('Path does not exist: "{}"'.format(directory))
+        raise OSError('Path does not exist: "{}"'.format(directory))
     if not os.path.isdir(directory):
-        raise IOError('Path is not a directory: "{}"'.format(directory))
+        raise OSError('Path is not a directory: "{}"'.format(directory))
 
     now = datetime.datetime.now()
     current_date = datetime.datetime.date(now).strftime('%Y-%m-%d')
