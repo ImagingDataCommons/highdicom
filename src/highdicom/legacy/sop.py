@@ -302,16 +302,16 @@ def _convert_legacy_to_enhanced(
             pass
 
         # Cardiac Synchronization (U)
-        # TODO: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.7  # noqa
+        # TODO: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.7  # noqa
 
         # Contrast/Bolus Usage (U) - MR/CT only
-        # TODO: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.12  # noqa
+        # TODO: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.12  # noqa
 
         # Respiratory Synchronization (U)
-        # TODO: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.17  # noqa
+        # TODO: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.17  # noqa
 
         # Real World Value Mapping (U) - PET only
-        # TODO: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.11  # noqa
+        # TODO: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html#sect_C.7.6.16.2.11  # noqa
 
         perframe_items.append(perframe_item)
 

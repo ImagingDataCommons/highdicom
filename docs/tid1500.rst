@@ -737,9 +737,8 @@ highdicom test data within the highdicom repository at
     )
     sr_dataset.save_as("sr_document_with_multiple_groups.dcm")
 
-.. _tid300def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300
-.. _tid1500def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500 
-.. _tid1501def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1501
-.. _tid1410def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1410
-.. _tid1411def: http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1411
-
+.. _tid300def: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_300
+.. _tid1500def: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500
+.. _tid1501def: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1501
+.. _tid1410def: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1410
+.. _tid1411def: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1411
