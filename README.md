@@ -34,6 +34,6 @@ If you use highdicom in your research, please cite the above article.
 The developers gratefully acknowledge their support:
 * The [Alliance for Digital Pathology](https://digitalpathologyalliance.org/)
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
-* [Quantitative Image Informatics for Cancer Research (QIICR)](http://qiicr.org)
-* [Radiomics](http://radiomics.io)
+* [Quantitative Image Informatics for Cancer Research (QIICR)](https://qiicr.org/)
+* [Radiomics](https://www.radiomics.io/)
 * The [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/)

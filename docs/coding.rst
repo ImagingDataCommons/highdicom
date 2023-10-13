@@ -34,9 +34,9 @@ Examples of widely used medical terminologies include:
   terminology. This terminology is defined within the DICOM standard itself and
   is used to refer to DICOM concepts, as well as other concepts
   within the radiology workflow.
-- `SNOMED-CT <http://snomed.info/sct>`_. This terminology contains codes to
+- `SNOMED-CT <https://www.snomed.org/>`_. This terminology contains codes to
   describe medical concepts including anatomy, diseases, and procedures.
-- `RadLex <http://www.radlex.org/>`_. A standardized terminology for concepts
+- `RadLex <https://radlex.org/>`_. A standardized terminology for concepts
   in radiology.
 - `UCUM <https://ucum.org/>`_. A terminology specifically to describe units of
   measurement.
