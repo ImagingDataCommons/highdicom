@@ -1355,7 +1355,7 @@ class Segmentation(SOPClass):
             If True, `highdicom` will automatically convert an input total
             pixel matrix into a sequence of frames representing tiles of the
             segmentation. This is valid only when the source image supports
-            tiling (e.g. VL While Slide Microscopy images).
+            tiling (e.g. VL Whole Slide Microscopy images).
 
             If True, the input pixel array must consist of a single "frame",
             i.e. must be either a 2D numpy array, a 3D numpy array with a size

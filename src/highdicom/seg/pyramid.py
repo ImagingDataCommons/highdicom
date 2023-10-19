@@ -36,26 +36,28 @@ def create_segmentation_pyramid(
     """Construct a multi-resolution segmentation pyramid series.
 
     A multi-resolution pyramid represents the same segmentation array at
-    multiple resolutions
+    multiple resolutions.
 
     This function handles multiple related scenarios:
 
     * Constructing a segmentation of a source image pyramid given a
-      segmentation pixel array of the highest resolution source image, with
-      highdicom performing the downsampling automatically to match the
-      resolution of the other source images (pass multiple ``source_images``
-      and a single item in ``pixel_arrays``).
+      segmentation pixel array of the highest resolution source image.
+      Highdicom performs the downsampling automatically to match the
+      resolution of the other source images. For this case, pass multiple
+      ``source_images`` and a single item in ``pixel_arrays``.
     * Constructing a segmentation of a source image pyramid given user-provided
-      segmentation pixel arrays for each level in the source pyramid (pass
-      multiple ``source_images`` and a matching number of ``pixel_arrays``).
+      segmentation pixel arrays for each level in the source pyramid. For this
+      case, pass multiple ``source_images`` and a matching number of
+      ``pixel_arrays``.
     * Constructing a segmentation of a single source image given multiple
-      user-provided downsampled segmentation pixel arrays (pass a single item
-      in ``source_images``, and multiple items in ``pixel_arrays``).
+      user-provided downsampled segmentation pixel arrays. For this case, pass
+      a single item in ``source_images``, and multiple items in
+      ``pixel_arrays``).
     * Constructing a segmentation of a single source image and a single
       segmentation pixel array by downsampling by a given list of
-      ``downsample_factors`` (pass a single item in ``source_images``, a single
-      item in ``pixel_arrays``, and a list of one or more desired
-      ``downsample_factors``).
+      ``downsample_factors``. For this case, pass a single item in
+      ``source_images``, a single item in ``pixel_arrays``, and a list of one
+      or more desired ``downsample_factors``.
 
     In all cases, the items in both ``source_images`` and ``pixel_arrays``
     should be sorted in pyramid order from highest resolution (smallest
@@ -72,7 +74,7 @@ def create_segmentation_pyramid(
     ----------
     source_images: Sequence[pydicom.Dataset]
         List of source images. If there are multiple source images, they should
-        represent be from the same series and pyramid.
+        be from the same series and pyramid.
     pixel_arrays: Sequence[numpy.ndarray]
         List of segmentation pixel arrays. Each should be a total pixel matrix.
     segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
@@ -132,9 +134,6 @@ def create_segmentation_pyramid(
     anti-aliasing), explicitly pass the downsampled arrays.
 
     """
-    # TODO check dimensions of input arrays
-    # TODO check total pixel matrix sizes correspond
-    # TODO check ordering of items in list
     # TODO check source images are same series and pyramid
     # TODO add support for single source image with predefined downsampled
     # arrays
@@ -168,6 +167,17 @@ def create_segmentation_pyramid(
             raise ValueError(
                 'All items in "downsample_factors" must be greater than 1.'
             )
+        if len(downsample_factors) > 1:
+            if any(
+                z1 > z2 for z1, z2 in zip(
+                    downsample_factors[:-1],
+                    downsample_factors[1:]
+                )
+            ):
+                raise ValueError(
+                    'Items in argument "downsample_factors" must be sorted in '
+                    'ascending order.'
+                )
         n_outputs = len(downsample_factors) + 1  # including original
     else:
         if downsample_factors is not None:
@@ -178,13 +188,84 @@ def create_segmentation_pyramid(
         if n_sources > 1 and n_pix_arrays > 1:
             if n_sources != n_pix_arrays:
                 raise ValueError(
-                    "If providing multiple source images and multiple pixel "
-                    "arrays, the number of items in the two lists must match."
+                    'If providing multiple source images and multiple pixel '
+                    'arrays, the number of items in the two lists must match.'
                 )
             n_outputs = n_sources
         else:
             # Either n_sources > 1 or n_pix_arrays > 1 but not both
             n_outputs = max(n_sources, n_pix_arrays)
+
+    # Check the source images are appropriately ordered
+    for index in range(1, len(source_images)):
+        r0 = source_images[index - 1].TotalPixelMatrixRows
+        c0 = source_images[index - 1].TotalPixelMatrixColumns
+        r1 = source_images[index].TotalPixelMatrixRows
+        c1 = source_images[index].TotalPixelMatrixColumns
+
+        if r0 >= r1 or c0 >= c1:
+            raise ValueError(
+                'Items in argument "source_images" must be strictly ordered in '
+                'decreasing resolution.'
+            )
+
+    # Check that pixel arrays have an appropriate shape
+    for pixel_array in pixel_arrays:
+        if pixel_array.ndim not in (2, 3, 4):
+            raise ValueError(
+                'Each item of argument "pixel_arrays" must be a NumPy array '
+                'with 2, 3, or 4 dimensions.'
+            )
+        if pixel_array.ndim > 2 and pixel_array.shape[0] != 1:
+            raise ValueError(
+                'Each item of argument "pixel_arrays" must contain a single '
+                'frame, with a size of 1 along dimension 0.'
+            )
+
+    # Check the pixel arrays are appropriately ordered
+    for index in range(1, len(pixel_arrays)):
+        arr0 = pixel_arrays[index - 1]
+        arr1 = pixel_arrays[index]
+
+        if arr0.ndim == 2:
+            r0 = arr0.shape[:2]
+            c0 = arr0.shape[:2]
+        else:
+            r0 = arr0.shape[1:3]
+            c0 = arr0.shape[1:3]
+
+        if arr_1.ndim == 2:
+            r1 = arr_1.shape[:2]
+            c1 = arr_1.shape[:2]
+        else:
+            r1 = arr_1.shape[1:3]
+            c1 = arr_1.shape[1:3]
+
+        if r0 >= r1 or c0 >= c1:
+            raise ValueError(
+                'Items in argument "pixel_arrays" must be strictly ordered in '
+                'decreasing resolution.'
+            )
+
+    # Check that input dimensions match
+    for index, (source_image, pixel_array) in enumerate(
+        zip(source_images, pixel_arrays)
+    ):
+        src_shape = (
+            source_image.TotalPixelMatrixRows,
+            source_image.TotalPixelMatrixColumns
+        )
+        pix_shape = (
+            pixel_array.shape[1:3] if pixel_array.ndim > 2
+            else pixel_array.shape
+        )
+        if pix_shape != src_shape:
+            raise ValueError(
+                "The shape of each provided pixel array must match the shape "
+                "of the total pixel matrix of the corresponding source image. "
+                f"Got pixel array of shape {pix_shape} for a source image of "
+                f"shape {src_shape} at index {index}."
+            )
 
     if n_pix_arrays == 1:
         # Create a pillow image for use later with resizing
