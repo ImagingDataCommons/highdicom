@@ -134,10 +134,26 @@ def create_segmentation_pyramid(
     anti-aliasing), explicitly pass the downsampled arrays.
 
     """
-    # TODO check source images are same series and pyramid
     # TODO add support for single source image with predefined downsampled
     # arrays
-    # TODO disallow duplicate items in kwargs
+
+    # Disallow duplicate items in kwargs
+    kwarg_keys = set(kwargs.keys())
+    disallowed_keys = {
+        'instance_number',
+        'sop_instance_uid',
+        'plane_orientation',
+        'plane_positions',
+        'pixel_array',
+        'tile_pixel_array',
+    }
+    error_keys = kwarg_keys & disallowed_keys
+    if len(error_keys) > 0:
+        raise TypeError(
+            f'kwargs supplied to the create_segmentation_pyramid function '
+            f'should not contain a value for parameter {error_keys[0]}.'
+        )
+
     if pyramid_uid is None:
         pyramid_uid = UID()
     if series_instance_uid is None:
@@ -209,6 +225,26 @@ def create_segmentation_pyramid(
                 'decreasing resolution.'
             )
 
+    # Check that the source images are from the same series and pyramid
+    if len(source_images) > 1:
+        series_uid = source_images[0].SeriesInstanceUID
+        if not all(
+            dcm.SeriesInstanceUID == series_uid
+            for dcm in source_images[1:]
+        ):
+            raise ValueError(
+                'All source images should belong to the same series.'
+            )
+        pyramid_uid = source_images[0].PyramidUID
+        if not all(
+            dcm.PyramidUID == pyramid_uid
+            for dcm in source_images[1:]
+        ):
+            raise ValueError(
+                'All source images should belong to the same pyramid '
+                '(share a Pyramid UID).'
+            )
+
     # Check that pixel arrays have an appropriate shape
     for pixel_array in pixel_arrays:
         if pixel_array.ndim not in (2, 3, 4):
@@ -234,12 +270,12 @@ def create_segmentation_pyramid(
             r0 = arr0.shape[1:3]
             c0 = arr0.shape[1:3]
 
-        if arr_1.ndim == 2:
-            r1 = arr_1.shape[:2]
-            c1 = arr_1.shape[:2]
+        if arr1.ndim == 2:
+            r1 = arr1.shape[:2]
+            c1 = arr1.shape[:2]
         else:
-            r1 = arr_1.shape[1:3]
-            c1 = arr_1.shape[1:3]
+            r1 = arr1.shape[1:3]
+            c1 = arr1.shape[1:3]
 
         if r0 >= r1 or c0 >= c1:
             raise ValueError(
