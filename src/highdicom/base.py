@@ -14,7 +14,7 @@ from highdicom.enum import (
     ContentQualificationValues,
     PatientSexValues,
 )
-from highdicom.valuerep import check_person_name
+from highdicom.valuerep import check_person_name, _check_long_string
 from highdicom.version import __version__
 from highdicom._module_utils import is_attribute_in_iod
 
@@ -199,16 +199,23 @@ class SOPClass(Dataset):
             self.SeriesDescription = series_description
 
         # Equipment
+        if manufacturer is not None:
+            _check_long_string(manufacturer)
         self.Manufacturer = manufacturer
         if manufacturer_model_name is not None:
+            _check_long_string(manufacturer_model_name)
             self.ManufacturerModelName = manufacturer_model_name
         if device_serial_number is not None:
+            _check_long_string(device_serial_number)
             self.DeviceSerialNumber = device_serial_number
         if software_versions is not None:
+            _check_long_string(software_versions)
             self.SoftwareVersions = software_versions
         if institution_name is not None:
+            _check_long_string(institution_name)
             self.InstitutionName = institution_name
             if institutional_department_name is not None:
+                _check_long_string(institutional_department_name)
                 self.InstitutionalDepartmentName = institutional_department_name
 
         # Instance

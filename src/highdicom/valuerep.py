@@ -47,7 +47,7 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
         raise TypeError('Invalid type for a person name.')
 
     name_url = (
-        'http://dicom.nema.org/dicom/2013/output/chtml/part05/'
+        'https://dicom.nema.org/dicom/2013/output/chtml/part05/'
         'sect_6.2.html#sect_6.2.1.2'
     )
     if '^' not in person_name and person_name != '':  # empty string is allowed

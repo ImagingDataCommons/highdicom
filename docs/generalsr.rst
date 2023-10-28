@@ -13,7 +13,7 @@ explanation my be found in:
 
 * *DICOM Structured Reporting*. David Clunie. PixelMed Publishing, 2000.
   Digital copy available 
-  `here <http://www.dclunie.com/pixelmed/DICOMSR.book.pdf>`_.
+  `here <https://www.dclunie.com/pixelmed/DICOMSR.book.pdf>`_.
 
 Content Items
 -------------
