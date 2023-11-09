@@ -701,8 +701,8 @@ class DimensionIndexSequence(DataElementSequence):
         >>> names = dimension_index.get_index_keywords()
         >>> for name in names:
         ...     print(name)
-        ColumnPositionInTotalImagePixelMatrix
         RowPositionInTotalImagePixelMatrix
+        ColumnPositionInTotalImagePixelMatrix
         XOffsetInSlideCoordinateSystem
         YOffsetInSlideCoordinateSystem
         ZOffsetInSlideCoordinateSystem
