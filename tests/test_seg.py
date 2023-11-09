@@ -1581,10 +1581,15 @@ class TestSegmentation:
 
         transfer_syntax_uids = [ExplicitVRLittleEndian]
         if segmentation_type.value == 'FRACTIONAL':
-            transfer_syntax_uids += [
-                JPEG2000Lossless,
-                JPEGLSLossless,
-            ]
+            try:
+                import libjpeg  # noqa: F401
+            except ModuleNotFoundError:
+                pass
+            else:
+                transfer_syntax_uids += [
+                    JPEG2000Lossless,
+                    JPEGLSLossless,
+                ]
 
         for omit_empty_frames, transfer_syntax_uid in itertools.product(
             omit_empty_frames_values,
