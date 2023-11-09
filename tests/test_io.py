@@ -157,6 +157,25 @@ class TestImageFileReader(unittest.TestCase):
                 )
                 np.testing.assert_array_equal(frame, pixel_array[i, ...])
 
+    def test_read_ybr_422_native(self):
+        # Reading a frame using YBR_422 photometric interpretation and no
+        # compression
+        filename = str(get_testdata_file('SC_ybr_full_422_uncompressed.dcm'))
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(filename) as reader:
+            assert reader.number_of_frames == 1
+            frame = reader.read_frame(0, correct_color=False)
+            assert isinstance(frame, np.ndarray)
+            assert frame.ndim == 3
+            assert frame.dtype == np.uint8
+            assert frame.shape == (
+                reader.metadata.Rows,
+                reader.metadata.Columns,
+                reader.metadata.SamplesPerPixel,
+            )
+            np.testing.assert_array_equal(frame, pixel_array)
+
     def test_read_single_frame_ct_image_dicom_bytes_io(self):
         filename = str(self._test_dir.joinpath("ct_image.dcm"))
         dcm = DicomBytesIO(open(filename, "rb").read())
