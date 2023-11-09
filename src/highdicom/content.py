@@ -390,6 +390,40 @@ class PixelMeasuresSequence(DataElementSequence):
         pixel_measures.__class__ = PixelMeasuresSequence
         return cast(PixelMeasuresSequence, pixel_measures)
 
+    def __eq__(self, other: DataElementSequence) -> bool:
+        """Determine whether two sets of pixel measures are the same.
+
+        Parameters
+        ----------
+        other: pydicom.Sequence
+            A second pixel measures sequence, to be compared to self.
+
+        Returns
+        -------
+        bool:
+            True if all items match exactly. False otherwise.
+
+        """
+        if not isinstance(other, DataElementSequence):
+            raise TypeError('Second item must be of type pydicom.Sequence.')
+        if len(other) != 1:
+            raise ValueError('Second item must have length 1.')
+
+        if other[0].SliceThickness != self[0].SliceThickness:
+            return False
+        if other[0].PixelSpacing != self[0].PixelSpacing:
+            return False
+        if (
+            hasattr(other[0], 'SpacingBetweenSlices') !=
+            hasattr(self[0], 'SpacingBetweenSlices')
+        ):
+            return False
+        if hasattr(self[0], 'SpacingBetweenSlices'):
+            if other[0].SpacingBetweenSlices != self[0].SpacingBetweenSlices:
+                return False
+
+        return True
+
 
 class PlanePositionSequence(DataElementSequence):
 
@@ -440,6 +474,11 @@ class PlanePositionSequence(DataElementSequence):
             item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
             item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
             item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
+            if row_position < 0 or col_position < 0:
+                raise ValueError(
+                    'Both items in "pixel_matrix_position" must be positive '
+                    'integers.'
+                )
             item.RowPositionInTotalImagePixelMatrix = row_position
             item.ColumnPositionInTotalImagePixelMatrix = col_position
         elif coordinate_system == CoordinateSystemNames.PATIENT:
