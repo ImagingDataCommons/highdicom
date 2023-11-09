@@ -625,6 +625,102 @@ combination with ``tile_pixel_array`` argument.
     assert seg.NumberOfFrames == 25
     assert seg.pixel_array.shape == (25, 10, 10)
 
+Multi-resolution Pyramids
+-------------------------
+
+Whole slide digital pathology images can often be very large and as such it
+is common to represent them as *multi-resolution pyramids* of images, i.e.
+to store multiple versions of the same image at different resolutions. This
+helps viewers render the image at different zoom levels.
+
+Within DICOM, this can also extend to segmentations derived from whole slide
+images. Multiple different SEG images may be stored, each representing the
+same segmentation at a different resolution, as different instances within a
+DICOM series.
+
+*highdicom* provides the :func:`highdicom.seg.create_segmentation_pyramid`
+function to assist with this process. This function handles multiple related
+scenarios:
+
+* Constructing a segmentation of a source image pyramid given a
+  segmentation pixel array of the highest resolution source image.
+  Highdicom performs the downsampling automatically to match the
+  resolution of the other source images. For this case, pass multiple
+  ``source_images`` and a single item in ``pixel_arrays``.
+* Constructing a segmentation of a source image pyramid given user-provided
+  segmentation pixel arrays for each level in the source pyramid. For this
+  case, pass multiple ``source_images`` and a matching number of
+  ``pixel_arrays``.
+* Constructing a segmentation of a single source image given multiple
+  user-provided downsampled segmentation pixel arrays. For this case, pass
+  a single item in ``source_images``, and multiple items in
+  ``pixel_arrays``).
+* Constructing a segmentation of a single source image and a single
+  segmentation pixel array by downsampling by a given list of
+  ``downsample_factors``. For this case, pass a single item in
+  ``source_images``, a single item in ``pixel_arrays``, and a list of one
+  or more desired ``downsample_factors``.
+
+Here is a simple of example of specifying a single source image and segmentation
+array, and having *highdicom* create a multi-resolution pyramid segmentation
+series at user-specified downsample factors.
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom import dcmread
+    import numpy as np
+
+
+    # Use an example slide microscopy image from the highdicom test data
+    # directory
+    sm_image = dcmread('data/test_files/sm_image.dcm')
+
+    # The source image has multiple frames/tiles, but here we create a mask
+    # corresponding to the entire total pixel matrix
+    mask = np.zeros(
+        (
+            sm_image.TotalPixelMatrixRows,
+            sm_image.TotalPixelMatrixColumns
+        ),
+        dtype=np.uint8,
+    )
+    mask[38:43, 5:41] = 1
+
+    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Stucture")
+    property_type = hd.sr.CodedConcept("84640000", "SCT", "Nucleus")
+    segment_descriptions = [
+        hd.seg.SegmentDescription(
+            segment_number=1,
+            segment_label='Segment #1',
+            segmented_property_category=property_category,
+            segmented_property_type=property_type,
+            algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+        ),
+    ]
+
+    # This will create a segmentation series of three images: one at the
+    # original source image resolution (implicit), one at half the size, and
+    # another at a quarter of the original size.
+    seg_pyramid = hd.seg.create_segmentation_pyramid(
+        source_images=[sm_image],
+        pixel_arrays=[mask],
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=segment_descriptions,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Slide Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+        downsample_factors=[2.0, 4.0]
+    )
+
+Note that the :func:`highdicom.seg.create_segmentation_pyramid` function always
+behaves as if the ``tile_pixel_array`` input is ``True`` within the segmentation
+constructor, i.e. it assumes that the input segmentation masks represent total
+pixel matrices.
+
 Representation of Fractional SEGs
 ---------------------------------
 
