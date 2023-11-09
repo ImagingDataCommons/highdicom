@@ -260,7 +260,7 @@ class TestEncodeFrame(TestCase):
         assert compressed_frame.endswith(b'\xFF\xD9')
         decoded_frame = decode_frame(
             value=compressed_frame,
-            transfer_syntax_uid=JPEG2000Lossless,
+            transfer_syntax_uid=JPEGLSLossless,
             rows=frame.shape[0],
             columns=frame.shape[1],
             samples_per_pixel=1,
