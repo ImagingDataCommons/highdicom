@@ -384,32 +384,32 @@ class DimensionIndexSequence(DataElementSequence):
             z_axis_index.DimensionDescriptionLabel = \
                 'Z Offset in Slide Coordinate System'
 
-            row_dimension_index = Dataset()
-            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'ColumnPositionInTotalImagePixelMatrix'
-            )
-            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            row_dimension_index.DimensionOrganizationUID = dim_uid
-            row_dimension_index.DimensionDescriptionLabel = \
-                'Column Position In Total Image Pixel Matrix'
-
             column_dimension_index = Dataset()
             column_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'RowPositionInTotalImagePixelMatrix'
+                'ColumnPositionInTotalImagePixelMatrix'
             )
             column_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
             column_dimension_index.DimensionOrganizationUID = dim_uid
             column_dimension_index.DimensionDescriptionLabel = \
+                'Column Position In Total Image Pixel Matrix'
+
+            row_dimension_index = Dataset()
+            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            row_dimension_index.DimensionOrganizationUID = dim_uid
+            row_dimension_index.DimensionDescriptionLabel = \
                 'Row Position In Total Image Pixel Matrix'
 
-            # Organize frames for each segment similar to TILED_FULL, first
-            # along the row dimension (column indices from left to right) and
-            # then along the column dimension (row indices from top to bottom)
-            # of the Total Pixel Matrix.
+            # Organize frames for each segment similar to TILED_FULL, with
+            # segment position changing least frequently, followed by position
+            # of the row (from top to bottom) and then position of the column
+            # (from left to right) changing most frequently
             self.extend([
                 segment_number_index,
                 row_dimension_index,
@@ -614,7 +614,11 @@ class DimensionIndexSequence(DataElementSequence):
         Returns
         -------
         dimension_index_values: numpy.ndarray
-            2D array of dimension index values
+            Array of dimension index values. The first dimension corresponds
+            to the items in the input plane_positions sequence. The second
+            dimension corresponds to the dimensions of the dimension index.
+            The third dimension (if any) corresponds to the multiplicity
+            of the values, and is omitted if this is 1 for all dimensions.
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index
@@ -660,6 +664,14 @@ class DimensionIndexSequence(DataElementSequence):
             return_index=True
         )
 
+        if len(plane_sort_indices) != len(plane_positions):
+            raise ValueError(
+                "Input image/frame positions are not unique according to the "
+                "Dimension Index Pointers. The generated segmentation would be "
+                "ambiguous. Ensure that source images/frames have distinct "
+                "locations."
+            )
+
         return (plane_position_values, plane_sort_indices)
 
     def get_index_keywords(self) -> List[str]:
@@ -689,8 +701,8 @@ class DimensionIndexSequence(DataElementSequence):
         >>> names = dimension_index.get_index_keywords()
         >>> for name in names:
         ...     print(name)
-        ColumnPositionInTotalImagePixelMatrix
         RowPositionInTotalImagePixelMatrix
+        ColumnPositionInTotalImagePixelMatrix
         XOffsetInSlideCoordinateSystem
         YOffsetInSlideCoordinateSystem
         ZOffsetInSlideCoordinateSystem

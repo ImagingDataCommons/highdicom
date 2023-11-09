@@ -1,9 +1,14 @@
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from copy import deepcopy
+import itertools
 import unittest
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.datadict import tag_for_keyword
@@ -23,8 +28,12 @@ from highdicom.content import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
+)
 from highdicom.seg import (
+    create_segmentation_pyramid,
     segread,
     DimensionIndexSequence,
     SegmentationTypeValues,
@@ -542,9 +551,9 @@ class TestDimensionIndexSequence(unittest.TestCase):
         assert len(seq) == 6
         assert seq[0].DimensionIndexPointer == 0x0062000B
         assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0048021E
+        assert seq[1].DimensionIndexPointer == 0x0048021F
         assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0048021F
+        assert seq[2].DimensionIndexPointer == 0x0048021E
         assert seq[2].FunctionalGroupPointer == 0x0048021A
         assert seq[3].DimensionIndexPointer == 0x0040072A
         assert seq[3].FunctionalGroupPointer == 0x0048021A
@@ -655,6 +664,27 @@ class TestSegmentation:
             dtype=bool
         )
         self._sm_pixel_array[2:3, 1:5, 7:9] = True
+
+        # Total pixel matrix segmentation array for tests
+        self._sm_total_pixel_array = np.zeros(
+            (
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            ),
+            dtype=bool
+        )
+        self._sm_total_pixel_array[38:43, 5:41] = True
+        self._sm_total_pixel_array[4:24, 25:29] = True
+
+        self._sm_total_pixel_array_multiclass = np.zeros(
+            (
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            ),
+            dtype=np.uint8,
+        )
+        self._sm_total_pixel_array_multiclass[38:43, 5:41] = 1
+        self._sm_total_pixel_array_multiclass[4:24, 25:29] = 2
 
         # A series of single frame CT images
         ct_series = [
@@ -786,8 +816,8 @@ class TestSegmentation:
         else:
             # Build up the mapping from index to value
             for dim_kw, dim_ind in zip([
+                'RowPositionInTotalImagePixelMatrix',
                 'ColumnPositionInTotalImagePixelMatrix',
-                'RowPositionInTotalImagePixelMatrix'
             ], [1, 2]):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
@@ -1406,6 +1436,251 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
 
+    def test_construction_workers(self):
+        # Create a segmentation with multiple workers
+        Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            transfer_syntax_uid=RLELossless,
+            workers=2,
+        )
+
+    def test_construction_workers_manual(self):
+        # Create a segmentation with multiple workers created manually
+        with ProcessPoolExecutor(2) as pool:
+            Segmentation(
+                self._ct_series,
+                self._ct_series_mask_array,
+                SegmentationTypeValues.FRACTIONAL.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                content_label=self._content_label,
+                transfer_syntax_uid=RLELossless,
+                workers=pool,
+            )
+
+    def test_construction_tiled_full(self):
+        instance = Segmentation(
+            [self._sm_image],
+            pixel_array=self._sm_pixel_array,
+            segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            dimension_organization_type="TILED_FULL",
+            omit_empty_frames=False,
+        )
+        assert instance.DimensionOrganizationType == "TILED_FULL"
+        assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            DimensionOrganizationTypeValues.TILED_FULL,
+            DimensionOrganizationTypeValues.TILED_SPARSE,
+        ])
+    def dimension_organization_type(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            SegmentationTypeValues.FRACTIONAL,
+            SegmentationTypeValues.BINARY,
+        ])
+    def segmentation_type(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            None,
+            (10, 10),
+            (10, 25),
+            (25, 25),
+            (30, 30),
+        ])
+    def tile_size(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def locations_preserved(request):
+        return request.param
+
+    @staticmethod
+    @pytest.fixture(params=[1, 2])
+    def num_segments(request):
+        return request.param
+
+    def test_construction_autotile(
+        self,
+        tile_size,
+        dimension_organization_type,
+        segmentation_type,
+        locations_preserved,
+        num_segments,
+    ):
+        if num_segments == 1:
+            pixel_array = self._sm_total_pixel_array
+            segment_descriptions = self._segment_descriptions
+        else:
+            pixel_array = self._sm_total_pixel_array_multiclass
+            segment_descriptions = self._both_segment_descriptions
+
+        if locations_preserved:
+            pixel_measures = None
+            plane_orientation = None
+            plane_positions = None
+        else:
+            pixel_measures = PixelMeasuresSequence(
+               pixel_spacing=(0.0001, 0.0001),
+               slice_thickness=0.001,
+            )
+            plane_orientation = PlaneOrientationSequence(
+                coordinate_system='SLIDE',
+                image_orientation=[0.0, -1.0, 0.0, 1.0, 0.0, 0.0]
+            )
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system='SLIDE',
+                    image_position=[1.1234, -5.4323214, 0.0],
+                    pixel_matrix_position=(1, 1),
+                )
+            ]
+
+        if dimension_organization_type.value == 'TILED_FULL':
+            # Cannot omit empty frames with TILED_FULL
+            omit_empty_frames_values = [False]
+        else:
+            omit_empty_frames_values = [False, True]
+
+        transfer_syntax_uids = [ExplicitVRLittleEndian]
+        if segmentation_type.value == 'FRACTIONAL':
+            try:
+                import libjpeg  # noqa: F401
+            except ModuleNotFoundError:
+                pass
+            else:
+                transfer_syntax_uids += [
+                    JPEG2000Lossless,
+                    JPEGLSLossless,
+                ]
+
+        for omit_empty_frames, transfer_syntax_uid in itertools.product(
+            omit_empty_frames_values,
+            transfer_syntax_uids,
+        ):
+            instance = Segmentation(
+                [self._sm_image],
+                pixel_array=pixel_array,
+                segmentation_type=segmentation_type,
+                segment_descriptions=segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                dimension_organization_type=dimension_organization_type,
+                omit_empty_frames=omit_empty_frames,
+                plane_orientation=plane_orientation,
+                plane_positions=plane_positions,
+                pixel_measures=pixel_measures,
+                tile_pixel_array=True,
+                tile_size=tile_size,
+                max_fractional_value=1,
+                transfer_syntax_uid=transfer_syntax_uid,
+            )
+            assert (
+                instance.DimensionOrganizationType ==
+                dimension_organization_type.value
+            )
+            if tile_size is not None:
+                assert instance.Rows == tile_size[0]
+                assert instance.Columns == tile_size[1]
+
+            # pydicom raises warnings if it has to pad or truncate pixel data
+            with warnings.catch_warnings(record=True) as w:
+                self.get_array_after_writing(instance)
+                assert len(w) == 0
+
+            # Check that full reconstructed array matches the input
+            reconstructed_array = instance.get_total_pixel_matrix(
+                combine_segments=True,
+            )
+            assert reconstructed_array.shape == (
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            )
+            assert np.array_equal(
+                reconstructed_array,
+                pixel_array,
+            )
+
+            def to_numpy(c):
+                # Move from our 1-based convention to numpy zero based
+                if c is None:
+                    # None is handled the same
+                    return None
+                elif c > 0:
+                    # Positive indices are 1-based
+                    return c - 1
+                else:
+                    # Negative indices are the same
+                    return c
+
+            # Check that subregions defined in different ways match the input
+            for rs, re, cs, ce in [
+                (34, 48, 3, None),
+                (-13, None, -34, -23),
+            ]:
+                reconstructed_array = instance.get_total_pixel_matrix(
+                    combine_segments=True,
+                    row_start=rs,
+                    row_end=re,
+                    column_start=cs,
+                    column_end=ce,
+                )
+
+                rs_np = to_numpy(rs)
+                re_np = to_numpy(re)
+                cs_np = to_numpy(cs)
+                ce_np = to_numpy(ce)
+                expected_array = pixel_array[
+                    (slice(rs_np, re_np), slice(cs_np, ce_np))
+                ]
+                assert np.array_equal(
+                    reconstructed_array,
+                    expected_array,
+                )
+
     def test_pixel_types_fractional(
         self,
         fractional_transfer_syntax_uid,
@@ -1490,16 +1765,10 @@ class TestSegmentation:
         )
 
         # Ensure the recovered pixel array matches what is expected
-        if pix_type in (np.bool_, np.float_):
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding * max_fractional_value
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
-        else:
-            assert np.array_equal(
-                self.get_array_after_writing(instance),
-                expected_encoding
-            ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding * max_fractional_value
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
         # Multi-segment (exclusive)
@@ -1516,7 +1785,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1532,7 +1801,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_exc
+            expected_enc_exc * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1550,7 +1819,7 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            max_fractional_value=1,
+            max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
         if pix_type == np.float_:
@@ -1566,7 +1835,7 @@ class TestSegmentation:
 
         assert np.array_equal(
             self.get_array_after_writing(instance),
-            expected_enc_overlap
+            expected_enc_overlap * max_fractional_value
         ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1871,7 +2140,7 @@ class TestSegmentation:
             )
 
     def test_construction_empty_source_seg_sparse(self):
-        # Can encoding an empty segmentation with omit_empty_frames=True issues
+        # Encoding an empty segmentation with omit_empty_frames=True issues
         # a warning and encodes the full segmentation
         empty_pixel_array = np.zeros_like(self._ct_pixel_array)
         seg = Segmentation(
@@ -1921,9 +2190,7 @@ class TestSegmentation:
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-                segment_descriptions=(
-                    self._segment_descriptions
-                ),
+                segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -1941,9 +2208,35 @@ class TestSegmentation:
                 source_images=self._ct_series + [self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
-                segment_descriptions=(
-                    self._additional_segment_descriptions  # seg num 2
-                ),
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_nonunqiue_plane_positions(self):
+        # It should not be possible to construct a segmentation with input
+        # images with the same plane location, even if they are otherwise
+        # distinct
+        ct_image_2 = deepcopy(self._ct_image)
+        ct_image_2.SOPInstanceUID = UID()
+        ct_image_2.InstanceNumber = 2
+        pixel_array = np.zeros(
+            (2, *self._ct_image.pixel_array.shape),
+            dtype=bool
+        )
+        pixel_array[0, 1:5, 10:15] = True
+        with pytest.raises(ValueError):
+            Segmentation(
+                source_images=[self._ct_image, ct_image_2],
+                pixel_array=pixel_array,
+                segmentation_type=SegmentationTypeValues.BINARY,
+                segment_descriptions=self._segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
                 series_number=self._series_number,
                 sop_instance_uid=self._sop_instance_uid,
@@ -2633,6 +2926,8 @@ class TestSegmentationParsing():
         seg = segread('data/test_files/seg_image_ct_binary_overlap.dcm')
         assert isinstance(seg, Segmentation)
         seg = segread('data/test_files/seg_image_sm_numbers.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_dots_tiled_full.dcm')
         assert isinstance(seg, Segmentation)
 
     def test_properties(self):
@@ -3446,3 +3741,210 @@ class TestSegUtilities(unittest.TestCase):
         seg_id_item_2 = item_segment_2[1][0].SegmentIdentificationSequence[0]
         assert seg_id_item_2.ReferencedSegmentNumber == 2
         assert item_segment_2[2].SegmentNumber == 2
+
+
+class TestPyramid(unittest.TestCase):
+
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        tpm_size = (
+            self._sm_image.TotalPixelMatrixRows,
+            self._sm_image.TotalPixelMatrixColumns
+        )
+        self._seg_pix = np.zeros(
+            tpm_size,
+            dtype=np.uint8,
+        )
+        self._seg_pix[5:15, 3:8] = 1
+
+        self._n_downsamples = 3
+        self._downsampled_pix_arrays = [self._seg_pix]
+        seg_pil = Image.fromarray(self._seg_pix)
+        pyramid_uid = UID()
+        self._source_pyramid = [deepcopy(self._sm_image)]
+        self._source_pyramid[0].PyramidUID = pyramid_uid
+        for i in range(1, self._n_downsamples):
+            f = 2 ** i
+            out_size = (
+                self._sm_image.TotalPixelMatrixRows // f,
+                self._sm_image.TotalPixelMatrixColumns // f
+            )
+
+            # Resize the segmentation arrays
+            resized = np.array(
+                seg_pil.resize(out_size, Image.Resampling.NEAREST)
+            )
+            self._downsampled_pix_arrays.append(resized)
+
+            # Mock lower-resolution source images. No need to have their pixel
+            # data correctly set as it isn't used. Just update the relevant
+            # metadata
+            src_pixel_spacing = (
+                self._sm_image
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            pixel_spacing = [src_pixel_spacing[0] * f, src_pixel_spacing[1] * f]
+            downsampled_source_im = deepcopy(self._sm_image)
+            delattr(downsampled_source_im, 'PixelData')
+            downsampled_source_im.TotalPixelMatrixRows = out_size[0]
+            downsampled_source_im.TotalPixelMatrixColumns = out_size[1]
+            (
+                downsampled_source_im
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            ) = pixel_spacing
+            downsampled_source_im.PyramidUID = pyramid_uid
+            self._source_pyramid.append(downsampled_source_im)
+
+        self._segmented_property_category = \
+            codes.SCT.MorphologicallyAbnormalStructure
+        self._segmented_property_type = codes.SCT.Neoplasm
+        self._segment_descriptions = [
+            SegmentDescription(
+                segment_number=1,
+                segment_label='Segment #1',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            ),
+        ]
+
+    def test_pyramid_factors(self):
+        downsample_factors = [2.0, 5.0]
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+            downsample_factors=downsample_factors,
+        )
+
+        assert len(segs) == len(downsample_factors) + 1
+        tol = 0.01
+        for f, seg in zip([1.0, *downsample_factors], segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert abs(
+                seg.TotalPixelMatrixRows - int(self._seg_pix.shape[0] / f)
+            ) < tol
+            assert abs(
+                seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
+            ) < tol
+
+    def test_pyramid_downsample_factors(self):
+        # Test construction when given a single source image, single
+        # segmentation mask, and specified downsample factors
+        downsample_factors = [2.0, 5.0]
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+            downsample_factors=downsample_factors,
+        )
+
+        assert len(segs) == len(downsample_factors) + 1
+        tol = 0.01
+        for f, seg in zip([1.0, *downsample_factors], segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert abs(
+                seg.TotalPixelMatrixRows - int(self._seg_pix.shape[0] / f)
+            ) < tol
+            assert abs(
+                seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
+            ) < tol
+
+    def test_single_source_multiple_pixel_arrays(self):
+        # Test construction when given a single source image and multiple
+        # segmentation images
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=self._downsampled_pix_arrays,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._downsampled_pix_arrays)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
+
+    def test_multiple_source_single_pixel_array(self):
+        # Test construction when given multiple source images and a single
+        # segmentation image
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
+
+    def test_multiple_source_multiple_pixel_arrays(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=self._downsampled_pix_arrays,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
