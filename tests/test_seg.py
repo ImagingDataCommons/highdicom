@@ -8,6 +8,7 @@ import warnings
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.datadict import tag_for_keyword
@@ -32,6 +33,7 @@ from highdicom.enum import (
     DimensionOrganizationTypeValues,
 )
 from highdicom.seg import (
+    create_segmentation_pyramid,
     segread,
     DimensionIndexSequence,
     SegmentationTypeValues,
@@ -3734,3 +3736,210 @@ class TestSegUtilities(unittest.TestCase):
         seg_id_item_2 = item_segment_2[1][0].SegmentIdentificationSequence[0]
         assert seg_id_item_2.ReferencedSegmentNumber == 2
         assert item_segment_2[2].SegmentNumber == 2
+
+
+class TestPyramid(unittest.TestCase):
+
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        tpm_size = (
+            self._sm_image.TotalPixelMatrixRows,
+            self._sm_image.TotalPixelMatrixColumns
+        )
+        self._seg_pix = np.zeros(
+            tpm_size,
+            dtype=np.uint8,
+        )
+        self._seg_pix[5:15, 3:8] = 1
+
+        self._n_downsamples = 3
+        self._downsampled_pix_arrays = [self._seg_pix]
+        seg_pil = Image.fromarray(self._seg_pix)
+        pyramid_uid = UID()
+        self._source_pyramid = [deepcopy(self._sm_image)]
+        self._source_pyramid[0].PyramidUID = pyramid_uid
+        for i in range(1, self._n_downsamples):
+            f = 2 ** i
+            out_size = (
+                self._sm_image.TotalPixelMatrixRows // f,
+                self._sm_image.TotalPixelMatrixColumns // f
+            )
+
+            # Resize the segmentation arrays
+            resized = np.array(
+                seg_pil.resize(out_size, Image.Resampling.NEAREST)
+            )
+            self._downsampled_pix_arrays.append(resized)
+
+            # Mock lower-resolution source images. No need to have their pixel
+            # data correctly set as it isn't used. Just update the relevant
+            # metadata
+            src_pixel_spacing = (
+                self._sm_image
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            pixel_spacing = [src_pixel_spacing[0] * f, src_pixel_spacing[1] * f]
+            downsampled_source_im = deepcopy(self._sm_image)
+            delattr(downsampled_source_im, 'PixelData')
+            downsampled_source_im.TotalPixelMatrixRows = out_size[0]
+            downsampled_source_im.TotalPixelMatrixColumns = out_size[1]
+            (
+                downsampled_source_im
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            ) = pixel_spacing
+            downsampled_source_im.PyramidUID = pyramid_uid
+            self._source_pyramid.append(downsampled_source_im)
+
+        self._segmented_property_category = \
+            codes.SCT.MorphologicallyAbnormalStructure
+        self._segmented_property_type = codes.SCT.Neoplasm
+        self._segment_descriptions = [
+            SegmentDescription(
+                segment_number=1,
+                segment_label='Segment #1',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            ),
+        ]
+
+    def test_pyramid_factors(self):
+        downsample_factors = [2.0, 5.0]
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+            downsample_factors=downsample_factors,
+        )
+
+        assert len(segs) == len(downsample_factors) + 1
+        tol = 0.01
+        for f, seg in zip([1.0, *downsample_factors], segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert abs(
+                seg.TotalPixelMatrixRows - int(self._seg_pix.shape[0] / f)
+            ) < tol
+            assert abs(
+                seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
+            ) < tol
+
+    def test_pyramid_downsample_factors(self):
+        # Test construction when given a single source image, single
+        # segmentation mask, and specified downsample factors
+        downsample_factors = [2.0, 5.0]
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+            downsample_factors=downsample_factors,
+        )
+
+        assert len(segs) == len(downsample_factors) + 1
+        tol = 0.01
+        for f, seg in zip([1.0, *downsample_factors], segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert abs(
+                seg.TotalPixelMatrixRows - int(self._seg_pix.shape[0] / f)
+            ) < tol
+            assert abs(
+                seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
+            ) < tol
+
+    def test_single_source_multiple_pixel_arrays(self):
+        # Test construction when given a single source image and multiple
+        # segmentation images
+        segs = create_segmentation_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=self._downsampled_pix_arrays,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._downsampled_pix_arrays)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
+
+    def test_multiple_source_single_pixel_array(self):
+        # Test construction when given multiple source images and a single
+        # segmentation image
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=[self._seg_pix],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
+
+    def test_multiple_source_multiple_pixel_arrays(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=self._downsampled_pix_arrays,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
