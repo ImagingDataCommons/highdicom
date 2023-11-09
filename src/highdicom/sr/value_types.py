@@ -877,19 +877,16 @@ class TimeContentItem(ContentItem):
     @property
     def value(self) -> datetime.time:
         """datetime.time: time"""
-        allowed_formats = [
-            '%H:%M:%S.%f',
-            '%H:%M:%S',
-            '%H:%M',
-            '%H',
-        ]
-        for fmt in allowed_formats:
+        if isinstance(self.Time, TM):
+            value = self.Time
+        else:
             try:
-                dt = datetime.datetime.strptime(self.Time.isoformat(), fmt)
-                return dt.time()
-            except ValueError:
-                continue
-        raise ValueError(f'Could not decode time value "{self.Time}"')
+                value = TM(self.Time)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode time value "{self.Time}"'
+                ) from exception
+        return value.replace()
 
     @classmethod
     def from_dataset(
@@ -952,8 +949,16 @@ class DateContentItem(ContentItem):
     @property
     def value(self) -> datetime.date:
         """datetime.date: date"""
-        fmt = '%Y-%m-%d'
-        return datetime.datetime.strptime(self.Date.isoformat(), fmt).date()
+        if isinstance(self.Date, DA):
+            value = self.Date
+        else:
+            try:
+                value = DA(self.Date)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode date value "{self.Date}"'
+                ) from exception
+        return value.replace()
 
     @classmethod
     def from_dataset(
@@ -1016,26 +1021,16 @@ class DateTimeContentItem(ContentItem):
     @property
     def value(self) -> datetime.datetime:
         """datetime.datetime: datetime"""
-        allowed_formats = [
-            '%Y-%m-%dT%H:%M:%S.%f%z',
-            '%Y-%m-%dT%H:%M:%S.%f',
-            '%Y-%m-%dT%H:%M:%S',
-            '%Y-%m-%dT%H:%M:%S%z',
-            '%Y-%m-%dT%H:%M',
-            '%Y-%m-%dT%H:%M%z',
-            '%Y-%m-%dT%H',
-            '%Y-%m-%dT%H%z',
-            '%Y-%m-%d',
-            '%Y-%m',
-            '%Y',
-        ]
-        for fmt in allowed_formats:
+        if isinstance(self.DateTime, DT):
+            value = self.DateTime
+        else:
             try:
-                dt = datetime.datetime.strptime(self.DateTime.isoformat(), fmt)
-                return dt
-            except ValueError:
-                continue
-        raise ValueError(f'Could not decode datetime value "{self.DateTime}"')
+                value = DT(self.DateTime)
+            except ValueError as exception:
+                raise ValueError(
+                    f'Could not decode datetime value "{self.DateTime}"'
+                ) from exception
+        return value.replace()
 
     @classmethod
     def from_dataset(
