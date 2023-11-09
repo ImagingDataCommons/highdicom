@@ -213,12 +213,12 @@ def test_compute_plane_position_slide_per_frame():
 
         tiles_per_column = math.ceil(image.TotalPixelMatrixRows / image.Rows)
         tiles_per_row = math.ceil(image.TotalPixelMatrixColumns / image.Columns)
-        assert len(plane_positions) == math.prod([
-            num_optical_paths,
-            num_focal_planes,
-            tiles_per_row,
-            tiles_per_column
-        ])
+        assert len(plane_positions) == (
+            num_optical_paths
+            * num_focal_planes
+            * tiles_per_row
+            * tiles_per_column
+        )
 
 
 def test_are_plane_positions_tiled_full():
