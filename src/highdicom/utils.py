@@ -196,7 +196,7 @@ def compute_plane_position_tiled_full(
 
     """
     if row_index < 1 or column_index < 1:
-        raise ValueError("Row and column indices must be positive intergers.")
+        raise ValueError("Row and column indices must be positive integers.")
     row_offset_frame = ((row_index - 1) * rows)
     column_offset_frame = ((column_index - 1) * columns)
 

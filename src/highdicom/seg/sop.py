@@ -1369,7 +1369,7 @@ class Segmentation(SOPClass):
             ``plane_orientation`` are supplied, the total pixel matrix of the
             segmentation is assumed to correspond to the total pixel matrix of
             the (single) source image. If ``plane_positions`` is supplied, the
-            sequence should contain a singe item representing the plane
+            sequence should contain a single item representing the plane
             position of the entire total pixel matrix. Plane positions of
             the newly created tiles will derived automatically from this.
 
@@ -4892,7 +4892,7 @@ class Segmentation(SOPClass):
         the conventions used in the DICOM standard. The first row of the total
         pixel matrix is row 1, and the last is ``self.TotalPixelMatrixRows``.
         This is is unlike standard Python and NumPy indexing which is 0-based.
-        For negative indices, the two are equavalent with the final row/column
+        For negative indices, the two are equivalent with the final row/column
         having index -1.
 
         """

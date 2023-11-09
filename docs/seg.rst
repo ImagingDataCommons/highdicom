@@ -534,7 +534,7 @@ options are available to you.
     )
     mask[38:43, 5:41] = 1
 
-    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Stucture")
+    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Structure")
     property_type = hd.sr.CodedConcept("84640000", "SCT", "Nucleus")
     segment_descriptions = [
         hd.seg.SegmentDescription(
@@ -591,7 +591,7 @@ attribute:
   receiving application to process, since the tiles are guaranteed to be
   regularly and consistently ordered.
 
-You can control tihs behavior by specifying the
+You can control this behavior by specifying the
 ``dimension_organization_type`` parameter and passing a value of the
 :class:`highdicom.DimensionOrganizationTypeValues` enum. The default value is
 ``"TILED_SPARSE"``. Generally, the ``"TILED_FULL"`` option will be used in
@@ -687,7 +687,7 @@ series at user-specified downsample factors.
     )
     mask[38:43, 5:41] = 1
 
-    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Stucture")
+    property_category = hd.sr.CodedConcept("91723000", "SCT", "Anatomical Structure")
     property_type = hd.sr.CodedConcept("84640000", "SCT", "Nucleus")
     segment_descriptions = [
         hd.seg.SegmentDescription(
