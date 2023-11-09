@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from PIL import Image
 from pydicom import Dataset
+from pydicom.uid import VLWholeSlideMicroscopyImageStorage
 
 from highdicom.content import PixelMeasuresSequence
 from highdicom.seg.sop import Segmentation
@@ -134,9 +135,6 @@ def create_segmentation_pyramid(
     anti-aliasing), explicitly pass the downsampled arrays.
 
     """
-    # TODO add support for single source image with predefined downsampled
-    # arrays
-
     # Disallow duplicate items in kwargs
     kwarg_keys = set(kwargs.keys())
     disallowed_keys = {
@@ -212,6 +210,13 @@ def create_segmentation_pyramid(
             # Either n_sources > 1 or n_pix_arrays > 1 but not both
             n_outputs = max(n_sources, n_pix_arrays)
 
+    if sop_instance_uids is not None:
+        if len(sop_instance_uids) != n_outputs:
+            raise ValueError(
+                'Number of specified SOP Instance UIDs does not match number '
+                'of output images.'
+            )
+
     # Check the source images are appropriately ordered
     for index in range(1, len(source_images)):
         r0 = source_images[index - 1].TotalPixelMatrixRows
@@ -219,10 +224,17 @@ def create_segmentation_pyramid(
         r1 = source_images[index].TotalPixelMatrixRows
         c1 = source_images[index].TotalPixelMatrixColumns
 
-        if r0 >= r1 or c0 >= c1:
+        if r0 <= r1 or c0 <= c1:
             raise ValueError(
                 'Items in argument "source_images" must be strictly ordered in '
                 'decreasing resolution.'
+            )
+
+    # Check that source images are WSI
+    for im in source_images:
+        if im.SOPClassUID != VLWholeSlideMicroscopyImageStorage:
+            raise ValueError(
+                'Source images must have IOD VLWholeSlideMicroscopyImageStorage'
             )
 
     # Check that the source images are from the same series and pyramid
@@ -234,6 +246,11 @@ def create_segmentation_pyramid(
         ):
             raise ValueError(
                 'All source images should belong to the same series.'
+            )
+        if not all(hasattr(dcm, 'PyramidUID') for dcm in source_images):
+            raise ValueError(
+                'All source images should belong to the same pyramid '
+                '(share a Pyramid UID).'
             )
         pyramid_uid = source_images[0].PyramidUID
         if not all(
@@ -277,7 +294,7 @@ def create_segmentation_pyramid(
             r1 = arr1.shape[1:3]
             c1 = arr1.shape[1:3]
 
-        if r0 >= r1 or c0 >= c1:
+        if r0 <= r1 or c0 <= c1:
             raise ValueError(
                 'Items in argument "pixel_arrays" must be strictly ordered in '
                 'decreasing resolution.'
@@ -342,17 +359,24 @@ def create_segmentation_pyramid(
                 )
 
         if n_sources == 1:
+            source_pixel_measures = (
+                source_image
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+            )
+            src_pixel_spacing = source_pixel_measures.PixelSpacing
+            src_slice_thickness = source_pixel_measures.SliceThickness
             row_spacing = (
-                source_image.PixelSpacing[0] *
+                src_pixel_spacing[0] *
                 (pixel_arrays[0].shape[0] / pixel_array.shape[0])
             )
             column_spacing = (
-                source_image.PixelSpacing[1] *
+                src_pixel_spacing[1] *
                 (pixel_arrays[0].shape[1] / pixel_array.shape[1])
             )
             pixel_measures = PixelMeasuresSequence(
                 pixel_spacing=(row_spacing, column_spacing),
-                slice_thickness=source_image.SliceThickness,
+                slice_thickness=src_slice_thickness
             )
         else:
             # This will be copied from the source image
