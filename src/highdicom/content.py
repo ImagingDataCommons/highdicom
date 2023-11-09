@@ -10,7 +10,10 @@ from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DS, format_number_as_ds
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import (
+    SegmentationStorage,
+    VLWholeSlideMicroscopyImageStorage,
+)
 
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -110,7 +113,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
 
         Returns
         -------
-        highdicom.seg.content.AlgorithmIdentificationSequence
+        highdicom.AlgorithmIdentificationSequence
             Algorithm Identification Sequence
 
         """
@@ -1438,21 +1441,20 @@ class ReferencedImageSequence(DataElementSequence):
         referenced_images: Optional[Sequence[Dataset]] = None,
         referenced_frame_number: Union[int, Sequence[int], None] = None,
         referenced_segment_number: Union[int, Sequence[int], None] = None,
+        referenced_optical_path_identifier: Union[int, None] = None,
     ):
         """
 
         Parameters
         ----------
         referenced_images: Union[Sequence[pydicom.Dataset], None], optional
-            Images to which the VOI LUT described in this dataset applies. Note
-            that if unspecified, the VOI LUT applies to every image referenced
-            in the presentation state object that this dataset is included in.
+            Images that should be referenced
         referenced_frame_number: Union[int, Sequence[int], None], optional
-            Frame number(s) within a referenced multiframe image to which this
-            VOI LUT applies.
+            Frame number(s) within a referenced multiframe image
         referenced_segment_number: Union[int, Sequence[int], None], optional
-            Segment number(s) within a referenced segmentation image to which
-            this VOI LUT applies.
+            Segment number(s) within a referenced segmentation image
+        referenced_optical_path_identifier: Union[int, None], optional
+            Identifier of the optical path within a referenced microscopy image
 
         """
         super().__init__()
@@ -1477,6 +1479,7 @@ class ReferencedImageSequence(DataElementSequence):
             raise ValueError("Found duplicate instances in referenced images.")
 
         multiple_images = len(referenced_images) > 1
+        sop_class_uid = referenced_images[0].SOPClassUID
         if referenced_frame_number is not None:
             if multiple_images:
                 raise ValueError(
@@ -1498,16 +1501,17 @@ class ReferencedImageSequence(DataElementSequence):
                         f'Frame number {f} is invalid for referenced '
                         'image.'
                     )
+
         if referenced_segment_number is not None:
             if multiple_images:
                 raise ValueError(
                     'Specifying "referenced_segment_number" is not '
                     'supported with multiple referenced images.'
                 )
-            if referenced_images[0].SOPClassUID != SegmentationStorage:
+            if sop_class_uid != SegmentationStorage:
                 raise TypeError(
                     '"referenced_segment_number" is only valid when the '
-                    'referenced image is a segmentation image.'
+                    'referenced image is a Segmentation image.'
                 )
             number_of_segments = len(referenced_images[0].SegmentSequence)
             if isinstance(referenced_segment_number, Sequence):
@@ -1517,8 +1521,7 @@ class ReferencedImageSequence(DataElementSequence):
             for s in _referenced_segment_numbers:
                 if s < 1 or s > number_of_segments:
                     raise ValueError(
-                        f'Segment number {s} is invalid for referenced '
-                        'image.'
+                        f'Segment number {s} is invalid for referenced image.'
                     )
             if referenced_frame_number is not None:
                 # Check that the one of the specified segments exists
@@ -1536,6 +1539,31 @@ class ReferencedImageSequence(DataElementSequence):
                             f'Referenced frame {f} does not contain any of '
                             'the referenced segments.'
                         )
+
+        if referenced_optical_path_identifier is not None:
+            if multiple_images:
+                raise ValueError(
+                    'Specifying "referenced_optical_path_identifier" is not '
+                    'supported with multiple referenced images.'
+                )
+            if sop_class_uid != VLWholeSlideMicroscopyImageStorage:
+                raise TypeError(
+                    '"referenced_optical_path_identifier" is only valid when '
+                    'referenced image is a VL Whole Slide Microscopy image.'
+                )
+            has_optical_path = False
+            for ref_img in referenced_images:
+                for optical_path_item in ref_img.OpticalPathSequence:
+                    has_optical_path |= (
+                        optical_path_item.OpticalPathIdentifier ==
+                        referenced_optical_path_identifier
+                    )
+            if not has_optical_path:
+                raise ValueError(
+                    'None of the reference images contains the specified '
+                    '"referenced_optical_path_identifier".'
+                )
+
         for im in referenced_images:
             if not does_iod_have_pixel_data(im.SOPClassUID):
                 raise ValueError(
@@ -1547,9 +1575,49 @@ class ReferencedImageSequence(DataElementSequence):
             ref_im.ReferencedSOPClassUID = im.SOPClassUID
             if referenced_segment_number is not None:
                 ref_im.ReferencedSegmentNumber = referenced_segment_number
+            elif referenced_optical_path_identifier is not None:
+                ref_im.ReferencedOpticalPathIdentifier = \
+                    str(referenced_optical_path_identifier)
             if referenced_frame_number is not None:
                 ref_im.ReferencedFrameNumber = referenced_frame_number
             self.append(ref_im)
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: DataElementSequence
+    ) -> 'ReferencedImageSequence':
+        """Construct instance from an existing data element sequence.
+
+        Parameters
+        ----------
+        sequence: pydicom.sequence.Sequence
+            Data element sequence representing the
+            Algorithm Identification Sequence
+
+        Returns
+        -------
+        highdicom.ReferencedImageSequence
+            Referenced Image Sequence
+
+        """
+        if not isinstance(sequence, DataElementSequence):
+            raise TypeError(
+                'Sequence should be of type pydicom.sequence.Sequence.'
+            )
+        if len(sequence) != 1:
+            raise ValueError('Sequence should contain a single item.')
+        check_required_attributes(
+            sequence[0],
+            module='advanced-blending-presentation-state',
+            base_path=[
+                'AdvancedBlendingSequence',
+                'ReferencedImageSequence',
+            ]
+        )
+        ref_img_sequence = deepcopy(sequence)
+        ref_img_sequence.__class__ = ReferencedImageSequence
+        return cast(ReferencedImageSequence, ref_img_sequence)
 
 
 class LUT(Dataset):

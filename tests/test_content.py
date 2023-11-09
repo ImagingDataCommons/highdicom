@@ -742,9 +742,8 @@ class TestReferencedImageSequence(TestCase):
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._ct_multiframe = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-        self._seg = dcmread(
-            'data/test_files/seg_image_ct_binary_overlap.dcm'
-        )
+        self._sm = dcmread('data/test_files/sm_image.dcm')
+        self._seg = dcmread('data/test_files/seg_image_ct_binary_overlap.dcm')
 
     def test_construction_ref_ims(self):
         ref_ims = ReferencedImageSequence(
@@ -812,9 +811,9 @@ class TestReferencedImageSequence(TestCase):
         assert ref_ims[0].ReferencedSegmentNumber == 1
 
     def test_construction_segment_number_non_seg(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             ReferencedImageSequence(
-                referenced_images=self._ct_series,
+                referenced_images=self._ct_series[0],
                 referenced_segment_number=1
             )
 
@@ -872,6 +871,37 @@ class TestReferencedImageSequence(TestCase):
             ReferencedImageSequence(
                 referenced_images=self._ct_series * 2,
             )
+
+    def test_construction_optical_path_identifier(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._sm],
+            referenced_optical_path_identifier='1'
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedOpticalPathIdentifier == '1'
+
+    def test_construction_optical_path_identifier_invalid_reference(self):
+        with pytest.raises(ValueError):
+            ReferencedImageSequence(
+                referenced_images=[self._sm],
+                referenced_optical_path_identifier='20'
+            )
+
+    def test_construction_optical_path_identifier_non_sm(self):
+        with pytest.raises(TypeError):
+            ReferencedImageSequence(
+                referenced_images=[self._seg],
+                referenced_optical_path_identifier='1'
+            )
+
+    def test_construction_optical_path_identifier_and_frame_numbers(self):
+        ref_ims = ReferencedImageSequence(
+            referenced_images=[self._sm],
+            referenced_optical_path_identifier='1',
+            referenced_frame_number=[1, 2],
+        )
+        assert len(ref_ims) == 1
+        assert ref_ims[0].ReferencedOpticalPathIdentifier == '1'
 
 
 class TestPaletteColorLUT(TestCase):
