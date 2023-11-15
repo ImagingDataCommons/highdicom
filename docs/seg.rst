@@ -616,7 +616,7 @@ combination with ``tile_pixel_array`` argument.
         device_serial_number='1234567890',
         tile_pixel_array=True,
         omit_empty_frames=False,
-        dimeension_organization_type=hd.DimensionOrganizationTypeValues.TILED_FULL,
+        dimension_organization_type=hd.DimensionOrganizationTypeValues.TILED_FULL,
     )
 
     # The result stores the mask as a set of 25 tiles of the entire region of
