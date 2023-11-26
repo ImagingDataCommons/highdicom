@@ -3,6 +3,7 @@
 [![PyPi Distribution](https://img.shields.io/pypi/v/highdicom.svg)](https://pypi.python.org/pypi/highdicom/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/highdicom.svg)](https://pypi.org/project/highdicom/)
 [![Downloads](https://pepy.tech/badge/highdicom)](https://pepy.tech/project/highdicom)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
 
 # High DICOM
 
