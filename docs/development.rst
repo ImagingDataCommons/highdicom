@@ -21,9 +21,16 @@ The :mod:`highdicom` package can be installed in *develop* mode for local develo
 Pull requests
 -------------
 
-Don't commit code changes to the ``master`` branch. New features should be implemented in a separate branch called ``feature/*`` and bug fixes should be applied in separate branch called ``bugfix/*``.
+We encourage contributions from the users of the library (provided that they fit within the scope of the project).
 
+If you are planning to make a contribution to the library, we encourage you to leave an issue first on the `issue tracker <https://github.com/ImagingDataCommons/higdicom/issues>`_ detailing your proposed contribution.
+This way, the maintainers can vet your proposal, make sure it is within the scope of the project, and guide you through the process of creating a successful pull request.
 Before creating a pull request on Github, read the coding style guideline, run the tests and check PEP8 compliance.
+
+We follow a `gitflow <https://nvie.com/posts/a-successful-git-branching-model/>`_-like process for development.
+Therefore, please do not commit code changes to the ``master`` branch.
+New features should be implemented in a separate branch called ``feature/*``, and a pull request should be created with the target set as the development branch with the name of the *next* release (e.g. ``v0.22.0dev``).
+Bug fixes that do not affect the public API of the project should be applied in separate branch called ``bugfix/*`` and a pull request should be created with targeted at ``master`` branch.
 
 .. _coding-style:
 
