@@ -9,6 +9,7 @@ Documentation of the highdicom package
    installation
    usage
    development
+   code_of_conduct
    conformance
    citation
    license
