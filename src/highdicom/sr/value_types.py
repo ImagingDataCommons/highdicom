@@ -23,6 +23,7 @@ from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.valuerep import DA, DS, TM, DT, PersonName
 
+from highdicom.spatial import are_points_coplanar
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -1770,6 +1771,19 @@ class Scoord3DContentItem(ContentItem):
                         'must be closed, i.e. the first and last points must '
                         'be equal.'
                     )
+
+        # Check for coplanarity, if required by the graphic type
+        if graphic_type in (
+            GraphicTypeValues3D.POLYGON,
+            GraphicTypeValues3D.ELLIPSE,
+        ):
+            print(graphic_data)
+            if not are_points_coplanar(graphic_data):
+                raise ValueError(
+                    'Graphic data of a 3D scoord of type '
+                    f'"{graphic_type.value}" must contain co-planar points.'
+                )
+
         # Flatten list of coordinate triplets
         self.GraphicData = graphic_data.flatten().tolist()
         self.ReferencedFrameOfReferenceUID = frame_of_reference_uid

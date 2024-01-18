@@ -1172,7 +1172,23 @@ class TestContentItem(unittest.TestCase):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypeValues3D.POLYGON
         graphic_data = np.array([
-            [1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 1.0, 3.0]
+            [1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 2.0, 1.0]  # non-closed
+        ])
+        frame_of_reference_uid = '1.2.3'
+        with pytest.raises(ValueError):
+            Scoord3DContentItem(
+                name=name,
+                graphic_type=graphic_type,
+                graphic_data=graphic_data,
+                frame_of_reference_uid=frame_of_reference_uid,
+                relationship_type=RelationshipTypeValues.INFERRED_FROM
+            )
+
+    def test_scoord3d_item_construction_non_coplanar_polygon(self):
+        name = codes.DCM.ImageRegion
+        graphic_type = GraphicTypeValues3D.POLYGON
+        graphic_data = np.array([
+            [1.0, 1.0, 1.0], [2.0, 2.0, 1.0], [1.0, 1.0, 3.0]  # non-coplanr
         ])
         frame_of_reference_uid = '1.2.3'
         with pytest.raises(ValueError):
