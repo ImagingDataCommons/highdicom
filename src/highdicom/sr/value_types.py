@@ -1777,7 +1777,6 @@ class Scoord3DContentItem(ContentItem):
             GraphicTypeValues3D.POLYGON,
             GraphicTypeValues3D.ELLIPSE,
         ):
-            print(graphic_data)
             if not are_points_coplanar(graphic_data):
                 raise ValueError(
                     'Graphic data of a 3D scoord of type '
