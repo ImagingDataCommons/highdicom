@@ -948,12 +948,14 @@ def are_points_coplanar(
         # Any set of three or fewer points is coplanar
         return True
 
-    # Use a SVD to determine the normal of the plane of best fit, then
-    # find maximum deviation from it
+    # Center points by subtracting mean
     c = np.mean(points, axis=0, keepdims=True)
     points_centered = points - c
+
+    # Use a SVD to determine the normal of the plane of best fit, then
+    # find maximum deviation from it
     u, _, _ = np.linalg.svd(points_centered.T)
     normal = u[:, -1]
     deviations = normal.T @ points_centered.T
     max_dev = np.abs(deviations).max()
-    return max_dev < tol
+    return max_dev <= tol
