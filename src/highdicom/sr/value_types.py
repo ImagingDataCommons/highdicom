@@ -1763,6 +1763,13 @@ class Scoord3DContentItem(ContentItem):
                     '(x, y, z) triplets in three-dimensional patient or '
                     'slide coordinate space.'
                 )
+            if graphic_type == GraphicTypeValues3D.POLYGON:
+                if not np.array_equal(graphic_data[0], graphic_data[-1]):
+                    raise ValueError(
+                        'Graphic data of a 3D scoord of graphic type "POLYGON" '
+                        'must be closed, i.e. the first and last points must '
+                        'be equal.'
+                    )
         # Flatten list of coordinate triplets
         self.GraphicData = graphic_data.flatten().tolist()
         self.ReferencedFrameOfReferenceUID = frame_of_reference_uid
