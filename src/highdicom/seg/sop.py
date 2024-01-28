@@ -2094,7 +2094,7 @@ class Segmentation(SOPClass):
 
                 # Log a debug message
                 if segment_number is None:
-                    msg = f'add plane #{plane_index}' 
+                    msg = f'add plane #{plane_index}'
                 else:
                     msg = (
                         f'add plane #{plane_index} for segment '
