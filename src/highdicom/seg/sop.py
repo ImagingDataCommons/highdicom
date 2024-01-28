@@ -3362,6 +3362,12 @@ class Segmentation(SOPClass):
                 dim_values[z_tag],
             ) = zip(*iter_tiled_full_frame_data(self))
 
+            # In the case of a LABELMAP seg, segment_numbers will be a list of
+            # None objects at this point. But the _SegDBManager expects a
+            # single None
+            if self.segmentation_type == SegmentationTypeValues.LABELMAP:
+                segment_numbers = None
+
             # Create indices for each of the dimensions
             for ptr, vals in dim_values.items():
                 _, indices = np.unique(vals, return_inverse=True)

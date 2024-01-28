@@ -705,7 +705,9 @@ class DimensionIndexSequence(DataElementSequence):
         [10. 30. 50.]
 
         """
+        referenced_segment_tag = keyword_for_tag('ReferencedSegmentNumber')
         return [
             keyword_for_tag(indexer.DimensionIndexPointer)
-            for indexer in self[1:]
+            for indexer in self
+            if indexer.DimensionIndexPointer != referenced_segment_tag
         ]

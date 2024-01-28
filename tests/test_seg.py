@@ -1546,6 +1546,7 @@ class TestSegmentation:
         params=[
             SegmentationTypeValues.FRACTIONAL,
             SegmentationTypeValues.BINARY,
+            SegmentationTypeValues.LABELMAP,
         ])
     def segmentation_type(request):
         return request.param
@@ -1665,6 +1666,11 @@ class TestSegmentation:
             with warnings.catch_warnings(record=True) as w:
                 self.get_array_after_writing(instance)
                 assert len(w) == 0
+
+            # TODO remove this after implementing full "reconstruction"
+            # of LABELMAP segmentation arrays
+            if segmentation_type == SegmentationTypeValues.LABELMAP:
+                continue
 
             # Check that full reconstructed array matches the input
             reconstructed_array = instance.get_total_pixel_matrix(
