@@ -1532,6 +1532,26 @@ class TestSegmentation:
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
+    def test_construction_tiled_full_labelmap(self):
+        instance = Segmentation(
+            [self._sm_image],
+            pixel_array=self._sm_pixel_array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            dimension_organization_type="TILED_FULL",
+            omit_empty_frames=False,
+        )
+        assert instance.DimensionOrganizationType == "TILED_FULL"
+        assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+
     @staticmethod
     @pytest.fixture(
         params=[
