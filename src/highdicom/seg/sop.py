@@ -2067,7 +2067,7 @@ class Segmentation(SOPClass):
 
                 if segment_number is None:
                     # Deal with all segments at once
-                    segment_array = pixel_array
+                    segment_array = plane_array
                 else:
                     # Pixel array for just this segment and this position
                     segment_array = self._get_segment_pixel_array(
@@ -2753,7 +2753,7 @@ class Segmentation(SOPClass):
         return pixel_array
 
     @staticmethod
-    def _omit_empty_frames(
+    def _get_nonempty_tile_indices(
         pixel_array: np.ndarray,
         plane_positions: Sequence[PlanePositionSequence],
         rows: int,

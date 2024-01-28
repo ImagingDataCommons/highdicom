@@ -822,8 +822,8 @@ class TestSegmentation:
             # Build up the mapping from index to value
             for dim_kw, dim_ind in zip(
                 [
+                    'RowPositionInTotalImagePixelMatrix',
                     'ColumnPositionInTotalImagePixelMatrix',
-                    'RowPositionInTotalImagePixelMatrix'
                 ],
                 [0, 1] if seg.SegmentationType == "LABELMAP" else [1, 2]
             ):
