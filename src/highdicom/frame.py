@@ -223,7 +223,7 @@ def encode_frame(
                     raise ValueError(
                         'Photometric intpretation must be either '
                         '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" for '
-                        'encoding of monochrome image frames with Lossless ' 
+                        'encoding of monochrome image frames with Lossless '
                         'JPEG 2000 codec.'
                     )
                 if bits_allocated not in (8, 16):
