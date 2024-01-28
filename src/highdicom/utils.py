@@ -331,14 +331,14 @@ def iter_tiled_full_frame_data(
             # No "channel" in this case -> return None
             channels = [None]
         else:
-            channels = range(1, len(dataset.SegmentSequence))
+            channels = range(1, len(dataset.SegmentSequence) + 1)
     else:
         num_optical_paths = getattr(
             dataset,
             'NumberOfOpticalPaths',
             len(dataset.OpticalPathSequence)
         )
-        channels = range(1, num_optical_paths)
+        channels = range(1, num_optical_paths + 1)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
