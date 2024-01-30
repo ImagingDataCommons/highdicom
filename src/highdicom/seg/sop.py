@@ -5,6 +5,7 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
+import pkgutil
 import sqlite3
 from typing import (
     Any,
@@ -47,6 +48,7 @@ from highdicom._module_utils import ModuleUsageValues, get_module_usage
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
+    PaletteColorLUTTransformation,
     PlaneOrientationSequence,
     PlanePositionSequence,
     PixelMeasuresSequence
@@ -56,6 +58,10 @@ from highdicom.enum import (
     DimensionOrganizationTypeValues,
 )
 from highdicom.frame import encode_frame
+from highdicom.pr.content import (
+    _add_icc_profile_attributes,
+    _add_palette_color_lookup_table_attributes,
+)
 from highdicom.utils import (
     are_plane_positions_tiled_full,
     compute_plane_position_tiled_full,
@@ -1185,6 +1191,8 @@ class Segmentation(SOPClass):
         tile_size: Union[Sequence[int], None] = None,
         pyramid_uid: Optional[str] = None,
         pyramid_label: Optional[str] = None,
+        palette_color_lut_transformation: Optional[PaletteColorLUTTransformation] = None,
+        icc_profile: Optional[bytes] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -1394,6 +1402,12 @@ class Segmentation(SOPClass):
             Human readable label for the pyramid containing this segmentation.
             Should only be used if this segmentation is part of a
             multi-resolution pyramid.
+        palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
+            A palette color lookup table transformation to apply to the pixels
+            for display. This is only permitted if segmentation_type is "LABELMAP".
+        icc_profile: Union[bytes, None] = None
+            An ICC profile to display the segmentation. This is only permitted
+            when palette_color_lut_transformation is provided.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1594,10 +1608,8 @@ class Segmentation(SOPClass):
         self.ImageType = ['DERIVED', 'PRIMARY']
         self.SamplesPerPixel = 1
         self.PixelRepresentation = 0
-        if segmentation_type == SegmentationTypeValues.LABELMAP:
-            self.PhotometricInterpretation = 'PALETTE COLOR'
-        else:
-            self.PhotometricInterpretation = 'MONOCHROME2'
+        segmentation_type = SegmentationTypeValues(segmentation_type)
+        self.SegmentationType = segmentation_type.value
 
         if content_label is not None:
             _check_code_string(content_label)
@@ -1620,8 +1632,6 @@ class Segmentation(SOPClass):
             self.ContentCreatorIdentificationCodeSequence = \
                 content_creator_identification
 
-        segmentation_type = SegmentationTypeValues(segmentation_type)
-        self.SegmentationType = segmentation_type.value
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
@@ -1645,9 +1655,25 @@ class Segmentation(SOPClass):
             self.MaximumFractionalValue = max_fractional_value
         elif self.SegmentationType == SegmentationTypeValues.LABELMAP.value:
             # Decide on the output datatype and update the image metadata
-            # accordingly
+            # accordingly. Use the smallest possible type unless there is
+            # a palette color LUT that says otherwise.
             labelmap_dtype = _get_unsigned_dtype(len(segment_descriptions))
-            self.BitsAllocated = np.iinfo(labelmap_dtype).bits
+            if labelmap_dtype == np.uint32:
+                raise ValueError(
+                    "Too many classes to represent with a 16 bit integer."
+                )
+            labelmap_bitdepth = np.iinfo(labelmap_dtype).bits
+            if palette_color_lut_transformation is not None:
+                lut_bitdepth = (
+                    palette_color_lut_transformation.red_lut.bits_per_entry
+                )
+                if lut_bitdepth < labelmap_bitdepth:
+                    raise ValueError(
+                        'The labelmap provided does not have entries '
+                        'to cover the number all specified classes.'
+                    )
+                labelmap_bitdepth = lut_bitdepth
+            self.BitsAllocated = labelmap_bitdepth
             self.HighBit = self.BitsAllocated - 1
             self.BitsStored = self.BitsAllocated
 
@@ -1667,6 +1693,79 @@ class Segmentation(SOPClass):
                 src_img.LossyImageCompressionRatio
             self.LossyImageCompressionMethod = \
                 src_img.LossyImageCompressionMethod
+
+        # Use PALETTE COLOR photometric interpretation in the case
+        # of a labelmap segmentation with a provided LUT, MONOCHROME2
+        # otherwise
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            if palette_color_lut_transformation is None:
+                self.PhotometricInterpretation = 'MONOCHROME2'
+                if icc_profile is not None:
+                    raise TypeError(
+                        "Argument 'icc_profile' should "
+                        "not be provided if is "
+                        "'palette_color_lut_transformation' "
+                        "is not specified."
+                    )
+            else:
+                # Using photometric interpretation "PALETTE COLOR"
+                # need to specify the LUT in this case
+                self.PhotometricInterpretation = 'PALETTE COLOR'
+
+                # Checks on the validity of the LUT
+                if not isinstance(
+                    palette_color_lut_transformation,
+                    PaletteColorLUTTransformation
+                ):
+                    raise TypeError(
+                        'Argument "palette_color_lut_transformation" must be of type '
+                        'PaletteColorLUTTransformation.'
+                    )
+
+                lut = palette_color_lut_transformation.red_lut
+                lut_entries = lut.number_of_entries
+                lut_start = lut.first_mapped_value
+                lut_end = lut_start + lut_entries
+
+                if (
+                    (lut_start > 1) or lut_end <= len(segment_descriptions)
+                ):
+                    raise ValueError(
+                        'The labelmap provided does not have entries '
+                        'to cover all segments.'
+                    )
+
+                # Add the LUT to this instance
+                _add_palette_color_lookup_table_attributes(
+                    self,
+                    palette_color_lut_transformation,
+                )
+
+                if icc_profile is None:
+                    # Use default sRGB profile
+                    icc_profile = pkgutil.get_data(
+                        'highdicom',
+                        '_icc_profiles/sRGB_v4_ICC_preference.icc'
+                    )
+                _add_icc_profile_attributes(
+                    self,
+                    icc_profile=icc_profile
+                )
+
+        else:
+            self.PhotometricInterpretation = 'MONOCHROME2'
+            if palette_color_lut_transformation is not None:
+                raise TypeError(
+                    "Argument 'palette_color_lut_transformation' should "
+                    "not be provided when 'segmentation_type' is "
+                    f"'{segmentation_type.value}'."
+                )
+            if icc_profile is not None:
+                raise TypeError(
+                    "Argument 'icc_profile' should "
+                    "not be provided when 'segmentation_type' is "
+                    f"'{segmentation_type.value}'."
+                )
 
         # Multi-Resolution Pyramid
         if pyramid_uid is not None:
@@ -2571,7 +2670,7 @@ class Segmentation(SOPClass):
                     f'({number_of_segments}).'
                 )
 
-        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16, np.uint32):
+        if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
             max_pixel = pixel_array.max()
 
             if pixel_array.ndim == 3:
