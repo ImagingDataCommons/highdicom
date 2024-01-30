@@ -2610,7 +2610,7 @@ class SegmentedPaletteColorLUT(Dataset):
 
         self._lut_data = np.array(
             expanded_lut_values,
-            dtype=self._dtype
+            dtype=segmented_lut_data.dtype,
         )
 
         len_data = len(expanded_lut_values)
