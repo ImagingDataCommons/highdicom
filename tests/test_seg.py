@@ -822,8 +822,11 @@ class TestSegmentation:
                     # DimensionIndexValues has VM=1 in this case so returns int
                     posn_index = f.FrameContentSequence[0].DimensionIndexValues
                 else:
-                    # DimensionIndexValues has VM>1 in this case so returns list
-                    posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
+                    # DimensionIndexValues has VM>1 in this case so returns
+                    # list
+                    posn_index = (
+                        f.FrameContentSequence[0].DimensionIndexValues[1]
+                    )
                 # This is not general, but all the tests run here use axial
                 # images so just check the z coordinate
                 posn_val = f.PlanePositionSequence[0].ImagePositionPatient[2]

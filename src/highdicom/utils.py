@@ -242,7 +242,11 @@ def compute_plane_position_tiled_full(
 
 def iter_tiled_full_frame_data(
     dataset: Dataset,
-) -> Generator[Tuple[Union[int, None], int, int, int, float, float, float], None, None]:
+) -> Generator[
+    Tuple[Union[int, None], int, int, int, float, float, float],
+    None,
+    None,
+]:
     """Get data on the position of each tile in a TILED_FULL image.
 
     This works only with images with Dimension Organization Type of
