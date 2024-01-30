@@ -4,6 +4,7 @@ from copy import deepcopy
 import itertools
 import unittest
 from pathlib import Path
+import pkgutil
 import warnings
 
 import numpy as np
@@ -21,7 +22,10 @@ from pydicom.uid import (
     JPEG2000Lossless,
     JPEGLSLossless,
 )
-
+from highdicom import (
+    PaletteColorLUT,
+    PaletteColorLUTTransformation,
+)
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
@@ -722,6 +726,26 @@ class TestSegmentation:
             ),
         }
 
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+        self._icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
+
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
     @staticmethod
@@ -947,6 +971,13 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_2(self):
         instance = Segmentation(
@@ -1018,6 +1049,13 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_3(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1103,6 +1141,13 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_4(self):
         # Segmentation instance from an enhanced (multi-frame) CT image
@@ -1182,6 +1227,13 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_5(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1266,6 +1318,13 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_6(self):
         # A chest X-ray with no frame of reference
@@ -1351,6 +1410,13 @@ class TestSegmentation:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1441,6 +1507,13 @@ class TestSegmentation:
                 assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_8(self):
         # A chest X-ray with no frame of reference, LABELMAP
@@ -1463,6 +1536,7 @@ class TestSegmentation:
             instance.DimensionIndexSequence[0].DimensionIndexPointer ==
             tag_for_keyword('FrameLabel')
         )
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
         dim_ind_vals = (
             instance
             .PerFrameFunctionalGroupsSequence[0]
@@ -1470,6 +1544,66 @@ class TestSegmentation:
             .DimensionIndexValues
         )
         assert dim_ind_vals == 1
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+
+    def test_construction_9(self):
+        # A label with a palette color LUT
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+        )
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+
+    def test_construction_10(self):
+        # A label with a palette color LUT and ICC Profile
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers

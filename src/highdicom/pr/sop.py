@@ -582,6 +582,11 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 )
 
         # Palette Color Lookup Table
+        if palette_color_lut_transformation.red_lut.bits_per_entry != 16:
+            raise ValueError(
+                "palette_color_lut_transformation for presentation states must "
+                "have 16 bits."
+            )
         _add_palette_color_lookup_table_attributes(
             self,
             palette_color_lut_transformation=palette_color_lut_transformation
