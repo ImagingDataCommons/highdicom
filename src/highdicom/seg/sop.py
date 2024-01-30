@@ -1191,7 +1191,9 @@ class Segmentation(SOPClass):
         tile_size: Union[Sequence[int], None] = None,
         pyramid_uid: Optional[str] = None,
         pyramid_label: Optional[str] = None,
-        palette_color_lut_transformation: Optional[PaletteColorLUTTransformation] = None,
+        palette_color_lut_transformation: Optional[
+            PaletteColorLUTTransformation
+        ] = None,
         icc_profile: Optional[bytes] = None,
         **kwargs: Any
     ) -> None:
@@ -1718,8 +1720,8 @@ class Segmentation(SOPClass):
                     PaletteColorLUTTransformation
                 ):
                     raise TypeError(
-                        'Argument "palette_color_lut_transformation" must be of type '
-                        'PaletteColorLUTTransformation.'
+                        'Argument "palette_color_lut_transformation" must be '
+                        'of type highdicom.PaletteColorLUTTransformation.'
                     )
 
                 lut = palette_color_lut_transformation.red_lut
@@ -2180,16 +2182,13 @@ class Segmentation(SOPClass):
                 # Even though completely empty planes were removed earlier,
                 # there may still be planes in which this specific segment is
                 # absent. Such frames should be removed
-                if (
-                    segment_number is not None
-                    and omit_empty_frames
-                    and not np.any(segment_array)
-                ):
-                    logger.debug(
-                        f'skip empty plane {plane_index} of segment '
-                        f'#{segment_number}'
-                    )
-                    continue
+                if segment_number is not None:
+                    if omit_empty_frames and not np.any(segment_array):
+                        logger.debug(
+                            f'skip empty plane {plane_index} of segment '
+                            f'#{segment_number}'
+                        )
+                        continue
 
                 # Log a debug message
                 if segment_number is None:
@@ -3506,7 +3505,9 @@ class Segmentation(SOPClass):
                     n_expected_dim_ind_pointers = len(self._dim_ind_pointers)
                 else:
                     # (+1 because referenced segment number is ignored)
-                    n_expected_dim_ind_pointers = len(self._dim_ind_pointers) + 1
+                    n_expected_dim_ind_pointers = (
+                        len(self._dim_ind_pointers) + 1
+                    )
                 if len(indices) != n_expected_dim_ind_pointers:
                     raise RuntimeError(
                         'Unexpected mismatch between dimension index values in '
