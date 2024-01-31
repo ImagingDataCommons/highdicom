@@ -1885,7 +1885,12 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
-        if fractional_transfer_syntax_uid == JPEGLSLossless:
+        if (
+            fractional_transfer_syntax_uid in (
+                JPEGLSLossless,
+                JPEG2000Lossless
+            )
+        ):
             pytest.importorskip("libjpeg")
 
         sources, mask = self._tests[test_data]
@@ -2186,6 +2191,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if fractional_transfer_syntax_uid == JPEGLSLossless:
+            pytest.importorskip("libjpeg")
         sources, mask = self._tests[test_data]
 
         # Two segments non-overlapping
