@@ -1,4 +1,6 @@
 import numpy as np
+from pydicom import dcmread
+from pydicom.data import get_testdata_file, get_testdata_files
 import pytest
 
 from highdicom.spatial import (
@@ -6,6 +8,7 @@ from highdicom.spatial import (
     PixelToReferenceTransformer,
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
+    get_series_slice_spacing,
 )
 
 
@@ -451,3 +454,25 @@ def test_map_reference_to_image_coordinate(params, inputs, expected_outputs):
     transform = ReferenceToImageTransformer(**params)
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+
+def test_get_series_slice_spacing_irregular():
+    # A series of single frame CT images
+    ct_series = [
+        dcmread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+    spacing = get_series_slice_spacing(ct_series)
+    assert spacing is None
+
+
+def test_get_series_slice_spacing_regular():
+    # Use a subset of this test series that does have regular spacing
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [dcmread(f) for f in ct_files]
+    spacing = get_series_slice_spacing(ct_series)
+    assert spacing == 1.25
