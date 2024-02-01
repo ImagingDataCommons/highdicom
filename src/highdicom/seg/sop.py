@@ -75,7 +75,7 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import ImageToReferenceTransformer
+from highdicom.spatial import ImageToReferenceTransformer, get_regular_slice_spacing, get_series_slice_spacing
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
     check_person_name,
@@ -1502,7 +1502,7 @@ class Segmentation(SOPClass):
                     )
 
         # Dimension Organization Type
-        dimension_organization_type = self._check_dimension_organization_type(
+        dimension_organization_type = self._check_tiled_dimension_organization_type(
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
             omit_empty_frames=omit_empty_frames,
@@ -1510,6 +1510,37 @@ class Segmentation(SOPClass):
             rows=self.Rows,
             columns=self.Columns,
         )
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            spacing = get_regular_slice_spacing(
+                image_positions=np.array(plane_position_values[:, 0, :]),
+                image_orientation=np.array(
+                    plane_orientation[0].ImageOrientationPatient
+                ),
+                sort=False,
+                enforce_postive=True,
+            )
+
+            if spacing is not None and spacing > 1.0:
+                # The image is a regular volume, so we should record this
+                dimension_organization_type = (
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                )
+                # Also add the slice spacing to the pixel measures
+                (
+                    self.SharedFunctionalGroupsSequence[0]
+                        .PixelMeasuresSequence[0]
+                        .SpacingBetweenSlices
+                ) = spacing
+            else:
+                if (
+                    dimension_organization_type ==
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                ):
+                    raise ValueError(
+                        'Dimension organization "3D" has been specified, '
+                        'but the source image is not a regularly-spaced 3D '
+                        'volume.'
+                    )
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
 
@@ -2010,7 +2041,7 @@ class Segmentation(SOPClass):
                 self.ImageCenterPointCoordinatesSequence = [center_item]
 
     @staticmethod
-    def _check_dimension_organization_type(
+    def _check_tiled_dimension_organization_type(
         dimension_organization_type: Union[
             DimensionOrganizationTypeValues,
             str,

@@ -469,8 +469,8 @@ def test_get_series_slice_spacing_irregular():
 def test_get_series_slice_spacing_regular():
     # Use a subset of this test series that does have regular spacing
     ct_files = [
-        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
         get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [dcmread(f) for f in ct_files]
