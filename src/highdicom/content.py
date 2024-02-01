@@ -2413,6 +2413,12 @@ class PaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
+        if bits_per_entry == 8 and len(lut_data) % 2 != 0:
+            # Need to pad so that the resulting value has even length
+            lut_data = np.concatenate(
+                [lut_data, np.array([0], lut_data.dtype)]
+            )
+
         # The Palette Color Lookup Table Data attributes have VR OW
         # (16-bit other words)
         setattr(

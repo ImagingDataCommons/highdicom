@@ -1729,11 +1729,11 @@ class Segmentation(SOPClass):
                 lut_end = lut_start + lut_entries
 
                 if (
-                    (lut_start > 1) or lut_end <= len(segment_descriptions)
+                    (lut_start > 0) or lut_end <= len(segment_descriptions)
                 ):
                     raise ValueError(
                         'The labelmap provided does not have entries '
-                        'to cover all segments.'
+                        'to cover all segments and background.'
                     )
 
                 for desc in segment_descriptions:
