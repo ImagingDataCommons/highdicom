@@ -1635,6 +1635,7 @@ class Segmentation(SOPClass):
                 content_creator_identification
 
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
+            dtype = np.uint8
             self.BitsAllocated = 1
             self.HighBit = 0
             if self.file_meta.TransferSyntaxUID.is_encapsulated:
@@ -1644,6 +1645,7 @@ class Segmentation(SOPClass):
                     'is not compatible with the BINARY segmentation type'
                 )
         elif self.SegmentationType == SegmentationTypeValues.FRACTIONAL.value:
+            dtype = np.uint8
             self.BitsAllocated = 8
             self.HighBit = 7
             segmentation_fractional_type = SegmentationFractionalTypeValues(
@@ -1659,22 +1661,19 @@ class Segmentation(SOPClass):
             # Decide on the output datatype and update the image metadata
             # accordingly. Use the smallest possible type unless there is
             # a palette color LUT that says otherwise.
-            labelmap_dtype = _get_unsigned_dtype(len(segment_descriptions))
-            if labelmap_dtype == np.uint32:
-                raise ValueError(
-                    "Too many classes to represent with a 16 bit integer."
-                )
-            labelmap_bitdepth = np.iinfo(labelmap_dtype).bits
             if palette_color_lut_transformation is not None:
                 lut_bitdepth = (
                     palette_color_lut_transformation.red_lut.bits_per_entry
                 )
-                if lut_bitdepth < labelmap_bitdepth:
-                    raise ValueError(
-                        'The labelmap provided does not have entries '
-                        'to cover the number all specified classes.'
-                    )
                 labelmap_bitdepth = lut_bitdepth
+                dtype = np.dtype(f'u{labelmap_bitdepth // 8}')
+            else:
+                dtype = _get_unsigned_dtype(len(segment_descriptions))
+                if dtype == np.uint32:
+                    raise ValueError(
+                        "Too many classes to represent with a 16 bit integer."
+                    )
+                labelmap_bitdepth = np.iinfo(dtype).bits
             self.BitsAllocated = labelmap_bitdepth
             self.HighBit = self.BitsAllocated - 1
             self.BitsStored = self.BitsAllocated
@@ -1736,6 +1735,13 @@ class Segmentation(SOPClass):
                         'The labelmap provided does not have entries '
                         'to cover all segments.'
                     )
+
+                for desc in segment_descriptions:
+                    if hasattr(desc, 'RecommendedDisplayCIELabValue'):
+                        raise ValueError(
+                            'Segment descriptions should not specify a display '
+                            'color when using a palette color LUT.'
+                        )
 
                 # Add the LUT to this instance
                 _add_palette_color_lookup_table_attributes(
@@ -1873,6 +1879,7 @@ class Segmentation(SOPClass):
             pixel_array,
             number_of_segments,
             segmentation_type,
+            dtype=dtype,
         )
         self.SegmentsOverlap = segments_overlap.value
 
@@ -1887,10 +1894,10 @@ class Segmentation(SOPClass):
             if pixel_array.ndim == 4:
                 pixel_array = self._combine_segments(
                     pixel_array,
-                    labelmap_dtype=labelmap_dtype
+                    labelmap_dtype=dtype
                 )
             else:
-                pixel_array = pixel_array.astype(labelmap_dtype)
+                pixel_array = pixel_array.astype(dtype)
 
         if has_ref_frame_uid:
             if tile_pixel_array:
@@ -2177,6 +2184,7 @@ class Segmentation(SOPClass):
                         number_of_segments=number_of_segments,
                         segmentation_type=segmentation_type,
                         max_fractional_value=max_fractional_value,
+                        dtype=dtype,
                     )
 
                 # Even though completely empty planes were removed earlier,
@@ -2634,7 +2642,8 @@ class Segmentation(SOPClass):
     def _check_and_cast_pixel_array(
         pixel_array: np.ndarray,
         number_of_segments: int,
-        segmentation_type: SegmentationTypeValues
+        segmentation_type: SegmentationTypeValues,
+        dtype: type,
     ) -> Tuple[np.ndarray, SegmentsOverlapValues]:
         """Checks on the shape and data type of the pixel array.
 
@@ -2649,6 +2658,8 @@ class Segmentation(SOPClass):
             they were passed. 1D array of integers.
         segmentation_type: highdicom.seg.SegmentationTypeValues
             The segmentation_type parameter.
+        dtype: type
+            Pixel type of the output array.
 
         Returns
         -------
@@ -2733,7 +2744,7 @@ class Segmentation(SOPClass):
                         '0.0 or 1.0 in case of BINARY or LABELMAP segmentation '
                         'type.'
                     )
-                pixel_array = pixel_array.astype(np.uint8)
+                pixel_array = pixel_array.astype(dtype)
 
                 # Need to check whether or not segments overlap
                 if len(unique_values) == 1 and unique_values[0] == 0.0:
@@ -2918,7 +2929,8 @@ class Segmentation(SOPClass):
         segment_number: int,
         number_of_segments: int,
         segmentation_type: SegmentationTypeValues,
-        max_fractional_value: int
+        max_fractional_value: int,
+        dtype: type,
     ) -> np.ndarray:
         """Get pixel data array for a specific segment and plane.
 
@@ -2941,13 +2953,15 @@ class Segmentation(SOPClass):
             Desired output segmentation type.
         max_fractional_value: int
             Value for scaling FRACTIONAL segmentations.
+        dtype: type
+            Data type of the returned pixel array.
 
         Returns
         -------
         numpy.ndarray:
             Pixel data array consisting of pixel data for a single segment for
-            a single plane. Output array has dtype np.uint8 and binary values
-            (0 or 1).
+            a single plane. Output array has the specified dtype and binary
+            values (0 or 1).
 
         """
         if pixel_array.dtype in (np.float_, np.float32, np.float64):
@@ -2962,7 +2976,7 @@ class Segmentation(SOPClass):
             segment_array = np.around(
                 segment_array * float(max_fractional_value)
             )
-            segment_array = segment_array.astype(np.uint8)
+            segment_array = segment_array.astype(dtype)
         else:
             if pixel_array.ndim == 2:
                 # "Label maps" that must be converted to binary masks.
@@ -2971,18 +2985,18 @@ class Segmentation(SOPClass):
                     # operations here, for efficiency reasons. If there is only
                     # a single segment, the label map pixel array is already
                     # correct
-                    if pixel_array.dtype != np.uint8:
-                        segment_array = pixel_array.astype(np.uint8)
+                    if pixel_array.dtype != dtype:
+                        segment_array = pixel_array.astype(dtype)
                     else:
                         segment_array = pixel_array
                 else:
                     segment_array = (
                         pixel_array == segment_number
-                    ).astype(np.uint8)
+                    ).astype(dtype)
             else:
                 segment_array = pixel_array[:, :, segment_number - 1]
-                if segment_array.dtype != np.uint8:
-                    segment_array = segment_array.astype(np.uint8)
+                if segment_array.dtype != dtype:
+                    segment_array = segment_array.astype(dtype)
 
             # It may happen that a binary valued array is passed that should be
             # stored as a fractional segmentation. In this case, we also need
