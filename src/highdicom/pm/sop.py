@@ -17,6 +17,7 @@ from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
 from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom._module_utils import is_multiframe_image
 from pydicom import Dataset
 from pydicom.uid import (
     UID,
@@ -271,7 +272,7 @@ class ParametricMap(SOPClass):
             )
 
         src_img = self._source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(src_img)
         # TODO: Revisit, may be overly restrictive
         # Check Source Image Sequence attribute in General Reference module
         if is_multiframe:

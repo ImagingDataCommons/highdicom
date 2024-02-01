@@ -36,7 +36,8 @@ from highdicom.valuerep import (
 )
 from highdicom._module_utils import (
     check_required_attributes,
-    does_iod_have_pixel_data
+    does_iod_have_pixel_data,
+    is_multiframe_image,
 )
 
 
@@ -1754,7 +1755,10 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_frame_number" is not supported '
                     'with multiple referenced images.'
                 )
-            if not hasattr(referenced_images[0], 'NumberOfFrames'):
+            # note cannot use the highdicom.utils function here due to
+            # circular import issues
+            is_multiframe = is_multiframe_image(referenced_images[0])
+            if not is_multiframe:
                 raise TypeError(
                     'Specifying "referenced_frame_number" is not valid '
                     'when the referenced image is not a multi-frame image.'
