@@ -18,7 +18,11 @@ from highdicom.spatial import map_pixel_into_coordinate_system
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
-from highdicom._module_utils import check_required_attributes
+from highdicom._module_utils import (
+    check_required_attributes,
+    is_multiframe_image,
+)
+
 
 
 class SegmentDescription(Dataset):
@@ -470,7 +474,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = hasattr(image, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(image)
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
@@ -515,7 +519,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        is_multiframe = any([is_multiframe_image(img) for img in images])
         if is_multiframe:
             raise ValueError(
                 'Argument "images" must be a series of single-frame images.'

@@ -1,6 +1,14 @@
-from typing import Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
+import pydicom
+
+from highdicom._module_utils import is_multiframe_image
+from highdicom.enum import CoordinateSystemNames
+
+
+DEFAULT_SPACING_TOLERANCE = 1e-4
+"""Default tolerance for determining whether slices are regularly spaced."""
 
 
 def create_rotation_matrix(
@@ -959,3 +967,192 @@ def are_points_coplanar(
     deviations = normal.T @ points_centered.T
     max_dev = np.abs(deviations).max()
     return max_dev <= tol
+
+
+def get_series_slice_spacing(
+    datasets: Sequence[pydicom.Dataset],
+    tol: float = DEFAULT_SPACING_TOLERANCE,
+) -> Optional[float]:
+    """Get slice spacing, if any, for a series of single frame images.
+
+    First determines whether the image series represents a 3D volume.
+    A 3D volume consists of regularly spaced slices with orthogonal axes, i.e.
+    the slices are spaced equally along the direction orthogonal to the
+    in-plane image coordinates.
+
+    If the series does represent a volume, returns the absolute value of the
+    slice spacing. If the series does not represent a volume, returns None.
+
+    Note that we stipulate that a single image is a 3D volume for the purposes
+    of this function. In this case the returned slice spacing will be 0.0.
+
+    Parameters
+    ----------
+    datasets: Sequence[pydicom.Dataset]
+        Set of datasets representing an imaging series.
+    tol: float
+        Tolerance for determining spacing regularity. If slice spacings vary by
+        less that this spacing, they are considered to be regular.
+
+    Returns
+    -------
+    float:
+        Absolute value of the regular slice spacing if the series of images
+        meets the definition of a 3D volume, above. None otherwise.
+
+    """
+    if len(datasets) == 0:
+        raise ValueError("List must not be empty.")
+    # We stipluate that a single image does represent a volume with spacing 0.0
+    if len(datasets) == 1:
+        return 0.0
+    for ds in datasets:
+        if is_multiframe_image(ds):
+            raise ValueError(
+                "Datasets should be single-frame images."
+            )
+
+    # Check image orientations are consistent
+    image_orientation = datasets[0].ImageOrientationPatient
+    for ds in datasets[1:]:
+        if ds.ImageOrientationPatient != image_orientation:
+            return None
+
+    positions = np.array(
+        [ds.ImagePositionPatient for ds in datasets]
+    )
+
+    return get_regular_slice_spacing(
+        image_positions=positions,
+        image_orientation=np.array(image_orientation),
+        tol=tol,
+    )
+
+
+def get_regular_slice_spacing(
+    image_positions: np.ndarray,
+    image_orientation: np.ndarray,
+    tol: float = DEFAULT_SPACING_TOLERANCE,
+    sort: bool = True,
+) -> Optional[float]:
+    """Get the regular spacing between set of image positions, if any.
+
+    A 3D volume consists of regularly spaced slices with orthogonal axes, i.e.
+    the slices are spaced equally along the direction orthogonal to the
+    in-plane image coordinates.
+
+    Note that we stipulate that a single image is a 3D volume for the purposes
+    of this function. In this case the returned slice spacing will be 0.0.
+
+    Parameters
+    ----------
+    image_positions: numpy.ndarray
+        Array of image positions for multiple frames. Should be a numpy array of
+        shape (N, 3) where N is the number of frames.
+    image_orientation: numpy.ndarray
+        Image orientation as direction cosine values taken directly from the
+        ImageOrientationPatient attribute. 1D array of length 6.
+    tol: float
+        Tolerance for determining spacing regularity. If slice spacings vary by
+        less that this spacing, they are considered to be regular.
+    sort: bool
+        Sort the image positions before finding the spacing. If True, this
+        makes the function tolerant of unsorted inputs. Set to False to check
+        whether the positions represent a 3D volume in the specific order in
+        which they are passed.
+
+    Returns
+    -------
+    Union[float, None]
+        If the image positions are regularly spaced, the (abolute value of) the
+        slice spacing. If the image positions are not regularly spaced, returns
+        None.
+
+    """
+    image_positions = np.array(image_positions)
+    image_orientation = np.array(image_orientation)
+
+    if image_positions.ndim != 2 or image_positions.shape[1] != 3:
+        raise ValueError(
+            "Argument 'image_positions' should be an (N, 3) array."
+        )
+    if image_orientation.ndim != 1 or image_orientation.shape[0] != 6:
+        raise ValueError(
+            "Argument 'image_orientation' should be an array of "
+            "length 6."
+        )
+    n = image_positions.shape[0]
+    if n == 0:
+        raise ValueError(
+            "Argument 'image_positions' should contain at least 1 position."
+        )
+    elif n == 1:
+        # Special case, we stipluate that this has spacing 0.0
+        return 0.0
+
+    # Find normal vector to the imaging plane
+    v1 = image_orientation[:3]
+    v2 = image_orientation[3:]
+    v3 = np.cross(v1, v2)
+
+    # Calculate distance of each slice from coordinate system origin along the
+    # normal vector
+    origin_distances = v3[None] @ image_positions.T
+    origin_distances = origin_distances.squeeze(0)
+
+    if sort:
+        sort_index = np.argsort(origin_distances)
+        origin_distances = origin_distances[sort_index]
+    else:
+        sort_index = np.arange(image_positions.shape[0])
+
+    spacings = np.diff(origin_distances)
+    avg_spacing = spacings.mean()
+
+    is_regular = np.isclose(
+        avg_spacing,
+        spacings,
+        atol=tol
+    ).all()
+
+    # Additionally check that the vector from the first to the last plane lies
+    # approximately along v3
+    pos1 = image_positions[sort_index[0], :]
+    pos2 = image_positions[sort_index[-1], :]
+    span = (pos2 - pos1)
+    span /= np.linalg.norm(span)
+
+    is_perpendicular = abs(v3.T @ span - 1.0) < tol
+
+    if is_regular and is_perpendicular:
+        return abs(avg_spacing)
+    else:
+        return None
+
+
+def get_coordinate_system(
+    dataset: pydicom.Dataset,
+) -> Optional[CoordinateSystemNames]:
+    """Determine which coordinate system an image uses.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset for which the coordinate system is required.
+
+    Returns
+    -------
+    Union[highdicom.enum.CoordinateSystemNames]:
+        Coordinate system used by the input image's frame of reference. Returns
+        None if the image does not specify a frame of reference.
+
+    """
+    if not hasattr(dataset, 'FrameOfReferenceUID'):
+        return None
+    if (
+        hasattr(dataset, 'ImageOrientationSlide') or
+        hasattr(dataset, 'ImageCenterPointCoordinatesSequence')
+    ):
+        return CoordinateSystemNames.SLIDE
+    else:
+        return CoordinateSystemNames.PATIENT
