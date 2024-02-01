@@ -2401,7 +2401,7 @@ class PaletteColorLUT(Dataset):
                 'Length of argument "lut_data" must be no greater than '
                 '2^(bits per entry) elements.'
             )
-        elif len_data == 2 ** bits_per_entry:
+        elif len_data == 2 ** 16:
             # Per the standard, this is recorded as 0
             number_of_entries = 0
         else:
@@ -2614,7 +2614,7 @@ class SegmentedPaletteColorLUT(Dataset):
         )
 
         len_data = len(expanded_lut_values)
-        if len_data == 2 ** bits_per_entry:
+        if len_data == 2 ** 16:
             number_of_entries = 0
         else:
             number_of_entries = len_data

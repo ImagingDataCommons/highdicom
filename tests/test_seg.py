@@ -1582,7 +1582,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_construction_10(self):
-        # A label with a palette color LUT and ICC Profile
+        # A labelmap with a palette color LUT and ICC Profile
         instance = Segmentation(
             self._ct_series,
             self._ct_series_mask_array,
@@ -1607,6 +1607,114 @@ class TestSegmentation:
         assert hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
+
+    def test_construction_large_labelmap_monochrome(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
+
+    def test_construction_large_labelmap_palettecolor(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        r_lut_data = np.arange(10, 10 + n_classes, dtype=np.uint16)
+        g_lut_data = np.arange(20, 20 + n_classes, dtype=np.uint16)
+        b_lut_data = np.arange(30, 30 + n_classes, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
