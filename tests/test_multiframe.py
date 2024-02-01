@@ -13,6 +13,7 @@ def test_slice_spacing():
 
     assert db.get_slice_spacing() == 10.0
 
+
 def test_slice_spacing_irregular():
     ct_multiframe = dcmread(
         get_testdata_file('eCT_Supplemental.dcm')

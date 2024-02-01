@@ -401,7 +401,6 @@ class MultiFrameDBManager:
         # Build LUT from columns
         all_defs = ", ".join(col_defs)
         cmd = f'CREATE TABLE FrameLUT({all_defs})'
-        print(cmd)
         placeholders = ', '.join(['?'] * len(col_data))
         with self._db_con:
             self._db_con.execute(cmd)

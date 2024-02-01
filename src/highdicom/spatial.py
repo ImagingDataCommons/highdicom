@@ -992,6 +992,7 @@ def get_regular_slice_spacing(
     image_orientation: np.ndarray,
     tol: float = DEFAULT_SPACING_TOLERANCE,
     sort: bool = True,
+    enforce_postive: bool = False,
 ) -> Optional[float]:
     """Get the regular spacing between set of image positions, if any.
 
@@ -1018,6 +1019,12 @@ def get_regular_slice_spacing(
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
+    enforce_postive: bool
+        If True and sort is False, require that the images are not only
+        regularly spaced but also that they are ordered along the direction of
+        the increasing normal vector, as opposed to being ordered regularly
+        along the direction of the decreasing normal vector. If sort is False,
+        this has no effect.
 
     Returns
     -------
@@ -1057,6 +1064,7 @@ def get_regular_slice_spacing(
     # normal vector
     origin_distances = v3[None] @ image_positions.T
     origin_distances = origin_distances.squeeze(0)
+    print(origin_distances)
 
     if sort:
         sort_index = np.argsort(origin_distances)
@@ -1072,6 +1080,9 @@ def get_regular_slice_spacing(
         spacings,
         atol=tol
     ).all()
+    if is_regular and enforce_postive:
+        if avg_spacing < 0.0:
+            return None
 
     # Additionally check that the vector from the first to the last plane lies
     # approximately along v3

@@ -940,6 +940,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
+        assert not hasattr(instance, "DimensionOrganizationType")
         self.check_dimension_index_vals(instance)
 
     def test_construction_2(self):
@@ -1011,6 +1012,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence
+        assert instance.DimensionOrganizationType == "TILED_SPARSE"
         self.check_dimension_index_vals(instance)
 
     def test_construction_3(self):
@@ -1096,6 +1098,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
     def test_construction_4(self):
@@ -1175,6 +1178,9 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
+
+        # Frames are regularly but ordered the wrong way in this case
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
     def test_construction_5(self):
@@ -1259,6 +1265,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
     def test_construction_6(self):
@@ -1345,6 +1352,7 @@ class TestSegmentation:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1435,6 +1443,85 @@ class TestSegmentation:
                 assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
+
+    def test_construction_3d_multiframe(self):
+        # The CT multiframe image is already a volume, but the frames are
+        # ordered the wrong way
+        volume_multiframe = deepcopy(self._ct_multiframe)
+        positions = [
+             fm.PlanePositionSequence[0].ImagePositionPatient
+             for fm in volume_multiframe.PerFrameFunctionalGroupsSequence
+        ]
+        positions = positions[::-1]
+        for pos, fm in zip(
+            positions,
+            volume_multiframe.PerFrameFunctionalGroupsSequence
+        ):
+            fm.PlanePositionSequence[0].ImagePositionPatient = pos
+
+        # Segmentation instance from an enhanced (multi-frame) CT image
+        instance = Segmentation(
+            [volume_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 10.0
+
+    def test_construction_3d_singleframe(self):
+        # The CT single frame series is a volume if you omit one of the images
+        ct_files = [
+            get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+            get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+            get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        ]
+        ct_series = [dcmread(f) for f in ct_files]
+
+        # Segmentation instance from an enhanced (multi-frame) CT image
+        instance = Segmentation(
+            ct_series,
+            self._ct_series_mask_array[:3],
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 1.25
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
