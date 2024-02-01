@@ -1193,7 +1193,7 @@ class TestPaletteColorLUT(TestCase):
         lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
 
         assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
-        assert lut.BluePaletteColorLookupTableDescriptor[0] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
         assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
         assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
         assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
