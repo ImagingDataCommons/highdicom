@@ -1187,27 +1187,27 @@ class TestPaletteColorLUT(TestCase):
         np.array_equal(lut.lut_data, lut_data)
 
     # Commented out until 8 bit LUTs are reimplemented
-    # def test_construction_8bit(self):
-    #     lut_data = np.arange(0, 256, dtype=np.uint8)
-    #     first_mapped_value = 0
-    #     lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+    def test_construction_8bit(self):
+        lut_data = np.arange(0, 256, dtype=np.uint8)
+        first_mapped_value = 0
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
 
-    #     assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
-    #     assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
-    #     assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
-    #     assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
-    #     assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
-    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
-    #     expected_len = lut_data.shape[0] * 2
-    #     assert len(lut.BluePaletteColorLookupTableData) == expected_len
-    #     assert not hasattr(lut, 'RedPaletteColorLookupTableData')
-    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        expected_len = lut_data.shape[0]
+        assert len(lut.BluePaletteColorLookupTableData) == expected_len
+        assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
 
-    #     assert lut.number_of_entries == lut_data.shape[0]
-    #     assert lut.first_mapped_value == first_mapped_value
-    #     assert lut.bits_per_entry == 8
-    #     assert lut.lut_data.dtype == np.uint8
-    #     np.array_equal(lut.lut_data, lut_data)
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 8
+        assert lut.lut_data.dtype == np.uint8
+        np.array_equal(lut.lut_data, lut_data)
 
 
 class TestPaletteColorLUTTransformation(TestCase):

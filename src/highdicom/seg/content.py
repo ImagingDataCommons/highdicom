@@ -306,7 +306,8 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames, None]
+        coordinate_system: Union[str, CoordinateSystemNames, None],
+        include_segment_number: bool = True,
     ) -> None:
         """
         Parameters
@@ -315,6 +316,8 @@ class DimensionIndexSequence(DataElementSequence):
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging. If None, the imaging does not belong within a frame of
             reference.
+        include_segment_number: bool
+            Include the segment number as a dimension index.
 
         """
         super().__init__()
@@ -323,9 +326,9 @@ class DimensionIndexSequence(DataElementSequence):
         else:
             self._coordinate_system = CoordinateSystemNames(coordinate_system)
 
-        if self._coordinate_system is None:
-            dim_uid = UID()
+        dim_uid = UID()
 
+        if include_segment_number:
             segment_number_index = Dataset()
             segment_number_index.DimensionIndexPointer = tag_for_keyword(
                 'ReferencedSegmentNumber'
@@ -335,21 +338,9 @@ class DimensionIndexSequence(DataElementSequence):
             )
             segment_number_index.DimensionOrganizationUID = dim_uid
             segment_number_index.DimensionDescriptionLabel = 'Segment Number'
-
             self.append(segment_number_index)
 
-        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
-            dim_uid = UID()
-
-            segment_number_index = Dataset()
-            segment_number_index.DimensionIndexPointer = tag_for_keyword(
-                'ReferencedSegmentNumber'
-            )
-            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
-                'SegmentIdentificationSequence'
-            )
-            segment_number_index.DimensionOrganizationUID = dim_uid
-            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
 
             x_axis_index = Dataset()
             x_axis_index.DimensionIndexPointer = tag_for_keyword(
@@ -411,7 +402,6 @@ class DimensionIndexSequence(DataElementSequence):
             # of the row (from top to bottom) and then position of the column
             # (from left to right) changing most frequently
             self.extend([
-                segment_number_index,
                 row_dimension_index,
                 column_dimension_index,
                 x_axis_index,
@@ -420,17 +410,6 @@ class DimensionIndexSequence(DataElementSequence):
             ])
 
         elif self._coordinate_system == CoordinateSystemNames.PATIENT:
-            dim_uid = UID()
-
-            segment_number_index = Dataset()
-            segment_number_index.DimensionIndexPointer = tag_for_keyword(
-                'ReferencedSegmentNumber'
-            )
-            segment_number_index.FunctionalGroupPointer = tag_for_keyword(
-                'SegmentIdentificationSequence'
-            )
-            segment_number_index.DimensionOrganizationUID = dim_uid
-            segment_number_index.DimensionDescriptionLabel = 'Segment Number'
 
             image_position_index = Dataset()
             image_position_index.DimensionIndexPointer = tag_for_keyword(
@@ -443,11 +422,21 @@ class DimensionIndexSequence(DataElementSequence):
             image_position_index.DimensionDescriptionLabel = \
                 'Image Position Patient'
 
-            self.extend([
-                segment_number_index,
-                image_position_index,
-            ])
+            self.append(image_position_index)
 
+        elif self._coordinate_system is None:
+            if not include_segment_number:
+                # Use frame label here just for the sake of using something
+                frame_label_index = Dataset()
+                frame_label_index.DimensionIndexPointer = tag_for_keyword(
+                    'FrameLabel'
+                )
+                frame_label_index.FunctionalGroupPointer = tag_for_keyword(
+                    'FrameContentSequence'
+                )
+                frame_label_index.DimensionOrganizationUID = dim_uid
+                frame_label_index.DimensionDescriptionLabel = 'Frame Label'
+                self.append(frame_label_index)
         else:
             raise ValueError(
                 f'Unknown coordinate system "{self._coordinate_system}"'
@@ -647,10 +636,15 @@ class DimensionIndexSequence(DataElementSequence):
         # X/Y/Z Offset In Slide Coordinate System and the Column/Row
         # Position in Total Image Pixel Matrix attributes in case of the
         # the slide coordinate system.
+        ref_seg_tag = tag_for_keyword("ReferencedSegmentNumber")
+        indexers = [
+            dim_ind for dim_ind in self
+            if dim_ind.DimensionIndexPointer != ref_seg_tag
+        ]
         plane_position_values = np.array([
             [
                 np.array(p[0][indexer.DimensionIndexPointer].value)
-                for indexer in self[1:]
+                for indexer in indexers
             ]
             for p in plane_positions
         ])
@@ -711,7 +705,9 @@ class DimensionIndexSequence(DataElementSequence):
         [10. 30. 50.]
 
         """
+        referenced_segment_tag = keyword_for_tag('ReferencedSegmentNumber')
         return [
             keyword_for_tag(indexer.DimensionIndexPointer)
-            for indexer in self[1:]
+            for indexer in self
+            if indexer.DimensionIndexPointer != referenced_segment_tag
         ]
