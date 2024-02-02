@@ -1064,7 +1064,6 @@ def get_regular_slice_spacing(
     # normal vector
     origin_distances = v3[None] @ image_positions.T
     origin_distances = origin_distances.squeeze(0)
-    print(origin_distances)
 
     if sort:
         sort_index = np.argsort(origin_distances)
