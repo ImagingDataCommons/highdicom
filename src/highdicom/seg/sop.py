@@ -3120,6 +3120,41 @@ class Segmentation(SOPClass):
 
         return types
 
+    def is_3d_volume(
+        self,
+        split_dimensions: Optional[Sequence[str]] = None,
+    ):
+        """Determine whether this segmentation is a 3D volume.
+
+        For this purpose, a 3D volume is a set of regularly slices in 3D space
+        distributed at regular spacings along a vector perpendicular to the
+        normal vector to each image.
+
+        Parameters
+        ----------
+
+
+        """
+        if split_dimensions is not None:
+            split_dimensions = list(split_dimensions)
+            if len(split_dimensions) == 0:
+                raise ValueError(
+                    'Argument "split_dimensions" must not be empty.'
+                )
+            if 'ReferencedSegmentNumber' in split_dimensions:
+                raise ValueError(
+                    'The value "ReferencedSegmentNumber" should not be '
+                    'included in the spplit dimensions.'
+                )
+        else:
+            split_dimensions = []
+
+        split_dimensions.append('ReferencedSegmentNumber')
+
+        spacing = self._db_man.get_slice_spacing(split_dimensions)
+
+        return spacing is not None
+
     def _get_pixels_by_seg_frame(
         self,
         output_shape: Union[int, Tuple[int, int]],

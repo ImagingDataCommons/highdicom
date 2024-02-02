@@ -1,6 +1,7 @@
 """Tools for working with multiframe DICOM images."""
 from collections import Counter
 from contextlib import contextmanager
+import itertools
 import logging
 import sqlite3
 from typing import (
@@ -750,8 +751,8 @@ class MultiFrameDBManager:
 
     def get_slice_spacing(
         self,
+        split_dimensions: Optional[Sequence[str]] = None,
         tol: float = DEFAULT_SPACING_TOLERANCE,
-        split_dimensions: Optional[Sequence[BaseTag]] = None,
     ) -> Optional[float]:
         """Get slice spacing, if any, for the image.
 
@@ -785,8 +786,8 @@ class MultiFrameDBManager:
             frames exist. For example, if time were included as a split dimension,
             this function will check whether a 3D volume exists at each timepoint
             (and that the volume is the same at each time point). Each dimension
-            index should be provided as a base tags representing the Dimension
-            Index Pointer.
+            index should be provided as the keyword representing the relevant
+            DICOM attribute.
 
         Returns
         -------
@@ -807,16 +808,17 @@ class MultiFrameDBManager:
             # Stipulate that this does represent a volume
             return 0.0
 
-        if split_dimensions is None:
-            cur = self._db_con.cursor()
+        cur = self._db_con.cursor()
 
-            query = """
-            SELECT
-                ImagePositionPatient_0,
-                ImagePositionPatient_1,
-                ImagePositionPatient_2
-            FROM FrameLUT;
-            """
+        if split_dimensions is None:
+
+            query = (
+                'SELECT '
+                'ImagePositionPatient_0, '
+                'ImagePositionPatient_1, '
+                'ImagePositionPatient_2 '
+                'FROM FrameLUT;'
+            )
 
             image_positions = np.array(
                 [r for r in cur.execute(query)]
@@ -825,10 +827,70 @@ class MultiFrameDBManager:
                 image_positions=image_positions,
                 image_orientation=np.array(self.shared_image_orientation),
                 sort=True,
+                tol=tol,
+            )
+        else:
+            dim_values = []
+
+            # Get lists of all unique values for the specified dimensions
+            for kw in split_dimensions:
+                # Find unique values of this attribute
+                query = f"""
+                SELECT DISTINCT {kw} FROM FrameLUT;
+                """
+
+                dim_values.append(
+                    [
+                        v[0] for v in cur.execute(query)
+                    ]
+                )
+
+            # Check that each combination of the split dimension has the same
+            # list of image positions
+            all_image_positions = []
+            for vals in itertools.product(*dim_values):
+                filter_str = 'AND '.join(
+                    f'{kw} = {val}' for kw, val in zip(split_dimensions, vals)
+                )
+                query = (
+                    'SELECT '
+                    'ImagePositionPatient_0, '
+                    'ImagePositionPatient_1, '
+                    'ImagePositionPatient_2 '
+                    'FROM FrameLUT '
+                    'WHERE '
+                    f'{filter_str} '
+                    'ORDER BY '
+                    'ImagePositionPatient_0, '
+                    'ImagePositionPatient_1, '
+                    'ImagePositionPatient_2 '
+                    ';'
+                )
+
+                image_positions = np.array(
+                    [r for r in cur.execute(query)]
+                )
+                all_image_positions.append(image_positions)
+
+            if len(all_image_positions) > 1:
+                for image_positions in all_image_positions:
+                    if not np.array_equal(
+                        image_positions,
+                        all_image_positions[0]
+                    ):
+                        # The volumes described by each combination of the
+                        # split dimensions have different sets of image
+                        # positions
+                        return None
+
+            spacing = get_regular_slice_spacing(
+                image_positions=all_image_positions[0],
+                image_orientation=np.array(self.shared_image_orientation),
+                sort=True,
+                tol=tol,
             )
 
         return spacing
-
 
 
     @contextmanager
