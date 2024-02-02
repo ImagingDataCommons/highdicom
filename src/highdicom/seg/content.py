@@ -14,7 +14,11 @@ from highdicom.content import (
 )
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
-from highdicom.spatial import map_pixel_into_coordinate_system
+from highdicom.spatial import (
+    _get_slice_distances,
+    get_normal_vector,
+    map_pixel_into_coordinate_system,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
@@ -605,7 +609,8 @@ class DimensionIndexSequence(DataElementSequence):
 
     def get_index_values(
         self,
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[PlanePositionSequence],
+        image_orientation: Optional[Sequence[float]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get values of indexed attributes that specify position of planes.
 
@@ -626,6 +631,15 @@ class DimensionIndexSequence(DataElementSequence):
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index
+        image_orientation: Union[Sequence[float], None], optional
+            An image orientation to use to order frames within a 3D coordinate
+            system. By default (if ``image_orientation`` is ``None``), the
+            plane positions are ordered using their raw numerical values and
+            not along any particular spatial vector. If ``image_orientation``
+            is provided, planes are ordered along the positive direction of the
+            vector normal to the specified. Should be a sequence of 6 floats.
+            This is only valid when plane position inputs contain only the
+            ImagePositionPatient.
 
         Note
         ----
@@ -659,21 +673,37 @@ class DimensionIndexSequence(DataElementSequence):
             for p in plane_positions
         ])
 
-        # Build an array that can be used to sort planes according to the
-        # Dimension Index Value based on the order of the items in the
-        # Dimension Index Sequence.
-        _, plane_sort_indices = np.unique(
-            plane_position_values,
-            axis=0,
-            return_index=True
-        )
+        if image_orientation is not None:
+            if not hasattr(plane_positions[0][0], 'ImagePositionPatient'):
+                raise ValueError(
+                    'Provided "image_orientation" is only valid when '
+                    'plane_positions contain the ImagePositionPatient.'
+                )
+            normal_vector = get_normal_vector(image_orientation)
+            origin_distances = _get_slice_distances(
+                plane_position_values[:, 0, :],
+                normal_vector,
+            )
+            _, plane_sort_indices = np.unique(
+                origin_distances,
+                return_index=True,
+            )
+        else:
+            # Build an array that can be used to sort planes according to the
+            # Dimension Index Value based on the order of the items in the
+            # Dimension Index Sequence.
+            _, plane_sort_indices = np.unique(
+                plane_position_values,
+                axis=0,
+                return_index=True
+            )
 
         if len(plane_sort_indices) != len(plane_positions):
             raise ValueError(
-                "Input image/frame positions are not unique according to the "
-                "Dimension Index Pointers. The generated segmentation would be "
-                "ambiguous. Ensure that source images/frames have distinct "
-                "locations."
+                'Input image/frame positions are not unique according to the '
+                'Dimension Index Pointers. The generated segmentation would be '
+                'ambiguous. Ensure that source images/frames have distinct '
+                'locations.'
             )
 
         return (plane_position_values, plane_sort_indices)

@@ -1460,9 +1460,15 @@ class Segmentation(SOPClass):
             # number) plane_sort_index is a list of indices into the input
             # planes giving the order in which they should be arranged to
             # correctly sort them for inclusion into the segmentation
+            sort_orientation = (
+                plane_orientation[0].ImageOrientationPatient
+                if self._coordinate_system == CoordinateSystemNames.PATIENT
+                else None
+            )
             plane_position_values, plane_sort_index = \
                 self.DimensionIndexSequence.get_index_values(
-                    plane_positions
+                    plane_positions,
+                    image_orientation=sort_orientation,
                 )
 
             are_spatial_locations_preserved = (
@@ -1500,49 +1506,6 @@ class Segmentation(SOPClass):
                         "Shape of input pixel_array does not match shape of "
                         "the source image."
                     )
-
-        # Dimension Organization Type
-        dimension_organization_type = self._check_tiled_dimension_organization_type(
-            dimension_organization_type=dimension_organization_type,
-            is_tiled=is_tiled,
-            omit_empty_frames=omit_empty_frames,
-            plane_positions=plane_positions,
-            rows=self.Rows,
-            columns=self.Columns,
-        )
-        if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            spacing = get_regular_slice_spacing(
-                image_positions=np.array(plane_position_values[:, 0, :]),
-                image_orientation=np.array(
-                    plane_orientation[0].ImageOrientationPatient
-                ),
-                sort=False,
-                enforce_postive=True,
-            )
-
-            if spacing is not None and spacing > 1.0:
-                # The image is a regular volume, so we should record this
-                dimension_organization_type = (
-                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                )
-                # Also add the slice spacing to the pixel measures
-                (
-                    self.SharedFunctionalGroupsSequence[0]
-                        .PixelMeasuresSequence[0]
-                        .SpacingBetweenSlices
-                ) = spacing
-            else:
-                if (
-                    dimension_organization_type ==
-                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                ):
-                    raise ValueError(
-                        'Dimension organization "3D" has been specified, '
-                        'but the source image is not a regularly-spaced 3D '
-                        'volume.'
-                    )
-        if dimension_organization_type is not None:
-            self.DimensionOrganizationType = dimension_organization_type.value
 
         # Find indices such that empty planes are removed
         if omit_empty_frames:
@@ -1588,6 +1551,51 @@ class Segmentation(SOPClass):
             ]
         else:
             unique_dimension_values = [None]
+
+        # Dimension Organization Type
+        dimension_organization_type = self._check_tiled_dimension_organization_type(
+            dimension_organization_type=dimension_organization_type,
+            is_tiled=is_tiled,
+            omit_empty_frames=omit_empty_frames,
+            plane_positions=plane_positions,
+            rows=self.Rows,
+            columns=self.Columns,
+        )
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            spacing = get_regular_slice_spacing(
+                image_positions=np.array(
+                    plane_position_values[plane_sort_index, 0, :]
+                ),
+                image_orientation=np.array(
+                    plane_orientation[0].ImageOrientationPatient
+                ),
+                sort=False,
+                enforce_positive=True,
+            )
+
+            if spacing is not None and spacing > 0.0:
+                # The image is a regular volume, so we should record this
+                dimension_organization_type = (
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                )
+                # Also add the slice spacing to the pixel measures
+                (
+                    self.SharedFunctionalGroupsSequence[0]
+                        .PixelMeasuresSequence[0]
+                        .SpacingBetweenSlices
+                ) = spacing
+            else:
+                if (
+                    dimension_organization_type ==
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                ):
+                    raise ValueError(
+                        'Dimension organization "3D" has been specified, '
+                        'but the source image is not a regularly-spaced 3D '
+                        'volume.'
+                    )
+        if dimension_organization_type is not None:
+            self.DimensionOrganizationType = dimension_organization_type.value
 
         if (
             has_ref_frame_uid and
