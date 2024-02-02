@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 import pydicom
@@ -988,11 +988,11 @@ def get_series_slice_spacing(
 
 
 def get_regular_slice_spacing(
-    image_positions: np.ndarray,
-    image_orientation: np.ndarray,
+    image_positions: Sequence[Sequence[float]],
+    image_orientation: Sequence[float],
     tol: float = DEFAULT_SPACING_TOLERANCE,
     sort: bool = True,
-    enforce_postive: bool = False,
+    enforce_positive: bool = False,
 ) -> Optional[float]:
     """Get the regular spacing between set of image positions, if any.
 
@@ -1005,12 +1005,14 @@ def get_regular_slice_spacing(
 
     Parameters
     ----------
-    image_positions: numpy.ndarray
-        Array of image positions for multiple frames. Should be a numpy array of
-        shape (N, 3) where N is the number of frames.
-    image_orientation: numpy.ndarray
+    image_positions: Sequence[Sequence[float]]
+        Array of image positions for multiple frames. Should be a 2D array of
+        shape (N, 3) where N is the number of frames. Either a numpy array or
+        anything convertible to it may be passed.
+    image_orientation: Sequence[float]
         Image orientation as direction cosine values taken directly from the
-        ImageOrientationPatient attribute. 1D array of length 6.
+        ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
+        array or anything convertible to it may be passed.
     tol: float
         Tolerance for determining spacing regularity. If slice spacings vary by
         less that this spacing, they are considered to be regular.
@@ -1019,7 +1021,7 @@ def get_regular_slice_spacing(
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    enforce_postive: bool
+    enforce_positive: bool
         If True and sort is False, require that the images are not only
         regularly spaced but also that they are ordered along the direction of
         the increasing normal vector, as opposed to being ordered regularly
@@ -1035,16 +1037,10 @@ def get_regular_slice_spacing(
 
     """
     image_positions = np.array(image_positions)
-    image_orientation = np.array(image_orientation)
 
     if image_positions.ndim != 2 or image_positions.shape[1] != 3:
         raise ValueError(
             "Argument 'image_positions' should be an (N, 3) array."
-        )
-    if image_orientation.ndim != 1 or image_orientation.shape[0] != 6:
-        raise ValueError(
-            "Argument 'image_orientation' should be an array of "
-            "length 6."
         )
     n = image_positions.shape[0]
     if n == 0:
@@ -1055,15 +1051,11 @@ def get_regular_slice_spacing(
         # Special case, we stipluate that this has spacing 0.0
         return 0.0
 
-    # Find normal vector to the imaging plane
-    v1 = image_orientation[:3]
-    v2 = image_orientation[3:]
-    v3 = np.cross(v1, v2)
+    normal_vector = get_normal_vector(image_orientation)
 
     # Calculate distance of each slice from coordinate system origin along the
     # normal vector
-    origin_distances = v3[None] @ image_positions.T
-    origin_distances = origin_distances.squeeze(0)
+    origin_distances = _get_slice_distances(image_positions, normal_vector)
 
     if sort:
         sort_index = np.argsort(origin_distances)
@@ -1079,23 +1071,127 @@ def get_regular_slice_spacing(
         spacings,
         atol=tol
     ).all()
-    if is_regular and enforce_postive:
+    if is_regular and enforce_positive:
         if avg_spacing < 0.0:
             return None
 
     # Additionally check that the vector from the first to the last plane lies
-    # approximately along v3
+    # approximately along the normal vector
     pos1 = image_positions[sort_index[0], :]
     pos2 = image_positions[sort_index[-1], :]
     span = (pos2 - pos1)
     span /= np.linalg.norm(span)
 
-    is_perpendicular = abs(v3.T @ span - 1.0) < tol
+    is_perpendicular = abs(normal_vector.T @ span - 1.0) < tol
 
     if is_regular and is_perpendicular:
         return abs(avg_spacing)
     else:
         return None
+
+
+def get_normal_vector(
+    image_orientation: Sequence[float],
+):
+    """Get a vector normal to an imaging plane.
+
+    Parameters
+    ----------
+    image_orientation: Sequence[float]
+        Image orientation in the standard DICOM format used for the
+        ImageOrientationPatient and ImageOrientationSlide attributes,
+        consisting of 6 numbers representing the direction cosines along the
+        rows (first three elements) and columns (second three elements).
+
+    Returns
+    -------
+    np.ndarray:
+        Unit normal vector as a NumPy array with shape (3, ).
+
+    """
+    image_orientation = np.array(image_orientation)
+    if image_orientation.ndim != 1 or image_orientation.shape[0] != 6:
+        raise ValueError(
+            "Argument 'image_orientation' should be an array of "
+            "length 6."
+        )
+
+    # Find normal vector to the imaging plane
+    v1 = image_orientation[:3]
+    v2 = image_orientation[3:]
+    v3 = np.cross(v1, v2)
+
+    return v3
+
+
+def get_plane_sort_index(
+    image_positions: Sequence[Sequence[float]],
+    image_orientation: Sequence[float],
+) -> List[int]:
+    """
+
+    Parameters
+    ----------
+    image_positions: Sequence[Sequence[float]]
+        Array of image positions for multiple frames. Should be a 2D array of
+        shape (N, 3) where N is the number of frames. Either a numpy array or
+        anything convertible to it may be passed.
+    image_orientation: Sequence[float]
+        Image orientation as direction cosine values taken directly from the
+        ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
+        array or anything convertible to it may be passed.
+
+    Returns
+    -------
+    List[int]
+        Sorting index for the input planes. Element i of this list gives the
+        index in the original list of the frames such that the output list
+        is sorted along the positive direction of the normal vector of the
+        imaging plane.
+
+    """
+    image_positions = np.array(image_positions)
+    image_orientation = np.array(image_orientation)
+
+    normal_vector = get_normal_vector(image_orientation)
+
+    # Calculate distance of each slice from coordinate system origin along the
+    # normal vector
+    origin_distances = _get_slice_distances(image_positions, normal_vector)
+
+    sort_index = np.argsort(origin_distances)
+
+    return sort_index.tolist()
+
+
+def _get_slice_distances(
+    image_positions: np.ndarray,
+    normal_vector: np.ndarray,
+) -> np.ndarray:
+    """Get distances of a set of planes from the origin.
+
+    For each plane position, find (signed) distance from origin along the vector normal
+    to the imaging plane.
+
+    Parameters
+    ----------
+    image_positions: np.ndarray
+        Image positions array. 2D array of shape (N, 3) where N is the number of
+        planes and each row gives the (x, y, z) image position of a plane.
+    normal_vector: np.ndarray
+        Unit normal vector (perpendicular to the imaging plane).
+
+    Returns
+    -------
+    np.ndarray:
+        1D array of shape (N, ) giving signed distance from the origin of each
+        plane position.
+
+    """
+    origin_distances = normal_vector[None] @ image_positions.T
+    origin_distances = origin_distances.squeeze(0)
+
+    return origin_distances
 
 
 def get_coordinate_system(
