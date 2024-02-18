@@ -725,7 +725,13 @@ class TestSegmentation:
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
     @staticmethod
-    @pytest.fixture(params=[ExplicitVRLittleEndian, ImplicitVRLittleEndian])
+    @pytest.fixture(
+        params=[
+            ExplicitVRLittleEndian,
+            ImplicitVRLittleEndian,
+            JPEG2000Lossless,
+        ]
+    )
     def binary_transfer_syntax_uid(request):
         return request.param
 
@@ -1921,8 +1927,11 @@ class TestSegmentation:
         )
 
         # Ensure the recovered pixel array matches what is expected
+        out_mask = self.get_array_after_writing(instance)
+        if binary_transfer_syntax_uid == JPEG2000Lossless:
+            out_mask = out_mask.astype(bool)
         assert np.array_equal(
-            self.get_array_after_writing(instance),
+            out_mask,
             expected_encoding
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
@@ -1949,9 +1958,12 @@ class TestSegmentation:
             SegmentsOverlapValues.NO.value
         )
 
+        out_mask = self.get_array_after_writing(instance)
+        if binary_transfer_syntax_uid == JPEG2000Lossless:
+            out_mask = out_mask.astype(bool)
         assert np.array_equal(
-            self.get_array_after_writing(instance),
-            expected_enc_exc
+            out_mask,
+            expected_enc_exc,
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
@@ -1977,9 +1989,12 @@ class TestSegmentation:
             SegmentsOverlapValues.YES.value
         )
 
+        out_mask = self.get_array_after_writing(instance)
+        if binary_transfer_syntax_uid == JPEG2000Lossless:
+            out_mask = out_mask.astype(bool)
         assert np.array_equal(
-            self.get_array_after_writing(instance),
-            expected_enc_overlap
+            out_mask,
+            expected_enc_overlap,
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 

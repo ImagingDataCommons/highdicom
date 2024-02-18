@@ -1617,7 +1617,12 @@ class Segmentation(SOPClass):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
-            if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            supported_transfer_syntaxes_binary = {
+                ImplicitVRLittleEndian,
+                ExplicitVRLittleEndian,
+                JPEG2000Lossless,
+            }
+            if transfer_syntax_uid not in supported_transfer_syntaxes_binary:
                 raise ValueError(
                     'The chosen transfer syntax '
                     f'{self.file_meta.TransferSyntaxUID} '

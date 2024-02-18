@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 from PIL import Image
+from numpy.core.multiarray import ascontiguousarray
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
@@ -224,9 +225,9 @@ def encode_frame(
                         'or "MONOCHROME2" for encoding of monochrome image '
                         'frames with Lossless JPEG 2000 codec.'
                     )
-                if bits_allocated not in (8, 16):
+                if bits_allocated not in (1, 8, 16):
                     raise ValueError(
-                        'Bits Allocated must be 8 or 16 for encoding of '
+                        'Bits Allocated must be 1, 8, or 16 for encoding of '
                         'monochrome image frames with Lossless JPEG 2000 codec.'
                     )
             elif samples_per_pixel == 3:
@@ -306,7 +307,19 @@ def encode_frame(
                     'encoding of image frames with Lossless JPEG-LS codec.'
                 )
 
-        if transfer_syntax_uid in compression_lut:
+        if transfer_syntax_uid == JPEG2000Lossless and bits_allocated == 1:
+            # Special case, need openjpeg here
+            try:
+                from openjpeg import encode
+            except ImportError as e:
+                msg = (
+                    'pylibjpeg-openjpeg is required for compession of '
+                    'aingle bit images with JPEG2000Lossless.'
+                )
+                raise ImportError(msg) from e
+            array = np.ascontiguousarray(array)
+            data = encode(array, bits_stored=1, photometric_interpretation=2)
+        elif transfer_syntax_uid in compression_lut:
             image_format, kwargs = compression_lut[transfer_syntax_uid]
             if samples_per_pixel == 3:
                 image = Image.fromarray(array, mode='RGB')
@@ -447,5 +460,12 @@ def decode_frame(
         image = Image.fromarray(array, mode='YCbCr')
         image = image.convert(mode='RGB')
         array = np.asarray(image)
+
+    if (
+        transfer_syntax_uid == JPEG2000Lossless
+        and bits_allocated ==1
+    ):
+        # Not quite sure why single bit jp2k are decoded like this
+        array = np.right_shift(array, 7)
 
     return array
