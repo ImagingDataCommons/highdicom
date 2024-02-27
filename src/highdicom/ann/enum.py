@@ -87,12 +87,13 @@ class GraphicTypeValues(Enum):
     """
 
     RECTANGLE = 'RECTANGLE'
-    """Connected line segments defined by three or more ordered coordinates.
+    """Connected line segments defined by four ordered coordinates.
 
-    The coordinates shall be coplanar and form a closed, rectangular polygon.
-    The first coordinate is the top left hand corner, the second coordinate is
-    the top right hand corner, the third coordinate is the bottom right hand
-    corner, and the forth coordinate is the bottom left hand corner.
+    The coordinates shall be coplanar and represent a closed, rectangular
+    polygon. The first coordinate is the top left hand corner, the second
+    coordinate is the top right hand corner, the third coordinate is the bottom
+    right hand corner, and the fourth coordinate is the bottom left hand
+    corner.
 
     The edges of the rectangle need not be aligned with the axes of the
     coordinate system.
