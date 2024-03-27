@@ -50,7 +50,7 @@ def encode_frame(
         Number of bits that need to be allocated per pixel sample
     bits_stored: int
         Number of bits that are required to store a pixel sample
-    photometric_interpretation: int
+    photometric_interpretation: Union[PhotometricInterpretationValues, str]
         Photometric interpretation
     pixel_representation: Union[highdicom.PixelRepresentationValues, int, None], optional
         Whether pixel samples are represented as unsigned integers or
@@ -156,6 +156,7 @@ def encode_frame(
                     'tile_size': None,
                     'num_resolutions': 1,
                     'irreversible': False,
+                    'no_jp2': True,
                 },
             ),
             JPEGLSLossless: (
