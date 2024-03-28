@@ -373,7 +373,7 @@ class AnnotationGroup(Dataset):
         if coordinates.shape[1] == 3:
             unique_z_values = np.unique(coordinates[:, 2])
             if len(unique_z_values) == 1:
-                self.CommonZCoordinateValue = unique_z_values[0]
+                self.CommonZCoordinateValue = unique_z_values.item()
                 coordinates_data = coordinates[:, 0:2].flatten()
                 dimensionality = 2
             else:
