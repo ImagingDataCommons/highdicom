@@ -917,3 +917,45 @@ def map_coordinate_into_pixel_matrix(
         round(pixel_matrix_coordinates[1]),
         round(pixel_matrix_coordinates[2]),
     )
+
+
+def are_points_coplanar(
+    points: np.ndarray,
+    tol: float = 1e-5,
+) -> bool:
+    """Check whether a set of 3D points are coplanar (to within a tolerance).
+
+    Parameters
+    ----------
+    points: np.ndarray
+        Numpy array of shape (n x 3) containing 3D points.
+    tol: float
+        Tolerance on the distance of the furthest point from the plane of best
+        fit.
+
+    Returns
+    -------
+    bool:
+        True if the points are coplanar within a tolerance tol, False
+        otherwise. Note that if n < 4, points are always coplanar.
+
+    """
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("Array should have shape (n x 3).")
+
+    n = points.shape[0]
+    if n < 4:
+        # Any set of three or fewer points is coplanar
+        return True
+
+    # Center points by subtracting mean
+    c = np.mean(points, axis=0, keepdims=True)
+    points_centered = points - c
+
+    # Use a SVD to determine the normal of the plane of best fit, then
+    # find maximum deviation from it
+    u, _, _ = np.linalg.svd(points_centered.T)
+    normal = u[:, -1]
+    deviations = normal.T @ points_centered.T
+    max_dev = np.abs(deviations).max()
+    return max_dev <= tol
