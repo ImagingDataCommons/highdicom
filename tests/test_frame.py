@@ -171,7 +171,7 @@ class TestEncodeFrame(TestCase):
             pixel_representation=0,
             planar_configuration=0
         )
-        assert compressed_frame.startswith(b'\x00\x00\x00\x0C\x6A\x50\x20')
+        assert compressed_frame.startswith(b"\xFF\x4F\xFF\x51")
         assert compressed_frame.endswith(b'\xFF\xD9')
         decoded_frame = decode_frame(
             value=compressed_frame,
@@ -198,7 +198,7 @@ class TestEncodeFrame(TestCase):
             photometric_interpretation='MONOCHROME2',
             pixel_representation=0,
         )
-        assert compressed_frame.startswith(b'\x00\x00\x00\x0C\x6A\x50\x20')
+        assert compressed_frame.startswith(b"\xFF\x4F\xFF\x51")
         assert compressed_frame.endswith(b'\xFF\xD9')
         decoded_frame = decode_frame(
             value=compressed_frame,
