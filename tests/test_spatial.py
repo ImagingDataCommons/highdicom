@@ -490,11 +490,22 @@ def test_transformers_sm_image(transformer_cls):
     'transformer_cls',
     all_transformer_classes
 )
-def test_transformers_seg_sm_image(transformer_cls):
+def test_transformers_sm_image_total_pixel_matrix(transformer_cls):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data/test_files')
+    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    transformer_cls.for_image(dcm, for_total_pixel_matrix=True)
+
+
+@pytest.mark.parametrize(
+    'transformer_cls',
+    all_transformer_classes
+)
+def test_transformers_seg_sm_image_total_pixel_matrix(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
     dcm = pydicom.dcmread(data_dir  / 'seg_image_sm_dots.dcm')
-    transformer_cls.for_image(dcm, frame_number=3)
+    transformer_cls.for_image(dcm, for_total_pixel_matrix=True)
 
 
 @pytest.mark.parametrize(

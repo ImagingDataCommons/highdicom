@@ -2341,6 +2341,8 @@ class Segmentation(SOPClass):
                     format_number_as_ds(x_origin)
                 origin_item.YOffsetInSlideCoordinateSystem = \
                     format_number_as_ds(y_origin)
+                origin_item.ZOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(z_origin)
                 self.TotalPixelMatrixOriginSequence = [origin_item]
                 self.TotalPixelMatrixFocalPlanes = 1
                 if total_pixel_matrix_size is None:

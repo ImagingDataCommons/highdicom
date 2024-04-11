@@ -39,7 +39,8 @@ def get_image_coordinate_system(
 
 def _get_spatial_information(
     dataset: Dataset,
-    frame_number: Optional[int] = None
+    frame_number: Optional[int] = None,
+    for_total_pixel_matrix: bool = False,
 ) -> Tuple[List[float], List[float], List[float]]:
     """Get spatial information from an image dataset.
 
@@ -50,6 +51,10 @@ def _get_spatial_information(
     frame_number: Union[int, None], optional
         Specific 1-based frame number. Required if dataset is a multi-frame image.
         Should be None otherwise.
+    for_total_pixel_matrix: bool, optional
+        If True, get spatial information for the total pixel matrix of a tiled
+        image. This should only be True if the image is a tiled image and is
+        incompatible with specifying a frame number.
 
     Returns
     -------
@@ -68,6 +73,28 @@ def _get_spatial_information(
             'The input "dataset" has no spatial information '
             'as it has no frame of reference.'
         )
+
+    if for_total_pixel_matrix:
+        if not hasattr(dataset, 'TotalPixelMatrixOriginSequence'):
+            raise ValueError('Image is not a tiled image.')
+        origin_seq = dataset.TotalPixelMatrixOriginSequence[0]
+        position = (
+            origin_seq.XOffsetInSlideCoordinateSystem,
+            origin_seq.YOffsetInSlideCoordinateSystem,
+            getattr(origin_seq, 'ZOffsetInSlideCoordinateSystem', 0.0)
+        )
+        shared_seq = dataset.SharedFunctionalGroupsSequence[0]
+        if hasattr(shared_seq, 'PixelMeasuresSequence'):
+            spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
+        else:
+            raise ValueError(
+                "PixelMeasuresSequence not found in the "
+                "SharedFunctionalGroupsSequence."
+            )
+
+        orientation = dataset.ImageOrientationSlide
+        return position, orientation, spacing
+
     if is_multiframe_image(dataset):
         if frame_number is None:
             raise TypeError(
@@ -478,6 +505,7 @@ class PixelToReferenceTransformer:
         cls,
         dataset: Dataset,
         frame_number: Optional[int] = None,
+        for_total_pixel_matrix: bool = False,
     ) -> 'PixelToReferenceTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -489,16 +517,23 @@ class PixelToReferenceTransformer:
             Frame number (using 1-based indexing) of the frame for which to get
             the transformer. This should be provided if and only if the dataset
             is a multi-frame image.
+        for_total_pixel_matrix: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            a tiled image. The result will be a transformer that maps pixel
+            indices of the total pixel matrix to frame of reference
+            coordinates. This should only be True if the image is a tiled image
+            and is incompatible with specifying a frame number.
 
         Returns
         -------
-        PixelToReferenceTransformer:
+        highdicom.spatial.PixelToReferenceTransformer:
             Transformer object for the given image, or image frame.
 
         """
         position, orientation, spacing = _get_spatial_information(
             dataset,
-            frame_number
+            frame_number=frame_number,
+            for_total_pixel_matrix=for_total_pixel_matrix,
         )
         return cls(
             image_position=position,
@@ -654,6 +689,7 @@ class ReferenceToPixelTransformer:
         cls,
         dataset: Dataset,
         frame_number: Optional[int] = None,
+        for_total_pixel_matrix: bool = False,
     ) -> 'ReferenceToPixelTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -665,16 +701,23 @@ class ReferenceToPixelTransformer:
             Frame number (using 1-based indexing) of the frame for which to get
             the transformer. This should be provided if and only if the dataset
             is a multi-frame image.
+        for_total_pixel_matrix: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            a tiled image. The result will be a transformer that maps frame of
+            reference coordinates to indices of the total pixel matrix. This
+            should only be True if the image is a tiled image and is
+            incompatible with specifying a frame number.
 
         Returns
         -------
-        ReferenceToPixelTransformer:
+        highdicom.spatial.ReferenceToPixelTransformer:
             Transformer object for the given image, or image frame.
 
         """
         position, orientation, spacing = _get_spatial_information(
             dataset,
-            frame_number
+            frame_number=frame_number,
+            for_total_pixel_matrix=for_total_pixel_matrix,
         )
         return cls(
             image_position=position,
@@ -825,6 +868,7 @@ class ImageToReferenceTransformer:
         cls,
         dataset: Dataset,
         frame_number: Optional[int] = None,
+        for_total_pixel_matrix: bool = False,
     ) -> 'ImageToReferenceTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -836,16 +880,23 @@ class ImageToReferenceTransformer:
             Frame number (using 1-based indexing) of the frame for which to get
             the transformer. This should be provided if and only if the dataset
             is a multi-frame image.
+        for_total_pixel_matrix: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            a tiled image. The result will be a transformer that maps image
+            coordinates of the total pixel matrix to frame of reference
+            coordinates. This should only be True if the image is a tiled image
+            and is incompatible with specifying a frame number.
 
         Returns
         -------
-        ImageToReferenceTransformer:
+        highdicom.spatial.ImageToReferenceTransformer:
             Transformer object for the given image, or image frame.
 
         """
         position, orientation, spacing = _get_spatial_information(
             dataset,
-            frame_number
+            frame_number=frame_number,
+            for_total_pixel_matrix=for_total_pixel_matrix,
         )
         return cls(
             image_position=position,
@@ -1014,6 +1065,7 @@ class ReferenceToImageTransformer:
         cls,
         dataset: Dataset,
         frame_number: Optional[int] = None,
+        for_total_pixel_matrix: bool = False,
     ) -> 'ReferenceToImageTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -1025,16 +1077,23 @@ class ReferenceToImageTransformer:
             Frame number (using 1-based indexing) of the frame for which to get
             the transformer. This should be provided if and only if the dataset
             is a multi-frame image.
+        for_total_pixel_matrix: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            a tiled image. The result will be a transformer that maps frame of
+            reference coordinates to indices of the total pixel matrix. This
+            should only be True if the image is a tiled image and is
+            incompatible with specifying a frame number.
 
         Returns
         -------
-        ReferenceToImageTransformer:
+        highdicom.spatial.ReferenceToImageTransformer:
             Transformer object for the given image, or image frame.
 
         """
         position, orientation, spacing = _get_spatial_information(
             dataset,
-            frame_number
+            frame_number=frame_number,
+            for_total_pixel_matrix=for_total_pixel_matrix,
         )
         return cls(
             image_position=position,
