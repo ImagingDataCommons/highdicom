@@ -651,17 +651,6 @@ class TestMicroscopyBulkSimpleAnnotations:
             assert first_group_has_common_z
             assert second_group_has_common_z
 
-        wrong_coordinate_type = (
-            '3D' if annotation_coordinate_type.value == 'SCOORD'
-            else '2D'
-        )
-        # with pytest.raises(ValueError):
-            # d = second_retrieved_group.get_graphic_data(
-            #     coordinate_type=wrong_coordinate_type
-            # )
-            # print(len(d))
-            # print(len(d[0].shape))
-
         retrieved_groups = annotations.get_annotation_groups(
             graphic_type=GraphicTypeValues.POINT
         )
