@@ -1,4 +1,7 @@
+from pathlib import Path
 import numpy as np
+import pydicom
+from pydicom.data import get_testdata_file
 import pytest
 
 from highdicom.spatial import (
@@ -451,3 +454,54 @@ def test_map_reference_to_image_coordinate(params, inputs, expected_outputs):
     transform = ReferenceToImageTransformer(**params)
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+
+all_transformer_classes = [
+    ImageToReferenceTransformer,
+    PixelToReferenceTransformer,
+    ReferenceToPixelTransformer,
+    ReferenceToImageTransformer,
+]
+
+
+@pytest.mark.parametrize(
+    'transformer_cls',
+    all_transformer_classes
+)
+def test_transformers_ct_image(transformer_cls):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data/test_files')
+    dcm = pydicom.dcmread(data_dir  / 'ct_image.dcm')
+    transformer_cls.for_image(dcm)
+
+
+@pytest.mark.parametrize(
+    'transformer_cls',
+    all_transformer_classes
+)
+def test_transformers_sm_image(transformer_cls):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data/test_files')
+    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    transformer_cls.for_image(dcm, frame_number=3)
+
+
+@pytest.mark.parametrize(
+    'transformer_cls',
+    all_transformer_classes
+)
+def test_transformers_seg_sm_image(transformer_cls):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data/test_files')
+    dcm = pydicom.dcmread(data_dir  / 'seg_image_sm_dots.dcm')
+    transformer_cls.for_image(dcm, frame_number=3)
+
+
+@pytest.mark.parametrize(
+    'transformer_cls',
+    all_transformer_classes
+)
+def test_transformers_enhanced_ct_image(transformer_cls):
+    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+    transformer_cls.for_image(dcm, frame_number=2)
+

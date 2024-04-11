@@ -76,7 +76,10 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import ImageToReferenceTransformer
+from highdicom.spatial import (
+    ImageToReferenceTransformer,
+    get_image_coordinate_system,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
     check_person_name,
@@ -1515,6 +1518,7 @@ class Segmentation(SOPClass):
                     CoordinateSystemNames.SLIDE
             else:
                 self._coordinate_system = CoordinateSystemNames.PATIENT
+                self._coordinate_system = get_image_coordinate_system(src_img)
         else:
             # Only allow missing FrameOfReferenceUID if it is not required
             # for this IOD

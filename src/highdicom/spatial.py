@@ -1,6 +1,142 @@
-from typing import Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
+from pydicom import Dataset
 import numpy as np
+
+from highdicom.enum import CoordinateSystemNames
+from highdicom._module_utils import is_multiframe_image
+
+
+def get_image_coordinate_system(
+    dataset: Dataset
+) -> Optional[CoordinateSystemNames]:
+    """Get the coordinate system used by an image.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset representing an image.
+
+    Returns
+    --------
+    Union[highdicom.enum.CoordinateSystemNames, None]
+        Coordinate system used by the image, if any.
+
+    """
+    if not hasattr(dataset, "FrameOfReferenceUID"):
+        return None
+
+    # Using Container Type Code Sequence attribute would be more
+    # elegant, but unfortunately it is a type 2 attribute.
+    if (
+        hasattr(dataset, 'ImageOrientationSlide') or
+        hasattr(dataset, 'ImageCenterPointCoordinatesSequence')
+    ):
+        return CoordinateSystemNames.SLIDE
+    else:
+        return CoordinateSystemNames.PATIENT
+
+
+def _get_spatial_information(
+    dataset: Dataset,
+    frame_number: Optional[int] = None
+) -> Tuple[List[float], List[float], List[float]]:
+    """Get spatial information from an image dataset.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset representing an image.
+    frame_number: Union[int, None], optional
+        Specific 1-based frame number. Required if dataset is a multi-frame image.
+        Should be None otherwise.
+
+    Returns
+    -------
+    image_position: List[float]
+        Image position (3 elements) of the dataset or frame.
+    image_orientation: List[float]
+        Image orientation (6 elements) of the dataset or frame.
+    pixel_spacing: List[float]
+        Pixel spacing (2 elements) of the dataset or frame.
+
+    """
+    coordinate_system = get_image_coordinate_system(dataset)
+
+    if coordinate_system is None:
+        raise ValueError(
+            'The input "dataset" has no spatial information '
+            'as it has no frame of reference.'
+        )
+    if is_multiframe_image(dataset):
+        if frame_number is None:
+            raise TypeError(
+                'Argument "frame_number" must be specified for a multi-frame '
+                'image.'
+            )
+        shared_seq = dataset.SharedFunctionalGroupsSequence[0]
+        frame_seq = dataset.PerFrameFunctionalGroupsSequence[
+            frame_number - 1
+        ]
+
+        # Find spacing in either shared or per-frame sequences (this logic is
+        # the same for patient or slide coordinate system)
+        if hasattr(shared_seq, 'PixelMeasuresSequence'):
+            spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
+        elif hasattr(frame_seq, 'PixelMeasuresSequence'):
+            spacing = frame_seq.PixelMeasuresSequence[0].PixelSpacing
+        else:
+            raise ValueError('No pixel measures information found.')
+
+        if coordinate_system == CoordinateSystemNames.SLIDE:
+            # Find position in either shared or per-frame sequences
+            if hasattr(shared_seq, 'PlanePositionSlideSequence'):
+                pos_seq = shared_seq.PlanePositionSlideSequence[0]
+            elif hasattr(frame_seq, 'PlanePositionSlideSequence'):
+                pos_seq = frame_seq.PlanePositionSlideSequence[0]
+            else:
+                raise ValueError('No frame position information found.')
+
+            position = [
+                pos_seq.XOffsetInSlideCoordinateSystem,
+                pos_seq.YOffsetInSlideCoordinateSystem,
+                pos_seq.ZOffsetInSlideCoordinateSystem,
+            ]
+
+            orientation = dataset.ImageOrientationSlide
+
+        else:  # PATIENT coordinate system (multiframe)
+            # Find position in either shared or per-frame sequences
+            if hasattr(shared_seq, 'PlanePositionSequence'):
+                pos_seq = shared_seq.PlanePositionSequence[0]
+            elif hasattr(frame_seq, 'PlanePositionSequence'):
+                pos_seq = frame_seq.PlanePositionSequence[0]
+            else:
+                raise ValueError('No frame position information found.')
+
+            position = pos_seq.ImagePositionPatient
+
+            # Find orientation  in either shared or per-frame sequences
+            if hasattr(shared_seq, 'PlaneOrientationSequence'):
+                pos_seq = shared_seq.PlaneOrientationSequence[0]
+            elif hasattr(frame_seq, 'PlaneOrientationSequence'):
+                pos_seq = frame_seq.PlaneOrientationSequence[0]
+            else:
+                raise ValueError('No frame orientation information found.')
+
+            orientation = pos_seq.ImageOrientationPatient
+
+    else:  # Single-frame image
+        if frame_number is not None:
+            raise TypeError(
+                'Argument "frame_number" must be None for a single-frame '
+                "image."
+            )
+        position = dataset.ImagePositionPatient
+        orientation = dataset.ImageOrientationPatient
+        spacing = dataset.PixelSpacing
+
+    return position, orientation, spacing
 
 
 def create_rotation_matrix(
@@ -337,6 +473,39 @@ class PixelToReferenceTransformer:
         reference_coordinates = np.dot(self._affine, pixel_matrix_coordinates)
         return reference_coordinates[:3, :].T
 
+    @classmethod
+    def for_image(
+        cls,
+        dataset: Dataset,
+        frame_number: Optional[int] = None,
+    ) -> 'PixelToReferenceTransformer':
+        """Construct a transformer for a given image or image frame.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing an image.
+        frame_number: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame for which to get
+            the transformer. This should be provided if and only if the dataset
+            is a multi-frame image.
+
+        Returns
+        -------
+        PixelToReferenceTransformer:
+            Transformer object for the given image, or image frame.
+
+        """
+        position, orientation, spacing = _get_spatial_information(
+            dataset,
+            frame_number
+        )
+        return cls(
+            image_position=position,
+            image_orientation=orientation,
+            pixel_spacing=spacing,
+        )
+
 
 class ReferenceToPixelTransformer:
 
@@ -480,6 +649,39 @@ class ReferenceToPixelTransformer:
         pixel_matrix_coordinates = np.dot(self._affine, reference_coordinates)
         return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
 
+    @classmethod
+    def for_image(
+        cls,
+        dataset: Dataset,
+        frame_number: Optional[int] = None,
+    ) -> 'ReferenceToPixelTransformer':
+        """Construct a transformer for a given image or image frame.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing an image.
+        frame_number: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame for which to get
+            the transformer. This should be provided if and only if the dataset
+            is a multi-frame image.
+
+        Returns
+        -------
+        ReferenceToPixelTransformer:
+            Transformer object for the given image, or image frame.
+
+        """
+        position, orientation, spacing = _get_spatial_information(
+            dataset,
+            frame_number
+        )
+        return cls(
+            image_position=position,
+            image_orientation=orientation,
+            pixel_spacing=spacing,
+        )
+
 
 class ImageToReferenceTransformer:
 
@@ -617,6 +819,39 @@ class ImageToReferenceTransformer:
         ])
         reference_coordinates = np.dot(self._affine, image_coordinates)
         return reference_coordinates[:3, :].T
+
+    @classmethod
+    def for_image(
+        cls,
+        dataset: Dataset,
+        frame_number: Optional[int] = None,
+    ) -> 'ImageToReferenceTransformer':
+        """Construct a transformer for a given image or image frame.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing an image.
+        frame_number: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame for which to get
+            the transformer. This should be provided if and only if the dataset
+            is a multi-frame image.
+
+        Returns
+        -------
+        ImageToReferenceTransformer:
+            Transformer object for the given image, or image frame.
+
+        """
+        position, orientation, spacing = _get_spatial_information(
+            dataset,
+            frame_number
+        )
+        return cls(
+            image_position=position,
+            image_orientation=orientation,
+            pixel_spacing=spacing,
+        )
 
 
 class ReferenceToImageTransformer:
@@ -773,6 +1008,39 @@ class ReferenceToImageTransformer:
         ])
         image_coordinates = np.dot(self._affine, reference_coordinates)
         return image_coordinates[:3, :].T
+
+    @classmethod
+    def for_image(
+        cls,
+        dataset: Dataset,
+        frame_number: Optional[int] = None,
+    ) -> 'ReferenceToImageTransformer':
+        """Construct a transformer for a given image or image frame.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing an image.
+        frame_number: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame for which to get
+            the transformer. This should be provided if and only if the dataset
+            is a multi-frame image.
+
+        Returns
+        -------
+        ReferenceToImageTransformer:
+            Transformer object for the given image, or image frame.
+
+        """
+        position, orientation, spacing = _get_spatial_information(
+            dataset,
+            frame_number
+        )
+        return cls(
+            image_position=position,
+            image_orientation=orientation,
+            pixel_spacing=spacing,
+        )
 
 
 def map_pixel_into_coordinate_system(
