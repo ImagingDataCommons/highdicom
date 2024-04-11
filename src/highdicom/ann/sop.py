@@ -220,7 +220,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             ref.ReferencedInstanceSequence = referenced_images
             self.ReferencedSeriesSequence.append(ref)
 
-        group_numbers = np.zeros((len(annotation_groups), ), dtype=int)
         self.AnnotationGroupSequence = []
         for i, group in enumerate(annotation_groups):
             if not isinstance(group, AnnotationGroup):
@@ -234,7 +233,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                     'Annotation Group Number {i + 1} instead of '
                     f'{group.AnnotationGroupNumber}.'
                 )
-            group_numbers[i] = group.AnnotationGroupNumber
             self.AnnotationGroupSequence.append(group)
 
     def get_annotation_group(
