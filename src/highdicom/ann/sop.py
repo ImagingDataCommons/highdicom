@@ -220,7 +220,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             ref.ReferencedInstanceSequence = referenced_images
             self.ReferencedSeriesSequence.append(ref)
 
-        group_numbers = np.zeros((len(annotation_groups), ), dtype=int)
         self.AnnotationGroupSequence = []
         for i, group in enumerate(annotation_groups):
             if not isinstance(group, AnnotationGroup):
@@ -234,7 +233,13 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                     'Annotation Group Number {i + 1} instead of '
                     f'{group.AnnotationGroupNumber}.'
                 )
-            group_numbers[i] = group.AnnotationGroupNumber
+            if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+                # This is a little ugly, but because the constructor of the
+                # AnnotationGroup class does not know the coordinate type, it
+                # always adds the CommonZCoordinateValue. However this should
+                # not be resent for 2D coordinates. So we will remove it here.
+                if hasattr(group, 'CommonZCoordinateValue'):
+                    delattr(group, 'CommonZCoordinateValue')
             self.AnnotationGroupSequence.append(group)
 
     def get_annotation_group(

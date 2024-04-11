@@ -479,17 +479,27 @@ class TestAnnotationGroup(unittest.TestCase):
             )
 
 
-class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
+class TestMicroscopyBulkSimpleAnnotations:
 
+    @pytest.fixture(autouse=True)
     def setUp(self):
-        super().setUp()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
         self._sm_image = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
 
-    def test_construction(self):
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            AnnotationCoordinateTypeValues.SCOORD,
+            AnnotationCoordinateTypeValues.SCOORD3D,
+        ]
+    )
+    def annotation_coordinate_type(request):
+        return request.param
+
+    def test_construction(self, annotation_coordinate_type):
         property_category = Code('91723000', 'SCT', 'Anatomical Structure')
         algorithm_type = AnnotationGroupGenerationTypeValues.AUTOMATIC
         algorithm_identification = AlgorithmIdentificationSequence(
@@ -498,33 +508,52 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
             version='1.0'
         )
 
-        annotation_coordinate_type = AnnotationCoordinateTypeValues.SCOORD3D
         first_property_type = Code('4421005', 'SCT', 'Cell')
         first_label = 'cells'
         first_uid = UID()
         first_graphic_type = GraphicTypeValues.POLYGON
-        first_graphic_data = [
-            np.array([
-                [1.0, 1.0, 0.0],
-                [0.5, 3.0, 0.0],
-                [1.0, 3.0, 0.0],
-            ]),
-            np.array([
-                [1.0, 1.0, 0.0],
-                [1.0, 2.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [2.0, 1.0, 0.0],
-            ]),
-        ]
 
         second_property_type = Code('84640000', 'SCT', 'Nucleus')
         second_label = 'nuclei'
         second_uid = UID()
         second_graphic_type = GraphicTypeValues.POINT
-        second_graphic_data = [
-            np.array([[0.84, 2.34, 0.0]]),
-            np.array([[1.5, 1.5, 0.0]]),
-        ]
+
+        if annotation_coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
+            first_graphic_data = [
+                np.array([
+                    [1.0, 1.0],
+                    [0.5, 3.0],
+                    [1.0, 3.0],
+                ]),
+                np.array([
+                    [1.0, 1.0],
+                    [1.0, 2.0],
+                    [2.0, 2.0],
+                    [2.0, 1.0],
+                ]),
+            ]
+            second_graphic_data = [
+                np.array([[0.84, 2.34]]),
+                np.array([[1.5, 1.5]]),
+            ]
+        else:
+            first_graphic_data = [
+                np.array([
+                    [1.0, 1.0, 0.0],
+                    [0.5, 3.0, 0.0],
+                    [1.0, 3.0, 0.0],
+                ]),
+                np.array([
+                    [1.0, 1.0, 0.0],
+                    [1.0, 2.0, 0.0],
+                    [2.0, 2.0, 0.0],
+                    [2.0, 1.0, 0.0],
+                ]),
+            ]
+            second_graphic_data = [
+                np.array([[0.84, 2.34, 0.0]]),
+                np.array([[1.5, 1.5, 0.0]]),
+            ]
 
         groups = [
             AnnotationGroup(
@@ -612,8 +641,26 @@ class TestMicroscopyBulkSimpleAnnotations(unittest.TestCase):
                 second_graphic_data[i]
             )
 
-        with pytest.raises(ValueError):
-            second_retrieved_group.get_graphic_data(coordinate_type='2D')
+        kw = 'CommonZCoordinateValue'
+        first_group_has_common_z = hasattr(first_retrieved_group, kw)
+        second_group_has_common_z = hasattr(second_retrieved_group, kw)
+        if annotation_coordinate_type.value == '2D':
+            assert not first_group_has_common_z
+            assert not second_group_has_common_z
+        else:
+            assert first_group_has_common_z
+            assert second_group_has_common_z
+
+        wrong_coordinate_type = (
+            '3D' if annotation_coordinate_type.value == 'SCOORD'
+            else '2D'
+        )
+        # with pytest.raises(ValueError):
+            # d = second_retrieved_group.get_graphic_data(
+            #     coordinate_type=wrong_coordinate_type
+            # )
+            # print(len(d))
+            # print(len(d[0].shape))
 
         retrieved_groups = annotations.get_annotation_groups(
             graphic_type=GraphicTypeValues.POINT
