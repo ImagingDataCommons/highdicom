@@ -117,7 +117,7 @@ def get_tile_array(
         pad_columns = 0
     # Account for 1-based to 0-based index conversion
     tile_array = pixel_array[row_offset:row_end, column_offset:column_end]
-    if pad_rows > 0 or pad_columns > 0:
+    if pad and (pad_rows > 0 or pad_columns > 0):
         extra_dims = pixel_array.ndim - 2
         padding = [(0, pad_rows), (0, pad_columns)] + [(0, 0)] * extra_dims
         tile_array = np.pad(tile_array, padding)
