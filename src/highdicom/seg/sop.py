@@ -59,10 +59,6 @@ from highdicom.frame import encode_frame
 from highdicom.utils import (
     are_plane_positions_tiled_full,
     compute_plane_position_tiled_full,
-    is_tiled_image,
-    get_tile_array,
-    iter_tiled_full_frame_data,
-    tile_pixel_matrix,
 )
 from highdicom.seg.content import (
     DimensionIndexSequence,
@@ -79,6 +75,10 @@ from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
     ImageToReferenceTransformer,
     get_image_coordinate_system,
+    get_tile_array,
+    is_tiled_image,
+    iter_tiled_full_frame_data,
+    tile_pixel_matrix,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (

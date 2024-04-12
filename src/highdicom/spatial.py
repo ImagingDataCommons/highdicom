@@ -1,10 +1,294 @@
-from typing import List, Optional, Sequence, Tuple
+import itertools
+from typing import Generator, Iterator, List, Optional, Sequence, Tuple
 
 from pydicom import Dataset
 import numpy as np
 
 from highdicom.enum import CoordinateSystemNames
 from highdicom._module_utils import is_multiframe_image
+
+
+def is_tiled_image(dataset: Dataset) -> bool:
+    """Determine whether a dataset represents a tiled image.
+
+    Returns
+    -------
+    bool:
+        True if the dataset is a tiled image. False otherwise.
+
+    """
+    if (
+        hasattr(dataset, 'TotalPixelMatrixRows') and
+        hasattr(dataset, 'TotalPixelMatrixColumns') and
+        hasattr(dataset, 'NumberOfFrames')
+    ):
+        return True
+    return False
+
+
+def tile_pixel_matrix(
+    total_pixel_matrix_rows: int,
+    total_pixel_matrix_columns: int,
+    rows: int,
+    columns: int,
+) -> Iterator[Tuple[int, int]]:
+    """Tiles an image into smaller frames (rectangular regions).
+
+    Follows the convention used in image with Dimension Organization Type
+    "TILED_FULL" images.
+
+    Parameters
+    ----------
+    total_pixel_matrix_rows: int
+        Number of rows in the Total Pixel Matrix
+    total_pixel_matrix_columns: int
+        Number of columns in the Total Pixel Matrix
+    rows: int
+        Number of rows per Frame (tile)
+    columns: int
+        Number of columns per Frame (tile)
+
+    Returns
+    -------
+    Iterator
+        One-based (Column, Row) index of each Frame (tile)
+
+    """
+    tiles_per_col = int(np.ceil(total_pixel_matrix_rows / rows))
+    tiles_per_row = int(np.ceil(total_pixel_matrix_columns / columns))
+    tile_row_indices = iter(range(1, tiles_per_col + 1))
+    tile_col_indices = iter(range(1, tiles_per_row + 1))
+    return (
+        (c, r) for (r, c) in itertools.product(
+            tile_row_indices,
+            tile_col_indices
+        )
+    )
+
+
+def get_tile_array(
+    pixel_array: np.ndarray,
+    row_offset: int,
+    column_offset: int,
+    tile_rows: int,
+    tile_columns: int,
+    pad: bool = True,
+) -> np.ndarray:
+    """Extract a tile from a total pixel matrix array.
+
+    Parameters
+    ----------
+    pixel_array: np.ndarray
+        Array representing a total pixel matrix. The first two dimensions
+        are treated as the rows and columns, respectively, of the total pixel
+        matrix. Any subsequent dimensions are not used but are retained in the
+        output array.
+    row_offset: int
+        Offset of the first row of the requested tile from the top of the total
+        pixel matrix (1-based index).
+    column_offset: int
+        Offset of the first column of the requested tile from the left of the
+        total pixel matrix (1-based index).
+    tile_rows: int
+        Number of rows per tile.
+    tile_columns:
+        Number of columns per tile.
+    pad: bool
+        Whether to pad the returned array with zeros at the right and/or bottom
+        to ensure that it matches the correct tile size. Otherwise, the returned
+        array is not padded and may be smaller than the full tile size.
+
+    Returns
+    -------
+    np.ndarray:
+        Returned pixel array for the requested tile.
+
+    """
+    if row_offset < 1 or row_offset > pixel_array.shape[0]:
+        raise ValueError(
+            "Row offset must be between 1 and the size of dimension 0 of the "
+            "pixel array."
+        )
+    if column_offset < 1 or column_offset > pixel_array.shape[1]:
+        raise ValueError(
+            "Column offset must be between 1 and the size of dimension 1 of "
+            "the pixel array."
+        )
+    # Move to pythonic 1-based indexing
+    row_offset -= 1
+    column_offset -= 1
+    row_end = row_offset + tile_rows
+    if row_end > pixel_array.shape[0]:
+        pad_rows = row_end - pixel_array.shape[0]
+        row_end = pixel_array.shape[0]
+    else:
+        pad_rows = 0
+    column_end = column_offset + tile_columns
+    if column_end > pixel_array.shape[1]:
+        pad_columns = column_end - pixel_array.shape[1]
+        column_end = pixel_array.shape[1]
+    else:
+        pad_columns = 0
+    # Account for 1-based to 0-based index conversion
+    tile_array = pixel_array[row_offset:row_end, column_offset:column_end]
+    if pad and (pad_rows > 0 or pad_columns > 0):
+        extra_dims = pixel_array.ndim - 2
+        padding = [(0, pad_rows), (0, pad_columns)] + [(0, 0)] * extra_dims
+        tile_array = np.pad(tile_array, padding)
+
+    return tile_array
+
+
+def iter_tiled_full_frame_data(
+    dataset: Dataset,
+) -> Generator[Tuple[int, int, int, int, float, float, float], None, None]:
+    """Get data on the position of each tile in a TILED_FULL image.
+
+    This works only with images with Dimension Organization Type of
+    "TILED_FULL".
+
+    Unlike :func:`highdicom.utils.compute_plane_position_slide_per_frame`,
+    this functions returns the data in their basic Python types rather than
+    wrapping as :class:`highdicom.PlanePositionSequence`
+
+    Parameters
+    ----------
+    dataset: pydicom.dataset.Dataset
+        VL Whole Slide Microscopy Image or Segmentation Image using the
+        "TILED_FULL" DimensionOrganizationType.
+
+    Returns
+    -------
+    channel: int
+        1-based integer index of the "channel". The meaning of "channel"
+        depends on the image type. For segmentation images, the channel is the
+        segment number. For other images, it is the optical path number.
+    focal_plane_index: int
+        1-based integer index of the focal plane.
+    column_position: int
+        1-based column position of the tile (measured left from the left side
+        of the total pixel matrix).
+    row_position: int
+        1-based row position of the tile (measured down from the top of the
+        total pixel matrix).
+    x: float
+        X coordinate in the frame-of-reference coordinate system in millimeter
+        units.
+    y: float
+        Y coordinate in the frame-of-reference coordinate system in millimeter
+        units.
+    z: float
+        Z coordinate in the frame-of-reference coordinate system in millimeter
+        units.
+
+    """
+    allowed_sop_class_uids = {
+        '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
+        '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
+    }
+    if dataset.SOPClassUID not in allowed_sop_class_uids:
+        raise ValueError(
+            'Expected a VL Whole Slide Microscopy Image or Segmentation Image.'
+        )
+    if (
+        not hasattr(dataset, "DimensionOrganizationType") or
+        dataset.DimensionOrganizationType != "TILED_FULL"
+    ):
+        raise ValueError(
+            'Expected an image with "TILED_FULL" dimension organization type.'
+        )
+
+    image_origin = dataset.TotalPixelMatrixOriginSequence[0]
+    image_orientation = (
+        float(dataset.ImageOrientationSlide[0]),
+        float(dataset.ImageOrientationSlide[1]),
+        float(dataset.ImageOrientationSlide[2]),
+        float(dataset.ImageOrientationSlide[3]),
+        float(dataset.ImageOrientationSlide[4]),
+        float(dataset.ImageOrientationSlide[5]),
+    )
+    tiles_per_column = int(
+        np.ceil(dataset.TotalPixelMatrixRows / dataset.Rows)
+    )
+    tiles_per_row = int(
+        np.ceil(dataset.TotalPixelMatrixColumns / dataset.Columns)
+    )
+    num_focal_planes = getattr(
+        dataset,
+        'TotalPixelMatrixFocalPlanes',
+        1
+    )
+
+    is_segmentation = dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
+
+    # The "channels" output is either segment for segmentations, or optical
+    # path for other images
+    if is_segmentation:
+        num_channels = len(dataset.SegmentSequence)
+    else:
+        num_channels = getattr(
+            dataset,
+            'NumberOfOpticalPaths',
+            len(dataset.OpticalPathSequence)
+        )
+
+    shared_fg = dataset.SharedFunctionalGroupsSequence[0]
+    pixel_measures = shared_fg.PixelMeasuresSequence[0]
+    pixel_spacing = (
+        float(pixel_measures.PixelSpacing[0]),
+        float(pixel_measures.PixelSpacing[1]),
+    )
+    spacing_between_slices = float(
+        getattr(
+            pixel_measures,
+            'SpacingBetweenSlices',
+            1.0
+        )
+    )
+    x_offset = image_origin.XOffsetInSlideCoordinateSystem
+    y_offset = image_origin.YOffsetInSlideCoordinateSystem
+
+    # Array of tile indices (col_index, row_index)
+    tile_indices = np.array(
+        [
+            (c, r) for (r, c) in
+            itertools.product(
+                range(1, tiles_per_column + 1),
+                range(1, tiles_per_row + 1)
+            )
+        ]
+    )
+
+    # Pixel offsets of each in the total pixel matrix
+    frame_pixel_offsets = (
+        (tile_indices - 1) * np.array([dataset.Columns, dataset.Rows])
+    )
+
+    for channel in range(1, num_channels + 1):
+        for slice_index in range(1, num_focal_planes + 1):
+            # These checks are needed for mypy to determine the correct type
+            z_offset = float(slice_index - 1) * spacing_between_slices
+            transformer = PixelToReferenceTransformer(
+                image_position=(x_offset, y_offset, z_offset),
+                image_orientation=image_orientation,
+                pixel_spacing=pixel_spacing
+            )
+
+            reference_coordinates = transformer(frame_pixel_offsets)
+
+            for offsets, coords in zip(
+                frame_pixel_offsets,
+                reference_coordinates
+            ):
+                yield (
+                    channel,
+                    slice_index,
+                    int(offsets[0] + 1),
+                    int(offsets[1] + 1),
+                    float(coords[0]),
+                    float(coords[1]),
+                    float(coords[2]),
+                )
 
 
 def get_image_coordinate_system(
@@ -102,33 +386,55 @@ def _get_spatial_information(
                 'image.'
             )
         shared_seq = dataset.SharedFunctionalGroupsSequence[0]
-        frame_seq = dataset.PerFrameFunctionalGroupsSequence[
-            frame_number - 1
-        ]
+        is_tiled_full = (
+            dataset.get("DimensionOrganizationType", "") == "TILED_FULL"
+        )
+        if is_tiled_full:
+            frame_seq = None
+        else:
+            frame_seq = dataset.PerFrameFunctionalGroupsSequence[
+                frame_number - 1
+            ]
 
         # Find spacing in either shared or per-frame sequences (this logic is
         # the same for patient or slide coordinate system)
         if hasattr(shared_seq, 'PixelMeasuresSequence'):
             spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
-        elif hasattr(frame_seq, 'PixelMeasuresSequence'):
+        elif (
+            frame_seq is not None and
+            hasattr(frame_seq, 'PixelMeasuresSequence')
+        ):
             spacing = frame_seq.PixelMeasuresSequence[0].PixelSpacing
         else:
             raise ValueError('No pixel measures information found.')
 
         if coordinate_system == CoordinateSystemNames.SLIDE:
-            # Find position in either shared or per-frame sequences
-            if hasattr(shared_seq, 'PlanePositionSlideSequence'):
-                pos_seq = shared_seq.PlanePositionSlideSequence[0]
-            elif hasattr(frame_seq, 'PlanePositionSlideSequence'):
-                pos_seq = frame_seq.PlanePositionSlideSequence[0]
+            if is_tiled_full:
+                # TODO this iteration is probably rather inefficient
+                _, _, _, _, *position = next(
+                    itertools.islice(
+                        iter_tiled_full_frame_data(dataset),
+                        frame_number - 1,
+                        frame_number,
+                    )
+                )
             else:
-                raise ValueError('No frame position information found.')
+                # Find position in either shared or per-frame sequences
+                if hasattr(shared_seq, 'PlanePositionSlideSequence'):
+                    pos_seq = shared_seq.PlanePositionSlideSequence[0]
+                elif (
+                    frame_seq is not None and
+                    hasattr(frame_seq, 'PlanePositionSlideSequence')
+                ):
+                    pos_seq = frame_seq.PlanePositionSlideSequence[0]
+                else:
+                    raise ValueError('No frame position information found.')
 
-            position = [
-                pos_seq.XOffsetInSlideCoordinateSystem,
-                pos_seq.YOffsetInSlideCoordinateSystem,
-                pos_seq.ZOffsetInSlideCoordinateSystem,
-            ]
+                position = [
+                    pos_seq.XOffsetInSlideCoordinateSystem,
+                    pos_seq.YOffsetInSlideCoordinateSystem,
+                    pos_seq.ZOffsetInSlideCoordinateSystem,
+                ]
 
             orientation = dataset.ImageOrientationSlide
 
@@ -136,7 +442,10 @@ def _get_spatial_information(
             # Find position in either shared or per-frame sequences
             if hasattr(shared_seq, 'PlanePositionSequence'):
                 pos_seq = shared_seq.PlanePositionSequence[0]
-            elif hasattr(frame_seq, 'PlanePositionSequence'):
+            elif (
+                frame_seq is not None and
+                hasattr(frame_seq, 'PlanePositionSequence')
+            ):
                 pos_seq = frame_seq.PlanePositionSequence[0]
             else:
                 raise ValueError('No frame position information found.')
@@ -146,7 +455,10 @@ def _get_spatial_information(
             # Find orientation  in either shared or per-frame sequences
             if hasattr(shared_seq, 'PlaneOrientationSequence'):
                 pos_seq = shared_seq.PlaneOrientationSequence[0]
-            elif hasattr(frame_seq, 'PlaneOrientationSequence'):
+            elif (
+                frame_seq is not None and
+                hasattr(frame_seq, 'PlaneOrientationSequence')
+            ):
                 pos_seq = frame_seq.PlaneOrientationSequence[0]
             else:
                 raise ValueError('No frame orientation information found.')
@@ -154,9 +466,9 @@ def _get_spatial_information(
             orientation = pos_seq.ImageOrientationPatient
 
     else:  # Single-frame image
-        if frame_number is not None:
+        if frame_number is not None and frame_number != 1:
             raise TypeError(
-                'Argument "frame_number" must be None for a single-frame '
+                'Argument "frame_number" must be None or 1 for a single-frame '
                 "image."
             )
         position = dataset.ImagePositionPatient
