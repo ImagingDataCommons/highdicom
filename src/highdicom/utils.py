@@ -1,5 +1,6 @@
 import itertools
 from typing import List, Optional, Sequence
+import warnings
 
 from pydicom.dataset import Dataset
 
@@ -37,7 +38,7 @@ def compute_plane_position_tiled_full(
     columns: int,
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
-    slice_thickness: Optional[float] = None,
+    slice_thickness: Optional[float] = None,  # unused (deprecated)
     spacing_between_slices: Optional[float] = None,
     slice_index: Optional[int] = None
 ) -> PlanePositionSequence:
@@ -80,7 +81,10 @@ def compute_plane_position_tiled_full(
         increasing Row index) and the row direction (second value: spacing
         between columns, horizontal, left to right, increasing Column index)
     slice_thickness: Union[float, None], optional
-        Thickness of a focal plane in micrometers
+        This parameter is unused and passing anything other than None will
+        cause a warning to be issued. Use spacing_between_slices to specify the
+        spacing between neighboring slices. This parameter will be removed in a
+        future version of the library.
     spacing_between_slices: Union[float, None], optional
         Distance between neighboring focal planes in micrometers
     slice_index: Union[int, None], optional
@@ -98,6 +102,12 @@ def compute_plane_position_tiled_full(
         When only one of `slice_index` and `spacing_between_slices` is provided
 
     """
+    if slice_thickness is not None:
+        warnings.warn(
+            "Passing a slice_thickness other than None has no effect and "
+            "will be deprecated in a future version of the library.",
+            UserWarning
+        )
     if row_index < 1 or column_index < 1:
         raise ValueError("Row and column indices must be positive integers.")
     row_offset_frame = ((row_index - 1) * rows)
