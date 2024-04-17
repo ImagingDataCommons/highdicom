@@ -325,7 +325,12 @@ def _get_spatial_information(
     dataset: Dataset,
     frame_number: Optional[int] = None,
     for_total_pixel_matrix: bool = False,
-) -> Tuple[List[float], List[float], List[float]]:
+) -> Tuple[
+    List[float],
+    List[float],
+    List[float],
+    Optional[float],
+]:
     """Get spatial information from an image dataset.
 
     Parameters
@@ -348,6 +353,11 @@ def _get_spatial_information(
         Image orientation (6 elements) of the dataset or frame.
     pixel_spacing: List[float]
         Pixel spacing (2 elements) of the dataset or frame.
+    spacing_between_slices: Union[float, None]
+        Spacing between adjacent slices, if found in the dataset. Note that
+        there is no guarantee in general that slices will be consistently
+        spaced or even parallel. This function does not attempt to calculate
+        spacing if it is not found in the dataset.
 
     """
     coordinate_system = get_image_coordinate_system(dataset)
@@ -369,7 +379,12 @@ def _get_spatial_information(
         )
         shared_seq = dataset.SharedFunctionalGroupsSequence[0]
         if hasattr(shared_seq, 'PixelMeasuresSequence'):
-            spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
+            pixel_spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
+            spacing_between_slices = getattr(
+                shared_seq.PixelMeasuresSequence[0],
+                "SpacingBetweenSlices",
+                None,
+            )
         else:
             raise ValueError(
                 "PixelMeasuresSequence not found in the "
@@ -377,7 +392,7 @@ def _get_spatial_information(
             )
 
         orientation = dataset.ImageOrientationSlide
-        return position, orientation, spacing
+        return position, orientation, pixel_spacing, spacing_between_slices
 
     if is_multiframe_image(dataset):
         if frame_number is None:
@@ -399,14 +414,20 @@ def _get_spatial_information(
         # Find spacing in either shared or per-frame sequences (this logic is
         # the same for patient or slide coordinate system)
         if hasattr(shared_seq, 'PixelMeasuresSequence'):
-            spacing = shared_seq.PixelMeasuresSequence[0].PixelSpacing
+            pixel_measures = shared_seq.PixelMeasuresSequence[0]
         elif (
             frame_seq is not None and
             hasattr(frame_seq, 'PixelMeasuresSequence')
         ):
-            spacing = frame_seq.PixelMeasuresSequence[0].PixelSpacing
+            pixel_measures = frame_seq.PixelMeasuresSequence[0]
         else:
             raise ValueError('No pixel measures information found.')
+        pixel_spacing = pixel_measures.PixelSpacing
+        spacing_between_slices = getattr(
+            pixel_measures,
+            'SpacingBetweenSlices',
+            None,
+        )
 
         if coordinate_system == CoordinateSystemNames.SLIDE:
             if is_tiled_full:
@@ -473,9 +494,14 @@ def _get_spatial_information(
             )
         position = dataset.ImagePositionPatient
         orientation = dataset.ImageOrientationPatient
-        spacing = dataset.PixelSpacing
+        pixel_spacing = dataset.PixelSpacing
+        spacing_between_slices = getattr(
+            dataset,
+            "SpacingBetweenSlices",
+            None,
+        )
 
-    return position, orientation, spacing
+    return position, orientation, pixel_spacing, spacing_between_slices
 
 
 def create_rotation_matrix(
@@ -842,7 +868,7 @@ class PixelToReferenceTransformer:
             Transformer object for the given image, or image frame.
 
         """
-        position, orientation, spacing = _get_spatial_information(
+        position, orientation, spacing, _ = _get_spatial_information(
             dataset,
             frame_number=frame_number,
             for_total_pixel_matrix=for_total_pixel_matrix,
@@ -1026,15 +1052,23 @@ class ReferenceToPixelTransformer:
             Transformer object for the given image, or image frame.
 
         """
-        position, orientation, spacing = _get_spatial_information(
+        (
+            position,
+            orientation,
+            spacing,
+            slice_spacing,
+        ) = _get_spatial_information(
             dataset,
             frame_number=frame_number,
             for_total_pixel_matrix=for_total_pixel_matrix,
         )
+        if slice_spacing is None:
+            slice_spacing = 1.0
         return cls(
             image_position=position,
             image_orientation=orientation,
             pixel_spacing=spacing,
+            spacing_between_slices=slice_spacing,
         )
 
 
@@ -1205,7 +1239,7 @@ class ImageToReferenceTransformer:
             Transformer object for the given image, or image frame.
 
         """
-        position, orientation, spacing = _get_spatial_information(
+        position, orientation, spacing, _ = _get_spatial_information(
             dataset,
             frame_number=frame_number,
             for_total_pixel_matrix=for_total_pixel_matrix,
@@ -1402,15 +1436,23 @@ class ReferenceToImageTransformer:
             Transformer object for the given image, or image frame.
 
         """
-        position, orientation, spacing = _get_spatial_information(
+        (
+            position,
+            orientation,
+            spacing,
+            slice_spacing,
+        ) = _get_spatial_information(
             dataset,
             frame_number=frame_number,
             for_total_pixel_matrix=for_total_pixel_matrix,
         )
+        if slice_spacing is None:
+            slice_spacing = 1.0
         return cls(
             image_position=position,
             image_orientation=orientation,
             pixel_spacing=spacing,
+            spacing_between_slices=slice_spacing,
         )
 
 
