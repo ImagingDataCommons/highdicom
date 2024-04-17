@@ -9,7 +9,39 @@ from highdicom.spatial import (
     PixelToReferenceTransformer,
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
+    is_tiled_image,
 )
+
+
+@pytest.mark.parametrize(
+    'filepath,expected_output',
+    [
+        (
+            Path(__file__).parents[1].joinpath('data/test_files/ct_image.dcm'),
+            False
+        ),
+        (
+            Path(__file__).parents[1].joinpath('data/test_files/sm_image.dcm'),
+            True
+        ),
+        (
+            Path(__file__).parents[1].joinpath(
+                'data/test_files/seg_image_ct_binary.dcm'
+            ),
+            False
+        ),
+        (
+            Path(__file__).parents[1].joinpath(
+                'data/test_files/seg_image_sm_control.dcm'
+            ),
+            True
+        ),
+    ]
+)
+def test_is_tiled_image(filepath, expected_output):
+    dcm = pydicom.dcmread(filepath)
+    assert is_tiled_image(dcm) == expected_output
+
 
 
 params_pixel_to_reference = [
