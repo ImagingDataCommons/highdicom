@@ -336,16 +336,16 @@ def create_segmentation_pyramid(
         if n_pix_arrays > 1:
             pixel_array = pixel_arrays[output_level]
         else:
-            need_resize = True
-            if n_sources > 1:
-                output_size = (
-                    source_image.TotalPixelMatrixColumns,
-                    source_image.TotalPixelMatrixRows
-                )
+            if output_level == 0:
+                pixel_array = pixel_arrays[0]
+                need_resize = False
             else:
-                if output_level == 0:
-                    pixel_array = pixel_arrays[0]
-                    need_resize = False
+                need_resize = True
+                if n_sources > 1:
+                    output_size = (
+                        source_image.TotalPixelMatrixColumns,
+                        source_image.TotalPixelMatrixRows
+                    )
                 else:
                     f = downsample_factors[output_level - 1]
                     output_size = (
