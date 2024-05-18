@@ -8,6 +8,10 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom._module_utils import is_multiframe_image
 
 
+# Tolerance value used by default in tests for equality
+_DEFAULT_TOLERANCE = 1e-5
+
+
 def is_tiled_image(dataset: Dataset) -> bool:
     """Determine whether a dataset represents a tiled image.
 
@@ -504,6 +508,76 @@ def _get_spatial_information(
     return position, orientation, pixel_spacing, spacing_between_slices
 
 
+def _get_normal_vector(image_orientation: Sequence[float]) -> np.ndarray:
+    """Get normal vector given image cosines.
+
+    Parameters
+    ----------
+    image_orientation: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        image.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (3, ) giving the normal vector to the image plane.
+
+    """
+    row_cosines = np.array(image_orientation[:3], dtype=float)
+    column_cosines = np.array(image_orientation[3:], dtype=float)
+    n = np.cross(row_cosines.T, column_cosines.T)
+    return n
+
+
+def _are_images_coplanar(
+    image_position_a: Sequence[float],
+    image_orientation_a: Sequence[float],
+    image_position_b: Sequence[float],
+    image_orientation_b: Sequence[float],
+    tol: float = _DEFAULT_TOLERANCE,
+) -> bool:
+    """Determine whether two images or image frames are coplanar.
+
+    Two images are coplanar in the frame of reference coordinate system if and
+    only if their vectors have the same (or opposite direction) and the
+    shortest distance from the plane to the coordinate system origin is
+    the same for both planes.
+
+    Parameters
+    ----------
+    image_position_a: Sequence[float]
+        Image position (3 element list) giving the position of the center of
+        the top left pixel of the first image.
+    image_orientation_a: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        first image.
+    image_position_b: Sequence[float]
+        Image position (3 element list) giving the position of the center of
+        the top left pixel of the second image.
+    image_orientation_b: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        second image.
+    tol: float
+        Tolerance to use to determine equality.
+
+    Returns
+    -------
+    bool
+        True if the two images are coplanar. False otherwise.
+
+    """
+    n_a = _get_normal_vector(image_orientation_a)
+    n_b = _get_normal_vector(image_orientation_b)
+    if 1.0 - np.abs(n_a @ n_b) > tol:
+        return False
+
+    # Find distances of both planes along n_a
+    dis_a = np.array(image_position_a, dtype=float) @ n_a
+    dis_b = np.array(image_position_b, dtype=float) @ n_a
+
+    return abs(dis_a - dis_b) < tol
+
+
 def create_rotation_matrix(
     image_orientation: Sequence[float],
 ) -> np.ndarray:
@@ -894,7 +968,9 @@ class ReferenceToPixelTransformer:
 
     Pixel indices are (column, row) pairs of zero-based integer values, where
     the (0, 0) index is located at the **center** of the top left hand corner
-    pixel of the pixel matrix.
+    pixel of the pixel matrix. The result of the transform also contains a
+    third coordinate, giving position along the normal vector of the imaging
+    plane.
 
     Examples
     --------
@@ -924,7 +1000,9 @@ class ReferenceToPixelTransformer:
         image_position: Sequence[float],
         image_orientation: Sequence[float],
         pixel_spacing: Sequence[float],
-        spacing_between_slices: float = 1.0
+        spacing_between_slices: float = 1.0,
+        round_output: bool = True,
+        drop_slice_index: bool = False,
     ):
         """Construct transformation object.
 
@@ -954,6 +1032,15 @@ class ReferenceToPixelTransformer:
         spacing_between_slices: float, optional
             Distance (in the coordinate defined by the frame of reference)
             between neighboring slices. Default: 1
+        round_output: bool, optional
+            If True, outputs are rounded to the nearest integer. Otherwise,
+            they are returned as float.
+        drop_slice_index: bool, optional
+            Whether to remove the 3rd element of the output array
+            (representing the out-of-plane coordinate) and return a 2D output
+            array. If this option is taken, and the resulting coordinates
+            do not lie in the range -0.5 to 0.5, a ``RuntimeError`` will be
+            triggered.
 
         Raises
         ------
@@ -965,6 +1052,8 @@ class ReferenceToPixelTransformer:
             an incorrect length.
 
         """
+        self._round_output = round_output
+        self._drop_slice_index = drop_slice_index
         self._affine = _create_inv_affine_transformation_matrix(
             image_position=image_position,
             image_orientation=image_orientation,
@@ -993,14 +1082,16 @@ class ReferenceToPixelTransformer:
         -------
         numpy.ndarray
             Array of (column, row, slice) zero-based indices at pixel
-            resolution. Array of integer values with shape ``(n, 3)``, where
-            *n* is the number of indices, the first column represents the
-            `column` index, the second column represents the `row` index, and
-            the third column represents the `slice` coordinate in the direction
-            normal to the image plane (with scale given by the
+            resolution. Array of integer or floating point values with shape
+            ``(n, 3)``, where *n* is the number of indices, the first column
+            represents the `column` index, the second column represents the
+            `row` index, and the third column represents the `slice` coordinate
+            in the direction normal to the image plane (with scale given by the
             ``spacing_between_slices_to`` parameter). The ``(0, 0, 0)``
             coordinate is located at the **center** of the top left pixel in
-            the total pixel matrix.
+            the total pixel matrix. The datatype of the array will be integer
+            if ``round_output`` is True (the default), or float if
+            ``round_output`` is False.
 
         Note
         ----
@@ -1023,7 +1114,18 @@ class ReferenceToPixelTransformer:
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
         pixel_matrix_coordinates = np.dot(self._affine, reference_coordinates)
-        return np.around(pixel_matrix_coordinates[:3, :].T).astype(int)
+        pixel_matrix_coordinates = pixel_matrix_coordinates[:3, :].T
+        if self._drop_slice_index:
+            if np.abs(pixel_matrix_coordinates[:, 2]).max() > 0.5:
+                raise RuntimeError(
+                    "Output coordinates do not lie within the given image "
+                    "plane."
+                )
+            pixel_matrix_coordinates = pixel_matrix_coordinates[:, :2]
+        if self._round_output:
+            return np.around(pixel_matrix_coordinates).astype(int)
+        else:
+            return pixel_matrix_coordinates
 
     @classmethod
     def for_image(
@@ -1084,7 +1186,8 @@ class PixelToPixelTransformer:
     image frame in the same frame of reference. This can include (but is not
     limited) to mapping between different frames of the same image, or
     different images within the same series (e.g. two levels of a spatial
-    pyramid).
+    pyramid). However, it is required that the two images be coplanar
+    within the frame-of-reference coordinate system.
 
     Pixel indices are (column, row) pairs of zero-based integer values, where
     the (0, 0) index is located at the **center** of the top left hand corner
@@ -1111,7 +1214,7 @@ class PixelToPixelTransformer:
         image_position_to: Sequence[float],
         image_orientation_to: Sequence[float],
         pixel_spacing_to: Sequence[float],
-        spacing_between_slices_to: float = 1.0,
+        round_output: bool = True,
     ):
         """Construct transformation object.
 
@@ -1146,32 +1249,43 @@ class PixelToPixelTransformer:
         pixel_spacing_to: Sequence[float]
             Pixel spacing of the "to" image using the same definition as
             the "from" image.
-        spacing_between_slices_to: float
-            Spacing between consecutive slices of the "to" image. This is
-            used to provide an "out of plane" distance in the situation where
-            the provided pixel of the "from" image lIes out of the plane of
-            the "to" image.
+        round_output: bool, optional
+            If True, outputs are rounded to the nearest integer. Otherwise,
+            they are returned as float.
 
         Raises
         ------
         TypeError
             When any of the arguments is not a sequence.
         ValueError
-            When any of the arguments has an incorrect length.
+            When any of the arguments has an incorrect length, or if the two
+            images are not coplanar in the frame of reference coordinate
+            system.
 
         """
-        im_to_ref = _create_affine_transformation_matrix(
+        self._round_output = round_output
+        if not _are_images_coplanar(
+            image_position_a=image_position_from,
+            image_orientation_a=image_orientation_from,
+            image_position_b=image_position_to,
+            image_orientation_b=image_orientation_to,
+        ):
+            raise ValueError(
+                "To two images do not exist within the same plane "
+                "in the frame of reference. and therefore pixel-to-pixel "
+                "transformation is not possible."
+            )
+        pix_to_ref = _create_affine_transformation_matrix(
             image_position=image_position_from,
             image_orientation=image_orientation_from,
             pixel_spacing=pixel_spacing_from,
         )
-        ref_to_im = _create_inv_affine_transformation_matrix(
+        ref_to_pix = _create_inv_affine_transformation_matrix(
             image_position=image_position_to,
             image_orientation=image_orientation_to,
             pixel_spacing=pixel_spacing_to,
-            spacing_between_slices=spacing_between_slices_to,
         )
-        self._affine = np.dot(ref_to_im, im_to_ref)
+        self._affine = np.dot(ref_to_pix, pix_to_ref)
 
     @property
     def affine(self) -> np.ndarray:
@@ -1221,7 +1335,11 @@ class PixelToPixelTransformer:
             np.ones((indices.shape[0], ), dtype=float),
         ])
         output_coordinates = np.dot(self._affine, pixel_matrix_coordinates)
-        return output_coordinates[:3, :].T
+        output_coordinates = output_coordinates[:2, :].T
+        if self._round_output:
+            return np.around(output_coordinates).astype(int)
+        else:
+            return output_coordinates
 
     @classmethod
     def for_images(
@@ -1275,13 +1393,11 @@ class PixelToPixelTransformer:
             frame_number=frame_number_from,
             for_total_pixel_matrix=for_total_pixel_matrix_from,
         )
-        pos_t, ori_t, spa_t, sli_t = _get_spatial_information(
+        pos_t, ori_t, spa_t, _ = _get_spatial_information(
             dataset_to,
             frame_number=frame_number_to,
             for_total_pixel_matrix=for_total_pixel_matrix_to,
         )
-        if sli_t is None:
-            sli_t = 1.0
         return cls(
             image_position_from=pos_f,
             image_orientation_from=ori_f,
@@ -1289,7 +1405,6 @@ class PixelToPixelTransformer:
             image_position_to=pos_t,
             image_orientation_to=ori_t,
             pixel_spacing_to=spa_t,
-            spacing_between_slices_to=sli_t,
         )
 
 
@@ -1601,11 +1716,11 @@ class ReferenceToImageTransformer:
         -------
         numpy.ndarray
             Array of (column, row, slice) indices, where `column` and `row` are
-            zero-based indices to the total pixel matrix and the `slice` index
+            zero-based coordinates in the total pixel matrix and the `slice` index
             represents the signed distance of the input coordinate in the
             direction normal to the plane of the total pixel matrix.
-            The `row` and `column` indices are constrained by the dimension of
-            the total pixel matrix. Note, however, that in general, the
+            The `row` and `column` coordinates are constrained by the dimension
+            of the total pixel matrix. Note, however, that in general, the
             resulting coordinate may not lie within the imaging plane, and
             consequently the `slice` offset may be non-zero.
 
@@ -1676,6 +1791,237 @@ class ReferenceToImageTransformer:
             spacing_between_slices=slice_spacing,
         )
 
+
+class ImageToImageTransformer:
+
+    """Class for transforming image coordinates between two images.
+
+    This class facilitates the mapping of image coordinates of
+    an image or an image frame (tile or plane) into those of another image or
+    image frame in the same frame of reference. This can include (but is not
+    limited) to mapping between different frames of the same image, or
+    different images within the same series (e.g. two levels of a spatial
+    pyramid). However, it is required that the two images be coplanar
+    within the frame-of-reference coordinate system.
+
+    Image coordinates are (column, row) pairs of floating-point values, where
+    the (0.0, 0.0) point is located at the top left corner of the top left hand
+    corner pixel of the pixel matrix. Image coordinates have pixel units at
+    sub-pixel resolution.
+
+    Examples
+    --------
+
+    ***TODO***
+
+    Warning
+    -------
+    This class shall not be used to pixel indices between images. Use the
+    :class:`highdicom.spatial.PixelToPixelTransformer` class instead.
+
+    """
+
+    def __init__(
+        self,
+        image_position_from: Sequence[float],
+        image_orientation_from: Sequence[float],
+        pixel_spacing_from: Sequence[float],
+        image_position_to: Sequence[float],
+        image_orientation_to: Sequence[float],
+        pixel_spacing_to: Sequence[float],
+    ):
+        """Construct transformation object.
+
+        The resulting object will map image coordinates of the "from" image to
+        image coordinates of the "to" image.
+
+        Parameters
+        ----------
+        image_position_from: Sequence[float]
+            Position of the "from" image in the frame of reference,
+            i.e., the offset of the top left hand corner pixel in the pixel
+            matrix from the origin of the reference coordinate system along the
+            X, Y, and Z axis
+        image_orientation_from: Sequence[float]
+            Cosines of the row direction (first triplet: horizontal, left to
+            right, increasing column index) and the column direction (second
+            triplet: vertical, top to bottom, increasing row index) direction
+            of the "from" image expressed in the three-dimensional patient or
+            slide coordinate system defined by the frame of reference
+        pixel_spacing_from: Sequence[float]
+            Spacing between pixels of the "from" imagem in millimeter unit
+            along the column direction (first value: spacing between rows,
+            vertical, top to bottom, increasing row index) and the rows
+            direction (second value: spacing between columns: horizontal, left
+            to right, increasing column index)
+        image_position_to: Sequence[float]
+            Position of the "to" image using the same definition as the "from"
+            image.
+        image_orientation_to: Sequence[float]
+            Orientation cosines of the "to" image using the same definition as
+            the "from" image.
+        pixel_spacing_to: Sequence[float]
+            Pixel spacing of the "to" image using the same definition as
+            the "from" image.
+        round_output: bool, optional
+            If True, outputs are rounded to the nearest integer. Otherwise,
+            they are returned as float.
+
+        Raises
+        ------
+        TypeError
+            When any of the arguments is not a sequence.
+        ValueError
+            When any of the arguments has an incorrect length, or if the two
+            images are not coplanar in the frame of reference coordinate
+            system.
+
+        """
+        if not _are_images_coplanar(
+            image_position_a=image_position_from,
+            image_orientation_a=image_orientation_from,
+            image_position_b=image_position_to,
+            image_orientation_b=image_orientation_to,
+        ):
+            raise ValueError(
+                "To two images do not exist within the same plane "
+                "in the frame of reference. and therefore pixel-to-pixel "
+                "transformation is not possible."
+            )
+        # Image coordinates are shifted relative to pixel matrix indices by
+        # 0.5 pixels and we thus have to correct for this shift.
+        pix_to_im = np.array([
+            [1.0, 0.0, 0.0, 0.5],
+            [0.0, 1.0, 0.0, 0.5],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        ref_to_pix = _create_inv_affine_transformation_matrix(
+            image_position=image_position_to,
+            image_orientation=image_orientation_to,
+            pixel_spacing=pixel_spacing_to,
+        )
+        pix_to_ref = _create_affine_transformation_matrix(
+            image_position=image_position_from,
+            image_orientation=image_orientation_from,
+            pixel_spacing=pixel_spacing_from,
+        )
+        im_to_pix = np.array([
+            [1.0, 0.0, 0.0, -0.5],
+            [0.0, 1.0, 0.0, -0.5],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        self._affine = pix_to_im @ ref_to_pix @ pix_to_ref @ im_to_pix
+
+    @property
+    def affine(self) -> np.ndarray:
+        """numpy.ndarray: 4x4 affine transformation matrix"""
+        return self._affine
+
+    def __call__(self, coordinates: np.ndarray) -> np.ndarray:
+        """Transform pixel indices between two images.
+
+        Parameters
+        ----------
+        indices: numpy.ndarray
+            Array of (column, row) coordinates at sub-pixel resolution in the
+            range [0, Columns] and [0, Rows], respectively.
+            Array of floating-point values with shape ``(n, 2)``, where *n* is
+            the number of coordinates, the first column represents the `column`
+            values and the second column represents the `row` values.
+            The ``(0.0, 0.0)`` coordinate is located at the top left corner
+            of the top left hand corner pixel in the total pixel matrix.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of (column, row) image coordinates in the "to" image.
+
+        Raises
+        ------
+        ValueError
+            When `coordinates` has incorrect shape.
+
+        """
+        if coordinates.shape[1] != 2:
+            raise ValueError(
+                'Argument "coordinates" must be a two-dimensional array '
+                'with shape [n, 2].'
+            )
+        image_coordinates = np.row_stack([
+            coordinates.T.astype(float),
+            np.zeros((coordinates.shape[0], ), dtype=float),
+            np.ones((coordinates.shape[0], ), dtype=float),
+        ])
+        output_coordinates = np.dot(self._affine, image_coordinates)
+        return output_coordinates[:2, :].T
+
+    @classmethod
+    def for_images(
+        cls,
+        dataset_from: Dataset,
+        dataset_to: Dataset,
+        frame_number_from: Optional[int] = None,
+        frame_number_to: Optional[int] = None,
+        for_total_pixel_matrix_from: bool = False,
+        for_total_pixel_matrix_to: bool = False,
+    ) -> 'ImageToImageTransformer':
+        """Construct a transformer for two given images or image frames.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing an image.
+        frame_number: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame for which to get
+            the transformer. This should be provided if and only if the dataset
+            is a multi-frame image.
+        for_total_pixel_matrix: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            a tiled image. The result will be a transformer that maps image
+            coordinates of the total pixel matrix to frame of reference
+            coordinates. This should only be True if the image is a tiled image
+            and is incompatible with specifying a frame number.
+
+        Returns
+        -------
+        highdicom.spatial.ImageToImageTransformer:
+            Transformer object for the given image, or image frame.
+
+        """
+        if (
+            not hasattr(dataset_from, 'FrameOfReferenceUID') or
+            not hasattr(dataset_to, 'FrameOfReferenceUID')
+        ):
+            raise ValueError(
+                'Cannot determine spatial relationship because datasets '
+                'lack a frame of reference UID.'
+            )
+        if dataset_from.FrameOfReferenceUID != dataset_to.FrameOfReferenceUID:
+            raise ValueError(
+                'Datasets do not share a frame of reference, so the spatial '
+                'relationship between them is not defined.'
+            )
+
+        pos_f, ori_f, spa_f, _ = _get_spatial_information(
+            dataset_from,
+            frame_number=frame_number_from,
+            for_total_pixel_matrix=for_total_pixel_matrix_from,
+        )
+        pos_t, ori_t, spa_t, _ = _get_spatial_information(
+            dataset_to,
+            frame_number=frame_number_to,
+            for_total_pixel_matrix=for_total_pixel_matrix_to,
+        )
+        return cls(
+            image_position_from=pos_f,
+            image_orientation_from=ori_f,
+            pixel_spacing_from=spa_f,
+            image_position_to=pos_t,
+            image_orientation_to=ori_t,
+            pixel_spacing_to=spa_t,
+        )
 
 def map_pixel_into_coordinate_system(
     index: Sequence[int],

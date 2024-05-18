@@ -7,9 +7,11 @@ import pytest
 from highdicom.spatial import (
     ImageToReferenceTransformer,
     PixelToReferenceTransformer,
+    PixelToPixelTransformer,
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
     is_tiled_image,
+    _are_images_coplanar,
 )
 
 
@@ -286,7 +288,7 @@ params_reference_to_pixel = [
             (89.0, 47.0, -10.0),
         ]),
         np.array([
-            (158, -6, -10),
+            (158, -6.5, -10),
         ])
     ),
     # Patient
@@ -459,11 +461,40 @@ def test_map_pixel_into_coordinate_system(params, inputs, expected_outputs):
 
 
 @pytest.mark.parametrize(
+    'round_output',
+    [False, True],
+)
+@pytest.mark.parametrize(
+    'drop_slice_index',
+    [False, True],
+)
+@pytest.mark.parametrize(
     'params,inputs,expected_outputs',
     params_reference_to_pixel
 )
-def test_map_coordinate_into_pixel_matrix(params, inputs, expected_outputs):
-    transform = ReferenceToPixelTransformer(**params)
+def test_map_coordinate_into_pixel_matrix(
+    params,
+    inputs,
+    expected_outputs,
+    round_output,
+    drop_slice_index,
+):
+    transform = ReferenceToPixelTransformer(
+        round_output=round_output,
+        drop_slice_index=drop_slice_index,
+        **params,
+    )
+    if round_output:
+        expected_outputs = np.around(expected_outputs)
+    if drop_slice_index:
+        if np.abs(expected_outputs[:, 2]).max() >= 0.5:
+            # In these cases, the transform should fail
+            # because the dropped slice index is no close
+            # to zero
+            with pytest.raises(RuntimeError):
+                transform(inputs)
+            return
+        expected_outputs = expected_outputs[:, :2]
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 
@@ -548,3 +579,51 @@ def test_transformers_enhanced_ct_image(transformer_cls):
     dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
     transformer_cls.for_image(dcm, frame_number=2)
 
+
+@pytest.mark.parametrize(
+    'pos_a,ori_a,pos_b,ori_b,result',
+    [
+        pytest.param(
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            True,
+        ),
+        pytest.param(
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],  # flipped
+            True,
+        ),
+        pytest.param(
+            [211.0, 11.0, 1.0],  # shifted in plane
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            True,
+        ),
+        pytest.param(
+            [1.0, 1.0, 11.0],  # shifted out of plane
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            False,
+        ),
+        pytest.param(
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # different orientation
+            False,
+        ),
+    ]
+)
+def test_are_images_coplanar(pos_a, ori_a, pos_b, ori_b, result):
+    assert _are_images_coplanar(
+        image_position_a=pos_a,
+        image_orientation_a=ori_a,
+        image_position_b=pos_b,
+        image_orientation_b=ori_b,
+    ) == result
