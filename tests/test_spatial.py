@@ -646,11 +646,32 @@ def test_map_image_to_reference_coordinate(params, inputs, expected_outputs):
 
 
 @pytest.mark.parametrize(
+    'drop_slice_coord',
+    [False, True],
+)
+@pytest.mark.parametrize(
     'params,inputs,expected_outputs',
     params_reference_to_image
 )
-def test_map_reference_to_image_coordinate(params, inputs, expected_outputs):
-    transform = ReferenceToImageTransformer(**params)
+def test_map_reference_to_image_coordinate(
+    params,
+    inputs,
+    expected_outputs,
+    drop_slice_coord,
+):
+    transform = ReferenceToImageTransformer(
+        drop_slice_coord=drop_slice_coord,
+        **params,
+    )
+    if drop_slice_coord:
+        if np.abs(expected_outputs[:, 2]).max() >= 0.5:
+            # In these cases, the transform should fail
+            # because the dropped slice index is no close
+            # to zero
+            with pytest.raises(RuntimeError):
+                transform(inputs)
+            return
+        expected_outputs = expected_outputs[:, :2]
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 

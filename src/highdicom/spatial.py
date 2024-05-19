@@ -1036,7 +1036,7 @@ class ReferenceToPixelTransformer:
             If True, outputs are rounded to the nearest integer. Otherwise,
             they are returned as float.
         drop_slice_index: bool, optional
-            Whether to remove the 3rd element of the output array
+            Whether to remove the 3rd column of the output array
             (representing the out-of-plane coordinate) and return a 2D output
             array. If this option is taken, and the resulting coordinates
             do not lie in the range -0.5 to 0.5, a ``RuntimeError`` will be
@@ -1118,7 +1118,7 @@ class ReferenceToPixelTransformer:
         if self._drop_slice_index:
             if np.abs(pixel_matrix_coordinates[:, 2]).max() > 0.5:
                 raise RuntimeError(
-                    "Output coordinates do not lie within the given image "
+                    "Output indices do not lie within the given image "
                     "plane."
                 )
             pixel_matrix_coordinates = pixel_matrix_coordinates[:, :2]
@@ -1133,6 +1133,8 @@ class ReferenceToPixelTransformer:
         dataset: Dataset,
         frame_number: Optional[int] = None,
         for_total_pixel_matrix: bool = False,
+        round_output: bool = True,
+        drop_slice_index: bool = False,
     ) -> 'ReferenceToPixelTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -1150,6 +1152,15 @@ class ReferenceToPixelTransformer:
             reference coordinates to indices of the total pixel matrix. This
             should only be True if the image is a tiled image and is
             incompatible with specifying a frame number.
+        round_output: bool, optional
+            If True, outputs are rounded to the nearest integer. Otherwise,
+            they are returned as float.
+        drop_slice_index: bool, optional
+            Whether to remove the 3rd element of the output array
+            (representing the out-of-plane coordinate) and return a 2D output
+            array. If this option is taken, and the resulting coordinates
+            do not lie in the range -0.5 to 0.5, a ``RuntimeError`` will be
+            triggered.
 
         Returns
         -------
@@ -1174,6 +1185,8 @@ class ReferenceToPixelTransformer:
             image_orientation=orientation,
             pixel_spacing=spacing,
             spacing_between_slices=slice_spacing,
+            round_output=round_output,
+            drop_slice_index=drop_slice_index,
         )
 
 
@@ -1366,6 +1379,7 @@ class PixelToPixelTransformer:
         frame_number_to: Optional[int] = None,
         for_total_pixel_matrix_from: bool = False,
         for_total_pixel_matrix_to: bool = False,
+        round_output: bool = True,
     ) -> 'PixelToPixelTransformer':
         """Construct a transformer for two given images or image frames.
 
@@ -1383,6 +1397,9 @@ class PixelToPixelTransformer:
             indices of the total pixel matrix to frame of reference
             coordinates. This should only be True if the image is a tiled image
             and is incompatible with specifying a frame number.
+        round_output: bool, optional
+            If True, outputs are rounded to the nearest integer. Otherwise,
+            they are returned as float.
 
         Returns
         -------
@@ -1421,6 +1438,7 @@ class PixelToPixelTransformer:
             image_position_to=pos_t,
             image_orientation_to=ori_t,
             pixel_spacing_to=spa_t,
+            round_output=round_output,
         )
 
 
@@ -1652,7 +1670,8 @@ class ReferenceToImageTransformer:
         image_position: Sequence[float],
         image_orientation: Sequence[float],
         pixel_spacing: Sequence[float],
-        spacing_between_slices: float = 1.0
+        spacing_between_slices: float = 1.0,
+        drop_slice_coord: bool = False,
     ):
         """Construct transformation object.
 
@@ -1682,6 +1701,12 @@ class ReferenceToImageTransformer:
         spacing_between_slices: float, optional
             Distance (in the coordinate defined by the frame of reference)
             between neighboring slices. Default: 1
+        drop_slice_coord: bool, optional
+            Whether to remove the 3rd column of the output array
+            (representing the out-of-plane coordinate) and return a 2D output
+            array. If this option is taken, and the resulting coordinates
+            do not lie in the range -0.5 to 0.5, a ``RuntimeError`` will be
+            triggered.
 
         Raises
         ------
@@ -1693,6 +1718,7 @@ class ReferenceToImageTransformer:
             an incorrect length.
 
         """
+        self._drop_slice_coord = drop_slice_coord
         # Image coordinates are shifted relative to pixel matrix indices by
         # 0.5 pixels and we thus have to correct for this shift.
         correction_affine = np.array([
@@ -1756,7 +1782,15 @@ class ReferenceToImageTransformer:
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
         image_coordinates = np.dot(self._affine, reference_coordinates)
-        return image_coordinates[:3, :].T
+        image_coordinates = image_coordinates[:3, :].T
+        if self._drop_slice_coord:
+            if np.abs(image_coordinates[:, 2]).max() > 0.5:
+                raise RuntimeError(
+                    "Output coordinates do not lie within the given image "
+                    "plane."
+                )
+            image_coordinates = image_coordinates[:, :2]
+        return image_coordinates
 
     @classmethod
     def for_image(
@@ -1764,6 +1798,7 @@ class ReferenceToImageTransformer:
         dataset: Dataset,
         frame_number: Optional[int] = None,
         for_total_pixel_matrix: bool = False,
+        drop_slice_coord: bool = False,
     ) -> 'ReferenceToImageTransformer':
         """Construct a transformer for a given image or image frame.
 
@@ -1781,6 +1816,12 @@ class ReferenceToImageTransformer:
             reference coordinates to indices of the total pixel matrix. This
             should only be True if the image is a tiled image and is
             incompatible with specifying a frame number.
+        drop_slice_coord: bool, optional
+            Whether to remove the 3rd column of the output array
+            (representing the out-of-plane coordinate) and return a 2D output
+            array. If this option is taken, and the resulting coordinates
+            do not lie in the range -0.5 to 0.5, a ``RuntimeError`` will be
+            triggered.
 
         Returns
         -------
@@ -1805,6 +1846,7 @@ class ReferenceToImageTransformer:
             image_orientation=orientation,
             pixel_spacing=spacing,
             spacing_between_slices=slice_spacing,
+            drop_slice_coord=drop_slice_coord,
         )
 
 
@@ -1895,9 +1937,6 @@ class ImageToImageTransformer:
         pixel_spacing_to: Sequence[float]
             Pixel spacing of the "to" image using the same definition as
             the "from" image.
-        round_output: bool, optional
-            If True, outputs are rounded to the nearest integer. Otherwise,
-            they are returned as float.
 
         Raises
         ------
