@@ -2390,7 +2390,7 @@ def get_regular_slice_spacing(
     Returns
     -------
     Union[float, None]
-        If the image positions are regularly spaced, the (abolute value of) the
+        If the image positions are regularly spaced, the (absolute value of) the
         slice spacing. If the image positions are not regularly spaced, returns
         None.
 
