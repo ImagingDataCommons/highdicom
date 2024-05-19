@@ -2360,7 +2360,7 @@ class Segmentation(SOPClass):
             else:
                 transform = ImageToReferenceTransformer(
                     image_position=(x_origin, y_origin, z_origin),
-                    image_orientation=plane_orientation,
+                    image_orientation=plane_orientation[0].ImageOrientationSlide,
                     pixel_spacing=pixel_measures[0].PixelSpacing
                 )
                 center_image_coordinates = np.array(
