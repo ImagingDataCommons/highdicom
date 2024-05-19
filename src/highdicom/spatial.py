@@ -1196,7 +1196,23 @@ class PixelToPixelTransformer:
     Examples
     --------
 
-    ***TODO***
+    Create a transformer for two images, where the second image has an axis
+    flipped relative to the first.
+
+    >>> transformer = PixelToPixelTransformer(
+    ...     image_position_from=[0.0, 0.0, 0.0],
+    ...     image_orientation_from=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing_from=[1.0, 1.0],
+    ...     image_position_to=[0.0, 100.0, 0.0],
+    ...     image_orientation_to=[1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
+    ...     pixel_spacing_to=[1.0, 1.0],
+    ... )
+
+    >>> indices_in = np.array([[0, 0], [50, 50]])
+    >>> indices_out = transformer(indices_in)
+    >>> print(indices_out)
+    [[  0 100]
+     [ 50  50]]
 
     Warning
     -------
@@ -1812,7 +1828,23 @@ class ImageToImageTransformer:
     Examples
     --------
 
-    ***TODO***
+    Create a transformer for two images, where the second image has an axis
+    flipped relative to the first.
+
+    >>> transformer = ImageToImageTransformer(
+    ...     image_position_from=[0.0, 0.0, 0.0],
+    ...     image_orientation_from=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+    ...     pixel_spacing_from=[1.0, 1.0],
+    ...     image_position_to=[0.0, 100.0, 0.0],
+    ...     image_orientation_to=[1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
+    ...     pixel_spacing_to=[1.0, 1.0],
+    ... )
+
+    >>> coords_in = np.array([[0, 0], [50, 50]])
+    >>> coords_out = transformer(coords_in)
+    >>> print(coords_out)
+    [[  0. 101.]
+     [ 50.  51.]]
 
     Warning
     -------
