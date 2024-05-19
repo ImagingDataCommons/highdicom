@@ -342,8 +342,8 @@ def _get_spatial_information(
     dataset: pydicom.Dataset
         Dataset representing an image.
     frame_number: Union[int, None], optional
-        Specific 1-based frame number. Required if dataset is a multi-frame image.
-        Should be None otherwise.
+        Specific 1-based frame number. Required if dataset is a multi-frame
+        image. Should be None otherwise.
     for_total_pixel_matrix: bool, optional
         If True, get spatial information for the total pixel matrix of a tiled
         image. This should only be True if the image is a tiled image and is
@@ -1732,13 +1732,13 @@ class ReferenceToImageTransformer:
         -------
         numpy.ndarray
             Array of (column, row, slice) indices, where `column` and `row` are
-            zero-based coordinates in the total pixel matrix and the `slice` index
-            represents the signed distance of the input coordinate in the
-            direction normal to the plane of the total pixel matrix.
-            The `row` and `column` coordinates are constrained by the dimension
-            of the total pixel matrix. Note, however, that in general, the
-            resulting coordinate may not lie within the imaging plane, and
-            consequently the `slice` offset may be non-zero.
+            zero-based coordinates in the total pixel matrix and the `slice`
+            index represents the signed distance of the input coordinate in the
+            direction normal to the plane of the total pixel matrix. The `row`
+            and `column` coordinates are constrained by the dimension of the
+            total pixel matrix. Note, however, that in general, the resulting
+            coordinate may not lie within the imaging plane, and consequently
+            the `slice` offset may be non-zero.
 
         Raises
         ------
@@ -2054,6 +2054,7 @@ class ImageToImageTransformer:
             image_orientation_to=ori_t,
             pixel_spacing_to=spa_t,
         )
+
 
 def map_pixel_into_coordinate_system(
     index: Sequence[int],
