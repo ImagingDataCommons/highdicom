@@ -26,7 +26,7 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     DEFAULT_SPACING_TOLERANCE,
-    get_coordinate_system,
+    get_image_coordinate_system,
     get_regular_slice_spacing,
 )
 from highdicom.uid import UID as hd_UID
@@ -79,7 +79,9 @@ class MultiFrameDBManager:
             Dataset of a multi-frame image.
 
         """
-        self._coordinate_system = get_coordinate_system(dataset)
+        self._coordinate_system = get_image_coordinate_system(
+            dataset
+        )
         referenced_uids = self._get_ref_instance_uids(dataset)
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 

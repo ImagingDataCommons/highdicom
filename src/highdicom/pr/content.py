@@ -34,7 +34,7 @@ from highdicom.pr.enum import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
-from highdicom.utils import is_tiled_image
+from highdicom.spatial import is_tiled_image
 from highdicom.valuerep import (
     check_person_name,
     _check_code_string,
