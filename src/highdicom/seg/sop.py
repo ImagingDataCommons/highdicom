@@ -59,10 +59,6 @@ from highdicom.frame import encode_frame
 from highdicom.utils import (
     are_plane_positions_tiled_full,
     compute_plane_position_tiled_full,
-    is_tiled_image,
-    get_tile_array,
-    iter_tiled_full_frame_data,
-    tile_pixel_matrix,
 )
 from highdicom.seg.content import (
     DimensionIndexSequence,
@@ -76,7 +72,14 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import ImageToReferenceTransformer
+from highdicom.spatial import (
+    ImageToReferenceTransformer,
+    get_image_coordinate_system,
+    get_tile_array,
+    is_tiled_image,
+    iter_tiled_full_frame_data,
+    tile_pixel_matrix,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
     check_person_name,
@@ -1515,6 +1518,7 @@ class Segmentation(SOPClass):
                     CoordinateSystemNames.SLIDE
             else:
                 self._coordinate_system = CoordinateSystemNames.PATIENT
+                self._coordinate_system = get_image_coordinate_system(src_img)
         else:
             # Only allow missing FrameOfReferenceUID if it is not required
             # for this IOD
@@ -2351,6 +2355,8 @@ class Segmentation(SOPClass):
                     format_number_as_ds(x_origin)
                 origin_item.YOffsetInSlideCoordinateSystem = \
                     format_number_as_ds(y_origin)
+                origin_item.ZOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(z_origin)
                 self.TotalPixelMatrixOriginSequence = [origin_item]
                 self.TotalPixelMatrixFocalPlanes = 1
                 if total_pixel_matrix_size is None:
@@ -2368,7 +2374,7 @@ class Segmentation(SOPClass):
             else:
                 transform = ImageToReferenceTransformer(
                     image_position=(x_origin, y_origin, z_origin),
-                    image_orientation=plane_orientation,
+                    image_orientation=plane_orientation[0].ImageOrientationSlide,
                     pixel_spacing=pixel_measures[0].PixelSpacing
                 )
                 center_image_coordinates = np.array(
