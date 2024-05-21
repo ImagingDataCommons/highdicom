@@ -1908,7 +1908,11 @@ class Segmentation(SOPClass):
         else:
             included_plane_indices = list(range(len(plane_positions)))
 
-        if has_ref_frame_uid:
+        if (
+            has_ref_frame_uid and
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
             # Get unique values of attributes in the Plane Position Sequence or
             # Plane Position Slide Sequence, which define the position of the
             # plane with respect to the three dimensional patient or slide
@@ -2044,32 +2048,34 @@ class Segmentation(SOPClass):
                     f'add plane #{plane_index} for segment #{segment_number}'
                 )
 
-                # Get the item of the PerFrameFunctionalGroupsSequence for this
-                # segmentation frame
-                if has_ref_frame_uid:
-                    plane_pos_val = plane_position_values[plane_index]
-                    try:
-                        dimension_index_values = (
-                            self._get_dimension_index_values(
-                                unique_dimension_values=unique_dimension_values,
-                                plane_position_value=plane_pos_val,
-                                coordinate_system=self._coordinate_system,
-                            )
-                        )
-                    except IndexError as error:
-                        raise IndexError(
-                            'Could not determine position of plane '
-                            f'#{plane_index} in three dimensional coordinate '
-                            f'system based on dimension index values: {error}'
-                        )
-                else:
-                    dimension_index_values = []
-
                 if (
                     dimension_organization_type !=
                     DimensionOrganizationTypeValues.TILED_FULL
                 ):
                     # No per-frame functional group for TILED FULL
+
+                    # Get the item of the PerFrameFunctionalGroupsSequence for
+                    # this segmentation frame
+                    if has_ref_frame_uid:
+                        plane_pos_val = plane_position_values[plane_index]
+                        try:
+                            dimension_index_values = (
+                                self._get_dimension_index_values(
+                                    unique_dimension_values=unique_dimension_values,  # noqa: E501
+                                    plane_position_value=plane_pos_val,
+                                    coordinate_system=self._coordinate_system,
+                                )
+                            )
+                        except IndexError as error:
+                            raise IndexError(
+                                'Could not determine position of plane '
+                                f'#{plane_index} in three dimensional '
+                                'coordinate system based on dimension index '
+                                f'values: {error}'
+                            )
+                    else:
+                        dimension_index_values = []
+
                     pffg_item = self._get_pffg_item(
                         segment_number=segment_number,
                         dimension_index_values=dimension_index_values,
@@ -2127,13 +2133,21 @@ class Segmentation(SOPClass):
             self.NumberOfFrames = len(frames)
             self.PixelData = encapsulate(frames)
         else:
-            # Encode the whole pixel array at once
-            # This allows for correct bit-packing in cases where
-            # number of pixels per frame is not a multiple of 8
             self.NumberOfFrames = len(frames)
-            self.PixelData = self._encode_pixels_native(
-                np.concatenate(frames)
-            )
+            if (self.Rows * self.Columns) // 8 == 0:
+                # In this case, we can encode each frame separately and then
+                # concatenate. This case is overwhelmingly common so worth
+                # optimizing and this optimization saves a lot of memory
+                self.PixelData = b''.join(
+                    self._encode_pixels_native(f) for f in frames
+                )
+            else:
+                # Encode the whole pixel array at once
+                # This allows for correct bit-packing in cases where
+                # number of pixels per frame is not a multiple of 8
+                self.PixelData = self._encode_pixels_native(
+                    np.concatenate(frames)
+                )
 
         # Add a null trailing byte if required
         if len(self.PixelData) % 2 == 1:
