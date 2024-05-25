@@ -1969,6 +1969,13 @@ class Segmentation(SOPClass):
         # at the end
         frames: Union[List[bytes], List[np.ndarray]] = []
 
+        # In the case of native encoding when the number pixels in a frame is
+        # not a multiple of 8. This array carries "leftover" pixels that couldn't
+        # be encoded in previous rounds, to future items of the loop
+        # This saves having to keep the entire un-endoded array in memory, which
+        # can get extremely heavy on memory in the case of very large arrays
+        remainder_pixels = np.empty((0, ), dtype=np.uint8)
+
         if is_encaps:
             if using_multiprocessing:
                 # In the case of encapsulated transfer syntaxes with multiple
@@ -2113,8 +2120,22 @@ class Segmentation(SOPClass):
                         )
                         frame_futures.append(future)
                 else:
-                    # Concatenate the 1D array for encoding at the end
-                    frames.append(segment_array.flatten())
+                    flat_array = segment_array.flatten()
+                    if (
+                        self.SegmentationType == SegmentationTypeValues.BINARY.value
+                        and (self.Rows * self.Columns) // 8 != 0
+                    ):
+                        # Need to encode a multiple of 8 pixels at a time
+                        full_array = np.concatenate([remainder_pixels, flat_array])
+                        # Round down to closest multiple of 8
+                        n_pixels_to_take = 8 * (len(full_array) // 8)
+                        to_encode = full_array[:n_pixels_to_take]
+                        remainder_pixels = full_array[n_pixels_to_take:]
+                    else:
+                        # Simple - each frame can be individually encoded
+                        to_encode = flat_array
+
+                    frames.append(self._encode_pixels_native(to_encode))
 
         if (
             dimension_organization_type !=
@@ -2138,20 +2159,12 @@ class Segmentation(SOPClass):
             self.PixelData = encapsulate(frames)
         else:
             self.NumberOfFrames = len(frames)
-            if (self.Rows * self.Columns) // 8 == 0:
-                # In this case, we can encode each frame separately and then
-                # concatenate. This case is overwhelmingly common so worth
-                # optimizing and this optimization saves a lot of memory
-                self.PixelData = b''.join(
-                    self._encode_pixels_native(f) for f in frames
-                )
-            else:
-                # Encode the whole pixel array at once
-                # This allows for correct bit-packing in cases where
-                # number of pixels per frame is not a multiple of 8
-                self.PixelData = self._encode_pixels_native(
-                    np.concatenate(frames)
-                )
+
+            # May need to add in a final set of pixels
+            if len(remainder_pixels) > 0:
+                frames.append(self._encode_pixels_native(remainder_pixels))
+
+            self.PixelData = b''.join(frames)
 
         # Add a null trailing byte if required
         if len(self.PixelData) % 2 == 1:
@@ -2996,7 +3009,7 @@ class Segmentation(SOPClass):
 
         """
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
-            return pack_bits(planes)
+            return pack_bits(planes, pad=False)
         else:
             return planes.tobytes()
 
