@@ -1768,6 +1768,14 @@ class Segmentation(SOPClass):
                     x_offset = origin_seq.XOffsetInSlideCoordinateSystem
                     y_offset = origin_seq.YOffsetInSlideCoordinateSystem
                 else:
+                    if len(plane_positions) != 1:
+                        raise ValueError(
+                            "If specifying plane_positions when the "
+                            '"tile_pixel_array" argument is True, a '
+                            "single plane position should be provided "
+                            "representing the position of the top  "
+                            "left corner of the total pixel matrix."
+                        )
                     # Use the provided image origin
                     pp = plane_positions[0][0]
                     rp = pp.RowPositionInTotalImagePixelMatrix
