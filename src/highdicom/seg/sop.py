@@ -24,6 +24,7 @@ from typing import (
 import warnings
 
 import numpy as np
+from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
 from pydicom.datadict import get_entry, keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
@@ -93,6 +94,12 @@ logger = logging.getLogger(__name__)
 
 
 _NO_FRAME_REF_VALUE = -1
+
+# These codes are needed many times in loops so we precompute them
+_DERIVATION_CODE = CodedConcept.from_code(codes.cid7203.Segmentation)
+_PURPOSE_CODE = CodedConcept.from_code(
+    codes.cid7202.SourceImageForImageProcessingOperation
+)
 
 
 def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
@@ -3003,66 +3010,140 @@ class Segmentation(SOPClass):
             Per Frame Functional Groups Sequence for this segmentation frame.
 
         """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
         pffg_item = Dataset()
         frame_content_item = Dataset()
 
-        frame_content_item.DimensionIndexValues = (
-            [int(segment_number)] + dimension_index_values
+        frame_content_item.add(
+            DataElement(
+                0x00209157,  # DimensionIndexValues
+                'UL',
+                [int(segment_number)] + dimension_index_values
+            )
         )
-        pffg_item.FrameContentSequence = [frame_content_item]
+        pffg_item.add(
+            DataElement(
+                0x00209111,  # FrameContentSequence
+                'SQ',
+                [frame_content_item]
+            )
+        )
         if has_ref_frame_uid:
             if coordinate_system == CoordinateSystemNames.SLIDE:
-                pffg_item.PlanePositionSlideSequence = plane_position
+                pffg_item.add(
+                    DataElement(
+                        0x0048021a,  # PlanePositionSlideSequence
+                        'SQ',
+                        plane_position
+                    )
+                )
             else:
-                pffg_item.PlanePositionSequence = plane_position
-
-        # Determining the source images that map to the frame is not
-        # always trivial. Since DerivationImageSequence is a type 2
-        # attribute, we leave its value empty.
-        pffg_item.DerivationImageSequence = []
+                pffg_item.add(
+                    DataElement(
+                        0x00209113,  # PlanePositionSequence
+                        'SQ',
+                        plane_position
+                    )
+                )
 
         if are_spatial_locations_preserved:
             derivation_image_item = Dataset()
-            derivation_code = codes.cid7203.Segmentation
-            derivation_image_item.DerivationCodeSequence = [
-                CodedConcept.from_code(derivation_code)
-            ]
+            derivation_image_item.add(
+                DataElement(
+                    0x00089215,  # DerivationCodeSequence
+                    'SQ',
+                    [_DERIVATION_CODE]
+                )
+            )
 
             derivation_src_img_item = Dataset()
-            if hasattr(source_images[0], 'NumberOfFrames'):
+            if 0x00280008 in source_images[0]:  # NumberOfFrames
                 # A single multi-frame source image
                 src_img_item = source_images[0]
                 # Frame numbers are one-based
-                derivation_src_img_item.ReferencedFrameNumber = (
-                    source_image_index + 1
+                derivation_src_img_item.add(
+                    DataElement(
+                        0x00081160,  # ReferencedFrameNumber
+                        'IS',
+                        source_image_index + 1
+                    )
                 )
             else:
                 # Multiple single-frame source images
                 src_img_item = source_images[source_image_index]
-            derivation_src_img_item.ReferencedSOPClassUID = \
-                src_img_item.SOPClassUID
-            derivation_src_img_item.ReferencedSOPInstanceUID = \
-                src_img_item.SOPInstanceUID
-            purpose_code = \
-                codes.cid7202.SourceImageForImageProcessingOperation
-            derivation_src_img_item.PurposeOfReferenceCodeSequence = [
-                CodedConcept.from_code(purpose_code)
-            ]
-            derivation_src_img_item.SpatialLocationsPreserved = 'YES'
-            derivation_image_item.SourceImageSequence = [
-                derivation_src_img_item,
-            ]
-            pffg_item.DerivationImageSequence.append(
-                derivation_image_item
+            derivation_src_img_item.add(
+                DataElement(
+                    0x00081150,  # ReferencedSOPClassUID
+                    'UI',
+                    src_img_item[0x00080016].value # SOPClassUID
+                )
+            )
+            derivation_src_img_item.add(
+                DataElement(
+                    0x00081155,  # ReferencedSOPInstanceUID
+                    'UI',
+                    src_img_item[0x00080018].value # SOPInstanceUID
+                )
+            )
+            derivation_src_img_item.add(
+                DataElement(
+                    0x0040a170,  # PurposeOfReferenceCodeSequence
+                    'SQ',
+                    [_PURPOSE_CODE]
+                )
+            )
+            derivation_src_img_item.add(
+                DataElement(
+                    0x0028135a,  # SpatialLocationsPreserved
+                    'CS',
+                    'YES'
+                )
+            )
+            derivation_image_item.add(
+                DataElement(
+                    0x00082112,  # SourceImageSequence
+                    'SQ',
+                    [derivation_src_img_item]
+                )
+            )
+            pffg_item.add(
+                DataElement(
+                    0x00089124,  # DerivationImageSequence
+                    'SQ',
+                    [derivation_image_item]
+                )
             )
         else:
+            # Determining the source images that map to the frame is not
+            # always trivial. Since DerivationImageSequence is a type 2
+            # attribute, we leave its value empty.
+            pffg_item.add(
+                DataElement(
+                    0x00089124,  # DerivationImageSequence
+                    'SQ',
+                    []
+                )
+            )
             logger.debug('spatial locations not preserved')
 
         identification = Dataset()
-        identification.ReferencedSegmentNumber = int(segment_number)
-        pffg_item.SegmentIdentificationSequence = [
-            identification,
-        ]
+        identification.add(
+            DataElement(
+                0x0062000b,  # ReferencedSegmentNumber
+                'US',
+                int(segment_number)
+            )
+        )
+        pffg_item.add(
+            DataElement(
+                0x0062000a,  # SegmentIdentificationSequence
+                'SQ',
+                [identification]
+            )
+        )
 
         return pffg_item
 
