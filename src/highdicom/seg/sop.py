@@ -1734,18 +1734,6 @@ class Segmentation(SOPClass):
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
 
-        if has_ref_frame_uid:
-            if is_multiframe:
-                source_plane_positions = \
-                    self.DimensionIndexSequence.get_plane_positions_of_image(
-                        src_img
-                    )
-            else:
-                source_plane_positions = \
-                    self.DimensionIndexSequence.get_plane_positions_of_series(
-                        source_images
-                    )
-
         if pixel_measures is not None:
             sffg_item.PixelMeasuresSequence = pixel_measures
         if (
@@ -1887,6 +1875,7 @@ class Segmentation(SOPClass):
                         for offsets, coords in raw_plane_positions
                     ]
                 else:
+                    # Unneeded
                     plane_positions = [None]
 
                 # Match the format used elsewhere
@@ -1901,12 +1890,39 @@ class Segmentation(SOPClass):
                 # (c, r, x, y, z) but the dimension index sequence
                 # requires (r, c, x, y z). Swap here to correct for
                 # this
-                dim_ordering_correction = [1, 0, 2, 3, 4]
                 plane_position_values = plane_position_values[
-                    :, dim_ordering_correction
+                    :, [1, 0, 2, 3, 4]
                 ]
 
             else:
+                are_measures_and_orientation_preserved = (
+                    (
+                        not user_provided_orientation or
+                        plane_orientation == source_plane_orientation
+                    ) and
+                    (
+                        not user_provided_measures or
+                        pixel_measures == source_pixel_measures
+                    )
+                )
+
+                if (
+                    plane_positions is None or
+                    are_measures_and_orientation_preserved
+                ):
+                    # Calculating source positions can be slow, so avoid unless
+                    # necessary
+                    if is_multiframe:
+                        source_plane_positions = \
+                            self.DimensionIndexSequence.get_plane_positions_of_image(
+                                src_img
+                            )
+                    else:
+                        source_plane_positions = \
+                            self.DimensionIndexSequence.get_plane_positions_of_series(
+                                source_images
+                            )
+
                 if plane_positions is None:
                     if pixel_array.shape[0] != len(source_plane_positions):
                         raise ValueError(
@@ -1915,6 +1931,8 @@ class Segmentation(SOPClass):
                             '"pixel_array" argument.'
                         )
                     plane_positions = source_plane_positions
+                    are_spatial_locations_preserved = \
+                        are_measures_and_orientation_preserved
                 else:
                     if pixel_array.shape[0] != len(plane_positions):
                         raise ValueError(
@@ -1922,24 +1940,13 @@ class Segmentation(SOPClass):
                             'via "plane_positions" argument does not match '
                             'size of first dimension of "pixel_array" argument.'
                         )
-
-                are_spatial_locations_preserved = (
-                    (
-                        not user_provided_orientation or
-                        plane_orientation == source_plane_orientation
-                    ) and
-                    (
-                        not user_provided_measures or
-                        pixel_measures == source_pixel_measures
-                    ) and
-                    (
-                        not user_provided_positions or
-                        all(
+                    if are_measures_and_orientation_preserved:
+                        are_spatial_locations_preserved = all(
                             plane_positions[i] == source_plane_positions[i]
                             for i in range(len(plane_positions))
                         )
-                    )
-                )
+                    else:
+                        are_spatial_locations_preserved = False
 
                 # plane_position_values is an array giving, for each plane of
                 # the input array, the raw values of all attributes that
