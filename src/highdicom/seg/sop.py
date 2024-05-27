@@ -1900,6 +1900,7 @@ class Segmentation(SOPClass):
                         are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
                         has_ref_frame_uid=has_ref_frame_uid,
                         coordinate_system=self._coordinate_system,
+                        is_multiframe=is_multiframe,
                     )
                     pffg_sequence.append(pffg_item)
 
@@ -2707,6 +2708,7 @@ class Segmentation(SOPClass):
         are_spatial_locations_preserved: bool,
         has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
+        is_multiframe: bool,
     ) -> Dataset:
         """Get a single item of the Per Frame Functional Groups Sequence.
 
@@ -2731,6 +2733,8 @@ class Segmentation(SOPClass):
             Whether the sources images have a frame of reference UID.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             Coordinate system used, if any.
+        is_multiframe: bool
+            Whether source images are multiframe.
 
         Returns
         -------
@@ -2789,7 +2793,7 @@ class Segmentation(SOPClass):
             )
 
             derivation_src_img_item = Dataset()
-            if is_multiframe_image(source_images[0]):
+            if is_multiframe:
                 # A single multi-frame source image
                 src_img_item = source_images[0]
                 # Frame numbers are one-based
