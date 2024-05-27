@@ -75,11 +75,11 @@ from highdicom.seg.enum import (
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
     ImageToReferenceTransformer,
+    compute_tile_positions_per_frame,
     get_image_coordinate_system,
     get_tile_array,
     is_tiled_image,
     iter_tiled_full_frame_data,
-    tile_pixel_matrix,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
@@ -1778,11 +1778,16 @@ class Segmentation(SOPClass):
                 src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
                 src_x_offset = src_origin_seq.XOffsetInSlideCoordinateSystem
                 src_y_offset = src_origin_seq.YOffsetInSlideCoordinateSystem
+                src_z_offset = src_origin_seq.get(
+                    'ZOffsetInSlideCoordinateSystem',
+                    0.0,
+                )
 
                 if plane_positions is None:
                     # Use the origin of the source image
                     x_offset = src_x_offset
                     y_offset = src_y_offset
+                    z_offset = src_z_offset
                     origin_preserved = True
                 else:
                     if len(plane_positions) != 1:
@@ -1808,30 +1813,18 @@ class Segmentation(SOPClass):
                         )
                     x_offset = pp.XOffsetInSlideCoordinateSystem
                     y_offset = pp.YOffsetInSlideCoordinateSystem
+                    z_offset = pp.get(
+                        'ZOffsetInSlideCoordinateSystem',
+                        0.0,
+                    )
                     origin_preserved = (
-                        x_offset == src_x_offset and y_offset == src_y_offset
+                        x_offset == src_x_offset and
+                        y_offset == src_y_offset and
+                        z_offset == src_z_offset
                     )
 
                 orientation = plane_orientation[0].ImageOrientationSlide
-
-                plane_positions = [
-                    compute_plane_position_tiled_full(
-                        row_index=r,
-                        column_index=c,
-                        x_offset=x_offset,
-                        y_offset=y_offset,
-                        rows=self.Rows,
-                        columns=self.Columns,
-                        image_orientation=orientation,
-                        pixel_spacing=pixel_measures[0].PixelSpacing,
-                    )
-                    for c, r in tile_pixel_matrix(
-                        total_pixel_matrix_rows=pixel_array.shape[1],
-                        total_pixel_matrix_columns=pixel_array.shape[2],
-                        rows=self.Rows,
-                        columns=self.Columns,
-                    )
-                ]
+                image_position = [x_offset, y_offset, z_offset]
 
                 are_total_pixel_matrix_locations_preserved = (
                     origin_preserved and
@@ -1858,14 +1851,60 @@ class Segmentation(SOPClass):
                             "the total pixel matrix of the source image."
                         )
 
-                    # The overall total pixel matrix can match but if the image
-                    # is tiled differently, spatial locations within each frame
-                    # are not preserved
+                    # The overall total pixel matrix can match the source
+                    # image's but if the image is tiled differently, spatial
+                    # locations within each frame are not preserved
                     are_spatial_locations_preserved = (
                         tile_size == (src_img.Rows, src_img.Columns)
                     )
                 else:
                     are_spatial_locations_preserved = False
+
+                raw_plane_positions = compute_tile_positions_per_frame(
+                    rows=self.Rows,
+                    columns=self.Columns,
+                    total_pixel_matrix_rows=pixel_array.shape[1],
+                    total_pixel_matrix_columns=pixel_array.shape[2],
+                    total_pixel_matrix_image_position=image_position,
+                    image_orientation=orientation,
+                    pixel_spacing=pixel_measures[0].PixelSpacing,
+                )
+                plane_sort_index = np.arange(len(raw_plane_positions))
+
+                # Only need to create the plane position DICOM objects if
+                # they will be placed into the object. Otherwise skip this
+                # as it is really inefficient
+                if (
+                    dimension_organization_type !=
+                    DimensionOrganizationTypeValues.TILED_FULL
+                ):
+                    plane_positions = [
+                        PlanePositionSequence(
+                            CoordinateSystemNames.SLIDE,
+                            image_position=coords,
+                            pixel_matrix_position=offsets,
+                        )
+                        for offsets, coords in raw_plane_positions
+                    ]
+                else:
+                    plane_positions = [None]
+
+                # Match the format used elsewhere
+                plane_position_values = np.array(
+                    [
+                        [*offsets, *coords]
+                        for offsets, coords in raw_plane_positions
+                    ]
+                )
+
+                # compute_tile_positions_per_frame returns
+                # (c, r, x, y, z) but the dimension index sequence
+                # requires (r, c, x, y z). Swap here to correct for
+                # this
+                dim_ordering_correction = [1, 0, 2, 3, 4]
+                plane_position_values = plane_position_values[
+                    :, dim_ordering_correction
+                ]
 
             else:
                 if plane_positions is None:
@@ -1902,18 +1941,18 @@ class Segmentation(SOPClass):
                     )
                 )
 
-            # plane_position_values is an array giving, for each plane of
-            # the input array, the raw values of all attributes that
-            # describe its position. The first dimension is sorted the same
-            # way as the input pixel array and the second is sorted the
-            # same way as the dimension index sequence (without segment
-            # number) plane_sort_index is a list of indices into the input
-            # planes giving the order in which they should be arranged to
-            # correctly sort them for inclusion into the segmentation
-            plane_position_values, plane_sort_index = \
-                self.DimensionIndexSequence.get_index_values(
-                    plane_positions
-                )
+                # plane_position_values is an array giving, for each plane of
+                # the input array, the raw values of all attributes that
+                # describe its position. The first dimension is sorted the same
+                # way as the input pixel array and the second is sorted the
+                # same way as the dimension index sequence (without segment
+                # number) plane_sort_index is a list of indices into the input
+                # planes giving the order in which they should be arranged to
+                # correctly sort them for inclusion into the segmentation
+                plane_position_values, plane_sort_index = \
+                    self.DimensionIndexSequence.get_index_values(
+                        plane_positions
+                    )
 
         else:
             # Only one spatial location supported

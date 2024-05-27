@@ -143,6 +143,95 @@ def get_tile_array(
     return tile_array
 
 
+def compute_tile_positions_per_frame(
+    rows: int,
+    columns: int,
+    total_pixel_matrix_rows: int,
+    total_pixel_matrix_columns: int,
+    total_pixel_matrix_image_position: Sequence[float],
+    image_orientation: Sequence[float],
+    pixel_spacing: Sequence[float],
+) -> List[Tuple[List[int], List[float]]]:
+    """Get positions of each tile in a TILED_FULL image.
+
+    A TILED_FULL image is one with DimensionOrganizationType of "TILED_FULL".
+
+    Parameters
+    ----------
+    rows: int
+        Number of rows per tile.
+    columns: int
+        Number of columns per tile.
+    total_pixel_matrix_rows: int
+        Number of rows in the total pixel matrix.
+    total_pixel_matrix_columns: int
+        Number of columns in the total pixel matrix.
+    total_pixel_matrix_image_position: Sequence[float]
+        Position of the top left pixel of the total pixel matrix in the frame
+        of reference. Sequence of length 3.
+    image_orientation: Sequence[float]
+        Orientation cosines of the total pixel matrix. Sequence of length 6.
+    pixel_spacing: Sequence[float]
+        Pixel spacing between the (row, columns) in mm. Sequence of length 2.
+
+    Returns
+    -------
+    List[Tuple[List[int], List[float]]]:
+        List with positions for each of the tiles in the tiled image. The
+        first tuple contains the (column offset, row offset) values, which
+        are one-based offsets of the tile in pixel units from the top left
+        of the total pixel matrix. The second tuple contains the image
+        position in the frame of reference for the tile.
+
+    """
+    if len(total_pixel_matrix_image_position) != 3:
+        raise ValueError(
+            "Argument 'total_pixel_matrix_image_position' must have length 3."
+        )
+    if len(image_orientation) != 6:
+        raise ValueError(
+            "Argument 'image_orientation' must have length 6."
+        )
+    if len(pixel_spacing) != 2:
+        raise ValueError(
+            "Argument 'pixel_spacing' must have length 2."
+        )
+
+    tiles_per_column = (
+        (total_pixel_matrix_columns - 1) // columns + 1
+    )
+    tiles_per_row = (total_pixel_matrix_rows - 1) // rows + 1
+
+    # N x 2 array of (c, r) tile indices
+    tile_indices = np.stack(
+        np.meshgrid(
+            range(tiles_per_column),
+            range(tiles_per_row),
+            indexing='xy',
+        )
+    ).reshape(2, -1).T
+
+    # N x 2 array of (c, r) pixel indices
+    pixel_indices = tile_indices * [columns, rows]
+
+    transformer = PixelToReferenceTransformer(
+        image_position=total_pixel_matrix_image_position,
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing,
+    )
+    image_positions = transformer(pixel_indices)
+
+    # Convert 0-based to 1-based indexing for the output
+    pixel_indices += 1
+
+    return list(
+        zip(
+            pixel_indices.tolist(),
+            image_positions.tolist()
+        )
+    )
+
+
 def iter_tiled_full_frame_data(
     dataset: Dataset,
 ) -> Generator[Tuple[int, int, int, int, float, float, float], None, None]:
@@ -211,12 +300,6 @@ def iter_tiled_full_frame_data(
         float(dataset.ImageOrientationSlide[4]),
         float(dataset.ImageOrientationSlide[5]),
     )
-    tiles_per_column = int(
-        np.ceil(dataset.TotalPixelMatrixRows / dataset.Rows)
-    )
-    tiles_per_row = int(
-        np.ceil(dataset.TotalPixelMatrixColumns / dataset.Columns)
-    )
     num_focal_planes = getattr(
         dataset,
         'TotalPixelMatrixFocalPlanes',
@@ -252,43 +335,24 @@ def iter_tiled_full_frame_data(
     x_offset = image_origin.XOffsetInSlideCoordinateSystem
     y_offset = image_origin.YOffsetInSlideCoordinateSystem
 
-    # Array of tile indices (col_index, row_index)
-    tile_indices = np.array(
-        [
-            (c, r) for (r, c) in
-            itertools.product(
-                range(1, tiles_per_column + 1),
-                range(1, tiles_per_row + 1)
-            )
-        ]
-    )
-
-    # Pixel offsets of each in the total pixel matrix
-    frame_pixel_offsets = (
-        (tile_indices - 1) * np.array([dataset.Columns, dataset.Rows])
-    )
-
     for channel in range(1, num_channels + 1):
         for slice_index in range(1, num_focal_planes + 1):
-            # These checks are needed for mypy to determine the correct type
             z_offset = float(slice_index - 1) * spacing_between_slices
-            transformer = PixelToReferenceTransformer(
-                image_position=(x_offset, y_offset, z_offset),
+
+            for offsets, coords in compute_tile_positions_per_frame(
+                rows=dataset.Rows,
+                columns=dataset.Columns,
+                total_pixel_matrix_rows=dataset.TotalPixelMatrixRows,
+                total_pixel_matrix_columns=dataset.TotalPixelMatrixColumns,
+                total_pixel_matrix_image_position=(x_offset, y_offset, z_offset),
                 image_orientation=image_orientation,
                 pixel_spacing=pixel_spacing
-            )
-
-            reference_coordinates = transformer(frame_pixel_offsets)
-
-            for offsets, coords in zip(
-                frame_pixel_offsets,
-                reference_coordinates
             ):
                 yield (
                     channel,
                     slice_index,
-                    int(offsets[0] + 1),
-                    int(offsets[1] + 1),
+                    int(offsets[0]),
+                    int(offsets[1]),
                     float(coords[0]),
                     float(coords[1]),
                     float(coords[2]),

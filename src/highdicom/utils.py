@@ -31,55 +31,6 @@ __all__ = [
 ]
 
 
-def compute_all_tiled_full_plane_positions(
-    rows: int,
-    columns: int,
-    total_pixel_matrix_rows: int,
-    total_pixel_matrix_columns: int,
-    total_pixel_matrix_image_position: Sequence[float],
-    image_orientation: Sequence[float],
-    pixel_spacing: Sequence[float],
-    # TODO channels??
-) -> List[PlanePositionSequence]:
-
-    n_tile_columns = (
-        (total_pixel_matrix_columns - 1) // columns + 1
-    )
-    n_tile_rows = (total_pixel_matrix_rows - 1) // rows + 1
-
-    # N x 2 array of (c, r) tile indices
-    tile_indices = np.stack(
-        np.meshgrid(
-            range(n_tile_columns),
-            range(n_tile_rows),
-            indexing='xy',
-        )
-    ).reshape(2, -1).T
-
-    # N x 2 array of (c, r) pixel indices
-    pixel_indices = tile_indices * [columns, rows]
-
-    transformer = PixelToReferenceTransformer(
-        image_position=total_pixel_matrix_image_position,
-        image_orientation=image_orientation,
-        pixel_spacing=pixel_spacing,
-    )
-    image_positions = transformer(pixel_indices)
-
-    # Convert 0-based to 1-based indexing for the output
-    pixel_indices += 1
-
-    plane_positions = [
-        PlanePositionSequence(
-            CoordinateSystemNames.SLIDE,
-            image_position=pos,
-            pixel_matrix_position=ind
-        )
-        for pos, ind in zip(image_positions, pixel_indices)
-    ]
-    return plane_positions
-
-
 def compute_plane_position_tiled_full(
     row_index: int,
     column_index: int,
