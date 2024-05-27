@@ -47,7 +47,6 @@ def test_is_tiled_image(filepath, expected_output):
     assert is_tiled_image(dcm) == expected_output
 
 
-
 params_pixel_to_reference = [
     # Slide
     pytest.param(
@@ -511,8 +510,14 @@ params_pixel_to_pixel = [
         np.array([
             (0, 0),
             (
-                2.0 * (50 * np.cos(np.radians(30)) - 50 * np.sin(np.radians(30))),
-                4.0 * (50 * np.sin(np.radians(30)) + 50 * np.cos(np.radians(30))),
+                2.0 * (
+                    50 * np.cos(np.radians(30)) -
+                    50 * np.sin(np.radians(30))
+                ),
+                4.0 * (
+                    50 * np.sin(np.radians(30)) +
+                    50 * np.cos(np.radians(30))
+                ),
             ),
         ])
     ),
@@ -736,7 +741,7 @@ all_image_pair_transformer_classes = [
 def test_transformers_ct_image(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'ct_image.dcm')
+    dcm = pydicom.dcmread(data_dir / 'ct_image.dcm')
     transformer_cls.for_image(dcm)
 
 
@@ -747,7 +752,7 @@ def test_transformers_ct_image(transformer_cls):
 def test_transformers_sm_image(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    dcm = pydicom.dcmread(data_dir / 'sm_image.dcm')
     transformer_cls.for_image(dcm, frame_number=3)
 
 
@@ -758,7 +763,7 @@ def test_transformers_sm_image(transformer_cls):
 def test_transformers_sm_image_total_pixel_matrix(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    dcm = pydicom.dcmread(data_dir / 'sm_image.dcm')
     transformer_cls.for_image(dcm, for_total_pixel_matrix=True)
 
 
@@ -769,7 +774,7 @@ def test_transformers_sm_image_total_pixel_matrix(transformer_cls):
 def test_transformers_seg_sm_image_total_pixel_matrix(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'seg_image_sm_dots.dcm')
+    dcm = pydicom.dcmread(data_dir / 'seg_image_sm_dots.dcm')
     transformer_cls.for_image(dcm, for_total_pixel_matrix=True)
 
 
@@ -789,7 +794,7 @@ def test_transformers_enhanced_ct_image(transformer_cls):
 def test_pair_transformers_sm_image_frame_to_frame(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    dcm = pydicom.dcmread(data_dir / 'sm_image.dcm')
     transformer_cls.for_images(
         dataset_from=dcm,
         dataset_to=dcm,
@@ -805,7 +810,7 @@ def test_pair_transformers_sm_image_frame_to_frame(transformer_cls):
 def test_pair_transformers_sm_image_tpm_to_frame(transformer_cls):
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data/test_files')
-    dcm = pydicom.dcmread(data_dir  / 'sm_image.dcm')
+    dcm = pydicom.dcmread(data_dir / 'sm_image.dcm')
     transformer_cls.for_images(
         dataset_from=dcm,
         dataset_to=dcm,

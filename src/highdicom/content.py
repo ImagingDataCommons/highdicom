@@ -6,6 +6,7 @@ from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
+from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
@@ -470,18 +471,27 @@ class PlanePositionSequence(DataElementSequence):
                     'Position in Pixel Matrix must be specified for '
                     'slide coordinate system.'
                 )
-            col_position, row_position = pixel_matrix_position
             x, y, z = image_position
-            item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
-            item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
-            item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
+            col_position, row_position = pixel_matrix_position
             if row_position < 0 or col_position < 0:
                 raise ValueError(
                     'Both items in "pixel_matrix_position" must be positive '
                     'integers.'
                 )
-            item.RowPositionInTotalImagePixelMatrix = row_position
-            item.ColumnPositionInTotalImagePixelMatrix = col_position
+
+            # Use hard-coded tags to avoid the keywork dictionary lookup
+            # (this constructor is called a large number of times in large
+            # multiframe images, so some optimization makes sense)
+            x_tag = 0x0040072a  # XOffsetInSlideCoordinateSystem
+            y_tag = 0x0040073a  # YOffsetInSlideCoordinateSystem
+            z_tag = 0x0040074a  # ZOffsetInSlideCoordinateSystem
+            row_tag = 0x0048021f  # RowPositionInTotalImagePixelMatrix
+            column_tag = 0x0048021e  # ColumnPositionInTotalImagePixelMatrix
+            item.add(DataElement(x_tag, 'DS', DS(x, auto_format=True)))
+            item.add(DataElement(y_tag, 'DS', DS(y, auto_format=True)))
+            item.add(DataElement(z_tag, 'DS', DS(z, auto_format=True)))
+            item.add(DataElement(row_tag, 'SL', int(row_position)))
+            item.add(DataElement(column_tag, 'SL', int(col_position)))
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImagePositionPatient = [
                 DS(ip, auto_format=True) for ip in image_position
