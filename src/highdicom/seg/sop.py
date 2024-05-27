@@ -1555,6 +1555,12 @@ class Segmentation(SOPClass):
                 )
             self._coordinate_system = None
 
+        # Remember whether these values were provided by the user, or inferred
+        # from the source image. If inferred, we can skip some checks
+        user_provided_positions = plane_positions is not None
+        user_provided_orientation = plane_orientation is not None
+        user_provided_measures = pixel_measures is not None
+
         # General Reference
 
         # Note that appending directly to the SourceImageSequence is typically
@@ -1762,11 +1768,15 @@ class Segmentation(SOPClass):
         if has_ref_frame_uid:
             if tile_pixel_array:
 
+                src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
+                src_x_offset = src_origin_seq.XOffsetInSlideCoordinateSystem
+                src_y_offset = src_origin_seq.YOffsetInSlideCoordinateSystem
+
                 if plane_positions is None:
                     # Use the origin of the source image
-                    origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
-                    x_offset = origin_seq.XOffsetInSlideCoordinateSystem
-                    y_offset = origin_seq.YOffsetInSlideCoordinateSystem
+                    x_offset = src_x_offset
+                    y_offset = src_y_offset
+                    origin_preserved = True
                 else:
                     if len(plane_positions) != 1:
                         raise ValueError(
@@ -1791,6 +1801,10 @@ class Segmentation(SOPClass):
                         )
                     x_offset = pp.XOffsetInSlideCoordinateSystem
                     y_offset = pp.YOffsetInSlideCoordinateSystem
+                    origin_preserved = (
+                        x_offset == src_x_offset and y_offset == src_y_offset
+                    )
+
                 orientation = plane_orientation[0].ImageOrientationSlide
 
                 plane_positions = [
@@ -1812,6 +1826,40 @@ class Segmentation(SOPClass):
                     )
                 ]
 
+                are_total_pixel_matrix_locations_preserved = (
+                    origin_preserved and
+                    (
+                        not user_provided_orientation or
+                        plane_orientation == source_plane_orientation
+                    ) and
+                    (
+                        not user_provided_measures or
+                        pixel_measures == source_pixel_measures
+                    )
+                )
+
+                if are_total_pixel_matrix_locations_preserved:
+                    if (
+                        pixel_array.shape[1:3] !=
+                        (
+                            src_img.TotalPixelMatrixRows,
+                            src_img.TotalPixelMatrixColumns
+                        )
+                    ):
+                        raise ValueError(
+                            "Shape of input pixel_array does not match shape of "
+                            "the total pixel matrix of the source image."
+                        )
+
+                    # The overall total pixel matrix can match but if the image
+                    # is tiled differently, spatial locations within each frame
+                    # are not preserved
+                    are_spatial_locations_preserved = (
+                        tile_size == (src_img.Rows, src_img.Columns)
+                    )
+                else:
+                    are_spatial_locations_preserved = False
+
             else:
                 if plane_positions is None:
                     if pixel_array.shape[0] != len(source_plane_positions):
@@ -1829,6 +1877,24 @@ class Segmentation(SOPClass):
                             'size of first dimension of "pixel_array" argument.'
                         )
 
+                are_spatial_locations_preserved = (
+                    (
+                        not user_provided_orientation or
+                        plane_orientation == source_plane_orientation
+                    ) and
+                    (
+                        not user_provided_measures or
+                        pixel_measures == source_pixel_measures
+                    ) and
+                    (
+                        not user_provided_positions or
+                        all(
+                            plane_positions[i] == source_plane_positions[i]
+                            for i in range(len(plane_positions))
+                        )
+                    )
+                )
+
             # plane_position_values is an array giving, for each plane of
             # the input array, the raw values of all attributes that
             # describe its position. The first dimension is sorted the same
@@ -1842,15 +1908,6 @@ class Segmentation(SOPClass):
                     plane_positions
                 )
 
-            are_spatial_locations_preserved = (
-                all(
-                    plane_positions[i] == source_plane_positions[i]
-                    for i in range(len(plane_positions))
-                ) and
-                plane_orientation == source_plane_orientation and
-                pixel_measures == source_pixel_measures
-            )
-
         else:
             # Only one spatial location supported
             plane_positions = [None]
@@ -1858,34 +1915,20 @@ class Segmentation(SOPClass):
             plane_sort_index = np.array([0])
             are_spatial_locations_preserved = True
 
-        if are_spatial_locations_preserved:
-            if tile_pixel_array:
-                if (
-                    pixel_array.shape[1:3] !=
-                    (
-                        src_img.TotalPixelMatrixRows,
-                        src_img.TotalPixelMatrixColumns
-                    )
-                ):
-                    raise ValueError(
-                        "Shape of input pixel_array does not match shape of "
-                        "the total pixel matrix of the source image."
-                    )
-            else:
-                if pixel_array.shape[1:3] != (src_img.Rows, src_img.Columns):
-                    raise ValueError(
-                        "Shape of input pixel_array does not match shape of "
-                        "the source image."
-                    )
+        if are_spatial_locations_preserved and not tile_pixel_array:
+            if pixel_array.shape[1:3] != (src_img.Rows, src_img.Columns):
+                raise ValueError(
+                    "Shape of input pixel_array does not match shape of "
+                    "the source image."
+                )
 
         # Dimension Organization Type
         dimension_organization_type = self._check_dimension_organization_type(
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
-            are_spatial_locations_preserved=are_spatial_locations_preserved,
             omit_empty_frames=omit_empty_frames,
-            source_image=src_img,
             plane_positions=plane_positions,
+            tile_pixel_array=tile_pixel_array,
             rows=self.Rows,
             columns=self.Columns,
         )
@@ -1958,6 +2001,14 @@ class Segmentation(SOPClass):
                 total_pixel_matrix_size=total_pixel_matrix_size,
             )
 
+            plane_position_names = self.DimensionIndexSequence.get_index_keywords()
+            row_dim_index = plane_position_names.index(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            col_dim_index = plane_position_names.index(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
         process_pool: Optional[Executor] = None
 
@@ -1979,7 +2030,7 @@ class Segmentation(SOPClass):
 
         # In the case of native encoding when the number pixels in a frame is
         # not a multiple of 8. This array carries "leftover" pixels that couldn't
-        # be encoded in previous rounds, to future items of the loop
+        # be encoded in previous iterations, to future iterations
         # This saves having to keep the entire un-endoded array in memory, which
         # can get extremely heavy on memory in the case of very large arrays
         remainder_pixels = np.empty((0, ), dtype=np.uint8)
@@ -2030,11 +2081,25 @@ class Segmentation(SOPClass):
             for plane_index in plane_sort_index:
 
                 if tile_pixel_array:
-                    pos = plane_positions[plane_index][0]
+                    if (
+                        dimension_organization_type ==
+                        DimensionOrganizationTypeValues.TILED_FULL
+                    ):
+                        row_offset = int(
+                            plane_position_values[plane_index, row_dim_index]
+                        )
+                        column_offset = int(
+                            plane_position_values[plane_index, col_dim_index]
+                        )
+                    else:
+                        pos = plane_positions[plane_index][0]
+                        row_offset = pos.RowPositionInTotalImagePixelMatrix
+                        column_offset = pos.ColumnPositionInTotalImagePixelMatrix
+
                     plane_array = get_tile_array(
                         pixel_array[0],
-                        row_offset=pos.RowPositionInTotalImagePixelMatrix,
-                        column_offset=pos.ColumnPositionInTotalImagePixelMatrix,
+                        row_offset=row_offset,
+                        column_offset=column_offset,
                         tile_rows=self.Rows,
                         tile_columns=self.Columns,
                     )
@@ -2425,10 +2490,9 @@ class Segmentation(SOPClass):
             None,
         ],
         is_tiled: bool,
-        are_spatial_locations_preserved: bool,
         omit_empty_frames: bool,
-        source_image: Dataset,
         plane_positions: Sequence[PlanePositionSequence],
+        tile_pixel_array: bool,
         rows: int,
         columns: int,
     ) -> Optional[DimensionOrganizationTypeValues]:
@@ -2440,13 +2504,10 @@ class Segmentation(SOPClass):
            The specified DimensionOrganizationType for the output Segmentation.
         is_tiled: bool
             Whether the source image is a tiled image.
-        are_spatial_locations_preserved: bool
-            Whether spatial locations are preserved between the source image
-            and the segmentation pixel array.
         omit_empty_frames: bool
             Whether it was specified to omit empty frames.
-        source_image: pydicom.Dataset
-            Representative dataset of the source images.
+        tile_pixel_array: bool
+            Whether the total pixel matrix was passed.
         plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane positions of all frames.
         rows: int
@@ -2488,10 +2549,15 @@ class Segmentation(SOPClass):
                 dimension_organization_type ==
                 DimensionOrganizationTypeValues.TILED_FULL
             ):
-                if not are_plane_positions_tiled_full(
-                    plane_positions,
-                    rows,
-                    columns,
+                # Need to check positions if they were not generated by us
+                # when using tile_pixel_array
+                if (
+                    not tile_pixel_array and
+                    not are_plane_positions_tiled_full(
+                        plane_positions,
+                        rows,
+                        columns,
+                    )
                 ):
                     raise ValueError(
                         'A value of "TILED_FULL" for parameter '
