@@ -59,7 +59,6 @@ from highdicom.enum import (
 from highdicom.frame import encode_frame
 from highdicom.utils import (
     are_plane_positions_tiled_full,
-    compute_plane_position_tiled_full,
 )
 from highdicom.seg.content import (
     DimensionIndexSequence,
@@ -1564,7 +1563,6 @@ class Segmentation(SOPClass):
 
         # Remember whether these values were provided by the user, or inferred
         # from the source image. If inferred, we can skip some checks
-        user_provided_positions = plane_positions is not None
         user_provided_orientation = plane_orientation is not None
         user_provided_measures = pixel_measures is not None
 
@@ -1835,8 +1833,8 @@ class Segmentation(SOPClass):
                         )
                     ):
                         raise ValueError(
-                            "Shape of input pixel_array does not match shape of "
-                            "the total pixel matrix of the source image."
+                            "Shape of input pixel_array does not match shape "
+                            "of the total pixel matrix of the source image."
                         )
 
                     # The overall total pixel matrix can match the source
@@ -1912,14 +1910,15 @@ class Segmentation(SOPClass):
                 ):
                     # Calculating source positions can be slow, so avoid unless
                     # necessary
+                    dim_ind = self.DimensionIndexSequence
                     if is_multiframe:
                         source_plane_positions = \
-                            self.DimensionIndexSequence.get_plane_positions_of_image(
+                            dim_ind.get_plane_positions_of_image(
                                 src_img
                             )
                     else:
                         source_plane_positions = \
-                            self.DimensionIndexSequence.get_plane_positions_of_series(
+                            dim_ind.get_plane_positions_of_series(
                                 source_images
                             )
 
@@ -2054,7 +2053,9 @@ class Segmentation(SOPClass):
                 total_pixel_matrix_size=total_pixel_matrix_size,
             )
 
-            plane_position_names = self.DimensionIndexSequence.get_index_keywords()
+            plane_position_names = (
+                self.DimensionIndexSequence.get_index_keywords()
+            )
             row_dim_index = plane_position_names.index(
                 'RowPositionInTotalImagePixelMatrix'
             )
@@ -2082,10 +2083,10 @@ class Segmentation(SOPClass):
         frames: Union[List[bytes], List[np.ndarray]] = []
 
         # In the case of native encoding when the number pixels in a frame is
-        # not a multiple of 8. This array carries "leftover" pixels that couldn't
-        # be encoded in previous iterations, to future iterations
-        # This saves having to keep the entire un-endoded array in memory, which
-        # can get extremely heavy on memory in the case of very large arrays
+        # not a multiple of 8. This array carries "leftover" pixels that
+        # couldn't be encoded in previous iterations, to future iterations This
+        # saves having to keep the entire un-endoded array in memory, which can
+        # get extremely heavy on memory in the case of very large arrays
         remainder_pixels = np.empty((0, ), dtype=np.uint8)
 
         if is_encaps:
@@ -2147,7 +2148,9 @@ class Segmentation(SOPClass):
                     else:
                         pos = plane_positions[plane_index][0]
                         row_offset = pos.RowPositionInTotalImagePixelMatrix
-                        column_offset = pos.ColumnPositionInTotalImagePixelMatrix
+                        column_offset = (
+                            pos.ColumnPositionInTotalImagePixelMatrix
+                        )
 
                     plane_array = get_tile_array(
                         pixel_array[0],
@@ -2248,11 +2251,14 @@ class Segmentation(SOPClass):
                 else:
                     flat_array = segment_array.flatten()
                     if (
-                        self.SegmentationType == SegmentationTypeValues.BINARY.value
-                        and (self.Rows * self.Columns) // 8 != 0
+                        self.SegmentationType ==
+                        SegmentationTypeValues.BINARY.value and
+                        (self.Rows * self.Columns) // 8 != 0
                     ):
                         # Need to encode a multiple of 8 pixels at a time
-                        full_array = np.concatenate([remainder_pixels, flat_array])
+                        full_array = np.concatenate(
+                            [remainder_pixels, flat_array]
+                        )
                         # Round down to closest multiple of 8
                         n_pixels_to_take = 8 * (len(full_array) // 8)
                         to_encode = full_array[:n_pixels_to_take]
@@ -2513,7 +2519,9 @@ class Segmentation(SOPClass):
             else:
                 transform = ImageToReferenceTransformer(
                     image_position=(x_origin, y_origin, z_origin),
-                    image_orientation=plane_orientation[0].ImageOrientationSlide,
+                    image_orientation=(
+                        plane_orientation[0].ImageOrientationSlide
+                    ),
                     pixel_spacing=pixel_measures[0].PixelSpacing
                 )
                 center_image_coordinates = np.array(
@@ -3124,14 +3132,14 @@ class Segmentation(SOPClass):
                 DataElement(
                     0x00081150,  # ReferencedSOPClassUID
                     'UI',
-                    src_img_item[0x00080016].value # SOPClassUID
+                    src_img_item[0x00080016].value  # SOPClassUID
                 )
             )
             derivation_src_img_item.add(
                 DataElement(
                     0x00081155,  # ReferencedSOPInstanceUID
                     'UI',
-                    src_img_item[0x00080018].value # SOPInstanceUID
+                    src_img_item[0x00080018].value  # SOPInstanceUID
                 )
             )
             derivation_src_img_item.add(

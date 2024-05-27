@@ -2,13 +2,11 @@ import itertools
 from typing import List, Optional, Sequence
 import warnings
 
-import numpy as np
 from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.spatial import (
-    PixelToReferenceTransformer,
     map_pixel_into_coordinate_system,
     tile_pixel_matrix,
     get_tile_array,

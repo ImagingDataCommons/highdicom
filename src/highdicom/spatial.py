@@ -344,7 +344,9 @@ def iter_tiled_full_frame_data(
                 columns=dataset.Columns,
                 total_pixel_matrix_rows=dataset.TotalPixelMatrixRows,
                 total_pixel_matrix_columns=dataset.TotalPixelMatrixColumns,
-                total_pixel_matrix_image_position=(x_offset, y_offset, z_offset),
+                total_pixel_matrix_image_position=(
+                    x_offset, y_offset, z_offset
+                ),
                 image_orientation=image_orientation,
                 pixel_spacing=pixel_spacing
             ):
