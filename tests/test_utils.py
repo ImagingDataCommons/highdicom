@@ -228,7 +228,7 @@ def test_are_plane_positions_tiled_full():
     )
     sm_image = dcmread(sm_path)
 
-    # The plane positions from a TILED_FULL image should satsify the
+    # The plane positions from a TILED_FULL image should satisfy the
     # requirements
     plane_positions = compute_plane_position_slide_per_frame(sm_image)
     assert are_plane_positions_tiled_full(
