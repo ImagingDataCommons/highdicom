@@ -2789,7 +2789,7 @@ class Segmentation(SOPClass):
             )
 
             derivation_src_img_item = Dataset()
-            if 0x00280008 in source_images[0]:  # NumberOfFrames
+            if is_multiframe_image(source_images[0]):
                 # A single multi-frame source image
                 src_img_item = source_images[0]
                 # Frame numbers are one-based
