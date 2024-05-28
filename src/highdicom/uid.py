@@ -46,5 +46,5 @@ class UID(pydicom.uid.UID):
         >>> uid = hd.UID.from_uuid(uuid)
 
         """
-        value = '2.25.{}'.format(UUID(uuid).int)
+        value = f'2.25.{UUID(uuid).int}'
         return cls(value)

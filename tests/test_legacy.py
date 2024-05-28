@@ -38,7 +38,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
 
@@ -62,7 +62,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 with self.assertRaises(ValueError):
                     LegacyConverterClass(
@@ -78,7 +78,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 tmp_orig_modality = ref_dataset_seq[0].Modality
@@ -97,7 +97,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 tmp_orig_sop_class_id = ref_dataset_seq[0].SOPClassUID
@@ -116,7 +116,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 # first run with intact input
@@ -146,7 +146,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             with self.subTest(m=m):
                 LegacyConverterClass = getattr(
                     sop,
-                    "LegacyConvertedEnhanced{}Image".format(m)
+                    f"LegacyConvertedEnhanced{m}Image"
                 )
                 ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
                 # first run with intact input

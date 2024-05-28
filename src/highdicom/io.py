@@ -282,9 +282,8 @@ class ImageFileReader:
             pass
         if except_value:
             sys.stderr.write(
-                'Error while accessing file "{}":\n{}'.format(
-                    self._filename, str(except_value)
-                )
+                f'Error while accessing file "{self._filename}":\n'
+                f'{except_value}'
             )
             for tb in traceback.format_tb(except_trace):
                 sys.stderr.write(tb)

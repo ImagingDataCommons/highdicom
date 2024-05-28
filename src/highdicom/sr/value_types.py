@@ -372,9 +372,8 @@ class ContentSequence(DataElementSequence):
         for i in items:
             if not isinstance(i, ContentItem):
                 raise TypeError(
-                    'Items of "{}" must have type ContentItem.'.format(
-                        self.__class__.__name__
-                    )
+                    f'Items of "{self.__class__.__name__}" must '
+                    'have type ContentItem.'
                 )
         super().__setitem__(idx, val)  # type: ignore
 
@@ -417,9 +416,8 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         error_message = f'Item "{val.name}" is not in Sequence.'
         try:
@@ -480,9 +478,8 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         if self._is_root:
             if self._is_sr and val.relationship_type is not None:
@@ -533,9 +530,8 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         if self._is_root:
             if val.relationship_type is not None:

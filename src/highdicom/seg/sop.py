@@ -1637,7 +1637,7 @@ class Segmentation(SOPClass):
             self.MaximumFractionalValue = max_fractional_value
         else:
             raise ValueError(
-                'Unknown segmentation type "{}"'.format(segmentation_type)
+                f'Unknown segmentation type "{segmentation_type}"'
             )
 
         self.BitsStored = self.BitsAllocated
