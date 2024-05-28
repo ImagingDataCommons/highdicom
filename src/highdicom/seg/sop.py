@@ -2831,7 +2831,7 @@ class Segmentation(SOPClass):
             index_values = [
                 int(
                     np.where(
-                        (unique_dimension_values[idx] == pos)
+                        unique_dimension_values[idx] == pos
                     )[0][0] + 1
                 )
                 for idx, pos in enumerate(plane_position_value)

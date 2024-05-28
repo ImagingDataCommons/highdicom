@@ -739,7 +739,7 @@ class ParametricMap(SOPClass):
                 frame_content_item.DimensionIndexValues = [
                     int(
                         np.where(
-                            (dimension_position_values[idx] == pos)
+                            dimension_position_values[idx] == pos
                         )[0][0] + 1
                     )
                     for idx, pos in enumerate(plane_position_values[i])
