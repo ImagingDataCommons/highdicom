@@ -138,11 +138,11 @@ def get_coded_name(item: Dataset) -> CodedConcept:
     """
     try:
         name = item.ConceptNameCodeSequence[0]
-    except AttributeError:
+    except AttributeError as e:
         raise AttributeError(
             'Dataset does not contain attribute "ConceptNameCodeSequence" and '
             'thus doesn\'t represent a SR Content Item.'
-        )
+        ) from e
     return CodedConcept.from_dataset(name)
 
 
@@ -162,11 +162,11 @@ def get_coded_value(item: Dataset) -> CodedConcept:
     """
     try:
         value = item.ConceptCodeSequence[0]
-    except AttributeError:
+    except AttributeError as e:
         raise AttributeError(
             'Dataset does not contain attribute "ConceptCodeSequence" and '
             'thus doesn\'t represent a SR Content Item of Value Type CODE.'
-        )
+        ) from e
     return CodedConcept.from_dataset(value)
 
 

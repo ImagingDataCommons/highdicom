@@ -111,7 +111,7 @@ class Measurements(Dataset):
                 f'annotation indices: {error}. This may either be due to '
                 'incorrect encoding of the measurements or due to incorrectly '
                 'specified "number_of_annotations".'
-            )
+            ) from error
         return values
 
     @classmethod
@@ -339,11 +339,11 @@ class AnnotationGroup(Dataset):
 
         try:
             coordinates = np.concatenate(graphic_data, axis=0)
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 'Items of argument "graphic_data" must be arrays with the '
                 'same dimensions.'
-            )
+            ) from e
 
         if coordinates.dtype.kind in ('u', 'i'):
             coordinates = coordinates.astype(np.float32)
@@ -420,8 +420,8 @@ class AnnotationGroup(Dataset):
                 )
                 try:
                     measured_values = item.get_values(self.NumberOfAnnotations)
-                except IndexError:
-                    raise ValueError(error_message)
+                except IndexError as e:
+                    raise ValueError(error_message) from e
                 if len(measured_values) != self.NumberOfAnnotations:
                     # This should not occur, but safety first.
                     raise ValueError(error_message)

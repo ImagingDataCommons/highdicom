@@ -456,8 +456,8 @@ class ParametricMap(SOPClass):
             sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
             try:
                 real_world_value_mappings[0]
-            except IndexError:
-                raise TypeError(error_message)
+            except IndexError as e:
+                raise TypeError(error_message) from e
             if not isinstance(
                 real_world_value_mappings[0],
                 RealWorldValueMapping
@@ -479,8 +479,8 @@ class ParametricMap(SOPClass):
             )
             try:
                 real_world_value_mappings[0][0]
-            except IndexError:
-                raise TypeError(error_message)
+            except IndexError as e:
+                raise TypeError(error_message) from e
             if not isinstance(
                 real_world_value_mappings[0][0],
                 RealWorldValueMapping
@@ -700,7 +700,9 @@ class ParametricMap(SOPClass):
                 palette_color_lut_transformation,
                 'PaletteColorLookupTableUID'
             ):
-                self.PaletteColorLookupTableUID = palette_color_lut_transformation.PaletteColorLookupTableUID
+                self.PaletteColorLookupTableUID = (
+                    palette_color_lut_transformation.PaletteColorLookupTableUID
+                )
         else:
             self.PixelPresentation = 'MONOCHROME'
 

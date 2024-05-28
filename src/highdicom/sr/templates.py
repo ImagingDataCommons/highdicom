@@ -624,11 +624,11 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
     }
     try:
         return sopclass_to_modality_map[sop_class_uid]
-    except KeyError:
+    except KeyError as e:
         raise ValueError(
             'SOP Class UID does not identify a SOP Class '
             'for storage of an image information entity.'
-        )
+        ) from e
 
 
 class Template(ContentSequence):

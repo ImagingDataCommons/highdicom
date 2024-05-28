@@ -424,12 +424,12 @@ class ContentSequence(DataElementSequence):
         error_message = f'Item "{val.name}" is not in Sequence.'
         try:
             matches = self._lut[val.name]
-        except KeyError:
-            raise ValueError(error_message)
+        except KeyError as e:
+            raise ValueError(error_message) from e
         try:
             index = matches.index(val)
-        except ValueError:
-            raise ValueError(error_message)
+        except ValueError as e:
+            raise ValueError(error_message) from e
         return index
 
     def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
@@ -618,17 +618,17 @@ class ContentSequence(DataElementSequence):
             )
         try:
             ValueTypeValues(dataset.ValueType)
-        except TypeError:
+        except TypeError as e:
             raise ValueError(
                 f'Item #{index} of sequence is not an SR Content Item '
                 f'because it has unknown Value Type "{dataset.ValueType}":'
                 f'\n{dataset}'
-            )
-        except AttributeError:
+            ) from e
+        except AttributeError as e:
             raise AttributeError(
                 f'Item #{index} of sequence is not an SR Content Item:\n'
                 f'{dataset}'
-            )
+            ) from e
         if not hasattr(dataset, 'RelationshipType') and not is_root and is_sr:
             raise AttributeError(
                 f'Item #{index} of sequence is not a value SR Content Item '
