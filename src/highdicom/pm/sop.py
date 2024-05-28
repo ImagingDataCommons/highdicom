@@ -700,11 +700,7 @@ class ParametricMap(SOPClass):
                 palette_color_lut_transformation,
                 'PaletteColorLookupTableUID'
             ):
-                setattr(
-                    self,
-                    'PaletteColorLookupTableUID',
-                    palette_color_lut_transformation.PaletteColorLookupTableUID
-                )
+                self.PaletteColorLookupTableUID = palette_color_lut_transformation.PaletteColorLookupTableUID
         else:
             self.PixelPresentation = 'MONOCHROME'
 
