@@ -1352,7 +1352,7 @@ class SpecimenPreparationStep(Dataset):
             )
         processing_type = processing_type_items[0].value
 
-        instance._processing_procedure: Union[
+        instance._processing_procedure: Union[  # noqa: B032
             SpecimenCollection,
             SpecimenSampling,
             SpecimenStaining,
