@@ -32,7 +32,7 @@ class CodedConcept(Dataset):
             version of coding scheme
 
         """
-        super(CodedConcept, self).__init__()
+        super().__init__()
         if len(value) > 16:
             if value.startswith('urn') or '://' in value:
                 self.URNCodeValue = str(value)

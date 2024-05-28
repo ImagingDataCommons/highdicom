@@ -3495,10 +3495,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            PlanarROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
         return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
 
@@ -3773,10 +3770,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
         return cast(
             VolumetricROIMeasurementsAndQualitativeEvaluations,
