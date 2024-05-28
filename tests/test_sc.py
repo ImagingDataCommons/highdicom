@@ -110,10 +110,10 @@ class TestSCImage(unittest.TestCase):
         assert instance.PixelSpacing == [0.5, 0.5]
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.ContainerIdentifier
-            instance.SpecimenDescriptionSequence
-            instance.ContainerTypeCodeSequence
-            instance.IssuerOfTheContainerIdentifierSequence
+            instance.ContainerIdentifier  # noqa: B018
+            instance.SpecimenDescriptionSequence  # noqa: B018
+            instance.ContainerTypeCodeSequence  # noqa: B018
+            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
     def test_construct_rgb_patient_missing_parameter(self):
         with pytest.raises(TypeError):
@@ -179,8 +179,8 @@ class TestSCImage(unittest.TestCase):
         assert instance.StudyTime is None
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.Laterality
-            instance.PatientOrientation
+            instance.Laterality  # noqa: B018
+            instance.PatientOrientation  # noqa: B018
 
     def test_construct_rgb_slide_single_specimen_missing_parameter(self):
         bits_allocated = 8
@@ -258,10 +258,10 @@ class TestSCImage(unittest.TestCase):
         assert instance.StudyDate is None
         assert instance.PixelData == self._monochrome_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.ContainerIdentifier
-            instance.SpecimenDescriptionSequence
-            instance.ContainerTypeCodeSequence
-            instance.IssuerOfTheContainerIdentifierSequence
+            instance.ContainerIdentifier  # noqa: B018
+            instance.SpecimenDescriptionSequence  # noqa: B018
+            instance.ContainerTypeCodeSequence  # noqa: B018
+            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
     def test_monochrome_rle(self):
         bits_allocated = 8  # RLE requires multiple of 8 bits
