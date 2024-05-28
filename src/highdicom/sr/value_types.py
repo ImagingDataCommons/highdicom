@@ -1501,10 +1501,7 @@ class ImageContentItem(ContentItem):
             'ReferencedFrameNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
         if isinstance(val, MultiValue):
             return [int(v) for v in val]
         else:
@@ -1520,10 +1517,7 @@ class ImageContentItem(ContentItem):
             'ReferencedSegmentNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedSegmentNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedSegmentNumber
         if isinstance(val, MultiValue):
             return [int(v) for v in val]
         else:
@@ -2022,10 +2016,7 @@ class WaveformContentItem(ContentItem):
             'ReferencedFrameNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
         return [
             (
                 int(val[i]),

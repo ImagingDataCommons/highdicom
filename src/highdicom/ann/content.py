@@ -541,10 +541,10 @@ class AnnotationGroup(Dataset):
                 coordinate_dimensionality = 3
 
             try:
-                coordinates_data = getattr(self, 'DoublePointCoordinatesData')
+                coordinates_data = self.DoublePointCoordinatesData
                 coordinates_dtype = np.float64
             except AttributeError:
-                coordinates_data = getattr(self, 'PointCoordinatesData')
+                coordinates_data = self.PointCoordinatesData
                 coordinates_dtype = np.float32
             decoded_coordinates_data = np.frombuffer(
                 coordinates_data,
