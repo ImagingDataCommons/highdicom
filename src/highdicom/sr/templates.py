@@ -2581,7 +2581,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -2978,7 +2978,7 @@ class MeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3088,7 +3088,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3244,7 +3244,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3531,7 +3531,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
