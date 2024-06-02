@@ -2,7 +2,7 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
-from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -491,7 +491,7 @@ class PlanePositionSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same position.
 
         Parameters
@@ -631,7 +631,7 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same orientation.
 
         Parameters
