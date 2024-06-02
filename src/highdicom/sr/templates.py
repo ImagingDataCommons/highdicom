@@ -558,8 +558,8 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.13.1.1': codes.cid29.XRayAngiography,
         '1.2.840.10008.5.1.4.1.1.13.1.2': codes.cid29.DigitalRadiography,
         '1.2.840.10008.5.1.4.1.1.13.1.3': codes.cid29.Mammography,
-        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
-        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa: E501
+        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
         '1.2.840.10008.5.1.4.1.1.66.1': codes.cid32.Registration,
         '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducials,
@@ -574,10 +574,10 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.77.1.2.1': codes.cid29.GeneralMicroscopy,
         '1.2.840.10008.5.1.4.1.1.77.1.3': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.77.1.4': codes.cid29.ExternalCameraPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.1': codes.cid29.OphthalmicPhotography,
         '1.2.840.10008.5.1.4.1.1.77.1.5.2': codes.cid29.OphthalmicPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.4': codes.cid29.OphthalmicTomography,
         '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
