@@ -168,7 +168,7 @@ def _convert_legacy_to_enhanced(
 
     # Per-Frame Functional Groups
     perframe_items = []
-    for i, ds in enumerate(sf_datasets):
+    for ds in sf_datasets:
         perframe_item = Dataset()
 
         # Frame Content (M)
@@ -336,7 +336,7 @@ def _convert_legacy_to_enhanced(
         Dataset()
         for _ in range(len(sf_datasets))
     ]
-    for tag, dataelements in unassigned_dataelements.items():
+    for _tag, dataelements in unassigned_dataelements.items():
         values = [str(da.value) for da in dataelements]
         unique_values = set(values)
         if len(unique_values) == 1:

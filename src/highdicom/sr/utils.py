@@ -88,7 +88,7 @@ def find_content_items(
         recursive: bool
     ) -> List:
         matched_content_items = []
-        for i, content_item in enumerate(node.ContentSequence):
+        for content_item in node.ContentSequence:
             name_code = content_item.ConceptNameCodeSequence[0]
             item = ContentItem(
                 value_type=content_item.ValueType,
