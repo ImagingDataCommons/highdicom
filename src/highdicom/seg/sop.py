@@ -1992,7 +1992,8 @@ class Segmentation(SOPClass):
                     "Setting workers != 0 or passing an instance of "
                     "concurrent.futures.Executor when using a non-encapsulated "
                     "transfer syntax has no effect.",
-                    UserWarning
+                    UserWarning,
+                    stacklevel=2,
                 )
                 using_multiprocessing = False
 
