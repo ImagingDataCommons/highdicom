@@ -1135,7 +1135,7 @@ class NumContentItem(ContentItem):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        value: Union[int, float],
+        value: float,
         unit: Union[Code, CodedConcept],
         qualifier: Optional[Union[Code, CodedConcept]] = None,
         relationship_type: Union[str, RelationshipTypeValues, None] = None,
