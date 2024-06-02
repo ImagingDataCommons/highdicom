@@ -1612,7 +1612,7 @@ class ReferencedSegmentationFrame(ContentSequence):
         for frame_number in frame_numbers:
             if frame_number < 1 or frame_number > number_of_frames:
                 raise ValueError(
-                    'Value {frame_number} is not a valid frame number.'
+                    f'Value {frame_number} is not a valid frame number.'
                 )
             frame_index = frame_number - 1
             item = segmentation.PerFrameFunctionalGroupsSequence[frame_index]
