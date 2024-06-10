@@ -25,7 +25,7 @@ from pydicom.multival import MultiValue
 from highdicom.enum import CoordinateSystemNames
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
-    DEFAULT_SPACING_TOLERANCE,
+    _DEFAULT_SPACING_TOLERANCE,
     get_image_coordinate_system,
     get_regular_slice_spacing,
 )
@@ -754,7 +754,7 @@ class MultiFrameDBManager:
     def get_slice_spacing(
         self,
         split_dimensions: Optional[Sequence[str]] = None,
-        tol: float = DEFAULT_SPACING_TOLERANCE,
+        tol: float = _DEFAULT_SPACING_TOLERANCE,
     ) -> Optional[float]:
         """Get slice spacing, if any, for the image.
 

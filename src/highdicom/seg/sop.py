@@ -1684,7 +1684,7 @@ class Segmentation(SOPClass):
                     plane_orientation[0].ImageOrientationPatient
                 ),
                 sort=False,
-                enforce_positive=True,
+                enforce_right_handed=True,
             )
 
             if spacing is not None and spacing > 0.0:
