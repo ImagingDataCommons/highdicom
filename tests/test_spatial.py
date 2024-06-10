@@ -945,9 +945,6 @@ def test_transform_affine_matrix():
             [0.0, 0.0, 0.0, 1.0],
         ]
     )
-    print(affine)
-    print(transformed)
-    print(expected)
     assert np.allclose(transformed, expected)
 
     transformed = _transform_affine_matrix(
