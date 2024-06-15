@@ -2299,7 +2299,7 @@ class Measurement(Template):
     def __init__(
         self,
         name: Union[CodedConcept, Code],
-        value: Union[int, float],
+        value: float,
         unit: Union[CodedConcept, Code],
         qualifier: Optional[Union[CodedConcept, Code]] = None,
         tracking_identifier: Optional[TrackingIdentifier] = None,

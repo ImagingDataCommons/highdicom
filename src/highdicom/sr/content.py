@@ -115,7 +115,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
 
     def __init__(
         self,
-        value: Union[int, float],
+        value: float,
         unit: Union[CodedConcept, Code],
         event_type: Union[CodedConcept, Code]
     ) -> None:
