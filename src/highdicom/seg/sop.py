@@ -1652,7 +1652,7 @@ class Segmentation(SOPClass):
             self.MaximumFractionalValue = max_fractional_value
         else:
             raise ValueError(
-                'Unknown segmentation type "{}"'.format(segmentation_type)
+                f'Unknown segmentation type "{segmentation_type}"'
             )
 
         self.BitsStored = self.BitsAllocated
@@ -2120,7 +2120,8 @@ class Segmentation(SOPClass):
                     "Setting workers != 0 or passing an instance of "
                     "concurrent.futures.Executor when using a non-encapsulated "
                     "transfer syntax has no effect.",
-                    UserWarning
+                    UserWarning,
+                    stacklevel=2,
                 )
                 using_multiprocessing = False
 
@@ -2212,7 +2213,7 @@ class Segmentation(SOPClass):
                                 f'#{plane_index} in three dimensional '
                                 'coordinate system based on dimension index '
                                 f'values: {error}'
-                            )
+                            ) from error
                     else:
                         dimension_index_values = []
 
@@ -2319,7 +2320,7 @@ class Segmentation(SOPClass):
         method was deprecated in highdicom 0.8.0. For more information
         and migration instructions see :ref:`here <add-segments-deprecation>`.
 
-        """  # noqa E510
+        """  # noqa: E510
         raise AttributeError(
             'To ensure correctness of segmentation images, the add_segments '
             'method was deprecated in highdicom 0.8.0. For more information '
@@ -2999,7 +3000,7 @@ class Segmentation(SOPClass):
             index_values = [
                 int(
                     np.where(
-                        (unique_dimension_values[idx] == pos)
+                        unique_dimension_values[idx] == pos
                     )[0][0] + 1
                 )
                 for idx, pos in enumerate(plane_position_value)
@@ -3054,30 +3055,6 @@ class Segmentation(SOPClass):
             and the source images.
         has_ref_frame_uid: bool
             Whether the sources images have a frame of reference UID.
-        coordinate_system: Optional[highdicom.CoordinateSystemNames]
-            Coordinate system used, if any.
-
-        Returns
-        -------
-        pydicom.Dataset
-            Dataset representing the item of the
-            Per Frame Functional Groups Sequence for this segmentation frame.
-
-        """
-        # NB this function is called many times in a loop when there are a
-        # large number of frames, and has been observed to dominate the
-        # creation time of some segmentations. Therefore we use low-level
-        # pydicom primitives to improve performance as much as possible
-        pffg_item = Dataset()
-        frame_content_item = Dataset()
-
-        frame_content_item.add(
-            DataElement(
-                0x00209157,  # DimensionIndexValues
-                'UL',
-                [int(segment_number)] + dimension_index_values
-            )
-        )
         pffg_item.add(
             DataElement(
                 0x00209111,  # FrameContentSequence

@@ -110,7 +110,7 @@ class TestImageRegion(unittest.TestCase):
         assert region.GraphicData[0] == graphic_data[0][0]
         assert region.GraphicData[1] == graphic_data[0][1]
         with pytest.raises(AttributeError):
-            region.PixelOriginInterpretation
+            region.PixelOriginInterpretation  # noqa: B018
 
     def test_construction_sm_image_without_pixel_origin_interpretation(self):
         source_image = SourceImageForRegion(
@@ -142,7 +142,10 @@ class TestImageRegion(unittest.TestCase):
             source_image=source_image,
             pixel_origin_interpretation=pixel_origin_interpretation
         )
-        region.PixelOriginInterpretation == pixel_origin_interpretation.value
+        assert (
+            region.PixelOriginInterpretation ==
+            pixel_origin_interpretation.value
+        )
 
     def test_construction_sm_image_with_wrong_pixel_origin_interpretation(self):
         source_image = SourceImageForRegion(
@@ -1017,9 +1020,9 @@ class TestContentItem(unittest.TestCase):
         assert i.referenced_sop_instance_uid == sop_instance_uid
         assert i.referenced_sop_class_uid == sop_class_uid
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedFrameNumber
+            ref_sop_item.ReferencedFrameNumber  # noqa: B018
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
         assert i.referenced_frame_numbers is None
         assert i.referenced_segment_numbers is None
 
@@ -1041,7 +1044,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedFrameNumber == frame_numbers
         assert i.referenced_frame_numbers == frame_numbers
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
 
     def test_image_item_construction_with_single_frame_number(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -1061,7 +1064,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedFrameNumber == frame_number
         assert i.referenced_frame_numbers == [frame_number]
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
 
     def test_image_item_construction_single_segment_number(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -1081,7 +1084,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSegmentNumber == segment_number
         assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedFrameNumber
+            ref_sop_item.ReferencedFrameNumber  # noqa: B018
 
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1101,7 +1104,7 @@ class TestContentItem(unittest.TestCase):
         assert i.GraphicData == graphic_data.flatten().tolist()
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord_item_construction_circle(self):
         name = codes.DCM.ImageRegion
@@ -1122,7 +1125,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData[2:4] == graphic_data[1, :])
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1142,7 +1145,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData == graphic_data[0, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_polygon(self):
         name = codes.DCM.ImageRegion
@@ -1166,7 +1169,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData[6:9] == graphic_data[2, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_non_closed_polygon(self):
         name = codes.DCM.ImageRegion
@@ -2623,9 +2626,9 @@ class TestMeasurement(unittest.TestCase):
         unit_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_item == self._unit
         with pytest.raises(AttributeError):
-            item.NumericValueQualifierCodeSequence
+            item.NumericValueQualifierCodeSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            item.ContentSequence
+            item.ContentSequence  # noqa: B018
 
         # Direct property access
         assert measurement.name == self._name

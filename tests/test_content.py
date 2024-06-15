@@ -337,7 +337,7 @@ class TestPixelMeasuresSequence(TestCase):
         assert item.PixelSpacing[1] == pixel_spacing[1]
         assert item.SliceThickness == slice_thickness
         with pytest.raises(AttributeError):
-            item.SpacingBetweenSlices
+            item.SpacingBetweenSlices  # noqa: B018
 
     def test_construction_with_spacing_between_slices(self):
         pixel_spacing = [0., 0.]
@@ -528,7 +528,7 @@ class TestSpecimenPreparationStep(TestCase):
         assert method_item.relationship_type is None
 
         parent_specimen_id_item = seq[3]
-        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier  # noqa E501
+        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier  # noqa: E501
         assert parent_specimen_id_item.value == parent_specimen_id
         assert parent_specimen_id_item.relationship_type is None
 

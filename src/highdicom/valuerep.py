@@ -60,7 +60,8 @@ def check_person_name(person_name: Union[str, PersonName]) -> None:
             'to construct the person name correctly. If a single-component '
             'name is really intended, add a trailing caret character to '
             'disambiguate the name.',
-            UserWarning
+            UserWarning,
+            stacklevel=2,
         )
 
 

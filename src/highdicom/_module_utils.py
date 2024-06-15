@@ -92,8 +92,8 @@ def check_required_attributes(
         for p in base_path:
             try:
                 tree = tree['attributes'][p]
-            except KeyError:
-                raise AttributeError(f"Invalid base path: {base_path}.")
+            except KeyError as e:
+                raise AttributeError(f"Invalid base path: {base_path}.") from e
 
     # Define recursive function
     def check(

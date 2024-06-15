@@ -11,7 +11,7 @@ long_description = readme_filepath.read_text()
 
 def get_version():
     version_filepath = Path('src', 'highdicom', 'version.py')
-    with open(version_filepath, 'rt', encoding='utf8') as f:
+    with open(version_filepath, encoding='utf8') as f:
         version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
     return version
 
