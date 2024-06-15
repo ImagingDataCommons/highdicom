@@ -69,7 +69,7 @@ class SCImage(SOPClass):
             patient_birth_date: Optional[str] = None,
             patient_sex: Union[str, PatientSexValues, None] = None,
             accession_number: Optional[str] = None,
-            study_id: str = None,
+            study_id: Optional[str] = None,
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[Union[str, PersonName]] = None,

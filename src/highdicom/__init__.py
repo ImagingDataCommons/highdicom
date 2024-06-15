@@ -58,6 +58,9 @@ from highdicom import utils
 from highdicom.version import __version__
 
 __all__ = [
+    'LUT',
+    'UID',
+    'VOILUT',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
     'ContentCreatorIdentificationCodeSequence',
@@ -66,7 +69,6 @@ __all__ = [
     'DimensionOrganizationTypeValues',
     'IssuerOfIdentifier',
     'LateralityValues',
-    'LUT',
     'ModalityLUT',
     'ModalityLUTTransformation',
     'PaletteColorLUT',
@@ -85,6 +87,7 @@ __all__ = [
     'PresentationLUTTransformation',
     'ReferencedImageSequence',
     'RescaleTypeValues',
+    'SOPClass',
     'SegmentedPaletteColorLUT',
     'SpecimenCollection',
     'SpecimenDescription',
@@ -92,12 +95,10 @@ __all__ = [
     'SpecimenProcessing',
     'SpecimenSampling',
     'SpecimenStaining',
-    'SOPClass',
-    'UID',
     'UniversalEntityIDTypeValues',
-    'VOILUT',
     'VOILUTFunctionValues',
     'VOILUTTransformation',
+    '__version__',
     'ann',
     'color',
     'frame',
@@ -111,5 +112,4 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
-    '__version__',
 ]

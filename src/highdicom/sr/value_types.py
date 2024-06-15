@@ -60,7 +60,7 @@ def _assert_value_type(
 
     """
     if not hasattr(dataset, 'ValueType'):
-        raise AttributeError('Dataset is not an SR Content Item:\n{dataset}.')
+        raise AttributeError(f'Dataset is not an SR Content Item:\n{dataset}.')
     if not dataset.ValueType == value_type.value:
         raise ValueError(
             'Dataset is not an SR Content Item with value type '
