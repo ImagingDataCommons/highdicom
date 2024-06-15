@@ -67,8 +67,8 @@ class ParametricMap(SOPClass):
             Sequence[RealWorldValueMapping],
             Sequence[Sequence[RealWorldValueMapping]],
         ],
-        window_center: Union[int, float],
-        window_width: Union[int, float],
+        window_center: float,
+        window_width: float,
         transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
         content_description: Optional[str] = None,
         content_creator_name: Optional[str] = None,
@@ -457,8 +457,8 @@ class ParametricMap(SOPClass):
             sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
             try:
                 real_world_value_mappings[0]
-            except IndexError:
-                raise TypeError(error_message)
+            except IndexError as e:
+                raise TypeError(error_message) from e
             if not isinstance(
                 real_world_value_mappings[0],
                 RealWorldValueMapping
@@ -480,8 +480,8 @@ class ParametricMap(SOPClass):
             )
             try:
                 real_world_value_mappings[0][0]
-            except IndexError:
-                raise TypeError(error_message)
+            except IndexError as e:
+                raise TypeError(error_message) from e
             if not isinstance(
                 real_world_value_mappings[0][0],
                 RealWorldValueMapping
@@ -701,13 +701,8 @@ class ParametricMap(SOPClass):
                 palette_color_lut_transformation,
                 'PaletteColorLookupTableUID'
             ):
-                setattr(
-                    self,
-                    'PaletteColorLookupTableUID',
-                    getattr(
-                        palette_color_lut_transformation,
-                        'PaletteColorLookupTableUID'
-                    )
+                self.PaletteColorLookupTableUID = (
+                    palette_color_lut_transformation.PaletteColorLookupTableUID
                 )
         else:
             self.PixelPresentation = 'MONOCHROME'
@@ -740,7 +735,7 @@ class ParametricMap(SOPClass):
                 frame_content_item.DimensionIndexValues = [
                     int(
                         np.where(
-                            (dimension_position_values[idx] == pos)
+                            dimension_position_values[idx] == pos
                         )[0][0] + 1
                     )
                     for idx, pos in enumerate(plane_position_values[i])

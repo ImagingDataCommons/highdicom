@@ -558,8 +558,8 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.13.1.1': codes.cid29.XRayAngiography,
         '1.2.840.10008.5.1.4.1.1.13.1.2': codes.cid29.DigitalRadiography,
         '1.2.840.10008.5.1.4.1.1.13.1.3': codes.cid29.Mammography,
-        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
-        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.14.1': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa: E501
+        '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
         '1.2.840.10008.5.1.4.1.1.66.1': codes.cid32.Registration,
         '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducials,
@@ -574,10 +574,10 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.77.1.2.1': codes.cid29.GeneralMicroscopy,
         '1.2.840.10008.5.1.4.1.1.77.1.3': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.77.1.4': codes.cid29.ExternalCameraPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.4.1': codes.cid29.ExternalCameraPhotography,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.1': codes.cid29.OphthalmicPhotography,
         '1.2.840.10008.5.1.4.1.1.77.1.5.2': codes.cid29.OphthalmicPhotography,
-        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa E501
+        '1.2.840.10008.5.1.4.1.1.77.1.5.3': codes.cid32.StereometricRelationship,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.77.1.5.4': codes.cid29.OphthalmicTomography,
         '1.2.840.10008.5.1.4.1.1.77.1.6': codes.cid29.SlideMicroscopy,
         '1.2.840.10008.5.1.4.1.1.78.1': codes.cid29.Lensometry,
@@ -624,11 +624,11 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
     }
     try:
         return sopclass_to_modality_map[sop_class_uid]
-    except KeyError:
+    except KeyError as e:
         raise ValueError(
             'SOP Class UID does not identify a SOP Class '
             'for storage of an image information entity.'
-        )
+        ) from e
 
 
 class Template(ContentSequence):
@@ -1573,20 +1573,16 @@ class ObserverContext(Template):
                               PersonObserverIdentifyingAttributes):
                 raise TypeError(
                     'Observer identifying attributes must have '
-                    'type {} for observer type "{}".'.format(
-                        PersonObserverIdentifyingAttributes.__name__,
-                        observer_type.meaning
-                    )
+                    f'type {PersonObserverIdentifyingAttributes.__name__} '
+                    f'for observer type "{observer_type.meaning}".'
                 )
         elif observer_type == codes.cid270.Device:
             if not isinstance(observer_identifying_attributes,
                               DeviceObserverIdentifyingAttributes):
                 raise TypeError(
                     'Observer identifying attributes must have '
-                    'type {} for observer type "{}".'.format(
-                        DeviceObserverIdentifyingAttributes.__name__,
-                        observer_type.meaning,
-                    )
+                    f'type {DeviceObserverIdentifyingAttributes.__name__} '
+                    f'for observer type "{observer_type.meaning}".'
                 )
         else:
             raise ValueError(
@@ -2184,26 +2180,21 @@ class ObservationContext(Template):
             if not isinstance(observer_person_context, ObserverContext):
                 raise TypeError(
                     'Argument "observer_person_context" must '
-                    'have type {}'.format(
-                        ObserverContext.__name__
-                    )
+                    f'have type {ObserverContext.__name__}'
                 )
             self.extend(observer_person_context)
         if observer_device_context is not None:
             if not isinstance(observer_device_context, ObserverContext):
                 raise TypeError(
                     'Argument "observer_device_context" must '
-                    'have type {}'.format(
-                        ObserverContext.__name__
-                    )
+                    f'have type {ObserverContext.__name__}'
                 )
             self.extend(observer_device_context)
         if subject_context is not None:
             if not isinstance(subject_context, SubjectContext):
                 raise TypeError(
-                    'Argument "subject_context" must have type {}'.format(
-                        SubjectContext.__name__
-                    )
+                    f'Argument "subject_context" must have '
+                    f'type {SubjectContext.__name__}'
                 )
             self.extend(subject_context)
 
@@ -2308,7 +2299,7 @@ class Measurement(Template):
     def __init__(
         self,
         name: Union[CodedConcept, Code],
-        value: Union[int, float],
+        value: float,
         unit: Union[CodedConcept, Code],
         qualifier: Optional[Union[CodedConcept, Code]] = None,
         tracking_identifier: Optional[TrackingIdentifier] = None,
@@ -2581,7 +2572,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -2978,7 +2969,7 @@ class MeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3088,7 +3079,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3244,7 +3235,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3495,10 +3486,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            PlanarROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
         return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
 
@@ -3531,7 +3519,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         algorithm_id: Optional[AlgorithmIdentification] = None,
         finding_sites: Optional[Sequence[FindingSite]] = None,
         session: Optional[str] = None,
-        measurements: Sequence[Measurement] = None,
+        measurements: Optional[Sequence[Measurement]] = None,
         qualitative_evaluations: Optional[
             Sequence[QualitativeEvaluation]
         ] = None,
@@ -3773,10 +3761,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
         return cast(
             VolumetricROIMeasurementsAndQualitativeEvaluations,

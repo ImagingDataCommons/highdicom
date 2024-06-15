@@ -73,9 +73,9 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         assert len(item.AlgorithmFamilyCodeSequence) == 1
         assert item.AlgorithmFamilyCodeSequence[0] == self._family
         with pytest.raises(AttributeError):
-            item.AlgorithmSource
+            item.AlgorithmSource  # noqa: B018
         with pytest.raises(AttributeError):
-            item.AlgorithmParameters
+            item.AlgorithmParameters  # noqa: B018
 
         assert seq.name == self._name
         assert seq.version == self._version
@@ -115,7 +115,7 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         item = seq[0]
         assert item.AlgorithmSource == self._source
         with pytest.raises(AttributeError):
-            item.AlgorithmParameters
+            item.AlgorithmParameters  # noqa: B018
 
         assert seq.source == self._source
 
@@ -129,13 +129,13 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         assert len(seq) == 1
         item = seq[0]
         parsed_params = ','.join([
-            '='.join([key, value])
+            f'{key}={value}'
             for key, value in self._parameters.items()
         ])
         assert item.AlgorithmParameters == parsed_params
         assert seq.parameters == self._parameters
         with pytest.raises(AttributeError):
-            item.AlgorithmSource
+            item.AlgorithmSource  # noqa: B018
 
     def test_malformed_params(self):
         seq = AlgorithmIdentificationSequence(
@@ -145,7 +145,7 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         )
         seq[0].AlgorithmParameters = 'some invalid parameters'
         with pytest.raises(ValueError):
-            seq.parameters
+            seq.parameters  # noqa: B018
 
 
 class TestSegmentDescription(unittest.TestCase):
@@ -190,10 +190,10 @@ class TestSegmentDescription(unittest.TestCase):
             self._algorithm_identification[0].AlgorithmName
         assert len(item.SegmentationAlgorithmIdentificationSequence) == 1
         with pytest.raises(AttributeError):
-            item.TrackingID
-            item.TrackingUID
-            item.AnatomicRegionSequence
-            item.PrimaryAnatomicStructureSequence
+            item.TrackingID  # noqa: B018
+            item.TrackingUID  # noqa: B018
+            item.AnatomicRegionSequence  # noqa: B018
+            item.PrimaryAnatomicStructureSequence  # noqa: B018
 
         assert item.segment_number == self._segment_number
         assert item.segment_label == self._segment_label
@@ -313,9 +313,9 @@ class TestSegmentDescription(unittest.TestCase):
         assert item.tracking_id == self._tracking_id
         assert item.tracking_uid == self._tracking_uid
         with pytest.raises(AttributeError):
-            item.AnatomicRegionSequence
+            item.AnatomicRegionSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            item.PrimaryAnatomicStructureSequence
+            item.PrimaryAnatomicStructureSequence  # noqa: B018
 
     def test_construction_optional_argument_2(self):
         item = SegmentDescription(
@@ -347,9 +347,9 @@ class TestSegmentDescription(unittest.TestCase):
         assert item.primary_anatomic_structures[0] == self._anatomic_structure
 
         with pytest.raises(AttributeError):
-            item.TrackingID
+            item.TrackingID  # noqa: B018
         with pytest.raises(AttributeError):
-            item.TrackingUID
+            item.TrackingUID  # noqa: B018
 
     def test_construction_mismatched_ids(self):
         with pytest.raises(TypeError):
@@ -394,7 +394,7 @@ class TestPixelMeasuresSequence(unittest.TestCase):
         assert item.PixelSpacing == list(self._pixel_spacing)
         assert item.SliceThickness == self._slice_thickness
         with pytest.raises(AttributeError):
-            self.SpacingBetweenSlices
+            self.SpacingBetweenSlices  # noqa: B018
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
@@ -434,7 +434,7 @@ class TestPlanePositionSequence(unittest.TestCase):
         item = seq[0]
         assert item.ImagePositionPatient == list(self._image_position)
         with pytest.raises(AttributeError):
-            item.XOffsetInSlideCoordinateSystem
+            item.XOffsetInSlideCoordinateSystem  # noqa: B018
 
     def test_construction_2(self):
         seq = PlanePositionSequence(
@@ -452,7 +452,7 @@ class TestPlanePositionSequence(unittest.TestCase):
         assert item.ColumnPositionInTotalImagePixelMatrix == \
             self._pixel_matrix_position[0]
         with pytest.raises(AttributeError):
-            item.ImagePositionPatient
+            item.ImagePositionPatient  # noqa: B018
 
     def test_construction_missing_required_argument(self):
         with pytest.raises(TypeError):
@@ -496,7 +496,7 @@ class TestPlaneOrientationSequence(unittest.TestCase):
         item = seq[0]
         assert item.ImageOrientationPatient == list(self._image_orientation)
         with pytest.raises(AttributeError):
-            item.ImageOrientationSlide
+            item.ImageOrientationSlide  # noqa: B018
 
     def test_construction_2(self):
         seq = PlaneOrientationSequence(
@@ -507,7 +507,7 @@ class TestPlaneOrientationSequence(unittest.TestCase):
         item = seq[0]
         assert item.ImageOrientationSlide == list(self._image_orientation)
         with pytest.raises(AttributeError):
-            item.ImageOrientationPatient
+            item.ImageOrientationPatient  # noqa: B018
 
     def test_construction_missing_required_attribute(self):
         with pytest.raises(TypeError):
@@ -886,17 +886,17 @@ class TestSegmentation:
         assert instance.ContentDescription is None
         assert instance.ContentCreatorName is None
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionRatio
+            instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionMethod
+            instance.LossyImageCompressionMethod  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.ImageOrientationSlide
+            instance.ImageOrientationSlide  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixOriginSequence
+            instance.TotalPixelMatrixOriginSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixRows
+            instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixColumns
+            instance.TotalPixelMatrixColumns  # noqa: B018
         assert len(instance.SegmentSequence) == 1
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
@@ -939,7 +939,7 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence
+            frame_item.PlanePositionSlideSequence  # noqa: B018
         assert not hasattr(instance, "DimensionOrganizationType")
         self.check_dimension_index_vals(instance)
 
@@ -1011,7 +1011,7 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
-            frame_item.PlanePositionSequence
+            frame_item.PlanePositionSequence  # noqa: B018
         assert instance.DimensionOrganizationType == "TILED_SPARSE"
         self.check_dimension_index_vals(instance)
 
@@ -1083,6 +1083,8 @@ class TestSegmentation:
                     source_image_item,
                     'PurposeOfReferenceCodeSequence'
                 )
+            with pytest.raises(AttributeError):
+                frame_item.PlanePositionSlideSequence  # noqa: B018
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -1096,8 +1098,6 @@ class TestSegmentation:
         assert source_uid_to_plane_position == uid_to_plane_position
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
-        with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence
         assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
@@ -1177,7 +1177,7 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence
+            frame_item.PlanePositionSlideSequence  # noqa: B018
 
         # Frames are regularly but ordered the wrong way in this case
         assert not hasattr(instance, 'DimensionOrganizationType')
@@ -1264,7 +1264,7 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence
+            frame_item.PlanePositionSlideSequence  # noqa: B018
         assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
@@ -1312,17 +1312,17 @@ class TestSegmentation:
         assert instance.ContentDescription is None
         assert instance.ContentCreatorName is None
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionRatio
+            instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionMethod
+            instance.LossyImageCompressionMethod  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.ImageOrientationSlide
+            instance.ImageOrientationSlide  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixOriginSequence
+            instance.TotalPixelMatrixOriginSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixRows
+            instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixColumns
+            instance.TotalPixelMatrixColumns  # noqa: B018
         assert len(instance.SegmentSequence) == 1
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert len(instance.SourceImageSequence) == 1
@@ -1398,17 +1398,17 @@ class TestSegmentation:
         assert instance.ContentDescription is None
         assert instance.ContentCreatorName is None
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionRatio
+            instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.LossyImageCompressionMethod
+            instance.LossyImageCompressionMethod  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.ImageOrientationSlide
+            instance.ImageOrientationSlide  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixOriginSequence
+            instance.TotalPixelMatrixOriginSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixRows
+            instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
-            instance.TotalPixelMatrixColumns
+            instance.TotalPixelMatrixColumns  # noqa: B018
         assert len(instance.SegmentSequence) == 2
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert instance.SegmentSequence[1].SegmentNumber == 2
@@ -2915,7 +2915,7 @@ class TestSegmentation:
             assert isinstance(position, PlanePositionSequence)
 
 
-class TestSegmentationParsing():
+class TestSegmentationParsing:
 
     @pytest.fixture(autouse=True)
     def setUp(self):

@@ -2640,7 +2640,7 @@ class VolumeGeometry:
 
         self._affine = affine
         if len(shape) != 3:
-            raise ValueError("Argument 'shape' must have three item".)
+            raise ValueError("Argument 'shape' must have three items.")
         self._shape = tuple(shape)
         self._frame_of_reference_uid = frame_of_reference_uid
         if frame_numbers is not None:

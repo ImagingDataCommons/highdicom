@@ -2,7 +2,7 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
-from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -88,7 +88,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             item.AlgorithmSource = source
         if parameters is not None:
             item.AlgorithmParameters = ','.join([
-                '='.join([key, value])
+                f"{key}={value}"
                 for key, value in parameters.items()
             ])
         self.append(item)
@@ -502,7 +502,7 @@ class PlanePositionSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same position.
 
         Parameters
@@ -519,7 +519,7 @@ class PlanePositionSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare image position between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImagePositionPatient'):
             return np.array_equal(
@@ -642,7 +642,7 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same orientation.
 
         Parameters
@@ -659,7 +659,7 @@ class PlaneOrientationSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare orientation between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImageOrientationPatient'):
             if not hasattr(other[0], 'ImageOrientationPatient'):
@@ -1363,7 +1363,7 @@ class SpecimenPreparationStep(Dataset):
             )
         processing_type = processing_type_items[0].value
 
-        instance._processing_procedure: Union[
+        instance._processing_procedure: Union[  # noqa: B032
             SpecimenCollection,
             SpecimenSampling,
             SpecimenStaining,

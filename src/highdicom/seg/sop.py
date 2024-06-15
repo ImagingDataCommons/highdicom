@@ -1288,7 +1288,7 @@ class Segmentation(SOPClass):
             self.MaximumFractionalValue = max_fractional_value
         else:
             raise ValueError(
-                'Unknown segmentation type "{}"'.format(segmentation_type)
+                f'Unknown segmentation type "{segmentation_type}"'
             )
 
         self.BitsStored = self.BitsAllocated
@@ -1795,7 +1795,8 @@ class Segmentation(SOPClass):
                     "Setting workers != 0 or passing an instance of "
                     "concurrent.futures.Executor when using a non-encapsulated "
                     "transfer syntax has no effect.",
-                    UserWarning
+                    UserWarning,
+                    stacklevel=2,
                 )
                 using_multiprocessing = False
 
@@ -1887,7 +1888,7 @@ class Segmentation(SOPClass):
                                 f'#{plane_index} in three dimensional '
                                 'coordinate system based on dimension index '
                                 f'values: {error}'
-                            )
+                            ) from error
                     else:
                         dimension_index_values = []
 
@@ -1995,7 +1996,7 @@ class Segmentation(SOPClass):
         method was deprecated in highdicom 0.8.0. For more information
         and migration instructions see :ref:`here <add-segments-deprecation>`.
 
-        """  # noqa E510
+        """  # noqa: E510
         raise AttributeError(
             'To ensure correctness of segmentation images, the add_segments '
             'method was deprecated in highdicom 0.8.0. For more information '
@@ -2675,7 +2676,7 @@ class Segmentation(SOPClass):
             index_values = [
                 int(
                     np.where(
-                        (unique_dimension_values[idx] == pos)
+                        unique_dimension_values[idx] == pos
                     )[0][0] + 1
                 )
                 for idx, pos in enumerate(plane_position_value)

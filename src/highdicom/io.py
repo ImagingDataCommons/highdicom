@@ -282,9 +282,8 @@ class ImageFileReader:
             pass
         if except_value:
             sys.stderr.write(
-                'Error while accessing file "{}":\n{}'.format(
-                    self._filename, str(except_value)
-                )
+                f'Error while accessing file "{self._filename}":\n'
+                f'{except_value}'
             )
             for tb in traceback.format_tb(except_trace):
                 sys.stderr.write(tb)
@@ -313,12 +312,14 @@ class ImageFileReader:
         if self._fp is None:
             try:
                 self._fp = DicomFile(str(self._filename), mode='rb')
-            except FileNotFoundError:
-                raise FileNotFoundError(f'File not found: "{self._filename}"')
-            except Exception:
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f'File not found: "{self._filename}"'
+                ) from e
+            except Exception as e:
                 raise OSError(
                     f'Could not open file for reading: "{self._filename}"'
-                )
+                ) from e
         is_little_endian, is_implicit_VR = self._check_file_format(self._fp)
         self._fp.is_little_endian = is_little_endian
         self._fp.is_implicit_VR = is_implicit_VR
@@ -378,7 +379,9 @@ class ImageFileReader:
         try:
             metadata = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
-            raise OSError(f'DICOM metadata cannot be read from file: "{err}"')
+            raise OSError(
+                f'DICOM metadata cannot be read from file: "{err}"'
+            ) from err
 
         # Cache Transfer Syntax UID, since we need it to decode frame items
         self._transfer_syntax_uid = UID(metadata.file_meta.TransferSyntaxUID)
@@ -392,10 +395,10 @@ class ImageFileReader:
         # Determine whether dataset contains a Pixel Data element
         try:
             tag = TupleTag(self._fp.read_tag())
-        except EOFError:
+        except EOFError as e:
             raise ValueError(
                 'Dataset does not represent an image information entity.'
-            )
+            ) from e
         if int(tag) not in _PIXEL_DATA_TAGS:
             raise ValueError(
                 'Dataset does not represent an image information entity.'
@@ -413,7 +416,9 @@ class ImageFileReader:
             try:
                 self._basic_offset_table = _get_bot(self._fp, number_of_frames)
             except Exception as err:
-                raise OSError(f'Failed to build Basic Offset Table: "{err}"')
+                raise OSError(
+                    f'Failed to build Basic Offset Table: "{err}"'
+                ) from err
             self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:
