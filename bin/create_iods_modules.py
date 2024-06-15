@@ -102,8 +102,8 @@ if __name__ == '__main__':
     # https://github.com/innolitics/dicom-standard/tree/master/standard
     try:
         directory = sys.argv[1]
-    except IndexError:
-        raise ValueError('Path to directory must be provided.')
+    except IndexError as e:
+        raise ValueError('Path to directory must be provided.') from e
     if not os.path.exists(directory):
         raise OSError(f'Path does not exist: "{directory}"')
     if not os.path.isdir(directory):

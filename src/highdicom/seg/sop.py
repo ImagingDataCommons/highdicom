@@ -1992,7 +1992,8 @@ class Segmentation(SOPClass):
                     "Setting workers != 0 or passing an instance of "
                     "concurrent.futures.Executor when using a non-encapsulated "
                     "transfer syntax has no effect.",
-                    UserWarning
+                    UserWarning,
+                    stacklevel=2,
                 )
                 using_multiprocessing = False
 
@@ -2061,7 +2062,7 @@ class Segmentation(SOPClass):
                             'Could not determine position of plane '
                             f'#{plane_index} in three dimensional coordinate '
                             f'system based on dimension index values: {error}'
-                        )
+                        ) from error
                 else:
                     dimension_index_values = []
 

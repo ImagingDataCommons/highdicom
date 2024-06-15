@@ -117,11 +117,11 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.RealWorldValueLastValueMapped, int)
         assert m.RealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueFirstValueMapped
+            m.DoubleFloatRealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueLastValueMapped
+            m.DoubleFloatRealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLUTData
+            m.RealWorldValueLUTData  # noqa: B018
         assert len(m.QuantityDefinitionSequence) == 1
         quantity_item = m.QuantityDefinitionSequence[0]
         assert quantity_item.name == codes.SCT.Quantity
@@ -150,13 +150,13 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.RealWorldValueLastValueMapped, int)
         assert m.RealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueFirstValueMapped
+            m.DoubleFloatRealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueLastValueMapped
+            m.DoubleFloatRealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueSlope
+            m.RealWorldValueSlope  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueIntercept
+            m.RealWorldValueIntercept  # noqa: B018
 
     def test_construction_floating_point_linear_relationship(self):
         lut_label = '1'
@@ -185,11 +185,11 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.DoubleFloatRealWorldValueLastValueMapped, float)
         assert m.DoubleFloatRealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.RealWorldValueFirstValueMapped
+            m.RealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLastValueMapped
+            m.RealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLUTData
+            m.RealWorldValueLUTData  # noqa: B018
 
     def test_failed_construction_floating_point_nonlinear_relationship(self):
         lut_label = '1'

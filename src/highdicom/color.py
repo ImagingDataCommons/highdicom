@@ -87,8 +87,8 @@ class ColorManager:
         """
         try:
             self._icc_transform = self._build_icc_transform(icc_profile)
-        except OSError:
-            raise ValueError('Could not read ICC Profile.')
+        except OSError as e:
+            raise ValueError('Could not read ICC Profile.') from e
 
     def transform_frame(self, array: np.ndarray) -> np.ndarray:
         """Transforms a frame by applying the ICC profile.
@@ -138,8 +138,10 @@ class ColorManager:
         profile: bytes
         try:
             profile = ImageCmsProfile(BytesIO(icc_profile))
-        except OSError:
-            raise ValueError('Cannot read ICC Profile in image metadata.')
+        except OSError as e:
+            raise ValueError(
+                'Cannot read ICC Profile in image metadata.'
+            ) from e
         name = getProfileName(profile).strip()
         description = getProfileDescription(profile).strip()
         logger.debug(f'found ICC Profile "{name}": "{description}"')

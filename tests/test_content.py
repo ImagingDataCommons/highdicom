@@ -337,7 +337,7 @@ class TestPixelMeasuresSequence(TestCase):
         assert item.PixelSpacing[1] == pixel_spacing[1]
         assert item.SliceThickness == slice_thickness
         with pytest.raises(AttributeError):
-            item.SpacingBetweenSlices
+            item.SpacingBetweenSlices  # noqa: B018
 
     def test_construction_with_spacing_between_slices(self):
         pixel_spacing = [0., 0.]
