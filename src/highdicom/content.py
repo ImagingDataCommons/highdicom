@@ -508,7 +508,7 @@ class PlanePositionSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare image position between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImagePositionPatient'):
             return np.array_equal(
@@ -648,7 +648,7 @@ class PlaneOrientationSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare orientation between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImageOrientationPatient'):
             if not hasattr(other[0], 'ImageOrientationPatient'):

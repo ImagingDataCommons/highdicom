@@ -105,9 +105,9 @@ if __name__ == '__main__':
     except IndexError:
         raise ValueError('Path to directory must be provided.')
     if not os.path.exists(directory):
-        raise OSError('Path does not exist: "{}"'.format(directory))
+        raise OSError(f'Path does not exist: "{directory}"')
     if not os.path.isdir(directory):
-        raise OSError('Path is not a directory: "{}"'.format(directory))
+        raise OSError(f'Path is not a directory: "{directory}"')
 
     now = datetime.datetime.now()
     current_date = datetime.datetime.date(now).strftime('%Y-%m-%d')
@@ -127,13 +127,11 @@ if __name__ == '__main__':
         fp.write('\n\n')
         iods_formatted = _dump_json(iods).replace('null', 'None')
         fp.write(
-            'IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {}'.format(
-                iods_formatted
-            )
+            f'IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {iods_formatted}'
         )
         fp.write('\n\n')
         sop_to_iods_formatted = _dump_json(sop_to_iods).replace('null', 'None')
-        fp.write('SOP_CLASS_UID_IOD_KEY_MAP = {}'.format(sop_to_iods_formatted))
+        fp.write(f'SOP_CLASS_UID_IOD_KEY_MAP = {sop_to_iods_formatted}')
 
     modules = _create_modules(directory)
     modules_docstr = '\n'.join([
@@ -148,7 +146,5 @@ if __name__ == '__main__':
         fp.write('\n\n')
         modules_formatted = _dump_json(modules).replace('null', 'None')
         fp.write(
-            'MODULE_ATTRIBUTE_MAP: Dict[str, List[Dict[str, Union[str, Sequence[str]]]]] = {}'.format(  # noqa: E501
-                modules_formatted
-            )
+            f'MODULE_ATTRIBUTE_MAP: Dict[str, List[Dict[str, Union[str, Sequence[str]]]]] = {modules_formatted}'  # noqa: E501
         )

@@ -1573,20 +1573,16 @@ class ObserverContext(Template):
                               PersonObserverIdentifyingAttributes):
                 raise TypeError(
                     'Observer identifying attributes must have '
-                    'type {} for observer type "{}".'.format(
-                        PersonObserverIdentifyingAttributes.__name__,
-                        observer_type.meaning
-                    )
+                    f'type {PersonObserverIdentifyingAttributes.__name__} '
+                    f'for observer type "{observer_type.meaning}".'
                 )
         elif observer_type == codes.cid270.Device:
             if not isinstance(observer_identifying_attributes,
                               DeviceObserverIdentifyingAttributes):
                 raise TypeError(
                     'Observer identifying attributes must have '
-                    'type {} for observer type "{}".'.format(
-                        DeviceObserverIdentifyingAttributes.__name__,
-                        observer_type.meaning,
-                    )
+                    f'type {DeviceObserverIdentifyingAttributes.__name__} '
+                    f'for observer type "{observer_type.meaning}".'
                 )
         else:
             raise ValueError(
@@ -2184,26 +2180,21 @@ class ObservationContext(Template):
             if not isinstance(observer_person_context, ObserverContext):
                 raise TypeError(
                     'Argument "observer_person_context" must '
-                    'have type {}'.format(
-                        ObserverContext.__name__
-                    )
+                    f'have type {ObserverContext.__name__}'
                 )
             self.extend(observer_person_context)
         if observer_device_context is not None:
             if not isinstance(observer_device_context, ObserverContext):
                 raise TypeError(
                     'Argument "observer_device_context" must '
-                    'have type {}'.format(
-                        ObserverContext.__name__
-                    )
+                    f'have type {ObserverContext.__name__}'
                 )
             self.extend(observer_device_context)
         if subject_context is not None:
             if not isinstance(subject_context, SubjectContext):
                 raise TypeError(
-                    'Argument "subject_context" must have type {}'.format(
-                        SubjectContext.__name__
-                    )
+                    f'Argument "subject_context" must have '
+                    f'type {SubjectContext.__name__}'
                 )
             self.extend(subject_context)
 
@@ -3495,10 +3486,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            PlanarROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
         return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
 
@@ -3773,10 +3761,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             Content Sequence containing root CONTAINER SR Content Item
 
         """
-        instance = super(
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-            cls
-        ).from_sequence(sequence)
+        instance = super().from_sequence(sequence)
         instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
         return cast(
             VolumetricROIMeasurementsAndQualitativeEvaluations,
