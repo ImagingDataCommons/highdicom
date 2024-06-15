@@ -2157,7 +2157,7 @@ class Segmentation(SOPClass):
         method was deprecated in highdicom 0.8.0. For more information
         and migration instructions see :ref:`here <add-segments-deprecation>`.
 
-        """  # noqa E510
+        """  # noqa: E510
         raise AttributeError(
             'To ensure correctness of segmentation images, the add_segments '
             'method was deprecated in highdicom 0.8.0. For more information '

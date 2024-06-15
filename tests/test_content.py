@@ -528,7 +528,7 @@ class TestSpecimenPreparationStep(TestCase):
         assert method_item.relationship_type is None
 
         parent_specimen_id_item = seq[3]
-        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier  # noqa E501
+        assert parent_specimen_id_item.name == codes.DCM.ParentSpecimenIdentifier  # noqa: E501
         assert parent_specimen_id_item.value == parent_specimen_id
         assert parent_specimen_id_item.relationship_type is None
 
