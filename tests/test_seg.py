@@ -129,7 +129,7 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         assert len(seq) == 1
         item = seq[0]
         parsed_params = ','.join([
-            '='.join([key, value])
+            f'{key}={value}'
             for key, value in self._parameters.items()
         ])
         assert item.AlgorithmParameters == parsed_params

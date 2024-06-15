@@ -1876,13 +1876,10 @@ class TcoordContentItem(ContentItem):
             ]
         else:
             raise ValueError(
-                'One of the following arguments is required: "{}"'.format(
-                    '", "'.join([
-                        'referenced_sample_positions',
-                        'referenced_time_offsets',
-                        'referenced_date_time'
-                    ])
-                )
+                'One of the following arguments is required: '
+                '"referenced_sample_positions", '
+                '"referenced_time_offsets", '
+                '"referenced_date_time"'
             )
 
     @property

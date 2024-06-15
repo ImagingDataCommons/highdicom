@@ -86,7 +86,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             item.AlgorithmSource = source
         if parameters is not None:
             item.AlgorithmParameters = ','.join([
-                '='.join([key, value])
+                f"{key}={value}"
                 for key, value in parameters.items()
             ])
         self.append(item)
