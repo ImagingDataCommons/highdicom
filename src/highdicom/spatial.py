@@ -2639,6 +2639,8 @@ class VolumeGeometry:
             )
 
         self._affine = affine
+        if len(shape) != 3:
+            raise ValueError("Argument 'shape' must have three item".)
         self._shape = tuple(shape)
         self._frame_of_reference_uid = frame_of_reference_uid
         if frame_numbers is not None:
@@ -2836,7 +2838,56 @@ class VolumeGeometry:
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
     ) -> "VolumeGeometry":
-        """"""
+        """Create a volume geometry from DICOM attributes.
+
+        Parameters
+        ----------
+        image_position: Sequence[float]
+            Position in the frame of reference space of the center of the top
+            left pixel of the image. Corresponds to DICOM attributes
+            "ImagePositionPatient". Should be a sequence of length 3.
+        image_orientation: Sequence[float]
+            Cosines of the row direction (first triplet: horizontal, left to
+            right, increasing column index) and the column direction (second
+            triplet: vertical, top to bottom, increasing row index) direction
+            expressed in the three-dimensional patient or slide coordinate
+            system defined by the frame of reference. Corresponds to the DICOM
+            attribute "ImageOrientationPatient".
+        pixel_spacing: Sequence[float]
+            Spacing between pixels in millimeter unit along the column
+            direction (first value: spacing between rows, vertical, top to
+            bottom, increasing row index) and the row direction (second value:
+            spacing between columns: horizontal, left to right, increasing
+            column index). Corresponds to DICOM attribute "PixelSpacing".
+        spacing_between_slices: float
+            Spacing between slices in millimeter units in the frame of
+            reference coordinate system space. Corresponds to the DICOM
+            attribute "SpacingBetweenSlices" (however, this may not be present in
+            many images and may need to be inferred from "ImagePositionPatient"
+            attributes of consecutive slices).
+        rows:int
+            Number of rows in the image. Corresponds to the DICOM attribute
+            "Rows".
+        columns: int
+            Number of columns in the image. Corresponds to the DICOM attribute
+            "Columns".
+        number_of_frames: int
+            Number of frames in the image. Corresponds to NumberOfFrames
+            attribute, or to the number of images in the case of an image
+            series.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID, if known. Corresponds to DICOM attribute
+            FrameOfReferenceUID.
+        sop_instance_uids: Union[Sequence[str], None], optional
+            Ordered SOP Instance UIDs of each frame, if known, in the situation
+            that the volume is formed from a sequence of individual DICOM
+            instances.
+        frame_numbers: Union[Sequence[int], None], optional
+            Ordered frame numbers of each frame, if known, in the situation
+            that the volume is formed from a sequence of frames of one
+            multi-frame DICOM image.
+
+        """
         affine = _create_affine_transformation_matrix(
             image_position=image_position,
             image_orientation=image_orientation,
@@ -2989,6 +3040,8 @@ class VolumeGeometry:
 
     @property
     def pixel_spacing(self) -> List[float]:
+        """List[float]: Within-plane pixel spacing in millimeter units. Two
+        values (spacing between rows, spacing between columns)."""
         vec_along_rows = self._affine[:3, 2]
         vec_along_columns = self._affine[:3, 1]
         spacing_between_columns = np.sqrt((vec_along_rows ** 2).sum()).item()
@@ -2996,7 +3049,8 @@ class VolumeGeometry:
         return [spacing_between_rows, spacing_between_columns]
 
     @property
-    def spacing_between_slices(self) -> List[float]:
+    def spacing_between_slices(self) -> float:
+        """float: Spacing between consecutive slices in millimeter units."""
         slice_vec = self._affine[:3, 0]
         spacing = np.sqrt((slice_vec ** 2).sum()).item()
         return spacing
