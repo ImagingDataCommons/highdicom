@@ -1177,7 +1177,7 @@ def _transform_affine_to_convention(
             to_index_convention
         )
         flip_indices = [
-            d not in to_index_normed for d in from_index_normed
+            d not in from_index_normed for d in to_index_normed
         ]
 
         permute_indices = []
@@ -2588,6 +2588,14 @@ class VolumeGeometry:
     classes in the ``highdicom.spatial`` module.
 
     """
+    # The indexing convention used for all internal representations of the
+    # affine matrix.
+    _INTERNAL_INDEX_CONVENTION = (
+        PixelIndexDirections.I,
+        PixelIndexDirections.D,
+        PixelIndexDirections.R,
+    )
+
     def __init__(
         self,
         affine: np.ndarray,
@@ -2726,11 +2734,7 @@ class VolumeGeometry:
             image_orientation=ds.ImageOrientationPatient,
             pixel_spacing=ds.PixelSpacing,
             spacing_between_slices=slice_spacing,
-            index_convention=(
-                PixelIndexDirections.I,
-                PixelIndexDirections.D,
-                PixelIndexDirections.R,
-            ),
+            index_convention=self._INTERNAL_INDEX_CONVENTION,
         )
 
         return cls(
@@ -2810,11 +2814,7 @@ class VolumeGeometry:
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
             spacing_between_slices=slice_spacing,
-            index_convention=(
-                PixelIndexDirections.I,
-                PixelIndexDirections.D,
-                PixelIndexDirections.R,
-            ),
+            index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
 
         return cls(
@@ -2893,11 +2893,7 @@ class VolumeGeometry:
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
             spacing_between_slices=spacing_between_slices,
-            index_convention=(
-                PixelIndexDirections.I,
-                PixelIndexDirections.D,
-                PixelIndexDirections.R,
-            ),
+            index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
         shape = (number_of_frames, rows, columns)
         return cls(
