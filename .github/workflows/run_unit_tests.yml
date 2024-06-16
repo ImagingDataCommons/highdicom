@@ -27,7 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools
-        pip install -r requirements_test.txt
+        pip install .[test]
         pip install ${{ matrix.dependencies }}
     - name: Lint with flake8
       run: |
