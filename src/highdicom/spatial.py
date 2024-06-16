@@ -2734,7 +2734,7 @@ class VolumeGeometry:
             image_orientation=ds.ImageOrientationPatient,
             pixel_spacing=ds.PixelSpacing,
             spacing_between_slices=slice_spacing,
-            index_convention=self._INTERNAL_INDEX_CONVENTION,
+            index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
 
         return cls(
