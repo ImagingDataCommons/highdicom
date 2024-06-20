@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pydicom
-from pydicom.data import get_testdata_file
+from pydicom.data import get_testdata_file, get_testdata_files
 import pytest
 
 from highdicom.spatial import (
@@ -11,8 +11,10 @@ from highdicom.spatial import (
     PixelToReferenceTransformer,
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
-    is_tiled_image,
     _are_images_coplanar,
+    _transform_affine_matrix,
+    get_series_slice_spacing,
+    is_tiled_image,
 )
 
 
@@ -865,3 +867,98 @@ def test_are_images_coplanar(pos_a, ori_a, pos_b, ori_b, result):
         image_position_b=pos_b,
         image_orientation_b=ori_b,
     ) == result
+
+
+def test_get_series_slice_spacing_irregular():
+    # A series of single frame CT images
+    ct_series = [
+        pydicom.dcmread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+    spacing = get_series_slice_spacing(ct_series)
+    assert spacing is None
+
+
+def test_get_series_slice_spacing_regular():
+    # Use a subset of this test series that does have regular spacing
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+    spacing = get_series_slice_spacing(ct_series)
+    assert spacing == 1.25
+
+
+def test_transform_affine_matrix():
+    affine = np.array(
+        [
+            [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, 1.0, -1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    transformed = _transform_affine_matrix(
+        affine,
+        permute_indices=[1, 2, 0],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [-np.sin(np.radians(30)), 0.0, np.cos(np.radians(30)), -34.0],
+            [np.cos(np.radians(30)), 0.0, np.sin(np.radians(30)), 45.2],
+            [0.0, 1.0, 0.0, -1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        permute_reference=[1, 2, 0],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, 1.0, -1.2],
+            [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        flip_indices=[True, False, True],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [-np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -26.20577137],
+            [-np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 40.7],
+            [0.0, 0.0, -1.0, 7.8],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.allclose(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        flip_reference=[True, False, True],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [-np.cos(np.radians(30)), np.sin(np.radians(30)), 0.0, 34.0],
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, -1.0, 1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)
+
+

@@ -5,18 +5,15 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from os import PathLike
-import sqlite3
 from typing import (
     Any,
     BinaryIO,
     Dict,
     Generator,
-    Iterable,
     Iterator,
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
     cast,
@@ -26,9 +23,8 @@ import warnings
 import numpy as np
 from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
-from pydicom.datadict import get_entry, keyword_for_tag, tag_for_keyword
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
-from pydicom.multival import MultiValue
 from pydicom.pixel_data_handlers.numpy_handler import pack_bits
 from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
@@ -44,7 +40,12 @@ from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
-from highdicom._module_utils import ModuleUsageValues, get_module_usage
+from highdicom._module_utils import (
+    ModuleUsageValues,
+    get_module_usage,
+    is_multiframe_image,
+)
+from highdicom._multiframe import MultiFrameDBManager
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -68,7 +69,6 @@ from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
     SegmentsOverlapValues,
-    SpatialLocationsPreservedValues,
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
@@ -76,9 +76,9 @@ from highdicom.spatial import (
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
     get_image_coordinate_system,
+    get_regular_slice_spacing,
     get_tile_array,
     is_tiled_image,
-    iter_tiled_full_frame_data,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
@@ -91,8 +91,6 @@ from highdicom.uid import UID as hd_UID
 
 logger = logging.getLogger(__name__)
 
-
-_NO_FRAME_REF_VALUE = -1
 
 # These codes are needed many times in loops so we precompute them
 _DERIVATION_CODE = CodedConcept.from_code(codes.cid7203.Segmentation)
@@ -159,241 +157,9 @@ def _check_numpy_value_representation(
         )
 
 
-class _SegDBManager:
+class _SegDBManager(MultiFrameDBManager):
 
     """Database manager for data associated with a segmentation image."""
-
-    # Dictionary mapping DCM VRs to appropriate SQLite types
-    _DCM_SQL_TYPE_MAP = {
-        'CS': 'VARCHAR',
-        'DS': 'REAL',
-        'FD': 'REAL',
-        'FL': 'REAL',
-        'IS': 'INTEGER',
-        'LO': 'TEXT',
-        'LT': 'TEXT',
-        'PN': 'TEXT',
-        'SH': 'TEXT',
-        'SL': 'INTEGER',
-        'SS': 'INTEGER',
-        'ST': 'TEXT',
-        'UI': 'TEXT',
-        'UL': 'INTEGER',
-        'UR': 'TEXT',
-        'US or SS': 'INTEGER',
-        'US': 'INTEGER',
-        'UT': 'TEXT',
-    }
-
-    def __init__(
-        self,
-        referenced_uids: List[Tuple[str, str, str]],
-        segment_numbers: List[int],
-        dim_indices: Dict[int, List[int]],
-        dim_values: Dict[int, List[Any]],
-        referenced_instances: Optional[List[str]],
-        referenced_frames: Optional[List[int]],
-    ):
-        """
-
-        Parameters
-        ----------
-        referenced_uids: List[Tuple[str, str, str]]
-            Triplet of UIDs for each image instance (Study Instance UID,
-            Series Instance UID, SOP Instance UID) that is referenced
-            in the segmentation image.
-        segment_numbers: List[int]
-            Segment numbers for each frame in the segmentation image.
-        dim_indices: Dict[int, List[int]]
-            Dictionary mapping the integer tag value of each dimension index
-            pointer (excluding SegmentNumber) to a list of dimension indices
-            for each frame in the segmentation image.
-        dim_values: Dict[int, List[Values]]
-            Dictionary mapping the integer tag value of each dimension index
-            pointer (excluding SegmentNumber) to a list of dimension values
-            for each frame in the segmentation image.
-        referenced_instances: Optional[List[str]]
-            SOP Instance UID of each referenced image instance for each frame
-            in the segmentation image. Should be omitted if there is not a
-            single referenced image instance per segmentation image frame.
-        referenced_frames: Optional[List[int]]
-            Number of the corresponding frame in the referenced image
-            instance for each frame in the segmentation image. Should be
-            omitted if there is not a single referenced image instance per
-            segmentation image frame.
-
-        """
-        self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
-
-        self._create_ref_instance_table(referenced_uids)
-
-        self._number_of_frames = len(segment_numbers)
-
-        # Construct the columns and values to put into a frame look-up table
-        # table within sqlite. There will be one row per frame in the
-        # segmentation instance
-        col_defs = []  # SQL column definitions
-        col_data = []  # lists of column data
-
-        # Frame number column
-        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        col_data.append(list(range(1, self._number_of_frames + 1)))
-
-        # Segment number column
-        col_defs.append('SegmentNumber INTEGER NOT NULL')
-        col_data.append(segment_numbers)
-
-        self._dim_ind_col_names = {}
-        for i, t in enumerate(dim_indices.keys()):
-            vr, vm_str, _, _, kw = get_entry(t)
-            if kw == '':
-                kw = f'UnknownDimensionIndex{i}'
-            ind_col_name = kw + '_DimensionIndexValues'
-            self._dim_ind_col_names[t] = ind_col_name
-
-            # Add column for dimension index
-            col_defs.append(f'{ind_col_name} INTEGER NOT NULL')
-            col_data.append(dim_indices[t])
-
-            # Add column for dimension value
-            # For this to be possible, must have a fixed VM
-            # and a VR that we can map to a sqlite type
-            # Otherwise, we just omit the data from the db
-            try:
-                vm = int(vm_str)
-            except ValueError:
-                continue
-            try:
-                sql_type = self._DCM_SQL_TYPE_MAP[vr]
-            except KeyError:
-                continue
-
-            if vm > 1:
-                for d in range(vm):
-                    data = [el[d] for el in dim_values[t]]
-                    col_defs.append(f'{kw}_{d} {sql_type} NOT NULL')
-                    col_data.append(data)
-            else:
-                # Single column
-                col_defs.append(f'{kw} {sql_type} NOT NULL')
-                col_data.append(dim_values[t])
-
-        # Columns related to source frames, if they are usable for indexing
-        if (referenced_frames is None) != (referenced_instances is None):
-            raise TypeError(
-                "'referenced_frames' and 'referenced_instances' should be "
-                "provided together or not at all."
-            )
-        if referenced_instances is not None:
-            col_defs.append('ReferencedFrameNumber INTEGER')
-            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-            col_defs.append(
-                'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                'REFERENCES InstanceUIDs(SOPInstanceUID)'
-            )
-            col_data += [
-                referenced_frames,
-                referenced_instances,
-            ]
-
-        # Build LUT from columns
-        all_defs = ", ".join(col_defs)
-        cmd = f'CREATE TABLE FrameLUT({all_defs})'
-        placeholders = ', '.join(['?'] * len(col_data))
-        with self._db_con:
-            self._db_con.execute(cmd)
-            self._db_con.executemany(
-                f'INSERT INTO FrameLUT VALUES({placeholders})',
-                zip(*col_data),
-            )
-
-    def _create_ref_instance_table(
-        self,
-        referenced_uids: List[Tuple[str, str, str]],
-    ) -> None:
-        """Create a table of referenced instances.
-
-        The resulting table (called InstanceUIDs) contains Study, Series and
-        SOP instance UIDs for each instance referenced by the segmentation
-        image.
-
-        Parameters
-        ----------
-        referenced_uids: List[Tuple[str, str, str]]
-            List of UIDs for each instance referenced in the segmentation.
-            Each tuple should be in the format
-            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
-
-        """
-        with self._db_con:
-            self._db_con.execute(
-                """
-                    CREATE TABLE InstanceUIDs(
-                        StudyInstanceUID VARCHAR NOT NULL,
-                        SeriesInstanceUID VARCHAR NOT NULL,
-                        SOPInstanceUID VARCHAR PRIMARY KEY
-                    )
-                """
-            )
-            self._db_con.executemany(
-                "INSERT INTO InstanceUIDs "
-                "(StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID) "
-                "VALUES(?, ?, ?)",
-                referenced_uids,
-            )
-
-    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
-        """Get UIDs of source image instances referenced in the segmentation.
-
-        Returns
-        -------
-        List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
-            (Study Instance UID, Series Instance UID, SOP Instance UID) triplet
-            for every image instance referenced in the segmentation.
-
-        """
-        cur = self._db_con.cursor()
-        res = cur.execute(
-            'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '
-            'FROM InstanceUIDs'
-        )
-
-        return [
-            (hd_UID(a), hd_UID(b), hd_UID(c)) for a, b, c in res.fetchall()
-        ]
-
-    def are_dimension_indices_unique(
-        self,
-        dimension_index_pointers: Sequence[Union[int, BaseTag]],
-    ) -> bool:
-        """Check if a list of index pointers uniquely identifies frames.
-
-        For a given list of dimension index pointers, check whether every
-        combination of index values for these pointers identifies a unique
-        frame per segment in the segmentation image. This is a pre-requisite
-        for indexing using this list of dimension index pointers in the
-        :meth:`Segmentation.get_pixels_by_dimension_index_values()` method.
-
-        Parameters
-        ----------
-        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
-            Sequence of tags serving as dimension index pointers.
-
-        Returns
-        -------
-        bool
-            True if dimension indices are unique.
-
-        """
-        column_names = ['SegmentNumber']
-        for ptr in dimension_index_pointers:
-            column_names.append(self._dim_ind_col_names[ptr])
-        col_str = ", ".join(column_names)
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
-        ).fetchone()[0]
-        return n_unique_combos == self._number_of_frames
 
     def are_referenced_sop_instances_unique(self) -> bool:
         """Check if Referenced SOP Instance UIDs uniquely identify frames.
@@ -415,7 +181,7 @@ class _SegDBManager:
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
-            'SegmentNumber)'
+            'ReferencedSegmentNumber)'
         ).fetchone()[0]
         return n_unique_combos == self._number_of_frames
 
@@ -434,139 +200,9 @@ class _SegDBManager:
         n_unique_combos = cur.execute(
             'SELECT COUNT(*) FROM '
             '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
-            'SegmentNumber)'
+            'ReferencedSegmentNumber)'
         ).fetchone()[0]
         return n_unique_combos == self._number_of_frames
-
-    def get_unique_sop_instance_uids(self) -> Set[str]:
-        """Get set of unique Referenced SOP Instance UIDs.
-
-        Returns
-        -------
-        Set[str]
-            Set of unique Referenced SOP Instance UIDs.
-
-        """
-        cur = self._db_con.cursor()
-        return {
-            r[0] for r in
-            cur.execute(
-                'SELECT DISTINCT(SOPInstanceUID) from InstanceUIDs'
-            )
-        }
-
-    def get_max_frame_number(self) -> int:
-        """Get highest frame number of any referenced frame.
-
-        Absent access to the referenced dataset itself, being less than this
-        value is a sufficient condition for the existence of a frame number
-        in the source image.
-
-        Returns
-        -------
-        int
-            Highest frame number referenced in the segmentation image.
-
-        """
-        cur = self._db_con.cursor()
-        return cur.execute(
-            'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
-        ).fetchone()[0]
-
-    def get_unique_dim_index_values(
-        self,
-        dimension_index_pointers: Sequence[int],
-    ) -> Set[Tuple[int, ...]]:
-        """Get set of unique dimension index value combinations.
-
-        Parameters
-        ----------
-        dimension_index_pointers: Sequence[int]
-            List of dimension index pointers for which to find unique
-            combinations of values.
-
-        Returns
-        -------
-        Set[Tuple[int, ...]]
-            Set of unique dimension index value combinations for the given
-            input dimension index pointers.
-
-        """
-        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
-        cols_str = ', '.join(cols)
-        cur = self._db_con.cursor()
-        return {
-            r for r in
-            cur.execute(
-                f'SELECT DISTINCT {cols_str} FROM FrameLUT'
-            )
-        }
-
-    def is_indexable_as_total_pixel_matrix(self) -> bool:
-        """Whether the segmentation can be indexed as a total pixel matrix.
-
-        Returns
-        -------
-        bool:
-            True if the segmentation may be indexed using row and column
-            positions in the total pixel matrix. False otherwise.
-
-        """
-        row_pos_kw = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
-        col_pos_kw = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
-        return (
-            row_pos_kw in self._dim_ind_col_names and
-            col_pos_kw in self._dim_ind_col_names
-        )
-
-    @contextmanager
-    def _generate_temp_table(
-        self,
-        table_name: str,
-        column_defs: Sequence[str],
-        column_data: Iterable[Sequence[Any]],
-    ) -> Generator[None, None, None]:
-        """Context manager that handles a temporary table.
-
-        The temporary table is created with the specified information. Control
-        flow then returns to code within the "with" block. After the "with"
-        block has completed, the cleanup of the table is automatically handled.
-
-        Parameters
-        ----------
-        table_name: str
-            Name of the temporary table.
-        column_defs: Sequence[str]
-            SQL syntax strings defining each column in the temporary table, one
-            string per column.
-        column_data: Iterable[Sequence[Any]]
-            Column data to place into the table.
-
-        Yields
-        ------
-        None:
-            Yields control to the "with" block, with the temporary table
-            created.
-
-        """
-        defs_str = ', '.join(column_defs)
-        create_cmd = (f'CREATE TABLE {table_name}({defs_str})')
-        placeholders = ', '.join(['?'] * len(column_defs))
-
-        with self._db_con:
-            self._db_con.execute(create_cmd)
-            self._db_con.executemany(
-                f'INSERT INTO {table_name} VALUES({placeholders})',
-                column_data
-            )
-
-        # Return control flow to "with" block
-        yield
-
-        # Clean up the table
-        cmd = (f'DROP TABLE {table_name}')
-        with self._db_con:
-            self._db_con.execute(cmd)
 
     @contextmanager
     def _generate_temp_segment_table(
@@ -733,7 +369,7 @@ class _SegDBManager:
             'INNER JOIN FrameLUT L'
             '    ON T.SourceSOPInstanceUID = L.ReferencedSOPInstanceUID '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
             'ORDER BY T.OutputFrameIndex'
         )
 
@@ -853,7 +489,7 @@ class _SegDBManager:
             'INNER JOIN FrameLUT L'
             '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
             'ORDER BY F.OutputFrameIndex'
         )
 
@@ -976,7 +612,7 @@ class _SegDBManager:
             'INNER JOIN FrameLUT L'
             f'   ON {join_str} '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
             'ORDER BY D.OutputFrameIndex'
         )
 
@@ -1097,7 +733,7 @@ class _SegDBManager:
             '    S.OutputSegmentNumber '
             'FROM FrameLUT L '
             'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.SegmentNumber = S.SegmentNumber '
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
             'WHERE ('
             '    L.RowPositionInTotalImagePixelMatrix >= '
             f'        {row_offset_start}'
@@ -1444,7 +1080,7 @@ class Segmentation(SOPClass):
             )
 
         src_img = source_images[0]
-        is_multiframe = hasattr(src_img, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(src_img)
         if is_multiframe and len(source_images) > 1:
             raise ValueError(
                 'Only one source image should be provided in case images '
@@ -1955,9 +1591,15 @@ class Segmentation(SOPClass):
                 # number) plane_sort_index is a list of indices into the input
                 # planes giving the order in which they should be arranged to
                 # correctly sort them for inclusion into the segmentation
+                sort_orientation = (
+                    plane_orientation[0].ImageOrientationPatient
+                    if self._coordinate_system == CoordinateSystemNames.PATIENT
+                    else None
+                )
                 plane_position_values, plane_sort_index = \
                     self.DimensionIndexSequence.get_index_values(
-                        plane_positions
+                        plane_positions,
+                        image_orientation=sort_orientation,
                     )
 
         else:
@@ -1973,19 +1615,6 @@ class Segmentation(SOPClass):
                     "Shape of input pixel_array does not match shape of "
                     "the source image."
                 )
-
-        # Dimension Organization Type
-        dimension_organization_type = self._check_dimension_organization_type(
-            dimension_organization_type=dimension_organization_type,
-            is_tiled=is_tiled,
-            omit_empty_frames=omit_empty_frames,
-            plane_positions=plane_positions,
-            tile_pixel_array=tile_pixel_array,
-            rows=self.Rows,
-            columns=self.Columns,
-        )
-        if dimension_organization_type is not None:
-            self.DimensionOrganizationType = dimension_organization_type.value
 
         # Find indices such that empty planes are removed
         if omit_empty_frames:
@@ -2035,6 +1664,52 @@ class Segmentation(SOPClass):
             ]
         else:
             unique_dimension_values = [None]
+
+        # Dimension Organization Type
+        dimension_organization_type = self._check_tiled_dimension_organization_type(
+            dimension_organization_type=dimension_organization_type,
+            is_tiled=is_tiled,
+            omit_empty_frames=omit_empty_frames,
+            plane_positions=plane_positions,
+            tile_pixel_array=tile_pixel_array,
+            rows=self.Rows,
+            columns=self.Columns,
+        )
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            spacing = get_regular_slice_spacing(
+                image_positions=np.array(
+                    plane_position_values[plane_sort_index, 0, :]
+                ),
+                image_orientation=np.array(
+                    plane_orientation[0].ImageOrientationPatient
+                ),
+                sort=False,
+                enforce_right_handed=True,
+            )
+
+            if spacing is not None and spacing > 0.0:
+                # The image is a regular volume, so we should record this
+                dimension_organization_type = (
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                )
+                # Also add the slice spacing to the pixel measures
+                (
+                    self.SharedFunctionalGroupsSequence[0]
+                        .PixelMeasuresSequence[0]
+                        .SpacingBetweenSlices
+                ) = spacing
+            else:
+                if (
+                    dimension_organization_type ==
+                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                ):
+                    raise ValueError(
+                        'Dimension organization "3D" has been specified, '
+                        'but the source image is not a regularly-spaced 3D '
+                        'volume.'
+                    )
+        if dimension_organization_type is not None:
+            self.DimensionOrganizationType = dimension_organization_type.value
 
         if (
             has_ref_frame_uid and
@@ -2226,6 +1901,7 @@ class Segmentation(SOPClass):
                         are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
                         has_ref_frame_uid=has_ref_frame_uid,
                         coordinate_system=self._coordinate_system,
+                        is_multiframe=is_multiframe,
                     )
                     pffg_sequence.append(pffg_item)
 
@@ -2545,7 +2221,7 @@ class Segmentation(SOPClass):
                 self.ImageCenterPointCoordinatesSequence = [center_item]
 
     @staticmethod
-    def _check_dimension_organization_type(
+    def _check_tiled_dimension_organization_type(
         dimension_organization_type: Union[
             DimensionOrganizationTypeValues,
             str,
@@ -2623,8 +2299,8 @@ class Segmentation(SOPClass):
                 ):
                     raise ValueError(
                         'A value of "TILED_FULL" for parameter '
-                        '"dimension_organization_type" is not permitted unless '
-                        'the "plane_positions" of the segmentation do not '
+                        '"dimension_organization_type" is not permitted because '
+                        'the "plane_positions" of the segmentation '
                         'do not follow the relevant requirements. See '
                         'https://dicom.nema.org/medical/dicom/current/output/'
                         'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
@@ -3033,6 +2709,7 @@ class Segmentation(SOPClass):
         are_spatial_locations_preserved: bool,
         has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
+        is_multiframe: bool,
     ) -> Dataset:
         """Get a single item of the Per Frame Functional Groups Sequence.
 
@@ -3055,6 +2732,32 @@ class Segmentation(SOPClass):
             and the source images.
         has_ref_frame_uid: bool
             Whether the sources images have a frame of reference UID.
+        coordinate_system: Optional[highdicom.CoordinateSystemNames]
+            Coordinate system used, if any.
+        is_multiframe: bool
+            Whether source images are multiframe.
+
+        Returns
+        -------
+        pydicom.Dataset
+            Dataset representing the item of the
+            Per Frame Functional Groups Sequence for this segmentation frame.
+
+        """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
+        pffg_item = Dataset()
+        frame_content_item = Dataset()
+
+        frame_content_item.add(
+            DataElement(
+                0x00209157,  # DimensionIndexValues
+                'UL',
+                [int(segment_number)] + dimension_index_values
+            )
+        )
         pffg_item.add(
             DataElement(
                 0x00209111,  # FrameContentSequence
@@ -3091,7 +2794,7 @@ class Segmentation(SOPClass):
             )
 
             derivation_src_img_item = Dataset()
-            if 0x00280008 in source_images[0]:  # NumberOfFrames
+            if is_multiframe:
                 # A single multi-frame source image
                 src_img_item = source_images[0]
                 # Frame numbers are one-based
@@ -3383,209 +3086,7 @@ class Segmentation(SOPClass):
         index values.
 
         """
-        referenced_uids = self._get_ref_instance_uids()
-        all_referenced_sops = {uids[2] for uids in referenced_uids}
-
-        is_tiled_full = (
-            hasattr(self, 'DimensionOrganizationType') and
-            self.DimensionOrganizationType == 'TILED_FULL'
-        )
-
-        segment_numbers = []
-
-        # Get list of all dimension index pointers, excluding the segment
-        # number, since this is treated differently
-        seg_num_tag = tag_for_keyword('ReferencedSegmentNumber')
-        self._dim_ind_pointers = [
-            dim_ind.DimensionIndexPointer
-            for dim_ind in self.DimensionIndexSequence
-            if dim_ind.DimensionIndexPointer != seg_num_tag
-        ]
-
-        func_grp_pointers = {}
-        for dim_ind in self.DimensionIndexSequence:
-            ptr = dim_ind.DimensionIndexPointer
-            if ptr in self._dim_ind_pointers:
-                grp_ptr = getattr(dim_ind, "FunctionalGroupPointer", None)
-                func_grp_pointers[ptr] = grp_ptr
-
-        dim_ind_positions = {
-            dim_ind.DimensionIndexPointer: i
-            for i, dim_ind in enumerate(self.DimensionIndexSequence)
-            if dim_ind.DimensionIndexPointer != seg_num_tag
-        }
-        dim_indices: Dict[int, List[int]] = {
-            ptr: [] for ptr in self._dim_ind_pointers
-        }
-        dim_values: Dict[int, List[Any]] = {
-            ptr: [] for ptr in self._dim_ind_pointers
-        }
-
-        self._single_source_frame_per_seg_frame = True
-
-        if is_tiled_full:
-            # With TILED_FULL, there is no PerFrameFunctionalGroupsSequence,
-            # so we have to deduce the per-frame information
-            row_tag = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
-            col_tag = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
-            x_tag = tag_for_keyword('XOffsetInSlideCoordinateSystem')
-            y_tag = tag_for_keyword('YOffsetInSlideCoordinateSystem')
-            z_tag = tag_for_keyword('ZOffsetInSlideCoordinateSystem')
-            tiled_full_dim_indices = {row_tag, col_tag, x_tag, y_tag, z_tag}
-            if len(set(dim_indices.keys()) - tiled_full_dim_indices) > 0:
-                raise RuntimeError(
-                    'Expected segmentation images with '
-                    '"DimensionOrganizationType" of "TILED_FULL" are expected '
-                    'to have the following dimension index pointers: '
-                    'SegmentNumber, RowPositionInTotalImagePixelMatrix, '
-                    'ColumnPositionInTotalImagePixelMatrix.'
-                )
-            self._single_source_frame_per_seg_frame = False
-            (
-                segment_numbers,
-                _,
-                dim_values[col_tag],
-                dim_values[row_tag],
-                dim_values[x_tag],
-                dim_values[y_tag],
-                dim_values[z_tag],
-            ) = zip(*iter_tiled_full_frame_data(self))
-
-            # Create indices for each of the dimensions
-            for ptr, vals in dim_values.items():
-                _, indices = np.unique(vals, return_inverse=True)
-                dim_indices[ptr] = (indices + 1).tolist()
-
-            # There is no way to deduce whether the spatial locations are
-            # preserved in the tiled full case
-            self._locations_preserved = None
-
-            referenced_instances = None
-            referenced_frames = None
-        else:
-            referenced_instances: Optional[List[str]] = []
-            referenced_frames: Optional[List[int]] = []
-
-            # Create a list of source images and check for spatial locations
-            # preserved
-            locations_list_type = List[
-                Optional[SpatialLocationsPreservedValues]
-            ]
-            locations_preserved: locations_list_type = []
-
-            for frame_item in self.PerFrameFunctionalGroupsSequence:
-                # Get segment number for this frame
-                seg_id_seg = frame_item.SegmentIdentificationSequence[0]
-                seg_num = seg_id_seg.ReferencedSegmentNumber
-                segment_numbers.append(int(seg_num))
-
-                # Get dimension indices for this frame
-                content_seq = frame_item.FrameContentSequence[0]
-                indices = content_seq.DimensionIndexValues
-                if not isinstance(indices, (MultiValue, list)):
-                    # In case there is a single dimension index
-                    indices = [indices]
-                if len(indices) != len(self._dim_ind_pointers) + 1:
-                    # (+1 because referenced segment number is ignored)
-                    raise RuntimeError(
-                        'Unexpected mismatch between dimension index values in '
-                        'per-frames functional groups sequence and items in '
-                        'the dimension index sequence.'
-                    )
-                for ptr in self._dim_ind_pointers:
-                    dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
-                    grp_ptr = func_grp_pointers[ptr]
-                    if grp_ptr is not None:
-                        dim_val = frame_item[grp_ptr][0][ptr].value
-                    else:
-                        dim_val = frame_item[ptr].value
-                    dim_values[ptr].append(dim_val)
-
-                frame_source_instances = []
-                frame_source_frames = []
-                for der_im in frame_item.DerivationImageSequence:
-                    for src_im in der_im.SourceImageSequence:
-                        frame_source_instances.append(
-                            src_im.ReferencedSOPInstanceUID
-                        )
-                        if hasattr(src_im, 'SpatialLocationsPreserved'):
-                            locations_preserved.append(
-                                SpatialLocationsPreservedValues(
-                                    src_im.SpatialLocationsPreserved
-                                )
-                            )
-                        else:
-                            locations_preserved.append(
-                                None
-                            )
-
-                        if hasattr(src_im, 'ReferencedFrameNumber'):
-                            if isinstance(
-                                src_im.ReferencedFrameNumber,
-                                MultiValue
-                            ):
-                                frame_source_frames.extend(
-                                    [
-                                        int(f)
-                                        for f in src_im.ReferencedFrameNumber
-                                    ]
-                                )
-                            else:
-                                frame_source_frames.append(
-                                    int(src_im.ReferencedFrameNumber)
-                                )
-                        else:
-                            frame_source_frames.append(_NO_FRAME_REF_VALUE)
-
-                if (
-                    len(set(frame_source_instances)) != 1 or
-                    len(set(frame_source_frames)) != 1
-                ):
-                    self._single_source_frame_per_seg_frame = False
-                else:
-                    ref_instance_uid = frame_source_instances[0]
-                    if ref_instance_uid not in all_referenced_sops:
-                        raise AttributeError(
-                            f'SOP instance {ref_instance_uid} referenced in '
-                            'the source image sequence is not included in the '
-                            'Referenced Series Sequence or Studies Containing '
-                            'Other Referenced Instances Sequence. This is an '
-                            'error with the integrity of the Segmentation '
-                            'object.'
-                        )
-                    referenced_instances.append(ref_instance_uid)
-                    referenced_frames.append(frame_source_frames[0])
-
-            # Summarise
-            if any(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.NO
-                for v in locations_preserved
-            ):
-                Type = Optional[SpatialLocationsPreservedValues]
-                self._locations_preserved: Type = \
-                    SpatialLocationsPreservedValues.NO
-            elif all(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.YES
-                for v in locations_preserved
-            ):
-                self._locations_preserved = SpatialLocationsPreservedValues.YES
-            else:
-                self._locations_preserved = None
-
-            if not self._single_source_frame_per_seg_frame:
-                referenced_instances = None
-                referenced_frames = None
-
-        self._db_man = _SegDBManager(
-            referenced_uids=referenced_uids,
-            segment_numbers=segment_numbers,
-            dim_indices=dim_indices,
-            dim_values=dim_values,
-            referenced_instances=referenced_instances,
-            referenced_frames=referenced_frames,
-        )
+        self._db_man = _SegDBManager(self)
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -3884,6 +3385,41 @@ class Segmentation(SOPClass):
 
         return types
 
+    def is_3d_volume(
+        self,
+        split_dimensions: Optional[Sequence[str]] = None,
+    ):
+        """Determine whether this segmentation is a 3D volume.
+
+        For this purpose, a 3D volume is a set of regularly slices in 3D space
+        distributed at regular spacings along a vector perpendicular to the
+        normal vector to each image.
+
+        Parameters
+        ----------
+
+
+        """
+        if split_dimensions is not None:
+            split_dimensions = list(split_dimensions)
+            if len(split_dimensions) == 0:
+                raise ValueError(
+                    'Argument "split_dimensions" must not be empty.'
+                )
+            if 'ReferencedSegmentNumber' in split_dimensions:
+                raise ValueError(
+                    'The value "ReferencedSegmentNumber" should not be '
+                    'included in the spplit dimensions.'
+                )
+        else:
+            split_dimensions = []
+
+        split_dimensions.append('ReferencedSegmentNumber')
+
+        spacing = self._db_man.get_slice_spacing(split_dimensions)
+
+        return spacing is not None
+
     def _get_pixels_by_seg_frame(
         self,
         output_shape: Union[int, Tuple[int, int]],
@@ -4156,7 +3692,11 @@ class Segmentation(SOPClass):
             List of tags used as the default dimension index pointers.
 
         """
-        return self._dim_ind_pointers[:]
+        referenced_segment_number = tag_for_keyword('ReferencedSegmentNumber')
+        return [
+            t for t in self._db_man.dimension_index_pointers[:]
+            if t != referenced_segment_number
+        ]
 
     def are_dimension_indices_unique(
         self,
@@ -4192,8 +3732,9 @@ class Segmentation(SOPClass):
             raise ValueError(
                 'Argument "dimension_index_pointers" may not be empty.'
             )
+        dimension_index_pointers = list(dimension_index_pointers)
         for ptr in dimension_index_pointers:
-            if ptr not in self._dim_ind_pointers:
+            if ptr not in self._db_man.dimension_index_pointers:
                 kw = keyword_for_tag(ptr)
                 if kw == '':
                     kw = '<no keyword>'
@@ -4201,70 +3742,13 @@ class Segmentation(SOPClass):
                     f'Tag {ptr} ({kw}) is not used as a dimension index '
                     'in this image.'
                 )
+
+        dimension_index_pointers.append(
+            tag_for_keyword('ReferencedSegmentNumber')
+        )
         return self._db_man.are_dimension_indices_unique(
             dimension_index_pointers
         )
-
-    def _check_indexing_with_source_frames(
-        self,
-        ignore_spatial_locations: bool = False
-    ) -> None:
-        """Check if indexing by source frames is possible.
-
-        Raise exceptions with useful messages otherwise.
-
-        Possible problems include:
-            * Spatial locations are not preserved.
-            * The dataset does not specify that spatial locations are preserved
-              and the user has not asserted that they are.
-            * At least one frame in the segmentation lists multiple
-              source frames.
-
-        Parameters
-        ----------
-        ignore_spatial_locations: bool
-            Allows the user to ignore whether spatial locations are preserved
-            in the frames.
-
-        """
-        # Checks that it is possible to index using source frames in this
-        # dataset
-        is_tiled_full = (
-            hasattr(self, 'DimensionOrganizationType') and
-            self.DimensionOrganizationType == 'TILED_FULL'
-        )
-        if is_tiled_full:
-            raise RuntimeError(
-                'Indexing via source frames is not possible when a '
-                'segmentation is stored using the DimensionOrganizationType '
-                '"TILED_FULL".'
-            )
-        elif self._locations_preserved is None:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image does not specify that spatial locations are '
-                    'preserved in the course of deriving the segmentation '
-                    'from the source image. If you are confident that spatial '
-                    'locations are preserved, or do not require that spatial '
-                    'locations are preserved, you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image specifies that spatial locations are not preserved '
-                    'in the course of deriving the segmentation from the '
-                    'source image. If you do not require that spatial '
-                    ' locations are preserved you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        if not self._single_source_frame_per_seg_frame:
-            raise RuntimeError(
-                'Indexing via source frames is not permissible since some '
-                'frames in the segmentation specify multiple source frames.'
-            )
 
     def get_pixels_by_source_instance(
         self,
@@ -4421,7 +3905,9 @@ class Segmentation(SOPClass):
 
         """
         # Check that indexing in this way is possible
-        self._check_indexing_with_source_frames(ignore_spatial_locations)
+        self._db_man._check_indexing_with_source_frames(
+            ignore_spatial_locations
+        )
 
         # Checks on validity of the inputs
         if segment_numbers is None:
@@ -4450,7 +3936,9 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            unique_uids = self._db_man.get_unique_sop_instance_uids()
+            unique_uids = (
+                self._db_man.get_unique_referenced_sop_instance_uids()
+            )
             missing_uids = set(source_sop_instance_uids) - unique_uids
             if len(missing_uids) > 0:
                 msg = (
@@ -4673,7 +4161,9 @@ class Segmentation(SOPClass):
 
         """
         # Check that indexing in this way is possible
-        self._check_indexing_with_source_frames(ignore_spatial_locations)
+        self._db_man._check_indexing_with_source_frames(
+            ignore_spatial_locations
+        )
 
         # Checks on validity of the inputs
         if segment_numbers is None:
@@ -4702,7 +4192,9 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            max_frame_number = self._db_man.get_max_frame_number()
+            max_frame_number = (
+                self._db_man.get_max_referenced_frame_number()
+            )
             for f in source_frame_numbers:
                 if f > max_frame_number:
                     msg = (
@@ -4910,15 +4402,26 @@ class Segmentation(SOPClass):
                 'Segment numbers may not be empty.'
             )
 
+        referenced_segment_number_tag = tag_for_keyword(
+            'ReferencedSegmentNumber'
+        )
         if dimension_index_pointers is None:
-            dimension_index_pointers = self._dim_ind_pointers
+            dimension_index_pointers = [
+                t for t in self._db_man.dimension_index_pointers
+                if t != referenced_segment_number_tag
+            ]
         else:
             if len(dimension_index_pointers) == 0:
                 raise ValueError(
                     'Argument "dimension_index_pointers" must not be empty.'
                 )
             for ptr in dimension_index_pointers:
-                if ptr not in self._dim_ind_pointers:
+                if ptr == referenced_segment_number_tag:
+                    raise ValueError(
+                        "Do not include the ReferencedSegmentNumber in the "
+                        "argument 'dimension_index_pointers'."
+                    )
+                if ptr not in self._db_man.dimension_index_pointers:
                     kw = keyword_for_tag(ptr)
                     if kw == '':
                         kw = '<no keyword>'

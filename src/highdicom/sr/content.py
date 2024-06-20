@@ -32,6 +32,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+from highdicom._module_utils import is_multiframe_image
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ def _check_frame_numbers_valid_for_dataset(
     referenced_frame_numbers: Optional[Sequence[int]]
 ) -> None:
     if referenced_frame_numbers is not None:
-        if not hasattr(dataset, 'NumberOfFrames'):
+        if not is_multiframe_image(dataset):
             raise TypeError(
                 'The dataset does not represent a multi-frame dataset, so no '
                 'referenced frame numbers should be provided.'

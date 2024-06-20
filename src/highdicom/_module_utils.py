@@ -285,6 +285,7 @@ def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
 
 def is_multiframe_image(dataset: Dataset):
     """Determine whether an image is a multiframe image.
+
     The definition used is whether the IOD allows for multiple frames, not
     whether this particular instance has more than one frame.
 
