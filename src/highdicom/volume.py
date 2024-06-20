@@ -523,12 +523,12 @@ class VolumeGeometry:
         """
         if round_output:
             center = np.array(
-                [(self.shape[d] // 2) for d in range(3)],
+                [(self.shape[d] - 1) // 2 for d in range(3)],
                 dtype=np.uint32,
             )
         else:
             center = np.array(
-                [(self.shape[d] - 1 / 2.0) for d in range(3)]
+                [(self.shape[d] - 1) / 2.0 for d in range(3)]
             )
 
         return center
@@ -591,7 +591,7 @@ class VolumeGeometry:
 
     def map_reference_to_indices(
         self,
-        coordinates: np.y,
+        coordinates: np.ndarray,
         round_output: bool = False,
         check_bounds: bool = False,
     ) -> np.ndarray:
@@ -647,7 +647,7 @@ class VolumeGeometry:
             coordinates.T.astype(float),
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
-        indices = np.dot(self._affine, reference_coordinates)
+        indices = np.dot(self.inverse_affine, reference_coordinates)
         indices = indices[:3, :].T
 
         if check_bounds:
@@ -668,6 +668,55 @@ class VolumeGeometry:
         else:
             return indices
 
+    def get_plane_position(self, plane_number: int) -> PlanePositionSequence:
+        """Get plane position of a given plane.
+
+        Parameters
+        ----------
+        plane_number: int
+            Zero-based plane index (down the first dimension of the array).
+
+        Returns
+        -------
+        highdicom.content.PlanePositionSequence:
+            Plane position of the plane.
+
+        """
+        if plane_number < 0 or plane_number >= self.shape[0]:
+            raise ValueError("Invalid plane number for volume.")
+        index = np.array([[plane_number, 0, 0]])
+        position = self.map_indices_to_reference(index)[0]
+
+        return PlanePositionSequence(
+            CoordinateSystemNames.PATIENT,
+            position,
+        )
+
+    def get_plane_positions(self) -> List[PlanePositionSequence]:
+        """Get plane positions of all planes in the volume.
+
+        Returns
+        -------
+        List[highdicom.content.PlanePositionSequence]:
+            Plane position of the all planes (stacked down axis 0 of the
+            volume).
+
+        """
+        indices = np.array(
+            [
+                [p, 0, 0] for p in range(self.shape[0])
+            ]
+        )
+        positions = self.map_indices_to_reference(indices)
+
+        return [
+            PlanePositionSequence(
+                CoordinateSystemNames.PATIENT,
+                pos,
+            )
+            for pos in positions
+        ]
+
     @property
     def frame_of_reference_uid(self) -> Optional[str]:
         """Union[str, None]: Frame of reference UID."""
@@ -682,6 +731,16 @@ class VolumeGeometry:
 
         """
         return self._affine.copy()
+
+    @property
+    def inverse_affine(self) -> np.ndarray:
+        """numpy.ndarray: 4x4 inverse affine transformation matrix
+
+        Inverse of the affine matrix. This matrix maps a position in the LPS
+        frame of reference coordinate space into an index into the array.
+
+        """
+        return np.linalg.inv(self._affine)
 
     @property
     def shape(self) -> Tuple[int, int, int]:

@@ -7,6 +7,33 @@ import pytest
 from highdicom.volume import VolumeGeometry
 
 
+def test_transforms():
+    volume = VolumeGeometry.from_attributes(
+        image_position=[0.0, 0.0, 0.0],
+        image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        pixel_spacing=[1.0, 1.0],
+        rows=50,
+        columns=50,
+        spacing_between_slices=10.0,
+        number_of_frames=25,
+    )
+    plane_positions = volume.get_plane_positions()
+    for i, pos in enumerate(plane_positions):
+        assert np.array_equal(pos[0].ImagePositionPatient, [0.0, 0.0, 10.0 * i])
+
+    indices = np.array([[1, 2, 3]])
+    coords = volume.map_indices_to_reference(indices)
+    assert np.array_equal(coords, np.array([[3.0, 2.0, 10.0]]))
+    round_trip = volume.map_reference_to_indices(coords)
+    assert np.array_equal(round_trip, indices)
+    index_center = volume.get_center_index()
+    assert np.array_equal(index_center, [12.0, 24.5, 24.5])
+    index_center = volume.get_center_index(round_output=True)
+    assert np.array_equal(index_center, [12, 24, 24])
+    coord_center = volume.get_center_coordinate()
+    assert np.array_equal(coord_center, [24.5, 24.5, 120])
+
+
 @pytest.mark.parametrize(
     'image_position,image_orientation,pixel_spacing,spacing_between_slices',
     [
