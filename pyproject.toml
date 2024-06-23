@@ -71,6 +71,7 @@ minversion = "7"
 addopts = "--doctest-modules"
 testpaths = ["tests"]
 log_cli_level = "INFO"
+xfail_strict = true
 
 [tool.mypy]
 warn_unreachable = true
