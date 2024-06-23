@@ -68,7 +68,7 @@ repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
 [tool.pytest.ini_options]
 minversion = "7"
-addopts = "--doctest-modules"
+addopts = ["--doctest-modules", "--strict-config"]
 testpaths = ["tests"]
 log_cli_level = "INFO"
 xfail_strict = true
