@@ -75,7 +75,7 @@ xfail_strict = true
 
 [tool.mypy]
 warn_unreachable = true
-enable_error_code = ["ignore-without-code", "redundant-expr"]
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 
 [[tool.mypy.overrides]]
 module = "mypy-pydicom.*"
