@@ -67,6 +67,7 @@ documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
 [tool.pytest.ini_options]
+minversion = "7"
 addopts = "--doctest-modules"
 testpaths = ["tests"]
 log_cli_level = "INFO"
