@@ -13,6 +13,7 @@ authors = [
 ]
 maintainers = [
     { name = "Markus D. Herrmann" },
+    { name = "Christopher P. Bridge" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
