@@ -61,7 +61,7 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install -r ~/highdicom/requirements_test.txt
+    pip install .[test]
 
 Run tests (including checks for PEP8 compliance):
 
@@ -79,7 +79,7 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install -r ~/highdicom/requirements_docs.txt
+    pip install .[docs]
 
 Build documentation in *HTML* format:
 

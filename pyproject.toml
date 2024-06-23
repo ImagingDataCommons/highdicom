@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "highdicom"
+dynamic = ["version"]
+description = "High-level DICOM abstractions."
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [
+    { name = "Markus D. Herrmann" },
+]
+maintainers = [
+    { name = "Markus D. Herrmann" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=1.19",
+    "pillow-jpls>=1.0",
+    "pillow>=8.3",
+    "pydicom>=2.3.0,!=2.4.0",
+]
+
+[project.optional-dependencies]
+libjpeg = [
+    "pylibjpeg-libjpeg>=1.3",
+    "pylibjpeg-openjpeg>=1.2",
+    "pylibjpeg>=1.4",
+]
+test = [
+    "mypy==0.971",
+    "pytest==7.1.2",
+    "pytest-cov==3.0.0",
+    "pytest-flake8==1.1.1",
+    "numpy-stubs @ git+https://github.com/numpy/numpy-stubs@201115370a0c011d879d69068b60509accc7f750",
+]
+docs = [
+    "sphinx-autodoc-typehints==1.17.0",
+    "sphinx-pyreverse==0.0.17",
+    "sphinx-rtd-theme==1.0.0",
+    "sphinxcontrib-autoprogram==0.1.7",
+    "sphinxcontrib-websupport==1.2.4",
+]
+
+[project.urls]
+homepage = "https://github.com/imagingdatacommons/highdicom"
+documentation = "https://highdicom.readthedocs.io/"
+repository = "https://github.com/ImagingDataCommons/highdicom.git"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
+testpaths = ["tests"]
+log_cli_level = "INFO"
+
+[tool.mypy]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "mypy-pydicom.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy-PIL.*"
+ignore_missing_imports = true
