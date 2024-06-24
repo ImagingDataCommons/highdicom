@@ -3055,6 +3055,30 @@ class Segmentation(SOPClass):
             and the source images.
         has_ref_frame_uid: bool
             Whether the sources images have a frame of reference UID.
+        coordinate_system: Optional[highdicom.CoordinateSystemNames]
+            Coordinate system used, if any.
+
+        Returns
+        -------
+        pydicom.Dataset
+            Dataset representing the item of the
+            Per Frame Functional Groups Sequence for this segmentation frame.
+
+        """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
+        pffg_item = Dataset()
+        frame_content_item = Dataset()
+
+        frame_content_item.add(
+            DataElement(
+                0x00209157,  # DimensionIndexValues
+                'UL',
+                [int(segment_number)] + dimension_index_values
+            )
+        )
         pffg_item.add(
             DataElement(
                 0x00209111,  # FrameContentSequence
