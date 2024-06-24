@@ -149,8 +149,10 @@ def create_segmentation_pyramid(
     if len(error_keys) > 0:
         raise TypeError(
             f'kwargs supplied to the create_segmentation_pyramid function '
-            f'should not contain a value for parameter {error_keys[0]}.'
+            f'should not contain a value for parameter {list(error_keys)[0]}.'
         )
+
+    segmentation_type = SegmentationTypeValues(segmentation_type)
 
     if pyramid_uid is None:
         pyramid_uid = UID()
@@ -263,6 +265,30 @@ def create_segmentation_pyramid(
             )
 
     # Check that pixel arrays have an appropriate shape
+    if len(set(p.ndim for p in pixel_arrays)) != 1:
+        raise ValueError(
+            'Each item of argument "pixel_arrays" must have the same number of '
+            'dimensions.'
+        )
+    if pixel_arrays[0].ndim == 4:
+        n_segment_channels = pixel_arrays[0].shape[3]
+    else:
+        n_segment_channels = None
+
+    dtype = pixel_arrays[0].dtype
+    if dtype in (np.bool_, np.uint8, np.uint16):
+        resampler = Image.Resampling.NEAREST
+    elif dtype in (np.float32, np.float64):
+        if segmentation_type == SegmentationTypeValues.FRACTIONAL:
+            resampler = Image.Resampling.BILINEAR
+        else:
+            # This is a floating point image that will ultimately be treated as
+            # binary
+            resampler = Image.Resampling.NEAREST
+    else:
+        raise TypeError('Pixel array has an invalid data type.')
+
+    # Checks on consistency of the pixel arrays
     for pixel_array in pixel_arrays:
         if pixel_array.ndim not in (2, 3, 4):
             raise ValueError(
@@ -274,6 +300,17 @@ def create_segmentation_pyramid(
                 'Each item of argument "pixel_arrays" must contain a single '
                 'frame, with a size of 1 along dimension 0.'
             )
+        if pixel_array.dtype != dtype:
+            raise TypeError(
+                'Each item of argument "pixel_arrays" must have '
+                'the same datatype.'
+            )
+        if pixel_array.ndim == 4:
+            if pixel_array.shape[3] != n_segment_channels:
+                raise ValueError(
+                    'Each item of argument "pixel_arrays" must have '
+                    'the same shape down axis 3.'
+                )
 
     # Check the pixel arrays are appropriately ordered
     for index in range(1, len(pixel_arrays)):
@@ -322,7 +359,17 @@ def create_segmentation_pyramid(
 
     if n_pix_arrays == 1:
         # Create a pillow image for use later with resizing
-        mask_image = Image.fromarray(pixel_arrays[0])
+        if pixel_arrays[0].ndim == 2:
+            mask_images = [Image.fromarray(pixel_arrays[0])]
+        elif pixel_arrays[0].ndim == 3:
+            # Remove frame dimension before casting
+            mask_images = [Image.fromarray(pixel_arrays[0][0])]
+        else:  # ndim = 4
+            # One "Image" for each segment
+            mask_images = [
+                Image.fromarray(pixel_arrays[0][0, :, :, i])
+                for i in range(pixel_arrays[0].shape[3])
+            ]
 
     all_segs = []
 
@@ -338,9 +385,7 @@ def create_segmentation_pyramid(
         else:
             if output_level == 0:
                 pixel_array = pixel_arrays[0]
-                need_resize = False
             else:
-                need_resize = True
                 if n_sources > 1:
                     output_size = (
                         source_image.TotalPixelMatrixColumns,
@@ -353,10 +398,10 @@ def create_segmentation_pyramid(
                         int(source_images[0].TotalPixelMatrixRows / f)
                     )
 
-            if need_resize:
-                pixel_array = np.array(
-                    mask_image.resize(output_size, Image.Resampling.NEAREST)
-                )
+                pixel_array = np.stack(
+                    [np.array(im.resize(output_size, resampler)) for im in mask_images],
+                    axis=-1
+                )[None]
 
         if n_sources == 1:
             source_pixel_measures = (
