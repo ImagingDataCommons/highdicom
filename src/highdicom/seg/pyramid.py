@@ -77,7 +77,10 @@ def create_segmentation_pyramid(
         List of source images. If there are multiple source images, they should
         be from the same series and pyramid.
     pixel_arrays: Sequence[numpy.ndarray]
-        List of segmentation pixel arrays. Each should be a total pixel matrix.
+        List of segmentation pixel arrays. Each should be a total pixel matrix,
+        i.e. have shape (rows, columns), (1, rows, columns), or (1, rows,
+        columns, segments). Otherwise all options supported by the constructor
+        of :class:`highdicom.seg.Segmentation` are permitted.
     segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
         Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
     segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
@@ -123,16 +126,17 @@ def create_segmentation_pyramid(
         A human readable label for the output pyramid.
     **kwargs: Any
         Any further parameters are passed directly to the constructor of the
-        :class:highdicom.seg.Segmentation object. However the following
+        :class:`highdicom.seg.Segmentation` object. However the following
         parameters are disallowed: ``instance_number``, ``sop_instance_uid``,
         ``plane_orientation``, ``plane_positions``, ``pixel_measures``,
         ``pixel_array``, ``tile_pixel_array``.
 
     Note
     ----
-    Downsampling is performed via simple nearest neighbor interpolation. If
-    more control is needed over the downsampling process (for example
-    anti-aliasing), explicitly pass the downsampled arrays.
+    Downsampling is performed via simple nearest neighbor interpolation (for
+    ``BINARY`` segmentations) or bi-linear interpolation (for ``FRACTIONAL``
+    segmentations). If more control is needed over the downsampling process
+    (for example anti-aliasing), explicitly pass the downsampled arrays.
 
     """
     # Disallow duplicate items in kwargs
