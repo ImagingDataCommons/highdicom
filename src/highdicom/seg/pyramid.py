@@ -402,10 +402,13 @@ def create_segmentation_pyramid(
                         int(source_images[0].TotalPixelMatrixRows / f)
                     )
 
-                pixel_array = np.stack(
-                    [np.array(im.resize(output_size, resampler)) for im in mask_images],
-                    axis=-1
-                )[None]
+                resized_masks = [
+                    np.array(im.resize(output_size, resampler)) for im in mask_images
+                ]
+                if len(resized_masks) > 1:
+                    pixel_array = np.stack(resized_masks, axis=-1)[None]
+                else:
+                    pixel_array = resized_masks[0][None]
 
         if n_sources == 1:
             source_pixel_measures = (

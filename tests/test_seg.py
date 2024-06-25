@@ -4099,3 +4099,29 @@ class TestPyramid(unittest.TestCase):
                 seg.get_total_pixel_matrix(),
                 pix[0]
             )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=mask,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            mask = np.argmax(pix, axis=3).astype(np.uint8)
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                mask[0]
+            )
