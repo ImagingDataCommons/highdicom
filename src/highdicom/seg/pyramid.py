@@ -403,7 +403,8 @@ def create_segmentation_pyramid(
                     )
 
                 resized_masks = [
-                    np.array(im.resize(output_size, resampler)) for im in mask_images
+                    np.array(im.resize(output_size, resampler))
+                    for im in mask_images
                 ]
                 if len(resized_masks) > 1:
                     pixel_array = np.stack(resized_masks, axis=-1)[None]
