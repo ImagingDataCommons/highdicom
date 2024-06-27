@@ -15,7 +15,7 @@ maintainers = [
     { name = "Markus D. Herrmann" },
     { name = "Christopher P. Bridge" },
 ]
-license = "MIT License"
+license = { text = "LICENSE" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
