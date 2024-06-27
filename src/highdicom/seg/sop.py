@@ -2719,7 +2719,7 @@ class Segmentation(SOPClass):
                     else:
                         segments_overlap = SegmentsOverlapValues.NO
 
-        elif pixel_array.dtype in (np.float_, np.float32, np.float64):
+        elif pixel_array.dtype in (np.float32, np.float64):
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
@@ -2905,7 +2905,7 @@ class Segmentation(SOPClass):
             (0 or 1).
 
         """
-        if pixel_array.dtype in (np.float_, np.float32, np.float64):
+        if pixel_array.dtype in (np.float32, np.float64):
             # Based on the previous checks and casting, if we get here the
             # output is a FRACTIONAL segmentation Floating-point numbers must
             # be mapped to 8-bit integers in the range [0,

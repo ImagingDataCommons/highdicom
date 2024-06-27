@@ -743,7 +743,7 @@ class TestSegmentation:
         return request.param
 
     @staticmethod
-    @pytest.fixture(params=[np.bool_, np.uint8, np.uint16, np.float_])
+    @pytest.fixture(params=[np.bool_, np.uint8, np.uint16, np.float64])
     def pix_type(request):
         return request.param
 
@@ -1788,7 +1788,7 @@ class TestSegmentation:
             max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
-        if pix_type == np.float_:
+        if pix_type == np.float64:
             assert (
                 instance.SegmentsOverlap ==
                 SegmentsOverlapValues.UNDEFINED.value
@@ -1822,7 +1822,7 @@ class TestSegmentation:
             max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
-        if pix_type == np.float_:
+        if pix_type == np.float64:
             assert (
                 instance.SegmentsOverlap ==
                 SegmentsOverlapValues.UNDEFINED.value
@@ -2315,7 +2315,7 @@ class TestSegmentation:
         with pytest.raises(ValueError):
             Segmentation(
                 source_images=[self._ct_image],  # empty
-                pixel_array=self._ct_pixel_array.astype(np.float_) * 2,
+                pixel_array=self._ct_pixel_array.astype(np.float64) * 2,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._segment_descriptions
@@ -2335,7 +2335,7 @@ class TestSegmentation:
         with pytest.raises(ValueError):
             Segmentation(
                 source_images=[self._ct_image],
-                pixel_array=self._ct_pixel_array.astype(np.float_) * 0.5,
+                pixel_array=self._ct_pixel_array.astype(np.float64) * 0.5,
                 segmentation_type=SegmentationTypeValues.BINARY.value,
                 segment_descriptions=(
                     self._segment_descriptions
