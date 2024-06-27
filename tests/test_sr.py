@@ -1398,6 +1398,60 @@ class TestSubjectContextDevice(unittest.TestCase):
         assert context[5].TextValue == self._physical_location
 
 
+class TestSubjectContextSpecimen(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+
+    def test_from_image(self):
+        specimen_context = SubjectContextSpecimen.from_image(
+            self._sm_image
+        )
+
+        assert (
+            specimen_context.container_identifier ==
+            self._sm_image.ContainerIdentifier
+        )
+        description = self._sm_image.SpecimenDescriptionSequence[0]
+        assert (
+            specimen_context.specimen_identifier ==
+            description.SpecimenIdentifier
+        )
+        assert (
+            specimen_context.specimen_uid == description.SpecimenUID
+        )
+        assert specimen_context.specimen_type == codes.SCT.TissueSection
+
+    def test_from_image_no_specimen_type(self):
+        # Specimen type is optional, for_image method should cope corectly if
+        # it is missing
+        image = deepcopy(self._sm_image)
+        delattr(
+            image.SpecimenDescriptionSequence[0],
+            'SpecimenTypeCodeSequence'
+        )
+        specimen_context = SubjectContextSpecimen.from_image(image)
+
+        assert (
+            specimen_context.container_identifier ==
+            self._sm_image.ContainerIdentifier
+        )
+        description = self._sm_image.SpecimenDescriptionSequence[0]
+        assert (
+            specimen_context.specimen_identifier ==
+            description.SpecimenIdentifier
+        )
+        assert (
+            specimen_context.specimen_uid == description.SpecimenUID
+        )
+        assert specimen_context.specimen_type is None
+
+
 class TestObservationContext(unittest.TestCase):
 
     def setUp(self):

@@ -1703,7 +1703,7 @@ class SubjectContextSpecimen(Template):
             Identifier of the observed specimen (may have limited scope,
             e.g., only relevant with respect to the corresponding container)
         container_identifier: Union[str, None], optional
-            Identifier of the container holding the speciment (e.g., a glass
+            Identifier of the container holding the specimen (e.g., a glass
             slide)
         specimen_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             Type of the specimen (see
@@ -1808,6 +1808,49 @@ class SubjectContextSpecimen(Template):
         if len(matches) > 0:
             return matches[0].value
         return None
+
+    @classmethod
+    def from_image(
+        cls,
+        image: Dataset,
+    ) -> 'SubjectContextSpecimen':
+        """Deduce specimen information from an existing image.
+
+        This is appropriate, for example, when copying the specimen information
+        from a source image into a derived SR or similar object.
+
+        Parameters
+        ----------
+        image: pydicom.Dataset
+            An image from which to infer specimen information. There is no
+            limitation on the type of image, however it must have the Specimen
+            module included.
+
+        Raises
+        ------
+        ValueError:
+            If the input image does not contain specimen information.
+
+        """
+        if not hasattr(image, 'ContainerIdentifier'):
+            raise ValueError("Image does not contain specimen information.")
+
+        description = image.SpecimenDescriptionSequence[0]
+
+        # Specimen type code sequence is optional
+        if hasattr(description, 'SpecimenTypeCodeSequence'):
+            specimen_type: Optional[CodedConcept] = CodedConcept.from_dataset(
+                description.SpecimenTypeCodeSequence[0]
+            )
+        else:
+            specimen_type = None
+
+        return cls(
+            container_identifier=image.ContainerIdentifier,
+            identifier=description.SpecimenIdentifier,
+            uid=description.SpecimenUID,
+            specimen_type=specimen_type,
+        )
 
     @classmethod
     def from_sequence(
