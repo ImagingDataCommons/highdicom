@@ -20,9 +20,15 @@ from highdicom.content import PlanePositionSequence
 from pydicom import Dataset
 
 
-class VolumeGeometry:
+class VolumeArray:
 
-    """Class representing the geomtry of a regularly-spaced 3D array.
+    """Class representing a 3D array of regularly-spaced frames in 3D space.
+
+    This class combines a 3D NumPy array with an affine matrix describing the
+    location of the voxels in the frame of reference coordinate space. A
+    VolumeArray is not a DICOM object itself, but represents a volume that may
+    be extracted from DICOM image, and/or encoded within a DICOM object,
+    potentially following any number of processing steps.
 
     All such geometries exist within DICOM's patient coordinate system.
 
@@ -62,8 +68,8 @@ class VolumeGeometry:
 
     def __init__(
         self,
+        array: np.ndarray,
         affine: np.ndarray,
-        shape: Sequence[int],
         frame_of_reference_uid: Optional[str] = None,
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
@@ -72,15 +78,15 @@ class VolumeGeometry:
 
         Parameters
         ----------
-        affine: np.ndarray
+        array: numpy.ndarray
+            Three dimensional array of voxel data.
+        affine: numpy.ndarray
             4 x 4 affine matrix representing the transformation from pixel
             indices (slice index, row index, column index) to the
             frame-of-reference coordinate system. The top left 3 x 3 matrix
             should be a scaled orthogonal matrix representing the rotation and
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
-        shape: Sequence[int]
-            Shape (slices, rows, columns) of the implied volume array.
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
         sop_instance_uids: Optional[Sequence[str]], optional
@@ -94,6 +100,10 @@ class VolumeGeometry:
             DICOM image.
 
         """
+        if array.ndim != 3:
+            raise ValueError(
+                "Argument 'array' must be three-dimensional."
+            )
 
         if affine.shape != (4, 4):
             raise ValueError("Affine matrix must have shape (4, 4).")
@@ -105,15 +115,9 @@ class VolumeGeometry:
             raise ValueError(
                 "Argument 'affine' must be an orthogonal matrix."
             )
-        if len(shape) != 3:
-            raise ValueError(
-                "Argument 'shape' must have three elements."
-            )
 
+        self._array = array
         self._affine = affine
-        if len(shape) != 3:
-            raise ValueError("Argument 'shape' must have three items.")
-        self._shape = tuple(shape)
         self._frame_of_reference_uid = frame_of_reference_uid
         if frame_numbers is not None:
             if any(not isinstance(f, int) for f in frame_numbers):
@@ -125,10 +129,10 @@ class VolumeGeometry:
                     "Argument 'frame_numbers' should contain only (strictly) "
                     "positive integers."
                 )
-            if len(frame_numbers) != shape[0]:
+            if len(frame_numbers) != self._array.shape[0]:
                 raise ValueError(
-                    "Length of 'frame_numbers' should match first item of "
-                    "'shape'."
+                    "Length of 'frame_numbers' should match first dimension "
+                    "of 'array'."
                 )
             self._frame_numbers = list(frame_numbers)
         else:
@@ -139,20 +143,20 @@ class VolumeGeometry:
                     "Argument 'sop_instance_uids' should be a sequence of "
                     "str."
                 )
-            if len(sop_instance_uids) != shape[0]:
+            if len(sop_instance_uids) != self._array.shape[0]:
                 raise ValueError(
-                    "Length of 'sop_instance_uids' should match first item "
-                    "of 'shape'."
+                    "Length of 'sop_instance_uids' should match first "
+                    "dimension of 'array'."
                 )
             self._sop_instance_uids = list(sop_instance_uids)
         else:
             self._sop_instance_uids = None
 
     @classmethod
-    def for_image_series(
+    def from_image_series(
         cls,
         series_datasets: Sequence[Dataset],
-    ) -> "VolumeGeometry":
+    ) -> "VolumeArray":
         """Get volume geometry for a series of single frame images.
 
         Parameters
@@ -163,7 +167,7 @@ class VolumeGeometry:
 
         Returns
         -------
-        VolumeGeometry:
+        VolumeArray:
             Object representing the geometry of the series.
 
         """
@@ -192,7 +196,7 @@ class VolumeGeometry:
         if slice_spacing is None:
             raise ValueError('Series is not a regularly spaced volume.')
         ds = series_datasets[0]
-        shape = (len(series_datasets), ds.Rows, ds.Columns)
+
         affine = _create_affine_transformation_matrix(
             image_position=ds.ImagePositionPatient,
             image_orientation=ds.ImageOrientationPatient,
@@ -201,18 +205,21 @@ class VolumeGeometry:
             index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
 
+        # TODO apply color, modality and VOI lookup
+        array = np.stack([ds.pixel_array for ds in series_datasets])
+
         return cls(
             affine=affine,
-            shape=shape,
+            array=array,
             frame_of_reference_uid=frame_of_reference_uid,
             sop_instance_uids=sorted_sop_instance_uids,
         )
 
     @classmethod
-    def for_image(
+    def from_image(
         cls,
         dataset: Dataset,
-    ) -> "VolumeGeometry":
+    ) -> "VolumeArray":
         """Get volume geometry for a multiframe image.
 
         Parameters
@@ -222,7 +229,7 @@ class VolumeGeometry:
 
         Returns
         -------
-        VolumeGeometry:
+        VolumeArray:
             Object representing the geometry of the image.
 
         """
@@ -272,7 +279,6 @@ class VolumeGeometry:
                 'Dataset does not represent a regularly sampled volume.'
             )
 
-        shape = (dataset.NumberOfFrames, dataset.Rows, dataset.Columns)
         affine = _create_affine_transformation_matrix(
             image_position=sorted_positions[0],
             image_orientation=image_orientation,
@@ -281,9 +287,15 @@ class VolumeGeometry:
             index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
 
+        # TODO apply VOI color modality LUT etc
+        array = dataset.pixel_array
+        if array.ndim == 2:
+            array = array[np.newaxis]
+        array = array[sort_index]
+
         return cls(
             affine=affine,
-            shape=shape,
+            array=array,
             frame_of_reference_uid=dataset.FrameOfReferenceUID,
             frame_numbers=sorted_frame_numbers,
         )
@@ -291,21 +303,23 @@ class VolumeGeometry:
     @classmethod
     def from_attributes(
         cls,
+        array: np.ndarray,
         image_position: Sequence[float],
         image_orientation: Sequence[float],
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
-        rows:int,
-        columns: int,
-        number_of_frames: int,
         frame_of_reference_uid: Optional[str] = None,
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
-    ) -> "VolumeGeometry":
+    ) -> "VolumeArray":
         """Create a volume geometry from DICOM attributes.
 
         Parameters
         ----------
+        array: numpy.ndarray
+            Three dimensional array of voxel data. The first dimension indexes
+            slices, the second dimension indexes rows, and the final dimension
+            indexes columns.
         image_position: Sequence[float]
             Position in the frame of reference space of the center of the top
             left pixel of the image. Corresponds to DICOM attributes
@@ -329,27 +343,17 @@ class VolumeGeometry:
             attribute "SpacingBetweenSlices" (however, this may not be present in
             many images and may need to be inferred from "ImagePositionPatient"
             attributes of consecutive slices).
-        rows:int
-            Number of rows in the image. Corresponds to the DICOM attribute
-            "Rows".
-        columns: int
-            Number of columns in the image. Corresponds to the DICOM attribute
-            "Columns".
-        number_of_frames: int
-            Number of frames in the image. Corresponds to NumberOfFrames
-            attribute, or to the number of images in the case of an image
-            series.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
         sop_instance_uids: Union[Sequence[str], None], optional
             Ordered SOP Instance UIDs of each frame, if known, in the situation
             that the volume is formed from a sequence of individual DICOM
-            instances.
+            instances, stacked down the first axis (index 0)..
         frame_numbers: Union[Sequence[int], None], optional
             Ordered frame numbers of each frame, if known, in the situation
             that the volume is formed from a sequence of frames of one
-            multi-frame DICOM image.
+            multi-frame DICOM image, stacked down the first axis (index 0)..
 
         """
         affine = _create_affine_transformation_matrix(
@@ -359,10 +363,9 @@ class VolumeGeometry:
             spacing_between_slices=spacing_between_slices,
             index_convention=cls._INTERNAL_INDEX_CONVENTION,
         )
-        shape = (number_of_frames, rows, columns)
         return cls(
             affine=affine,
-            shape=shape,
+            array=array,
             frame_of_reference_uid=frame_of_reference_uid,
             sop_instance_uids=sop_instance_uids,
             frame_numbers=frame_numbers,
@@ -371,18 +374,20 @@ class VolumeGeometry:
     @classmethod
     def from_components(
         cls,
+        array: np.ndarray,
         position: Sequence[float],
         direction: Sequence[float],
         spacing: Sequence[float],
-        shape: Sequence[int],
         frame_of_reference_uid: Optional[str] = None,
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
-    ) -> "VolumeGeometry":
-        """Construct a VolumeGeometry from components.
+    ) -> "VolumeArray":
+        """Construct a VolumeArray from components.
 
         Parameters
         ----------
+        array: numpy.ndarray
+            Three dimensional array of voxel data.
         position: Sequence[float]
             Sequence of three floats giving the position in the frame of
             reference coordinate system of the center of the pixel at location
@@ -403,15 +408,15 @@ class VolumeGeometry:
         sop_instance_uids: Union[Sequence[str], None], optional
             Ordered SOP Instance UIDs of each frame, if known, in the situation
             that the volume is formed from a sequence of individual DICOM
-            instances.
+            instances, stacked down the first axis (index 0).
         frame_numbers: Union[Sequence[int], None], optional
             Ordered frame numbers of each frame, if known, in the situation
             that the volume is formed from a sequence of frames of one
-            multi-frame DICOM image.
+            multi-frame DICOM image, stacked down the first axis (index 0).
 
         Returns
         -------
-        highdicom.spatial.VolumeGeometry:
+        highdicom.spatial.VolumeArray:
             Volume geometry constructed from the provided components.
 
         """
@@ -446,8 +451,8 @@ class VolumeGeometry:
             ]
         )
         return cls(
+            array=array,
             affine=affine,
-            shape=shape,
             frame_of_reference_uid=frame_of_reference_uid,
             sop_instance_uids=sop_instance_uids,
             frame_numbers=frame_numbers,
@@ -516,7 +521,7 @@ class VolumeGeometry:
 
         Returns
         -------
-        np.ndarray:
+        numpy.ndarray:
             Array of shape 3 representing the array indices at the center of
             the volume.
 
@@ -538,7 +543,7 @@ class VolumeGeometry:
 
         Returns
         -------
-        np.ndarray:
+        numpy.ndarray:
             Array of shape 3 representing the frame-of-reference coordinate at
             the center of the volume.
 
@@ -745,7 +750,12 @@ class VolumeGeometry:
     @property
     def shape(self) -> Tuple[int, int, int]:
         """Tuple[int, int, int]: Shape of the volume."""
-        return self._shape
+        return tuple(self._array.shape)
+
+    @property
+    def array(self) -> np.ndarray:
+        """numpy.ndarray: Volume array (copied)."""
+        return self._array.copy()
 
     @property
     def sop_instance_uids(self) -> Union[List[str], None]:
@@ -829,7 +839,7 @@ class VolumeGeometry:
 
     @property
     def direction(self) -> np.ndarray:
-        """np.ndarray:
+        """numpy.ndarray:
 
         Direction matrix for the volume. The columns of the direction
         matrix are orthogonal unit vectors that give the direction in the

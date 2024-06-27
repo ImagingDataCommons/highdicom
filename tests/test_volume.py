@@ -4,18 +4,17 @@ from pydicom.data import get_testdata_file
 import pytest
 
 
-from highdicom.volume import VolumeGeometry
+from highdicom.volume import VolumeArray
 
 
 def test_transforms():
-    volume = VolumeGeometry.from_attributes(
+    array = np.zeros((25, 50, 50))
+    volume = VolumeArray.from_attributes(
+        array=array,
         image_position=[0.0, 0.0, 0.0],
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
-        rows=50,
-        columns=50,
         spacing_between_slices=10.0,
-        number_of_frames=25,
     )
     plane_positions = volume.get_plane_positions()
     for i, pos in enumerate(plane_positions):
@@ -72,10 +71,9 @@ def test_geometry_from_attributes(
     pixel_spacing,
     spacing_between_slices,
 ):
-    geometry = VolumeGeometry.from_attributes(
-        rows=10,
-        columns=10,
-        number_of_frames=10,
+    array = np.zeros((10, 10, 10))
+    geometry = VolumeArray.from_attributes(
+        array=array,
         image_position=image_position,
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
@@ -94,8 +92,8 @@ def test_volume_geometry_single_frame():
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    geometry = VolumeGeometry.for_image_series(ct_series)
-    assert isinstance(geometry, VolumeGeometry)
+    geometry = VolumeArray.from_image_series(ct_series)
+    assert isinstance(geometry, VolumeArray)
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
     assert geometry.shape == (len(ct_files), rows, columns)
     assert geometry.frame_numbers is None
@@ -127,8 +125,8 @@ def test_volume_geometry_single_frame():
 
 def test_volume_geometry_multiframe():
     dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-    geometry = VolumeGeometry.for_image(dcm)
-    assert isinstance(geometry, VolumeGeometry)
+    geometry = VolumeArray.from_image(dcm)
+    assert isinstance(geometry, VolumeArray)
     rows, columns = dcm.Rows, dcm.Columns
     assert geometry.shape == (dcm.NumberOfFrames, rows, columns)
     assert geometry.frame_numbers == [2, 1]
