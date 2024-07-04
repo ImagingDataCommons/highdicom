@@ -742,14 +742,46 @@ def _normalize_reference_direction_convention(
     return c
 
 
+def get_closest_directions(affine: np.ndarray) -> Tuple[
+    PatientFrameOfReferenceDirections,
+    PatientFrameOfReferenceDirections,
+    PatientFrameOfReferenceDirections,
+]:
+    """Given an affine matrix, find the
+
+    Parameters
+    ----------
+    affine: numpy.ndarray
+        Direction matrix (4x4 affine matrices or a 3x3 direction matrices are
+        acceptable).
+
+    Returns
+    -------
+    Tuple[PatientFrameOfReferenceDirections, PatientFrameOfReferenceDirections, PatientFrameOfReferenceDirections]:
+
+    """
+    if (
+        affine.ndim != 2
+        or (
+            affine.shape != (3, 3) and
+            affine.shape != (4, 4)
+        )
+    ):
+        raise ValueError(f"Invalid shape for array: {affine.shape}")
+
+    result = []
+    for d in range(3):
+        v = affine[:3, d]
+        alignments = v
+
+
+
 def _is_matrix_orthogonal(
     m: np.ndarray,
     require_unit: bool = True,
     tol: float = _DEFAULT_EQUALITY_TOLERANCE,
 ) -> bool:
     """Check whether a matrix is orthogonal.
-
-    Note this does not require that the columns have unit norm.
 
     Parameters
     ----------
