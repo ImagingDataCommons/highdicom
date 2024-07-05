@@ -89,9 +89,7 @@ def test_volume_from_attributes(
 
 
 def test_volume_with_channels():
-
     array = np.zeros((10, 10, 10, 2))
-
     volume = VolumeArray.from_attributes(
         array=array,
         image_position=(0.0, 0.0, 0.0),
@@ -102,6 +100,25 @@ def test_volume_with_channels():
     assert volume.shape == (10, 10, 10, 2)
     assert volume.spatial_shape == (10, 10, 10)
     assert volume.number_of_channels == 2
+
+
+def test_with_array():
+    array = np.zeros((10, 10, 10))
+    volume = VolumeArray.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+    )
+    new_array = np.zeros((10, 10, 10, 2), dtype=np.uint8)
+    new_volume = volume.with_array(new_array)
+    assert new_volume.number_of_channels == 2
+    assert isinstance(new_volume, VolumeArray)
+    assert volume.spatial_shape == new_volume.spatial_shape
+    assert np.array_equal(volume.affine, new_volume.affine)
+    assert volume.affine is not new_volume.affine
+    assert new_volume.dtype == np.uint8
 
 
 def test_volume_single_frame():

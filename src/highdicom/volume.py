@@ -1,4 +1,6 @@
+from copy import deepcopy
 from typing import List, Optional, Sequence, Union, Tuple
+
 import numpy as np
 
 from highdicom._module_utils import is_multiframe_image
@@ -750,6 +752,11 @@ class VolumeArray:
         return np.linalg.inv(self._affine)
 
     @property
+    def dtype(self) -> type:
+        """type: Datatype of the array."""
+        return self._array.dtype
+
+    @property
     def shape(self) -> Tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
@@ -777,6 +784,28 @@ class VolumeArray:
         if self._array.ndim == 4:
             return self._array.shape[3]
         return None
+
+    def set_array(self, array: np.ndarray) -> None:
+        # TODO make this a proper setter and getter
+        """Change the voxel array without changing the affine.
+
+        Parameters
+        ----------
+        array: np.ndarray
+            New 3D or 4D array of voxel data. The spatial shape must match the
+            existing array, but the presence and number of channels and/or the
+            voxel datatype may differ.
+
+        """
+        if array.ndim not in (3, 4):
+            raise ValueError(
+                "Argument 'array' must be a three or four dimensional array."
+            )
+        if array.shape[:3] != self.spatial_shape:
+            raise ValueError(
+                "Array must match the spatial shape of the existing array."
+            )
+        self._array = array
 
     @property
     def array(self) -> np.ndarray:
@@ -877,3 +906,33 @@ class VolumeArray:
         dir_mat = self._affine[:3, :3]
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
+
+    def with_array(self, array: np.ndarray) -> 'VolumeArray':
+        """Get a new volume using a different array.
+
+        The spatial and other metadata will be copied from this volume.
+        The original volume will be unaltered.
+
+        Parameters
+        ----------
+        array: np.ndarray
+            New 3D or 4D array of voxel data. The spatial shape must match the
+            existing array, but the presence and number of channels and/or the
+            voxel datatype may differ.
+
+        """
+        if array.ndim not in (3, 4):
+            raise ValueError(
+                "Argument 'array' must be a three or four dimensional array."
+            )
+        if array.shape[:3] != self.spatial_shape:
+            raise ValueError(
+                "Array must match the spatial shape of the existing array."
+            )
+        return self.__class__(
+            array=array,
+            affine=self._affine.copy(),
+            frame_of_reference_uid=self.frame_of_reference_uid,
+            sop_instance_uids=deepcopy(self.sop_instance_uids),
+            frame_numbers=deepcopy(self.frame_numbers),
+        )
