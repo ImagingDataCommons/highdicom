@@ -65,77 +65,99 @@ def test_transforms():
         ),
     ],
 )
-def test_geometry_from_attributes(
+def test_volume_from_attributes(
     image_position,
     image_orientation,
     pixel_spacing,
     spacing_between_slices,
 ):
     array = np.zeros((10, 10, 10))
-    geometry = VolumeArray.from_attributes(
+    volume = VolumeArray.from_attributes(
         array=array,
         image_position=image_position,
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
         spacing_between_slices=spacing_between_slices,
     )
-    assert geometry.position == list(image_position)
-    assert geometry.direction_cosines == list(image_orientation)
-    assert geometry.pixel_spacing == list(pixel_spacing)
-    assert geometry.spacing_between_slices == spacing_between_slices
+    assert volume.position == list(image_position)
+    assert volume.direction_cosines == list(image_orientation)
+    assert volume.pixel_spacing == list(pixel_spacing)
+    assert volume.spacing_between_slices == spacing_between_slices
+    assert volume.shape == (10, 10, 10)
+    assert volume.spatial_shape == (10, 10, 10)
+    assert volume.number_of_channels is None
 
 
-def test_volume_geometry_single_frame():
+def test_volume_with_channels():
+
+    array = np.zeros((10, 10, 10, 2))
+
+    volume = VolumeArray.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+    )
+    assert volume.shape == (10, 10, 10, 2)
+    assert volume.spatial_shape == (10, 10, 10)
+    assert volume.number_of_channels == 2
+
+
+def test_volume_single_frame():
     ct_files = [
         get_testdata_file('dicomdirtests/77654033/CT2/17136'),
         get_testdata_file('dicomdirtests/77654033/CT2/17196'),
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    geometry = VolumeArray.from_image_series(ct_series)
-    assert isinstance(geometry, VolumeArray)
+    volume = VolumeArray.from_image_series(ct_series)
+    assert isinstance(volume, VolumeArray)
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
-    assert geometry.shape == (len(ct_files), rows, columns)
-    assert geometry.frame_numbers is None
+    assert volume.shape == (len(ct_files), rows, columns)
+    assert volume.spatial_shape == volume.shape
+    assert volume.number_of_channels is None
+    assert volume.frame_numbers is None
     sop_instance_uids = [
         ct_series[0].SOPInstanceUID,
         ct_series[2].SOPInstanceUID,
         ct_series[1].SOPInstanceUID,
     ]
-    assert geometry.sop_instance_uids == sop_instance_uids
-    assert geometry.get_index_for_sop_instance_uid(
+    assert volume.sop_instance_uids == sop_instance_uids
+    assert volume.get_index_for_sop_instance_uid(
         ct_series[2].SOPInstanceUID
     ) == 1
     with pytest.raises(RuntimeError):
-        geometry.get_index_for_frame_number(2)
+        volume.get_index_for_frame_number(2)
     orientation = ct_series[0].ImageOrientationPatient
-    assert geometry.direction_cosines == orientation
-    direction = geometry.direction
+    assert volume.direction_cosines == orientation
+    direction = volume.direction
     assert np.array_equal(direction[:, 1], orientation[3:])
     assert np.array_equal(direction[:, 2], orientation[:3])
     # Check third direction is normal to others
     assert direction[:, 0] @ direction[:, 1] == 0.0
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
-    assert geometry.position == ct_series[0].ImagePositionPatient
-    assert geometry.pixel_spacing == ct_series[0].PixelSpacing
+    assert volume.position == ct_series[0].ImagePositionPatient
+    assert volume.pixel_spacing == ct_series[0].PixelSpacing
     slice_spacing = 1.25
-    assert geometry.spacing == [slice_spacing, *ct_series[0].PixelSpacing[::-1]]
+    assert volume.spacing == [slice_spacing, *ct_series[0].PixelSpacing[::-1]]
 
 
-def test_volume_geometry_multiframe():
+def test_volume_multiframe():
     dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-    geometry = VolumeArray.from_image(dcm)
-    assert isinstance(geometry, VolumeArray)
+    volume = VolumeArray.from_image(dcm)
+    assert isinstance(volume, VolumeArray)
     rows, columns = dcm.Rows, dcm.Columns
-    assert geometry.shape == (dcm.NumberOfFrames, rows, columns)
-    assert geometry.frame_numbers == [2, 1]
-    assert geometry.sop_instance_uids is None
+    assert volume.shape == (dcm.NumberOfFrames, rows, columns)
+    assert volume.spatial_shape == volume.shape
+    assert volume.frame_numbers == [2, 1]
+    assert volume.sop_instance_uids is None
     with pytest.raises(RuntimeError):
-        geometry.get_index_for_sop_instance_uid(
+        volume.get_index_for_sop_instance_uid(
             dcm.SOPInstanceUID
         )
-    assert geometry.get_index_for_frame_number(2) == 0
+    assert volume.get_index_for_frame_number(2) == 0
     orientation = (
         dcm
         .SharedFunctionalGroupsSequence[0]
@@ -148,22 +170,23 @@ def test_volume_geometry_multiframe():
         .PixelMeasuresSequence[0]
         .PixelSpacing
     )
-    assert geometry.direction_cosines == orientation
-    direction = geometry.direction
+    assert volume.direction_cosines == orientation
+    direction = volume.direction
     assert np.array_equal(direction[:, 1], orientation[3:])
     assert np.array_equal(direction[:, 2], orientation[:3])
     # Check third direction is normal to others
     assert direction[:, 0] @ direction[:, 1] == 0.0
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
-    first_frame = geometry.frame_numbers[0]
+    first_frame = volume.frame_numbers[0]
     first_frame_pos = (
         dcm
         .PerFrameFunctionalGroupsSequence[first_frame - 1]
         .PlanePositionSequence[0]
         .ImagePositionPatient
     )
-    assert geometry.position == first_frame_pos
-    assert geometry.pixel_spacing == pixel_spacing
+    assert volume.position == first_frame_pos
+    assert volume.pixel_spacing == pixel_spacing
     slice_spacing = 10.0
-    assert geometry.spacing == [slice_spacing, *pixel_spacing[::-1]]
+    assert volume.spacing == [slice_spacing, *pixel_spacing[::-1]]
+    assert volume.number_of_channels is None

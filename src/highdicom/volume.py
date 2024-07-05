@@ -79,7 +79,9 @@ class VolumeArray:
         Parameters
         ----------
         array: numpy.ndarray
-            Three dimensional array of voxel data.
+            Array of voxel data. Must be either 3D (three spatial dimensions),
+            or 4D (three spatial dimensions followed by a channel dimension).
+            Any datatype is permitted.
         affine: numpy.ndarray
             4 x 4 affine matrix representing the transformation from pixel
             indices (slice index, row index, column index) to the
@@ -100,9 +102,9 @@ class VolumeArray:
             DICOM image.
 
         """
-        if array.ndim != 3:
+        if array.ndim not in (3, 4):
             raise ValueError(
-                "Argument 'array' must be three-dimensional."
+                "Argument 'array' must be three or four-dimensional."
             )
 
         if affine.shape != (4, 4):
@@ -748,9 +750,33 @@ class VolumeArray:
         return np.linalg.inv(self._affine)
 
     @property
-    def shape(self) -> Tuple[int, int, int]:
-        """Tuple[int, int, int]: Shape of the volume."""
+    def shape(self) -> Tuple[int, ...]:
+        """Tuple[int, ...]: Shape of the underlying array.
+
+        May or may not include a fourth channel dimension.
+
+        """
         return tuple(self._array.shape)
+
+    @property
+    def spatial_shape(self) -> Tuple[int, int, int]:
+        """Tuple[int, int, int]: Spatial shape of the array.
+
+        Does not include the channel dimension.
+
+        """
+        return tuple(self._array.shape[:3])
+
+    @property
+    def number_of_channels(self) -> Optional[int]:
+        """Optional[int]: Number of channels.
+
+        If the array has no channel dimension, returns None.
+
+        """
+        if self._array.ndim == 4:
+            return self._array.shape[3]
+        return None
 
     @property
     def array(self) -> np.ndarray:
