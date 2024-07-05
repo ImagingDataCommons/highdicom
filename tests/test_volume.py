@@ -4,7 +4,7 @@ from pydicom.data import get_testdata_file
 import pytest
 
 
-from highdicom.volume import VolumeArray
+from highdicom.volume import VolumeArray, concat_channels
 
 
 def test_transforms():
@@ -119,6 +119,11 @@ def test_with_array():
     assert np.array_equal(volume.affine, new_volume.affine)
     assert volume.affine is not new_volume.affine
     assert new_volume.dtype == np.uint8
+
+    concat_volume = concat_channels([volume, new_volume])
+    assert isinstance(concat_volume, VolumeArray)
+    assert volume.spatial_shape == concat_volume.spatial_shape
+    assert concat_volume.number_of_channels == 3
 
 
 def test_volume_single_frame():

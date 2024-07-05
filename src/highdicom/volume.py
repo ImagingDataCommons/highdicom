@@ -920,6 +920,11 @@ class VolumeArray:
             existing array, but the presence and number of channels and/or the
             voxel datatype may differ.
 
+        Returns
+        -------
+        highdicom.volume.VolumeArray:
+            New volume using the given array and the metadata of this volume.
+
         """
         if array.ndim not in (3, 4):
             raise ValueError(
@@ -936,3 +941,62 @@ class VolumeArray:
             sop_instance_uids=deepcopy(self.sop_instance_uids),
             frame_numbers=deepcopy(self.frame_numbers),
         )
+
+
+def concat_channels(volumes: Sequence[VolumeArray]) -> VolumeArray:
+    """Form a new volume by concatenating channels of existing volumes.
+
+    Parameters
+    ----------
+    volumes: Sequence[highdicom.volume.VolumeArray]
+        Sequence of one or more volumes to concatenate. Volumes must
+        share the same spatial shape and affine matrix, but may differ
+        by number and presence of channels.
+
+    Returns
+    -------
+    highdicom.volume.VolumeArray:
+        Volume array formed by concatenating the arrays.
+
+    """
+    if len(volumes) < 1:
+        raise ValueError("Argument 'volumes' should not be empty.")
+    spatial_shape = volumes[0].spatial_shape
+    affine = volumes[0].affine.copy()
+    frame_of_reference_uids = [
+        v.frame_of_reference_uid for v in volumes
+        if v.frame_of_reference_uid is not None
+    ]
+    if len(set(frame_of_reference_uids)) > 1:
+        raise ValueError(
+            "Volumes have differing frame of reference UIDs."
+        )
+    if len(frame_of_reference_uids) > 0:
+        frame_of_reference_uid = frame_of_reference_uids[0]
+    else:
+        frame_of_reference_uid = None
+    if not all(v.spatial_shape == spatial_shape for v in volumes):
+        raise ValueError(
+            "All items in 'volumes' should have the same spatial "
+            "shape."
+        )
+    if not all(np.allclose(v.affine, affine) for v in volumes):
+        raise ValueError(
+            "All items in 'volumes' should have the same affine "
+            "matrix."
+        )
+
+    arrays = []
+    for v in volumes:
+        array = v.array
+        if array.ndim == 3:
+            array = array[:, :, :, None]
+
+        arrays.append(array)
+
+    concat_array = np.concatenate(arrays, axis=3)
+    return VolumeArray(
+        array=concat_array,
+        affine=affine,
+        frame_of_reference_uid=frame_of_reference_uid,
+    )
