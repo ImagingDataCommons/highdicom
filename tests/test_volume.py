@@ -4,12 +4,12 @@ from pydicom.data import get_testdata_file
 import pytest
 
 
-from highdicom.volume import VolumeArray, concat_channels
+from highdicom.volume import Volume, concat_channels
 
 
 def test_transforms():
     array = np.zeros((25, 50, 50))
-    volume = VolumeArray.from_attributes(
+    volume = Volume.from_attributes(
         array=array,
         image_position=[0.0, 0.0, 0.0],
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -72,7 +72,7 @@ def test_volume_from_attributes(
     spacing_between_slices,
 ):
     array = np.zeros((10, 10, 10))
-    volume = VolumeArray.from_attributes(
+    volume = Volume.from_attributes(
         array=array,
         image_position=image_position,
         image_orientation=image_orientation,
@@ -90,7 +90,7 @@ def test_volume_from_attributes(
 
 def test_volume_with_channels():
     array = np.zeros((10, 10, 10, 2))
-    volume = VolumeArray.from_attributes(
+    volume = Volume.from_attributes(
         array=array,
         image_position=(0.0, 0.0, 0.0),
         image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
@@ -104,7 +104,7 @@ def test_volume_with_channels():
 
 def test_with_array():
     array = np.zeros((10, 10, 10))
-    volume = VolumeArray.from_attributes(
+    volume = Volume.from_attributes(
         array=array,
         image_position=(0.0, 0.0, 0.0),
         image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
@@ -114,14 +114,14 @@ def test_with_array():
     new_array = np.zeros((10, 10, 10, 2), dtype=np.uint8)
     new_volume = volume.with_array(new_array)
     assert new_volume.number_of_channels == 2
-    assert isinstance(new_volume, VolumeArray)
+    assert isinstance(new_volume, Volume)
     assert volume.spatial_shape == new_volume.spatial_shape
     assert np.array_equal(volume.affine, new_volume.affine)
     assert volume.affine is not new_volume.affine
     assert new_volume.dtype == np.uint8
 
     concat_volume = concat_channels([volume, new_volume])
-    assert isinstance(concat_volume, VolumeArray)
+    assert isinstance(concat_volume, Volume)
     assert volume.spatial_shape == concat_volume.spatial_shape
     assert concat_volume.number_of_channels == 3
 
@@ -133,8 +133,8 @@ def test_volume_single_frame():
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    volume = VolumeArray.from_image_series(ct_series)
-    assert isinstance(volume, VolumeArray)
+    volume = Volume.from_image_series(ct_series)
+    assert isinstance(volume, Volume)
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
     assert volume.shape == (len(ct_files), rows, columns)
     assert volume.spatial_shape == volume.shape
@@ -168,8 +168,8 @@ def test_volume_single_frame():
 
 def test_volume_multiframe():
     dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-    volume = VolumeArray.from_image(dcm)
-    assert isinstance(volume, VolumeArray)
+    volume = Volume.from_image(dcm)
+    assert isinstance(volume, Volume)
     rows, columns = dcm.Rows, dcm.Columns
     assert volume.shape == (dcm.NumberOfFrames, rows, columns)
     assert volume.spatial_shape == volume.shape

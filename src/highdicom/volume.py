@@ -22,13 +22,13 @@ from highdicom.content import PlanePositionSequence
 from pydicom import Dataset
 
 
-class VolumeArray:
+class Volume:
 
     """Class representing a 3D array of regularly-spaced frames in 3D space.
 
     This class combines a 3D NumPy array with an affine matrix describing the
     location of the voxels in the frame of reference coordinate space. A
-    VolumeArray is not a DICOM object itself, but represents a volume that may
+    Volume is not a DICOM object itself, but represents a volume that may
     be extracted from DICOM image, and/or encoded within a DICOM object,
     potentially following any number of processing steps.
 
@@ -160,7 +160,7 @@ class VolumeArray:
     def from_image_series(
         cls,
         series_datasets: Sequence[Dataset],
-    ) -> "VolumeArray":
+    ) -> "Volume":
         """Get volume geometry for a series of single frame images.
 
         Parameters
@@ -171,7 +171,7 @@ class VolumeArray:
 
         Returns
         -------
-        VolumeArray:
+        Volume:
             Object representing the geometry of the series.
 
         """
@@ -223,7 +223,7 @@ class VolumeArray:
     def from_image(
         cls,
         dataset: Dataset,
-    ) -> "VolumeArray":
+    ) -> "Volume":
         """Get volume geometry for a multiframe image.
 
         Parameters
@@ -233,7 +233,7 @@ class VolumeArray:
 
         Returns
         -------
-        VolumeArray:
+        Volume:
             Object representing the geometry of the image.
 
         """
@@ -315,7 +315,7 @@ class VolumeArray:
         frame_of_reference_uid: Optional[str] = None,
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
-    ) -> "VolumeArray":
+    ) -> "Volume":
         """Create a volume geometry from DICOM attributes.
 
         Parameters
@@ -385,8 +385,8 @@ class VolumeArray:
         frame_of_reference_uid: Optional[str] = None,
         sop_instance_uids: Optional[Sequence[str]] = None,
         frame_numbers: Optional[Sequence[int]] = None,
-    ) -> "VolumeArray":
-        """Construct a VolumeArray from components.
+    ) -> "Volume":
+        """Construct a Volume from components.
 
         Parameters
         ----------
@@ -406,7 +406,7 @@ class VolumeArray:
             Spacing between pixel centers in the the frame of reference
             coordinate system along each of the dimensions of the array.
         shape: Sequence[int]
-            Sequence of three integers giving the shape of the volume array.
+            Sequence of three integers giving the shape of the volume.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
         sop_instance_uids: Union[Sequence[str], None], optional
@@ -420,7 +420,7 @@ class VolumeArray:
 
         Returns
         -------
-        highdicom.spatial.VolumeArray:
+        highdicom.spatial.Volume:
             Volume geometry constructed from the provided components.
 
         """
@@ -907,7 +907,7 @@ class VolumeArray:
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
 
-    def with_array(self, array: np.ndarray) -> 'VolumeArray':
+    def with_array(self, array: np.ndarray) -> 'Volume':
         """Get a new volume using a different array.
 
         The spatial and other metadata will be copied from this volume.
@@ -922,7 +922,7 @@ class VolumeArray:
 
         Returns
         -------
-        highdicom.volume.VolumeArray:
+        highdicom.volume.Volume:
             New volume using the given array and the metadata of this volume.
 
         """
@@ -943,20 +943,20 @@ class VolumeArray:
         )
 
 
-def concat_channels(volumes: Sequence[VolumeArray]) -> VolumeArray:
+def concat_channels(volumes: Sequence[Volume]) -> Volume:
     """Form a new volume by concatenating channels of existing volumes.
 
     Parameters
     ----------
-    volumes: Sequence[highdicom.volume.VolumeArray]
+    volumes: Sequence[highdicom.volume.Volume]
         Sequence of one or more volumes to concatenate. Volumes must
         share the same spatial shape and affine matrix, but may differ
         by number and presence of channels.
 
     Returns
     -------
-    highdicom.volume.VolumeArray:
-        Volume array formed by concatenating the arrays.
+    highdicom.volume.Volume:
+        New volume formed by concatenating the input volumes.
 
     """
     if len(volumes) < 1:
@@ -995,7 +995,7 @@ def concat_channels(volumes: Sequence[VolumeArray]) -> VolumeArray:
         arrays.append(array)
 
     concat_array = np.concatenate(arrays, axis=3)
-    return VolumeArray(
+    return Volume(
         array=concat_array,
         affine=affine,
         frame_of_reference_uid=frame_of_reference_uid,
