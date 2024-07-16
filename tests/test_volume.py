@@ -368,6 +368,29 @@ def test_indexing_source_dimension_2():
     assert np.array_equal(subvolume.array, array[12:14, :, 12:6:-2])
 
 
+def test_array_setter():
+    array = np.random.randint(0, 100, (50, 50, 25))
+    affine = np.array([
+        [ 0.0,  0.0,  1.0,  0.0],
+        [ 0.0,  1.0,  0.0,  0.0],
+        [10.0,  0.0,  0.0, 30.0],
+        [ 0.0,  0.0,  0.0,  1.0],
+    ])
+
+    volume = Volume(
+        array=array,
+        affine=affine,
+    )
+
+    new_array = np.random.randint(0, 100, (50, 50, 25))
+    volume.array = new_array
+    assert np.array_equal(volume.array, new_array)
+
+    new_array = np.random.randint(0, 100, (25, 50, 50))
+    with pytest.raises(ValueError):
+        volume.array = new_array
+
+
 @pytest.mark.parametrize(
     'desired',
     [

@@ -869,8 +869,13 @@ class Volume:
         """
         return self._source_frame_dimension
 
-    def set_array(self, array: np.ndarray) -> None:
-        # TODO make this a proper setter and getter
+    @property
+    def array(self) -> np.ndarray:
+        """numpy.ndarray: Volume array."""
+        return self._array
+
+    @array.setter
+    def array(self, value: np.ndarray) -> None:
         """Change the voxel array without changing the affine.
 
         Parameters
@@ -881,20 +886,15 @@ class Volume:
             voxel datatype may differ.
 
         """
-        if array.ndim not in (3, 4):
+        if value.ndim not in (3, 4):
             raise ValueError(
                 "Argument 'array' must be a three or four dimensional array."
             )
-        if array.shape[:3] != self.spatial_shape:
+        if value.shape[:3] != self.spatial_shape:
             raise ValueError(
                 "Array must match the spatial shape of the existing array."
             )
-        self._array = array
-
-    @property
-    def array(self) -> np.ndarray:
-        """numpy.ndarray: Volume array (copied)."""
-        return self._array.copy()
+        self._array = value
 
     @property
     def source_sop_instance_uids(self) -> Union[List[str], None]:
