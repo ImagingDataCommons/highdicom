@@ -30,6 +30,12 @@ from highdicom.content import (
 
 from pydicom import Dataset
 
+# TODO add segmentation get_volume
+# TODO add basic arithmetric operations
+# TODO add normalization
+# TODO add padding
+# TODO add pixel value transformations
+
 
 class Volume:
 
