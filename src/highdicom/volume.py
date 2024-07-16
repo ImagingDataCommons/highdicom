@@ -11,6 +11,7 @@ from highdicom.enum import (
 from highdicom.spatial import (
     _create_affine_transformation_matrix,
     _is_matrix_orthogonal,
+    _transform_affine_matrix,
     get_image_coordinate_system,
     get_plane_sort_index,
     get_regular_slice_spacing,
@@ -1009,8 +1010,8 @@ class Volume:
             index_list = []
             for item in index:
                 if isinstance(item, int):
-                    # Change the index to a slice of length one so that all dimensions
-                    # are retained in the output array.
+                    # Change the index to a slice of length one so that all
+                    # dimensions are retained in the output array.
                     item = slice(item, item + 1)
                     index_list.append(item)
                 elif isinstance(item, slice):
@@ -1085,7 +1086,7 @@ class Volume:
             ]
         )
 
-        return Volume(
+        return self.__class__(
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
@@ -1093,6 +1094,60 @@ class Volume:
             source_frame_numbers=new_frame_numbers,
             source_frame_dimension=self.source_frame_dimension or 0,
         )
+
+    def permute(self, indices: Sequence[int]) -> 'Volume':
+        # TODO add tests for this
+        """Create a new volume by permuting the axes.
+
+        Parameters
+        ----------
+        indices: Sequence[int]
+            List of three integers containing the values 0, 1 and 2
+            in some order.
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            New volume with spatial axes permuted in the provided order.
+
+        """
+        if len(indices) != 3 or set(indices) != {0, 1, 2}:
+            raise ValueError(
+                f'Argument "indices" must consist of the values 0, 1, and 2 '
+                'in some order.'
+            )
+
+        if self._array.ndim == 3:
+            new_array = self._array.permute(indices)
+        else:
+            new_array = self._array.permute([*indices, 3])
+
+        new_affine = _transform_affine_matrix(
+            affine=self._affine,
+            shape=self.spatial_shape,
+            permute_indices=indices,
+        )
+
+        if self.source_frame_dimension is None:
+            new_source_frame_dimension = 0
+        else:
+            new_source_frame_dimension = indices.index(
+                self.source_frame_dimension
+            )
+
+        return self.__class__(
+            array=new_array,
+            affine=new_affine,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+            source_sop_instance_uids=self.source_sop_instance_uids,
+            source_frame_numbers=self.source_frame_numbers,
+            source_frame_dimension=new_source_frame_dimension,
+        )
+
+    def flip(self, axis: Union[int, Sequence[int]]) -> 'Volume':
+        # TODO
+        # Remember to flip source lists
+        pass
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:
