@@ -1097,13 +1097,14 @@ class Volume:
 
     def permute(self, indices: Sequence[int]) -> 'Volume':
         # TODO add tests for this
-        """Create a new volume by permuting the axes.
+        """Create a new volume by permuting the spatial axes.
 
         Parameters
         ----------
         indices: Sequence[int]
-            List of three integers containing the values 0, 1 and 2
-            in some order.
+            List of three integers containing the values 0, 1 and 2 in some
+            order. Note that you may not change the position of the channel
+            axis (if present).
 
         Returns
         -------
@@ -1145,9 +1146,41 @@ class Volume:
         )
 
     def flip(self, axis: Union[int, Sequence[int]]) -> 'Volume':
-        # TODO
-        # Remember to flip source lists
-        pass
+        """Flip the spatial axes of the array.
+
+        Note that this flips the array and updates the affine to reflect the
+        flip.
+
+        Parameters
+        ----------
+        axis: Union[int, Sequence[int]]
+            Axis or list of axes that should be flipped. These should include
+            only the spatial axes (0, 1, and/or 2).
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            New volume with spatial axes flipped as requested.
+
+        """
+        if isinstance(axis, int):
+            axis = [axis]
+
+        if len(axis) > 3 or len(set(axis) - {0, 1, 2}) > 0:
+            raise ValueError(
+                'Arugment "axis" must contain only values 0, 1, and/or 2.'
+            )
+
+        # We will re-use the existing __getitem__ implementation, which has all
+        # this logic figured out already
+        index = []
+        for d in range(3):
+            if d in axis:
+                index.append(slice(-1, None, -1))
+            else:
+                index.append(slice(None))
+
+        return self[tuple(index)]
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:
