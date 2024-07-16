@@ -29,6 +29,17 @@ _DEFAULT_EQUALITY_TOLERANCE = 1e-5
 """Tolerance value used by default in tests for equality"""
 
 
+PATIENT_ORIENTATION_OPPOSITES = {
+    PatientOrientationValuesBiped.L: PatientOrientationValuesBiped.R,
+    PatientOrientationValuesBiped.R: PatientOrientationValuesBiped.L,
+    PatientOrientationValuesBiped.A: PatientOrientationValuesBiped.P,
+    PatientOrientationValuesBiped.P: PatientOrientationValuesBiped.A,
+    PatientOrientationValuesBiped.F: PatientOrientationValuesBiped.H,
+    PatientOrientationValuesBiped.H: PatientOrientationValuesBiped.F,
+}
+"""Mapping of each patient orientation value to its opposite."""
+
+
 def is_tiled_image(dataset: Dataset) -> bool:
     """Determine whether a dataset represents a tiled image.
 
@@ -772,7 +783,7 @@ def get_closest_patient_orientation(affine: np.ndarray) -> Tuple[
     ):
         raise ValueError(f"Invalid shape for array: {affine.shape}")
 
-    if not _is_matrix_orthogonal(affine, require_unit=False):
+    if not _is_matrix_orthogonal(affine[:3, :3], require_unit=False):
         raise ValueError('Matrix is not orthogonal.')
 
     # Matrix representing alignment of dot product of rotation vector i with
@@ -1228,15 +1239,6 @@ def _transform_affine_to_convention(
         PixelIndexDirections.I: PixelIndexDirections.O,
         PixelIndexDirections.O: PixelIndexDirections.I,
     }
-    pfrd = PatientOrientationValuesBiped  # shorthand
-    reference_opposites = {
-        pfrd.L: pfrd.R,
-        pfrd.R: pfrd.L,
-        pfrd.A: pfrd.P,
-        pfrd.P: pfrd.A,
-        pfrd.F: pfrd.H,
-        pfrd.H: pfrd.F,
-    }
 
     if (from_index_convention is None) != (to_index_convention is None):
         raise TypeError(
@@ -1289,7 +1291,7 @@ def _transform_affine_to_convention(
         permute_reference = []
         for d, flipped in zip(to_reference_normed, flip_reference):
             if flipped:
-                d_ = reference_opposites[d]
+                d_ = PATIENT_ORIENTATION_OPPOSITES[d]
                 permute_reference.append(from_reference_normed.index(d_))
             else:
                 permute_reference.append(from_reference_normed.index(d))

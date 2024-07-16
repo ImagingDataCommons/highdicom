@@ -6,12 +6,16 @@ import numpy as np
 from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
     CoordinateSystemNames,
+    PatientOrientationValuesBiped,
     PixelIndexDirections,
 )
 from highdicom.spatial import (
     _create_affine_transformation_matrix,
     _is_matrix_orthogonal,
+    _normalize_patient_orientation,
     _transform_affine_matrix,
+    PATIENT_ORIENTATION_OPPOSITES,
+    get_closest_patient_orientation,
     get_image_coordinate_system,
     get_plane_sort_index,
     get_regular_slice_spacing,
@@ -948,6 +952,21 @@ class Volume:
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
 
+    def get_closest_patient_orientation(self) -> Tuple[
+        PatientOrientationValuesBiped,
+        PatientOrientationValuesBiped,
+        PatientOrientationValuesBiped,
+    ]:
+        """Get patient orientation codes that best represent the affine.
+
+        Returns
+        -------
+        Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped]:
+            Tuple giving the closest patient orientation.
+
+        """
+        return get_closest_patient_orientation(self._affine)
+
     def with_array(self, array: np.ndarray) -> 'Volume':
         """Get a new volume using a different array.
 
@@ -1119,9 +1138,9 @@ class Volume:
             )
 
         if self._array.ndim == 3:
-            new_array = self._array.permute(indices)
+            new_array = np.transpose(self._array, indices)
         else:
-            new_array = self._array.permute([*indices, 3])
+            new_array = np.transpose(self._array, [*indices, 3])
 
         new_affine = _transform_affine_matrix(
             affine=self._affine,
@@ -1181,6 +1200,53 @@ class Volume:
                 index.append(slice(None))
 
         return self[tuple(index)]
+
+    def to_patient_orientation(
+        self,
+        patient_orientation: Union[
+            str,
+            Sequence[Union[str, PatientOrientationValuesBiped]],
+        ],
+    ) -> 'Volume':
+        """Rearrange the array to a given orientation.
+
+        The resulting volume is formed from this volume through a combination
+        of axis permutations and flips of the spatial axes. Its patient
+        orientation will be as close to the desired orientation as can be
+        achieved with these operations alone (and in particular without
+        resampling the array).
+
+        Parameters
+        ----------
+        patient_orientation: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
+            Desired patient orientation, as either a sequence of three
+            highdicom.enum.PatientOrientationValuesBiped values, or a string
+            such as ``"FPL"`` using the same characters.
+
+        """
+        desired_orientation = _normalize_patient_orientation(
+            patient_orientation
+        )
+
+        current_orientation = self.get_closest_patient_orientation()
+
+        permute_indices = []
+        flip_axes = []
+        for d in desired_orientation:
+            if d in current_orientation:
+                from_index = current_orientation.index(d)
+            else:
+                d_inv = PATIENT_ORIENTATION_OPPOSITES[d]
+                from_index = current_orientation.index(d_inv)
+                flip_axes.append(from_index)
+            permute_indices.append(from_index)
+
+        if len(flip_axes) > 0:
+            result = self.flip(flip_axes)
+        else:
+            result = self
+
+        return result.permute(permute_indices)
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:

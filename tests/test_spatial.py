@@ -984,5 +984,3 @@ def test_transform_affine_matrix():
         ]
     )
     assert np.array_equal(transformed, expected)
-
-

@@ -4,6 +4,7 @@ from pydicom.data import get_testdata_file
 import pytest
 
 
+from highdicom.spatial import _normalize_patient_orientation
 from highdicom.volume import Volume, concat_channels
 from highdicom import UID
 
@@ -365,3 +366,42 @@ def test_indexing_source_dimension_2():
         sop_instance_uids[12:6:-2]
     )
     assert np.array_equal(subvolume.array, array[12:14, :, 12:6:-2])
+
+
+@pytest.mark.parametrize(
+    'desired',
+    [
+        'RAF',
+        'RAH',
+        'RPF',
+        'RPH',
+        'LAF',
+        'LAH',
+        'LPF',
+        'LPH',
+        'HLP',
+        'FPR',
+        'HRP',
+    ]
+)
+def test_to_patient_orientation(desired):
+    array = np.random.randint(0, 100, (25, 50, 50))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=[0.0, 0.0, 0.0],
+        image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        pixel_spacing=[1.0, 1.0],
+        spacing_between_slices=10.0,
+        source_frame_numbers=list(range(1, 26)),
+    )
+    desired_tup = _normalize_patient_orientation(desired)
+
+    flipped = volume.to_patient_orientation(desired)
+    print(volume.affine)
+    print(flipped.affine)
+    assert isinstance(flipped, Volume)
+    assert flipped.get_closest_patient_orientation() == desired_tup
+
+    flipped = volume.to_patient_orientation(desired_tup)
+    assert isinstance(flipped, Volume)
+    assert flipped.get_closest_patient_orientation() == desired_tup
