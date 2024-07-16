@@ -17,7 +17,7 @@ from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
     CoordinateSystemNames,
     PixelIndexDirections,
-    PatientFrameOfReferenceDirections,
+    PatientOrientationValuesBiped,
 )
 
 
@@ -698,24 +698,24 @@ def _normalize_pixel_index_convention(
     return c
 
 
-def _normalize_reference_direction_convention(
-    c: Union[str, Sequence[Union[str, PatientFrameOfReferenceDirections]]],
+def _normalize_patient_orientation(
+    c: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
 ) -> Tuple[
-    PatientFrameOfReferenceDirections,
-    PatientFrameOfReferenceDirections,
-    PatientFrameOfReferenceDirections,
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesBiped,
 ]:
     """Normalize and check a frame of reference direction convention.
 
     Parameters
     ----------
-    c: Union[str, Sequence[Union[str, highdicom.enum.PatientFrameOfReferenceDirections]]]
+    c: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
         Frame of reference convention description consisting of three directions,
-        either L or R, either A or P, and either I or S, in any order.
+        either L or R, either A or P, and either F or H, in any order.
 
     Returns
     -------
-    Tuple[highdicom.enum.PatientFrameOfReferenceDirections, highdicom.enum.PatientFrameOfReferenceDirections, highdicom.enum.PatientFrameOfReferenceDirections]:
+    Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped]:
         Convention description in a canonical form as a tuple of three enum
         instances. Furthermore this is guaranteed to be a valid description.
 
@@ -723,14 +723,14 @@ def _normalize_reference_direction_convention(
     if len(c) != 3:
         raise ValueError('Length of pixel index convention must be 3.')
 
-    c = tuple(PatientFrameOfReferenceDirections(d) for d in c)
+    c = tuple(PatientOrientationValuesBiped(d) for d in c)
 
     c_set = {d.value for d in c}
 
     criteria = [
         ('L' in c_set) != ('R' in c_set),
         ('A' in c_set) != ('P' in c_set),
-        ('I' in c_set) != ('S' in c_set),
+        ('F' in c_set) != ('H' in c_set),
     ]
     if not all(criteria):
         c_str = [d.value for d in c]
@@ -742,22 +742,25 @@ def _normalize_reference_direction_convention(
     return c
 
 
-def get_closest_directions(affine: np.ndarray) -> Tuple[
-    PatientFrameOfReferenceDirections,
-    PatientFrameOfReferenceDirections,
-    PatientFrameOfReferenceDirections,
+def get_closest_patient_orientation(affine: np.ndarray) -> Tuple[
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesBiped,
+    PatientOrientationValuesBiped,
 ]:
-    """Given an affine matrix, find the
+    """Given an affine matrix, find the closest patient orientation.
 
     Parameters
     ----------
     affine: numpy.ndarray
-        Direction matrix (4x4 affine matrices or a 3x3 direction matrices are
+        Direction matrix (4x4 affine matrices and 3x3 direction matrices are
         acceptable).
 
     Returns
     -------
-    Tuple[PatientFrameOfReferenceDirections, PatientFrameOfReferenceDirections, PatientFrameOfReferenceDirections]:
+    Tuple[PatientOrientationValuesBiped, PatientOrientationValuesBiped, PatientOrientationValuesBiped]:
+        Tuple of PatientOrientationValuesBiped values, giving for each of the
+        three axes of the volume represented by the affine matrix, the closest
+        direction in the patient frame of reference coordinate system.
 
     """
     if (
@@ -769,11 +772,39 @@ def get_closest_directions(affine: np.ndarray) -> Tuple[
     ):
         raise ValueError(f"Invalid shape for array: {affine.shape}")
 
-    result = []
-    for d in range(3):
-        v = affine[:3, d]
-        alignments = v
+    if not _is_matrix_orthogonal(affine, require_unit=False):
+        raise ValueError('Matrix is not orthogonal.')
 
+    # Matrix representing alignment of dot product of rotation vector i with
+    # FoR reference j
+    alignments = np.eye(3) @ affine[:3, :3]
+    sort_indices = np.argsort(-np.abs(alignments), axis=0)
+
+    result = []
+    pos_directions = [
+        PatientOrientationValuesBiped.L,
+        PatientOrientationValuesBiped.P,
+        PatientOrientationValuesBiped.H,
+    ]
+    neg_directions = [
+        PatientOrientationValuesBiped.R,
+        PatientOrientationValuesBiped.A,
+        PatientOrientationValuesBiped.F,
+    ]
+    for d, sortind in enumerate(sort_indices.T):
+        # Check that this axis has not already been used. This can happen if
+        # one or more array axis is at 45% to some FoR axis. In this case take
+        # the next index in the sort list.
+        for i in sortind:
+            if pos_directions[i] not in result and neg_directions[i] not in result:
+                break
+
+        if alignments[i, d] > 0:
+            result.append(pos_directions[i])
+        else:
+            result.append(neg_directions[i])
+
+    return tuple(result)
 
 
 def _is_matrix_orthogonal(
@@ -1160,10 +1191,10 @@ def _transform_affine_to_convention(
         str, Sequence[Union[str, PixelIndexDirections]], None
     ] = None,
     from_reference_convention: Union[
-        str, Sequence[Union[str, PatientFrameOfReferenceDirections]], None
+        str, Sequence[Union[str, PatientOrientationValuesBiped]], None
     ] = None,
     to_reference_convention: Union[
-        str, Sequence[Union[str, PatientFrameOfReferenceDirections]], None
+        str, Sequence[Union[str, PatientOrientationValuesBiped]], None
     ] = None,
 ) -> np.ndarray:
     """Transform an affine matrix between different conventions.
@@ -1178,9 +1209,9 @@ def _transform_affine_to_convention(
         Index convention used in the input affine.
     to_index_convention: Union[str, Sequence[Union[str, PixelIndexDirections]], None], optional
         Desired index convention for the output affine.
-    from_reference_convention: Union[str, Sequence[Union[str, PatientFrameOfReferenceDirections]], None], optional
+    from_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]], None], optional
         Reference convention used in the input affine.
-    to_reference_convention: Union[str, Sequence[Union[str, PatientFrameOfReferenceDirections]], None], optional
+    to_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]], None], optional
         Desired reference convention for the output affine.
 
     Returns
@@ -1197,14 +1228,14 @@ def _transform_affine_to_convention(
         PixelIndexDirections.I: PixelIndexDirections.O,
         PixelIndexDirections.O: PixelIndexDirections.I,
     }
-    pfrd = PatientFrameOfReferenceDirections  # shorthand
+    pfrd = PatientOrientationValuesBiped  # shorthand
     reference_opposites = {
         pfrd.L: pfrd.R,
         pfrd.R: pfrd.L,
         pfrd.A: pfrd.P,
         pfrd.P: pfrd.A,
-        pfrd.I: pfrd.S,
-        pfrd.S: pfrd.I,
+        pfrd.F: pfrd.H,
+        pfrd.H: pfrd.F,
     }
 
     if (from_index_convention is None) != (to_index_convention is None):
@@ -1245,10 +1276,10 @@ def _transform_affine_to_convention(
         from_reference_convention is not None
         and to_reference_convention is not None
     ):
-        from_reference_normed = _normalize_reference_direction_convention(
+        from_reference_normed = _normalize_patient_orientation(
             from_reference_convention
         )
-        to_reference_normed = _normalize_reference_direction_convention(
+        to_reference_normed = _normalize_patient_orientation(
             to_reference_convention
         )
 

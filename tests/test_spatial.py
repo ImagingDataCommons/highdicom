@@ -12,7 +12,10 @@ from highdicom.spatial import (
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
     _are_images_coplanar,
+    _normalize_patient_orientation,
     _transform_affine_matrix,
+    create_rotation_matrix,
+    get_closest_patient_orientation,
     get_series_slice_spacing,
     is_tiled_image,
 )
@@ -719,6 +722,27 @@ def test_map_coordinates_between_images(params, inputs, expected_outputs):
     transform = ImageToImageTransformer(**params)
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+
+@pytest.mark.parametrize(
+    'image_orientation,orientation_str',
+    [
+        ([ 1,  0,  0,  0,  1,  0], 'LPH'),
+        ([ 0,  1,  0,  1,  0,  0], 'PLF'),
+        ([-1,  0,  0,  0,  1,  0], 'RPF'),
+        ([ 0,  0, -1,  1,  0,  0], 'FLA'),
+        ([np.cos(np.pi / 4),  -np.sin(np.pi / 4), 0,  np.sin(np.pi / 4),  np.cos(np.pi / 4),  0], 'LPH'),
+    ]
+)
+def test_get_closest_patient_orientation(
+    image_orientation,
+    orientation_str,
+):
+    codes = _normalize_patient_orientation(orientation_str)
+    rotation_matrix = create_rotation_matrix(image_orientation)
+    assert get_closest_patient_orientation(
+        rotation_matrix
+    ) == codes
 
 
 all_single_image_transformer_classes = [
