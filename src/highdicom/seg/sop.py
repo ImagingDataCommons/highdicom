@@ -87,6 +87,7 @@ from highdicom.valuerep import (
     _check_long_string,
 )
 from highdicom.uid import UID as hd_UID
+from highdicom.volume import Volume
 
 
 logger = logging.getLogger(__name__)
@@ -789,7 +790,7 @@ class Segmentation(SOPClass):
     def __init__(
         self,
         source_images: Sequence[Dataset],
-        pixel_array: np.ndarray,
+        pixel_array: Union[np.ndarray, Volume],
         segmentation_type: Union[str, SegmentationTypeValues],
         segment_descriptions: Sequence[SegmentDescription],
         series_instance_uid: str,
@@ -909,6 +910,13 @@ class Segmentation(SOPClass):
             or the extent to which a segment occupies the pixel
             (if `fractional_type` is ``"OCCUPANCY"``).
 
+            Alternatively, ``pixel_array`` may be an instance of a
+            :class:`highdicom.volume.Volume`. In this case, behavior is the
+            same as if the underlying numpy array is passed, and additionally,
+            the ``pixel_measures``, ``plane_positions`` and
+            ``plane_orientation`` will be computed from the volume, and
+            therefore should not be passed as parameters.
+
         segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
             Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
         segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
@@ -952,23 +960,32 @@ class Segmentation(SOPClass):
             JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``), and
             JPEG LS Lossless (``"1.2.840.10008.1.2.4.00"``).
         pixel_measures: Union[highdicom.PixelMeasures, None], optional
-            Physical spacing of image pixels in `pixel_array`.
-            If ``None``, it will be assumed that the segmentation image has the
-            same pixel measures as the source image(s).
+            Physical spacing of image pixels in `pixel_array`. If ``None``, it
+            will be assumed that the segmentation image has the same pixel
+            measures as the source image(s). If ``pixel_array`` is an instance
+            of :class:`highdicom.volume.Volume`, the pixel measures will be
+            computed from it and therefore this parameter should be left an
+            ``None``.
         plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
             Orientation of planes in `pixel_array` relative to axes of
-            three-dimensional patient or slide coordinate space.
-            If ``None``, it will be assumed that the segmentation image as the
-            same plane orientation as the source image(s).
+            three-dimensional patient or slide coordinate space. If ``None``,
+            it will be assumed that the segmentation image as the same plane
+            orientation as the source image(s). If ``pixel_array`` is an
+            instance of :class:`highdicom.volume.Volume`, the plane orientation
+            will be computed from it and therefore this parameter should be
+            left an ``None``.
         plane_positions: Union[Sequence[highdicom.PlanePositionSequence], None], optional
             Position of each plane in `pixel_array` in the three-dimensional
-            patient or slide coordinate space.
-            If ``None``, it will be assumed that the segmentation image has the
-            same plane position as the source image(s). However, this will only
-            work when the first dimension of `pixel_array` matches the number
-            of frames in `source_images` (in case of multi-frame source images)
-            or the number of `source_images` (in case of single-frame source
-            images).
+            patient or slide coordinate space. If ``None``, it will be assumed
+            that the segmentation image has the same plane position as the
+            source image(s). However, this will only work when the first
+            dimension of `pixel_array` matches the number of frames in
+            `source_images` (in case of multi-frame source images) or the
+            number of `source_images` (in case of single-frame source images).
+            If ``pixel_array`` is an instance of
+            :class:`highdicom.volume.Volume`, the plane positions will be
+            computed from it and therefore this parameter should be left an
+            ``None``.
         omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
@@ -1058,7 +1075,6 @@ class Segmentation(SOPClass):
         The assumption is made that segments in `pixel_array` are defined in
         the same frame of reference as `source_images`.
 
-
         """  # noqa: E501
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
@@ -1096,24 +1112,6 @@ class Segmentation(SOPClass):
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
-            )
-
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
-        if pixel_array.ndim not in [3, 4]:
-            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
-
-        is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
-        if tile_pixel_array and not is_tiled:
-            raise ValueError(
-                'When argument "tile_pixel_array" is True, the source image '
-                'must be a tiled image.'
-            )
-        if tile_pixel_array and pixel_array.shape[0] != 1:
-            raise ValueError(
-                'When argument "tile_pixel_array" is True, the input pixel '
-                'array must contain only one "frame" representing the entire '
-                'entire pixel matrix.'
             )
 
         super().__init__(
@@ -1196,6 +1194,61 @@ class Segmentation(SOPClass):
                     "with the source images."
                 )
             self._coordinate_system = None
+
+        from_volume = isinstance(pixel_array, Volume)
+        if from_volume:
+            if not has_ref_frame_uid:
+                raise ValueError(
+                    "A volume should not be passed if the source image(s) "
+                    "has/have no FrameOfReferenceUID."
+                )
+            if pixel_array.frame_of_reference_uid is not None:
+                if (
+                    pixel_array.frame_of_reference_uid !=
+                    src_img.FrameOfReferenceUID
+                ):
+                    raise ValueError(
+                        "The volume passed as the pixel array has a "
+                        "different frame of reference from the source "
+                        "image."
+                    )
+            if pixel_measures is not None:
+                raise TypeError(
+                    "Argument 'pixel_measures' should not be provided if "
+                    "'pixel_array' is a highdicom.Volume."
+                )
+            if plane_orientation is not None:
+                raise TypeError(
+                    "Argument 'plane_orientation' should not be provided if "
+                    "'pixel_array' is a highdicom.Volume."
+                )
+            if plane_positions is not None:
+                raise TypeError(
+                    "Argument 'plane_positions' should not be provided if "
+                    "'pixel_array' is a highdicom.Volume."
+                )
+            plane_positions = pixel_array.get_plane_positions()
+            plane_orientation = pixel_array.get_plane_orientation()
+            pixel_measures = pixel_array.get_pixel_measures()
+            pixel_array = pixel_array.array
+
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ...]
+        if pixel_array.ndim not in [3, 4]:
+            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
+
+        is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
+        if tile_pixel_array and not is_tiled:
+            raise ValueError(
+                'When argument "tile_pixel_array" is True, the source image '
+                'must be a tiled image.'
+            )
+        if tile_pixel_array and pixel_array.shape[0] != 1:
+            raise ValueError(
+                'When argument "tile_pixel_array" is True, the input pixel '
+                'array must contain only one "frame" representing the '
+                'entire pixel matrix.'
+            )
 
         # Remember whether these values were provided by the user, or inferred
         # from the source image. If inferred, we can skip some checks
@@ -1675,39 +1728,49 @@ class Segmentation(SOPClass):
             rows=self.Rows,
             columns=self.Columns,
         )
-        if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            spacing = get_regular_slice_spacing(
-                image_positions=np.array(
-                    plane_position_values[plane_sort_index, 0, :]
-                ),
-                image_orientation=np.array(
-                    plane_orientation[0].ImageOrientationPatient
-                ),
-                sort=False,
-                enforce_right_handed=True,
-            )
 
-            if spacing is not None and spacing > 0.0:
-                # The image is a regular volume, so we should record this
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            if from_volume:
+                # Skip checks as this is 3D by construction
+                # TODO check handedness
+                # TODO what about omitted frames
                 dimension_organization_type = (
                     DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                 )
-                # Also add the slice spacing to the pixel measures
-                (
-                    self.SharedFunctionalGroupsSequence[0]
-                        .PixelMeasuresSequence[0]
-                        .SpacingBetweenSlices
-                ) = spacing
             else:
-                if (
-                    dimension_organization_type ==
-                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                ):
-                    raise ValueError(
-                        'Dimension organization "3D" has been specified, '
-                        'but the source image is not a regularly-spaced 3D '
-                        'volume.'
+                spacing = get_regular_slice_spacing(
+                    image_positions=np.array(
+                        plane_position_values[plane_sort_index, 0, :]
+                    ),
+                    image_orientation=np.array(
+                        plane_orientation[0].ImageOrientationPatient
+                    ),
+                    sort=False,
+                    enforce_right_handed=True,
+                )
+
+                if spacing is not None and spacing > 0.0:
+                    # The image is a regular volume, so we should record this
+                    dimension_organization_type = (
+                        DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                     )
+                    # Also add the slice spacing to the pixel measures
+                    (
+                        self.SharedFunctionalGroupsSequence[0]
+                            .PixelMeasuresSequence[0]
+                            .SpacingBetweenSlices
+                    ) = spacing
+                else:
+                    if (
+                        dimension_organization_type ==
+                        DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                    ):
+                        raise ValueError(
+                            'Dimension organization "3D" has been specified, '
+                            'but the source image is not a regularly-spaced 3D '
+                            'volume.'
+                        )
+
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
 

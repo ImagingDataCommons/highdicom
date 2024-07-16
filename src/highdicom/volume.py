@@ -22,7 +22,11 @@ from highdicom.spatial import (
     get_series_slice_spacing,
     sort_datasets,
 )
-from highdicom.content import PlanePositionSequence
+from highdicom.content import (
+    PixelMeasuresSequence,
+    PlaneOrientationSequence,
+    PlanePositionSequence,
+)
 
 from pydicom import Dataset
 
@@ -387,7 +391,7 @@ class Volume:
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New Volume using the given array and DICOM attributes.
 
         """
@@ -735,6 +739,9 @@ class Volume:
     def get_plane_positions(self) -> List[PlanePositionSequence]:
         """Get plane positions of all planes in the volume.
 
+        This assumes that the volume is encoded in a DICOM file with frames
+        down axis 0, rows stacked down axis 1, and columns stacked down axis 2.
+
         Returns
         -------
         List[highdicom.content.PlanePositionSequence]:
@@ -756,6 +763,41 @@ class Volume:
             )
             for pos in positions
         ]
+
+    def get_plane_orientation(self) -> PlaneOrientationSequence:
+        """Get plane orientation sequence for the volume.
+
+        This assumes that the volume is encoded in a DICOM file with frames
+        down axis 0, rows stacked down axis 1, and columns stacked down axis 2.
+
+        Returns
+        -------
+        highdicom.PlaneOrientationSequence:
+            Plane orientation sequence 
+
+        """
+        return PlaneOrientationSequence(
+            CoordinateSystemNames.PATIENT,
+            self.direction_cosines,
+        )
+
+    def get_pixel_measures(self) -> PixelMeasuresSequence:
+        """Get pixel measures sequence for the volume.
+
+        This assumes that the volume is encoded in a DICOM file with frames
+        down axis 0, rows stacked down axis 1, and columns stacked down axis 2.
+
+        Returns
+        -------
+        highdicom.PixelMeasuresSequence:
+            Pixel measures sequence for the volume.
+
+        """
+        return PixelMeasuresSequence(
+            pixel_spacing=self.pixel_spacing,
+            slice_thickness=None,
+            spacing_between_slices=self.spacing_between_slices,
+        )
 
     @property
     def frame_of_reference_uid(self) -> Optional[str]:
@@ -964,8 +1006,34 @@ class Volume:
         Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped]:
             Tuple giving the closest patient orientation.
 
-        """
+        """  # noqa: E501
         return get_closest_patient_orientation(self._affine)
+
+    def astype(self, dtype: type) -> 'Volume':
+        """Get new volume with a new datatype.
+
+        Parameters
+        ----------
+        dtype: type
+            A numpy datatype for the new volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            New volume with given datatype, and metadata copied from this
+            volume.
+
+        """
+        new_array = self._array.astype(dtype)
+
+        return self.__class__(
+            array=new_array,
+            affine=self.affine,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
+            source_frame_numbers=deepcopy(self.source_frame_numbers),
+            source_frame_dimension=self.source_frame_dimension or 0,
+        )
 
     def with_array(self, array: np.ndarray) -> 'Volume':
         """Get a new volume using a different array.
@@ -982,7 +1050,7 @@ class Volume:
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume using the given array and the metadata of this volume.
 
         """
@@ -1014,7 +1082,7 @@ class Volume:
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
 
         """
         if isinstance(index, int):
@@ -1127,7 +1195,7 @@ class Volume:
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with spatial axes permuted in the provided order.
 
         """
@@ -1159,8 +1227,8 @@ class Volume:
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=self.source_sop_instance_uids,
-            source_frame_numbers=self.source_frame_numbers,
+            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
+            source_frame_numbers=deepcopy(self.source_frame_numbers),
             source_frame_dimension=new_source_frame_dimension,
         )
 
@@ -1178,7 +1246,7 @@ class Volume:
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with spatial axes flipped as requested.
 
         """
@@ -1254,14 +1322,14 @@ def concat_channels(volumes: Sequence[Volume]) -> Volume:
 
     Parameters
     ----------
-    volumes: Sequence[highdicom.volume.Volume]
+    volumes: Sequence[highdicom.Volume]
         Sequence of one or more volumes to concatenate. Volumes must
         share the same spatial shape and affine matrix, but may differ
         by number and presence of channels.
 
     Returns
     -------
-    highdicom.volume.Volume:
+    highdicom.Volume:
         New volume formed by concatenating the input volumes.
 
     """

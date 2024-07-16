@@ -56,6 +56,7 @@ from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
 from highdicom.version import __version__
+from highdicom.volume import Volume
 
 __all__ = [
     'LUT',
@@ -98,6 +99,7 @@ __all__ = [
     'UniversalEntityIDTypeValues',
     'VOILUTFunctionValues',
     'VOILUTTransformation',
+    'Volume',
     '__version__',
     'ann',
     'color',
