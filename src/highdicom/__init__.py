@@ -56,7 +56,11 @@ from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
 from highdicom.version import __version__
-from highdicom.volume import Volume
+from highdicom.volume import (
+    Volume,
+    volread,
+    concat_channels,
+)
 
 __all__ = [
     'LUT',
@@ -103,6 +107,7 @@ __all__ = [
     '__version__',
     'ann',
     'color',
+    'concat_channels',
     'frame',
     'io',
     'ko',
@@ -114,4 +119,5 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
+    'volread',
 ]

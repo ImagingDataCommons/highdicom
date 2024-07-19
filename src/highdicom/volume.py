@@ -1,4 +1,6 @@
 from copy import deepcopy
+from os import PathLike
+from pathlib import Path
 from typing import List, Optional, Sequence, Union, Tuple
 
 import numpy as np
@@ -28,7 +30,7 @@ from highdicom.content import (
     PlanePositionSequence,
 )
 
-from pydicom import Dataset
+from pydicom import Dataset, dcmread
 
 # TODO add segmentation get_volume
 # TODO add basic arithmetric operations
@@ -210,6 +212,13 @@ class Volume:
             Volume created from the series.
 
         """
+        series_instance_uid = series_datasets[0].SeriesInstanceUID
+        if not all(
+            ds.SeriesInstanceUID == series_instance_uid
+            for ds in series_datasets
+        ):
+            raise ValueError('Images do not belong to the same series.')
+
         coordinate_system = get_image_coordinate_system(series_datasets[0])
         if (
             coordinate_system is None or
@@ -219,6 +228,7 @@ class Volume:
                 "Dataset should exist in the patient "
                 "coordinate_system."
             )
+
         frame_of_reference_uid = series_datasets[0].FrameOfReferenceUID
         if not all(
             ds.FrameOfReferenceUID == frame_of_reference_uid
@@ -231,10 +241,14 @@ class Volume:
             ds.SOPInstanceUID for ds in series_datasets
         ]
 
-        slice_spacing = get_series_slice_spacing(series_datasets)
-        if slice_spacing is None:
-            raise ValueError('Series is not a regularly spaced volume.')
         ds = series_datasets[0]
+
+        if len(series_datasets) == 1:
+            slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
+        else:
+            slice_spacing = get_series_slice_spacing(series_datasets)
+            if slice_spacing is None:
+                raise ValueError('Series is not a regularly-spaced volume.')
 
         affine = _create_affine_transformation_matrix(
             image_position=ds.ImagePositionPatient,
@@ -1297,7 +1311,7 @@ class Volume:
             highdicom.enum.PatientOrientationValuesBiped values, or a string
             such as ``"FPL"`` using the same characters.
 
-        """
+        """  # noqa: E501
         desired_orientation = _normalize_patient_orientation(
             patient_orientation
         )
@@ -1380,3 +1394,41 @@ def concat_channels(volumes: Sequence[Volume]) -> Volume:
         affine=affine,
         frame_of_reference_uid=frame_of_reference_uid,
     )
+
+
+def volread(
+    fp: Union[str, bytes, PathLike, List[Union[str, PathLike]]],
+    glob: str = '*.dcm',
+) -> Volume:
+    """Read a volume from a file or list of files or file-like objects.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object, directory, list of file-like objects representing
+        a DICOM file or set of files.
+    glob: str, optional
+        Glob pattern used to find files within the direcotry in the case that
+        ``fp`` is a string or path that represents a directory. Follows the
+        format of the standard library glob ``module``.
+
+    Returns
+    -------
+    highdicom.Volume
+        Volume formed from the specified image file(s).
+
+    """
+    if isinstance(fp, (str, PathLike)):
+        fp = Path(fp)
+    if isinstance(fp, Path) and fp.is_dir():
+        fp = list(fp.glob(glob))
+
+    if isinstance(fp, Sequence):
+        dcms = [dcmread(f) for f in fp]
+    else:
+        dcms = [dcmread(fp)]
+
+    if len(dcms) == 1 and is_multiframe_image(dcms[0]):
+        return Volume.from_image(dcms[0])
+
+    return Volume.from_image_series(dcms)

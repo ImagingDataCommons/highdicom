@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
@@ -5,7 +6,7 @@ import pytest
 
 
 from highdicom.spatial import _normalize_patient_orientation
-from highdicom.volume import Volume, concat_channels
+from highdicom.volume import Volume, concat_channels, volread
 from highdicom import UID
 
 
@@ -420,11 +421,42 @@ def test_to_patient_orientation(desired):
     desired_tup = _normalize_patient_orientation(desired)
 
     flipped = volume.to_patient_orientation(desired)
-    print(volume.affine)
-    print(flipped.affine)
     assert isinstance(flipped, Volume)
     assert flipped.get_closest_patient_orientation() == desired_tup
 
     flipped = volume.to_patient_orientation(desired_tup)
     assert isinstance(flipped, Volume)
     assert flipped.get_closest_patient_orientation() == desired_tup
+
+
+@pytest.mark.parametrize(
+    'fp,glob',
+    [
+        (Path(__file__).parent.parent.joinpath('data/test_files/ct_image.dcm'), None),
+        (str(Path(__file__).parent.parent.joinpath('data/test_files/ct_image.dcm')), None),
+        ([Path(__file__).parent.parent.joinpath('data/test_files/ct_image.dcm')], None),
+        (get_testdata_file('eCT_Supplemental.dcm'), None),
+        ([get_testdata_file('eCT_Supplemental.dcm')], None),
+        (Path(__file__).parent.parent.joinpath('data/test_files/'), 'ct_image.dcm'),
+        (str(Path(__file__).parent.parent.joinpath('data/test_files/')), 'ct_image.dcm'),
+        (
+            [
+                get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+                get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+                get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+            ],
+            None,
+        ),
+        (
+            [
+                Path(get_testdata_file('dicomdirtests/77654033/CT2/17136')),
+                Path(get_testdata_file('dicomdirtests/77654033/CT2/17196')),
+                Path(get_testdata_file('dicomdirtests/77654033/CT2/17166')),
+            ],
+            None,
+        ),
+    ]
+)
+def test_volread(fp, glob):
+    volume = volread(fp, glob=glob)
+    assert isinstance(volume, Volume)

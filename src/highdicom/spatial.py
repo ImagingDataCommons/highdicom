@@ -2833,7 +2833,7 @@ def get_series_slice_spacing(
     slice spacing. If the series does not represent a volume, returns None.
 
     Note that we stipulate that a single image is a 3D volume for the purposes
-    of this function. In this case the returned slice spacing will be 0.0.
+    of this function. In this case the returned slice spacing will be 1.0.
 
     Parameters
     ----------
@@ -2854,7 +2854,7 @@ def get_series_slice_spacing(
         raise ValueError("List must not be empty.")
     # We stipluate that a single image does represent a volume with spacing 0.0
     if len(datasets) == 1:
-        return 0.0
+        return 1.0
     for ds in datasets:
         if is_multiframe_image(ds):
             raise ValueError(
