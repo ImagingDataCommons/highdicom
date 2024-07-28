@@ -104,6 +104,7 @@ class MultiFrameDBManager:
         # indices
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
+        spacing_hint = None
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
             image_position_tag = tag_for_keyword('ImagePositionPatient')
             plane_pos_seq_tag = tag_for_keyword('PlanePositionSequence')
@@ -113,6 +114,24 @@ class MultiFrameDBManager:
                 extra_collection_func_pointers[
                     image_position_tag
                 ] = plane_pos_seq_tag
+
+            if hasattr(dataset, 'SharedFunctionalGroupsSequence'):
+                sfgs = dataset.SharedFunctionalGroupsSequence[0]
+                if hasattr(sfgs, 'PixelMeasuresSequence'):
+                    spacing_hint = (
+                        sfgs
+                        .PixelMeasuresSequence[0]
+                        .get('SpacingBetweenSlices')
+                    )
+            if spacing_hint is None:
+                # Get the orientation of the first frame, and in the later loop
+                # check whether it is shared.
+                if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
+                    pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
+                    if hasattr(pfg1, 'PixelMeasuresSequence'):
+                        spacing_hint = pfg1.PixelMeasuresSequence[0].get(
+                            'SpacingBetweenSlices'
+                        )
 
         dim_ind_positions = {
             dim_ind.DimensionIndexPointer: i
@@ -129,9 +148,27 @@ class MultiFrameDBManager:
             ptr: [] for ptr in extra_collection_pointers
         }
 
-        self.shared_image_orientation = self._get_shared_image_orientation(
-            dataset
-        )
+        # Get the shared orientation
+        self.shared_image_orientation = None
+        if hasattr(dataset, 'ImageOrientationSlide'):
+            self.shared_image_orientation = dataset.ImageOrientationSlide
+        elif hasattr(dataset, 'SharedFunctionalGroupsSequence'):
+            sfgs = dataset.SharedFunctionalGroupsSequence[0]
+            if hasattr(sfgs, 'PlaneOrientationSequence'):
+                self.shared_image_orientation = (
+                    sfgs.PlaneOrientationSequence[0].ImageOrientationPatient
+                )
+        if self.shared_image_orientation is None:
+            # Get the orientation of the first frame, and in the later loop
+            # check whether it is shared.
+            if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
+                pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
+                if hasattr(pfg1, 'PlaneOrientationSequence'):
+                    self.shared_image_orientation = (
+                        pfg1
+                        .PlaneOrientationSequence[0]
+                        .ImageOrientationPatient
+                    )
 
         self._single_source_frame_per_frame = True
 
@@ -284,6 +321,17 @@ class MultiFrameDBManager:
                     referenced_instances.append(ref_instance_uid)
                     referenced_frames.append(frame_source_frames[0])
 
+                # Check that this doesn't have a conflicting orientation
+                if self.shared_image_orientation is not None:
+                    if hasattr(frame_item, 'PlaneOrientationSequence'):
+                        iop = (
+                            frame_item
+                            .PlaneOrientationSequence[0]
+                            .ImageOrientationPatient
+                        )
+                        if iop != self.shared_image_orientation:
+                            self.shared_image_orientation = None
+
             # Summarise
             if any(
                 isinstance(v, SpatialLocationsPreservedValues) and
@@ -381,6 +429,27 @@ class MultiFrameDBManager:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
                 col_data.append(dim_values[t])
+
+        # Volume related information
+        self.number_of_volume_positions: Optional[int] = None
+        self.volume_spacing: Optional[float] = None
+        if (
+            self._coordinate_system == CoordinateSystemNames.PATIENT
+            and self.shared_image_orientation is not None
+        ):
+            if self.shared_image_orientation is not None:
+                volume_spacing, volume_positions = get_volume_positions(
+                    image_positions=dim_values[image_position_tag],
+                    image_orientation=self.shared_image_orientation,
+                    allow_missing=True,
+                    allow_duplicates=True,
+                    spacing_hint=spacing_hint,
+                )
+                if volume_positions is not None:
+                    self.number_of_volume_positions = max(volume_positions) + 1
+                    self.volume_spacing = volume_spacing
+                    col_defs.append('VolumePosition INTEGER NOT NULL')
+                    col_data.append(volume_positions)
 
         # Columns related to source frames, if they are usable for indexing
         if (referenced_frames is None) != (referenced_instances is None):
@@ -569,53 +638,6 @@ class MultiFrameDBManager:
                 "VALUES(?, ?, ?)",
                 referenced_uids,
             )
-
-    def _get_shared_image_orientation(
-            self,
-            dataset: Dataset
-        ) -> Optional[List[float]]:
-        """Get image orientation if it is shared between frames.
-
-        Parameters
-        ----------
-        dataset: pydicom.Dataset
-            Dataset for which to get the image orientation.
-
-        Returns
-        -------
-        List[float]:
-            Image orientation attribute (list of 6 floats containing direction
-            cosines) if this is shared between frames in the image. Otherwise
-            returns None.
-
-        """
-        if hasattr(dataset, 'ImageOrientationSlide'):
-            return dataset.ImageOrientationSlide
-
-        if hasattr(dataset, 'SharedFunctionalGroupsSequence'):
-            sfgs = dataset.SharedFunctionalGroupsSequence[0]
-            if hasattr(sfgs, 'PlaneOrientationSequence'):
-                return sfgs.PlaneOrientationSequence[0].ImageOrientationPatient
-
-        if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
-            pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
-            if hasattr(pfg1, 'PlaneOrientationSequence'):
-                iop = pfg1.PlaneOrientationSequence[0].ImageOrientationPatient
-
-                if len(dataset.PerFrameFunctionalGroupsSequence) == 1:
-                    return iop
-                else:
-                    for pfg in dataset.PerFrameFunctionalGroupsSequence[1:]:
-                        frame_iop = (
-                            pfg.PlaneOrientationSequence[0].
-                            ImageOrientationPatient
-                        )
-                        if frame_iop != iop:
-                            break
-                    else:
-                        return iop
-
-        return None
 
     def are_dimension_indices_unique(
         self,
@@ -886,7 +908,7 @@ class MultiFrameDBManager:
 
             spacing, _ = get_volume_positions(
                 image_positions=all_image_positions[0],
-                image_orientation=np.array(self.shared_image_orientation),
+                image_orientation=self.shared_image_orientation,
                 sort=True,
                 tol=tol,
             )

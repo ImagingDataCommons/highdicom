@@ -3072,7 +3072,9 @@ def get_volume_positions(
             if np.isclose(spacing, 0.0, atol=tol):
                 return None, None
 
-        origin_distance_multiples = origin_distances / spacing
+        origin_distance_multiples = (
+            (origin_distances - origin_distances[0]) / spacing
+        )
 
         is_regular = np.allclose(
             origin_distance_multiples,

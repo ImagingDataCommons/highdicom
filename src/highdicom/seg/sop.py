@@ -514,6 +514,96 @@ class _SegDBManager(MultiFrameDBManager):
                 )
 
     @contextmanager
+    def iterate_indices_by_volume(
+        self,
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over frame indices sorted by volume.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        if self.volume_spacing is None:
+            raise RuntimeError(
+                'This segmentation does not represent a regularly-spaced '
+                'volume.'
+            )
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            '    L.VolumePosition,'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM FrameLUT L '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'ORDER BY L.VolumePosition'
+        )
+
+        with self._generate_temp_segment_table(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel
+        ):
+            yield (
+                (
+                    (fo, slice(None), slice(None)),
+                    (fi, slice(None), slice(None)),
+                    seg_no
+                )
+                for (fo, fi, seg_no) in self._db_con.execute(query)
+            )
+
+    @contextmanager
     def iterate_indices_by_dimension_index_values(
         self,
         dimension_index_values: Sequence[Sequence[int]],
@@ -4279,6 +4369,42 @@ class Segmentation(SOPClass):
 
             return self._get_pixels_by_seg_frame(
                 output_shape=len(source_frame_numbers),
+                indices_iterator=indices,
+                segment_numbers=np.array(segment_numbers),
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                skip_overlap_checks=skip_overlap_checks,
+                dtype=dtype,
+            )
+
+    def get_pixels_as_volume(
+        self,
+        segment_numbers: Optional[Sequence[int]] = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        ignore_spatial_locations: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ):
+        # Checks on validity of the inputs
+        if segment_numbers is None:
+            segment_numbers = list(self.segment_numbers)
+        if len(segment_numbers) == 0:
+            raise ValueError(
+                'Segment numbers may not be empty.'
+            )
+
+        with self._db_man.iterate_indices_by_volume(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel,
+        ) as indices:
+
+            return self._get_pixels_by_seg_frame(
+                output_shape=self._db_man.number_of_volume_positions,
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
