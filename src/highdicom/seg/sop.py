@@ -76,7 +76,7 @@ from highdicom.spatial import (
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
     get_image_coordinate_system,
-    get_regular_slice_spacing,
+    get_volume_positions,
     get_tile_array,
     is_tiled_image,
 )
@@ -1738,7 +1738,7 @@ class Segmentation(SOPClass):
                     DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                 )
             else:
-                spacing = get_regular_slice_spacing(
+                spacing, _ = get_volume_positions(
                     image_positions=np.array(
                         plane_position_values[plane_sort_index, 0, :]
                     ),

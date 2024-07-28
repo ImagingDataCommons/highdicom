@@ -16,7 +16,8 @@ from highdicom.spatial import (
     _transform_affine_matrix,
     create_rotation_matrix,
     get_closest_patient_orientation,
-    get_series_slice_spacing,
+    get_volume_positions,
+    get_series_volume_positions,
     is_tiled_image,
 )
 
@@ -899,7 +900,7 @@ def test_get_series_slice_spacing_irregular():
         pydicom.dcmread(f)
         for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
     ]
-    spacing = get_series_slice_spacing(ct_series)
+    spacing, _ = get_series_volume_positions(ct_series)
     assert spacing is None
 
 
@@ -911,8 +912,122 @@ def test_get_series_slice_spacing_regular():
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    spacing = get_series_slice_spacing(ct_series)
+    spacing, _ = get_series_volume_positions(ct_series)
     assert spacing == 1.25
+
+
+def test_get_spacing_duplicates():
+    # Test ability to determine spacing and volume positions with duplicate
+    # positions
+    position_indices = np.array(
+        [0, 1, 2, 3, 4, 5, 2, 5, 5, 3, 1, 1, 2, 4, 1, 2, 0]
+    )
+    expected_spacing = 0.2
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, 1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicates=False,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicates=True,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_missing():
+    # Test ability to determine spacing and volume positions with missing
+    # slices
+    position_indices = np.array(
+        [1, 3, 0, 9],  # an incomplete list of indices from 0 to 9
+    )
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, 1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing=True
+    )
+
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_missing_duplicates():
+    # Test ability to determine spacing and volume positions with missing
+    # slices and duplicate positions
+    position_indices = np.array(
+        [1, 3, 0, 9, 3],
+    )
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, 1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing=True,
+        allow_duplicates=True,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_missing_duplicates_non_consecutive():
+    # Test ability to determine spacing and volume positions with missing
+    # slices and duplicate positions, with no two positions from consecutive
+    # slices
+    position_indices = np.array([7, 3, 0, 9, 3])
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, 1, 0]
+
+    # Without the spacing_hint, the positions do not appear to be a volume
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing=True,
+        allow_duplicates=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    # With the hint, the positions should be correctly calculated
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing=True,
+        allow_duplicates=True,
+        spacing_hint=expected_spacing,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
 
 
 def test_transform_affine_matrix():

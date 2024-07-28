@@ -2818,11 +2818,15 @@ def are_points_coplanar(
     return max_dev <= tol
 
 
-def get_series_slice_spacing(
+def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
     tol: float = _DEFAULT_SPACING_TOLERANCE,
-) -> Optional[float]:
-    """Get slice spacing, if any, for a series of single frame images.
+    sort: bool = True,
+    enforce_right_handed: bool = False,
+    allow_missing: bool = False,
+    allow_duplicates: bool = False,
+) -> Tuple[Optional[float], Optional[List[int]]]:
+    """Get volume positions and spacing for a series of single frame images.
 
     First determines whether the image series represents a 3D volume.
     A 3D volume consists of regularly spaced slices with orthogonal axes, i.e.
@@ -2830,7 +2834,9 @@ def get_series_slice_spacing(
     in-plane image coordinates.
 
     If the series does represent a volume, returns the absolute value of the
-    slice spacing. If the series does not represent a volume, returns None.
+    slice spacing and the slice indices in the volume for each of the input
+    datasets. If the series does not represent a volume, returns None for both
+    outputs.
 
     Note that we stipulate that a single image is a 3D volume for the purposes
     of this function. In this case the returned slice spacing will be 1.0.
@@ -2842,19 +2848,48 @@ def get_series_slice_spacing(
     tol: float
         Tolerance for determining spacing regularity. If slice spacings vary by
         less that this spacing, they are considered to be regular.
+    sort: bool, optional
+        Sort the image positions before finding the spacing. If True, this
+        makes the function tolerant of unsorted inputs. Set to False to check
+        whether the positions represent a 3D volume in the specific order in
+        which they are passed.
+    enforce_right_handed: bool, optional
+        If True and sort is False, require that the images are not only
+        regularly spaced but also that they are ordered correctly to give a
+        right-handed coordinate system, i.e. frames are ordered along the
+        direction of the increasing normal vector, as opposed to being ordered
+        regularly along the direction of the decreasing normal vector. If sort
+        is True, this has no effect since positions will be sorted in the
+        right-handed direction before finding the spacing.
+    allow_missing: bool, optional
+        Allow for slices missing from the volume. If True, the smallest
+        distance between two consective slices is found and returned as the
+        slice spacing, provided all other spacings are an integer multiple of
+        this value (within tolerance). Alternatively, if ``spacing_hint`` is
+        used, that value will be used instead of the minimum consecutive
+        spacing. If False, any gaps will result in failure.
+    allow_duplicates: bool, optional
+        Allow multiple slices to map to the same position within the volume.
+        If False, duplicated image positions will result in failure.
 
     Returns
     -------
-    float:
-        Absolute value of the regular slice spacing if the series of images
-        meets the definition of a 3D volume, above. None otherwise.
+    Union[float, None]:
+        If the image positions are regularly spaced, the (absolute value of)
+        the slice spacing. If the image positions do not represent a
+        regularly-spaced volume, returns None.
+    Union[List[int], None]:
+        List with the same length as the number of image positions. Each
+        element gives the zero-based index of the corresponding input position
+        in the volume. If the image positions do not represent a volume,
+        returns None.
 
     """
     if len(datasets) == 0:
         raise ValueError("List must not be empty.")
     # We stipluate that a single image does represent a volume with spacing 0.0
     if len(datasets) == 1:
-        return 1.0
+        return 1.0, [0]
     for ds in datasets:
         if is_multiframe_image(ds):
             raise ValueError(
@@ -2865,34 +2900,48 @@ def get_series_slice_spacing(
     image_orientation = datasets[0].ImageOrientationPatient
     for ds in datasets[1:]:
         if ds.ImageOrientationPatient != image_orientation:
-            return None
+            return None, None
 
-    positions = np.array(
-        [ds.ImagePositionPatient for ds in datasets]
-    )
+    positions = [ds.ImagePositionPatient for ds in datasets]
 
-    return get_regular_slice_spacing(
+    spacing_hint = datasets[0].get('SpacingBetweenSlices')
+
+    return get_volume_positions(
         image_positions=positions,
-        image_orientation=np.array(image_orientation),
+        image_orientation=image_orientation,
         tol=tol,
+        enforce_right_handed=enforce_right_handed,
+        sort=sort,
+        allow_duplicates=allow_duplicates,
+        allow_missing=allow_missing,
+        spacing_hint=spacing_hint,
     )
 
 
-def get_regular_slice_spacing(
+def get_volume_positions(
     image_positions: Sequence[Sequence[float]],
     image_orientation: Sequence[float],
     tol: float = _DEFAULT_SPACING_TOLERANCE,
     sort: bool = True,
     enforce_right_handed: bool = False,
-) -> Optional[float]:
-    """Get the regular spacing between set of image positions, if any.
+    allow_missing: bool = False,
+    allow_duplicates: bool = False,
+    spacing_hint: Optional[float] = None,
+) -> Tuple[Optional[float], Optional[List[int]]]:
+    """Get the spacing and positions of images within a 3D volume.
 
-    A 3D volume consists of regularly spaced slices with orthogonal axes, i.e.
-    the slices are spaced equally along the direction orthogonal to the
-    in-plane image coordinates.
+    First determines whether the image positions and orientation represent a 3D
+    volume. A 3D volume consists of regularly spaced slices with orthogonal
+    axes, i.e. the slices are spaced equally along the direction orthogonal to
+    the in-plane image coordinates.
+
+    If the positions represent a volume, returns the absolute value of the
+    slice spacing and the slice indices in the volume for each of the input
+    positions. If the positions do not represent a volume, returns None for both
+    outputs.
 
     Note that we stipulate that a single image is a 3D volume for the purposes
-    of this function. In this case the returned slice spacing will be 0.0.
+    of this function. In this case the returned slice spacing will be 1.0.
 
     Parameters
     ----------
@@ -2904,15 +2953,15 @@ def get_regular_slice_spacing(
         Image orientation as direction cosine values taken directly from the
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
-    tol: float
+    tol: float, optional
         Tolerance for determining spacing regularity. If slice spacings vary by
         less that this spacing, they are considered to be regular.
-    sort: bool
+    sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    enforce_positive: bool
+    enforce_right_handed: bool, optional
         If True and sort is False, require that the images are not only
         regularly spaced but also that they are ordered correctly to give a
         right-handed coordinate system, i.e. frames are ordered along the
@@ -2920,67 +2969,156 @@ def get_regular_slice_spacing(
         regularly along the direction of the decreasing normal vector. If sort
         is True, this has no effect since positions will be sorted in the
         right-handed direction before finding the spacing.
+    allow_missing: bool, optional
+        Allow for slices missing from the volume. If True, the smallest
+        distance between two consective slices is found and returned as the
+        slice spacing, provided all other spacings are an integer multiple of
+        this value (within tolerance). Alternatively, if ``spacing_hint`` is
+        used, that value will be used instead of the minimum consecutive
+        spacing. If False, any gaps will result in failure.
+    allow_duplicates: bool, optional
+        Allow multiple slices to map to the same position within the volume.
+        If False, duplicated image positions will result in failure.
+    spacing_hint: Union[float, None], optional
+        Expected spacing between slices. If the calculated value is not equal
+        to this, within tolerance, the outputs will be None. The primary use of
+        this option is in combination with ``allow_missing``. If
+        ``allow_missing`` is ``True`` and a ``spacing_hint`` is given, the hint
+        is used to calculate the index positions instead of the smallest
+        consecutive spacing.
 
     Returns
     -------
-    Union[float, None]
-        If the image positions are regularly spaced, the (absolute value of) the
-        slice spacing. If the image positions are not regularly spaced, returns
-        None.
+    Union[float, None]:
+        If the image positions are regularly spaced, the (absolute value of)
+        the slice spacing. If the image positions do not represent a
+        regularly-spaced volume, returns None.
+    Union[List[int], None]:
+        List with the same length as the number of image positions. Each
+        element gives the zero-based index of the corresponding input position
+        in the volume. If the image positions do not represent a volume,
+        returns None.
 
     """
-    image_positions = np.array(image_positions)
+    if not sort:
+        if allow_duplicates:
+            raise ValueError(
+                "Argument 'allow_duplicates' requires 'sort'."
+            )
+        if allow_missing:
+            raise ValueError(
+                "Argument 'allow_missing' requires 'sort'."
+            )
 
-    if image_positions.ndim != 2 or image_positions.shape[1] != 3:
+    if spacing_hint is not None and spacing_hint <= 0.0:
+        raise ValueError(
+            "Argument 'spacing_hint' should be a postive value."
+        )
+    image_positions_arr = np.array(image_positions)
+
+    if image_positions_arr.ndim != 2 or image_positions_arr.shape[1] != 3:
         raise ValueError(
             "Argument 'image_positions' should be an (N, 3) array."
         )
-    n = image_positions.shape[0]
+    n = image_positions_arr.shape[0]
     if n == 0:
         raise ValueError(
             "Argument 'image_positions' should contain at least 1 position."
         )
     elif n == 1:
         # Special case, we stipluate that this has spacing 0.0
-        return 0.0
+        return 1.0, [0]
 
     normal_vector = get_normal_vector(image_orientation)
 
+    if allow_duplicates:
+        # Unique index specifies, for each position in the input positions
+        # array, the position in the unique_positions array of the
+        # de-duplicated position
+        unique_positions, unique_index = np.unique(
+            image_positions_arr,
+            axis=0,
+            return_inverse=True,
+        )
+    else:
+        unique_positions = image_positions_arr
+        unique_index = np.arange(image_positions_arr.shape[0])
+
     # Calculate distance of each slice from coordinate system origin along the
     # normal vector
-    origin_distances = _get_slice_distances(image_positions, normal_vector)
+    origin_distances = _get_slice_distances(unique_positions, normal_vector)
 
     if sort:
+        # sort_index index gives, for each position in the sorted unique
+        # positions, the initial index of the corresponding unique position
         sort_index = np.argsort(origin_distances)
-        origin_distances = origin_distances[sort_index]
+        origin_distances_sorted = origin_distances[sort_index]
+        inverse_sort_index = np.argsort(sort_index)
     else:
-        sort_index = np.arange(image_positions.shape[0])
+        sort_index = np.arange(unique_positions.shape[0])
+        origin_distances_sorted = origin_distances
+        inverse_sort_index = sort_index
 
-    spacings = np.diff(origin_distances)
-    avg_spacing = spacings.mean()
+    if allow_missing:
+        if spacing_hint is not None:
+            spacing = spacing_hint
+        else:
+            spacings = np.diff(origin_distances_sorted)
+            spacing = spacings.min()
+            # Check here to prevent divide by zero errors. Positions should
+            # have been de-duplicated already, is this is allowed, so there
+            # should only be zero spacings if some positions are related by
+            # in-plane translations
+            if np.isclose(spacing, 0.0, atol=tol):
+                return None, None
 
-    is_regular = np.isclose(
-        avg_spacing,
-        spacings,
-        atol=tol
-    ).all()
+        origin_distance_multiples = origin_distances / spacing
+
+        is_regular = np.allclose(
+            origin_distance_multiples,
+            origin_distance_multiples.round(),
+            atol=tol
+        )
+
+        inverse_sort_index = origin_distance_multiples.round().astype(np.int64)
+
+    else:
+        spacings = np.diff(origin_distances_sorted)
+        spacing = spacings.mean()
+
+        if spacing_hint is not None:
+            if not np.isclose(spacing, spacing_hint):
+                raise RuntimeError(
+                    "Inferred spacing does not match the given 'spacing_hint'."
+                )
+
+        is_regular = np.isclose(
+            spacing,
+            spacings,
+            atol=tol
+        ).all()
+
     if is_regular and enforce_right_handed:
-        if avg_spacing < 0.0:
-            return None
+        if spacing < 0.0:
+            return None, None
 
     # Additionally check that the vector from the first to the last plane lies
     # approximately along the normal vector
-    pos1 = image_positions[sort_index[0], :]
-    pos2 = image_positions[sort_index[-1], :]
+    pos1 = unique_positions[sort_index[0], :]
+    pos2 = unique_positions[sort_index[-1], :]
     span = (pos2 - pos1)
     span /= np.linalg.norm(span)
 
     is_perpendicular = abs(normal_vector.T @ span - 1.0) < tol
 
     if is_regular and is_perpendicular:
-        return abs(avg_spacing)
+        vol_positions = [
+            inverse_sort_index[unique_index[i]].item()
+            for i in range(len(image_positions_arr))
+        ]
+        return abs(spacing), vol_positions
     else:
-        return None
+        return None, None
 
 
 def get_normal_vector(
@@ -3002,16 +3140,16 @@ def get_normal_vector(
         Unit normal vector as a NumPy array with shape (3, ).
 
     """
-    image_orientation = np.array(image_orientation)
-    if image_orientation.ndim != 1 or image_orientation.shape[0] != 6:
+    image_orientation_arr = np.array(image_orientation, dtype=np.float64)
+    if image_orientation_arr.ndim != 1 or image_orientation_arr.shape[0] != 6:
         raise ValueError(
             "Argument 'image_orientation' should be an array of "
             "length 6."
         )
 
     # Find normal vector to the imaging plane
-    v1 = image_orientation[:3]
-    v2 = image_orientation[3:]
+    v1 = image_orientation_arr[:3]
+    v2 = image_orientation_arr[3:]
     v3 = np.cross(v1, v2)
 
     return v3

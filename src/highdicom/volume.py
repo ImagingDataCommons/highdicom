@@ -20,8 +20,8 @@ from highdicom.spatial import (
     get_closest_patient_orientation,
     get_image_coordinate_system,
     get_plane_sort_index,
-    get_regular_slice_spacing,
-    get_series_slice_spacing,
+    get_volume_positions,
+    get_series_volume_positions,
     sort_datasets,
 )
 from highdicom.content import (
@@ -246,7 +246,7 @@ class Volume:
         if len(series_datasets) == 1:
             slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
         else:
-            slice_spacing = get_series_slice_spacing(series_datasets)
+            slice_spacing, _ = get_series_volume_positions(series_datasets)
             if slice_spacing is None:
                 raise ValueError('Series is not a regularly-spaced volume.')
 
@@ -323,7 +323,7 @@ class Volume:
             raise ValueError('Frames do not share pixel measures.')
         pixel_spacing = sfgs.PixelMeasuresSequence[0].PixelSpacing
 
-        slice_spacing = get_regular_slice_spacing(
+        slice_spacing, _ = get_volume_positions(
             image_positions=image_positions,
             image_orientation=image_orientation,
         )

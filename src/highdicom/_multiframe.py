@@ -27,7 +27,7 @@ from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     _DEFAULT_SPACING_TOLERANCE,
     get_image_coordinate_system,
-    get_regular_slice_spacing,
+    get_volume_positions,
 )
 from highdicom.uid import UID as hd_UID
 from highdicom.utils import (
@@ -35,18 +35,8 @@ from highdicom.utils import (
 )
 
 
-_NO_FRAME_REF_VALUE = -1
-
-
-logger = logging.getLogger(__name__)
-
-
-class MultiFrameDBManager:
-
-    """Database manager for frame information in a multiframe image."""
-
-    # Dictionary mapping DCM VRs to appropriate SQLite types
-    _DCM_SQL_TYPE_MAP = {
+# Dictionary mapping DCM VRs to appropriate SQLite types
+_DCM_SQL_TYPE_MAP = {
         'CS': 'VARCHAR',
         'DS': 'REAL',
         'FD': 'REAL',
@@ -66,6 +56,15 @@ class MultiFrameDBManager:
         'US': 'INTEGER',
         'UT': 'TEXT',
     }
+_NO_FRAME_REF_VALUE = -1
+
+
+logger = logging.getLogger(__name__)
+
+
+class MultiFrameDBManager:
+
+    """Database manager for frame information in a multiframe image."""
 
     def __init__(
         self,
@@ -349,7 +348,7 @@ class MultiFrameDBManager:
                 except ValueError:
                     continue
             try:
-                sql_type = self._DCM_SQL_TYPE_MAP[vr]
+                sql_type = _DCM_SQL_TYPE_MAP[vr]
             except KeyError:
                 continue
 
@@ -371,7 +370,7 @@ class MultiFrameDBManager:
             # and a VR that we can map to a sqlite type
             # Otherwise, we just omit the data from the db
             vm = int(vm_str)
-            sql_type = self._DCM_SQL_TYPE_MAP[vr]
+            sql_type = _DCM_SQL_TYPE_MAP[vr]
 
             if vm > 1:
                 for d in range(vm):
@@ -825,7 +824,7 @@ class MultiFrameDBManager:
             image_positions = np.array(
                 [r for r in cur.execute(query)]
             )
-            spacing = get_regular_slice_spacing(
+            spacing, _ = get_volume_positions(
                 image_positions=image_positions,
                 image_orientation=np.array(self.shared_image_orientation),
                 sort=True,
@@ -885,7 +884,7 @@ class MultiFrameDBManager:
                         # positions
                         return None
 
-            spacing = get_regular_slice_spacing(
+            spacing, _ = get_volume_positions(
                 image_positions=all_image_positions[0],
                 image_orientation=np.array(self.shared_image_orientation),
                 sort=True,
