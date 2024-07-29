@@ -31,6 +31,8 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    PatientOrientationValuesBiped,
+    PixelIndexDirections,
 )
 from highdicom.seg import (
     create_segmentation_pyramid,
@@ -3793,6 +3795,342 @@ class TestSegmentationParsing:
             raw_pix_arr[4:, ...] * 2
         )
         assert np.array_equal(expected_array, out)
+
+    def test_get_volume_binary(self):
+        vol = self._ct_binary_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegments(self):
+        vol = self._ct_binary_overlap_seg.get_volume()
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 2)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment2(self):
+        vol = self._ct_binary_overlap_seg.get_volume(segment_numbers=[2])
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 1)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_combine(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            combine_segments=True,
+            skip_overlap_checks=True,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=160,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (6, 16, 16)
+        assert vol.shape == (6, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=-6,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (6, 16, 16)
+        assert vol.shape == (6, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=17,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (17, 16, 16)
+        assert vol.shape == (17, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=-10,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (155, 16, 16)
+        assert vol.shape == (155, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_center(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=50,
+            slice_end=57,
+        )
+        assert isinstance(vol, Volume)
+        # Number this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (6, 16, 16)
+        assert vol.shape == (6, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_combine(self):
+        vol = self._ct_binary_seg.get_volume(combine_segments=True)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16)
+        assert vol.pixel_spacing == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_fractional(self):
+        vol = self._ct_true_fractional_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == (
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.float32
+
+    def test_get_volume_fractional_noscale(self):
+        vol = self._ct_true_fractional_seg.get_volume(rescale_fractional=False)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == (
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg._db_man.spacing_between_slices
+        )
+        assert vol.direction_cosines == (
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.uint8
 
 
 class TestSegUtilities(unittest.TestCase):

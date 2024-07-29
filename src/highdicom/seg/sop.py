@@ -4503,7 +4503,7 @@ class Segmentation(SOPClass):
                 )
             slice_end = n_vol_positions + slice_end
 
-        number_of_slices = cast(int, slice_end) - slice_start
+        number_of_slices = cast(int, slice_end) - slice_start - 1
 
         if number_of_slices < 1:
             raise ValueError(

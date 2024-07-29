@@ -28,7 +28,7 @@ from highdicom.enum import (
 )
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
-    _DEFAULT_SPACING_TOLERANCE,
+    VOLUME_INDEX_CONVENTION,
     _create_affine_transformation_matrix,
     get_image_coordinate_system,
     get_volume_positions,
@@ -782,153 +782,30 @@ class MultiFrameDBManager:
             )
         }
 
-    def get_slice_spacing(
-        self,
-        split_dimensions: Optional[Sequence[str]] = None,
-        tol: float = _DEFAULT_SPACING_TOLERANCE,
-    ) -> Optional[float]:
-        """Get slice spacing, if any, for the image.
-
-        First determines whether the multiframe image represents a 3D volume.
-        A 3D volume consists of regularly spaced slices with orthogonal axes, i.e.
-        the slices are spaced equally along the direction orthogonal to the
-        in-plane image orientation cosines.
-
-        If the image does represent a volume, returns the absolute value of the
-        slice spacing. If the series does not represent a volume, returns None.
-
-        Note that we stipulate that an image with a single frame in the patient
-        coordinate system is a 3D volume for the purposes of this function. In this
-        case the returned slice spacing will be 0.0 if it cannot be deduced from
-        the metadata.
-
-        Note also that this function checks the image position and image
-        orientation metadata found in the file and ignores any SpacingBetweenSlices
-        or DimensionOrganizationType found in the dataset. Therefore it does not
-        rely upon the creator having populated these attributes, or that their
-        values are correct.
-
-        Parameters
-        ----------
-        tol: float, optional
-            Tolerance for determining spacing regularity. If slice spacings vary by
-            less that this spacing, they are considered to be regular.
-        split_dimensions: Union[Sequence[pydicom.tag.BaseTag], None], optional
-            Split on these dimension indices and determine whether there is 3D
-            volume for each value of this dimension index, the same 3D volumes of
-            frames exist. For example, if time were included as a split dimension,
-            this function will check whether a 3D volume exists at each timepoint
-            (and that the volume is the same at each time point). Each dimension
-            index should be provided as the keyword representing the relevant
-            DICOM attribute.
-
-        Returns
-        -------
-        float:
-            Absolute value of the regular slice spacing if the series of images
-            meets the definition of a 3D volume, above. None otherwise.
-
-        """
-        if self._coordinate_system is None:
-            return None
-        if self._coordinate_system != CoordinateSystemNames.PATIENT:
-            return None
-
-        if self.shared_image_orientation is None:
-            return None
-
-        if self._number_of_frames == 1:
-            # Stipulate that this does represent a volume
-            return 0.0
-
-        cur = self._db_con.cursor()
-
-        if split_dimensions is None:
-
-            query = (
-                'SELECT '
-                'ImagePositionPatient_0, '
-                'ImagePositionPatient_1, '
-                'ImagePositionPatient_2 '
-                'FROM FrameLUT;'
-            )
-
-            image_positions = np.array(
-                [r for r in cur.execute(query)]
-            )
-            spacing, _ = get_volume_positions(
-                image_positions=image_positions,
-                image_orientation=np.array(self.shared_image_orientation),
-                sort=True,
-                tol=tol,
-            )
-        else:
-            dim_values = []
-
-            # Get lists of all unique values for the specified dimensions
-            for kw in split_dimensions:
-                # Find unique values of this attribute
-                query = f"""
-                SELECT DISTINCT {kw} FROM FrameLUT;
-                """
-
-                dim_values.append(
-                    [
-                        v[0] for v in cur.execute(query)
-                    ]
-                )
-
-            # Check that each combination of the split dimension has the same
-            # list of image positions
-            all_image_positions = []
-            for vals in itertools.product(*dim_values):
-                filter_str = 'AND '.join(
-                    f'{kw} = {val}' for kw, val in zip(split_dimensions, vals)
-                )
-                query = (
-                    'SELECT '
-                    'ImagePositionPatient_0, '
-                    'ImagePositionPatient_1, '
-                    'ImagePositionPatient_2 '
-                    'FROM FrameLUT '
-                    'WHERE '
-                    f'{filter_str} '
-                    'ORDER BY '
-                    'ImagePositionPatient_0, '
-                    'ImagePositionPatient_1, '
-                    'ImagePositionPatient_2 '
-                    ';'
-                )
-
-                image_positions = np.array(
-                    [r for r in cur.execute(query)]
-                )
-                all_image_positions.append(image_positions)
-
-            if len(all_image_positions) > 1:
-                for image_positions in all_image_positions:
-                    if not np.array_equal(
-                        image_positions,
-                        all_image_positions[0]
-                    ):
-                        # The volumes described by each combination of the
-                        # split dimensions have different sets of image
-                        # positions
-                        return None
-
-            spacing, _ = get_volume_positions(
-                image_positions=all_image_positions[0],
-                image_orientation=self.shared_image_orientation,
-                sort=True,
-                tol=tol,
-            )
-
-        return spacing
-
     def get_image_position_at_volume_position(
         self,
         volume_position: int,
     ) -> List[float]:
+        """Get the image position at a location in the implied volume.
+
+        This requires that the image represents a regularly-spaced 3D volume.
+
+        Parameters
+        ----------
+        volume_position: int
+            Zero-based index into the slice positions within the implied
+            volume. Must be an integer between >= 0 and <
+            ``number_of_volume_positions``.
+
+        Returns
+        -------
+        List[float]:
+            Image position (x, y, z) in the frame of reference coordinate
+            system of the center of the top-left pixel. This definition matches
+            the standard DICOM definition used in the ImagePositionPatient
+            attribute.
+
+        """
 
         if self.number_of_volume_positions is None:
             raise RuntimeError(
@@ -963,13 +840,26 @@ class MultiFrameDBManager:
     def get_volume_affine(
         self,
         slice_start: int = 0,
-        index_convention: Optional[Sequence[PixelIndexDirections]] = (
-            PixelIndexDirections.I,
-            PixelIndexDirections.D,
-            PixelIndexDirections.R,
-        ),
+        index_convention: Sequence[PixelIndexDirections] = VOLUME_INDEX_CONVENTION,
     ) -> np.ndarray:
+        """Get the affine matrix for the implied volume.
 
+        This requires that the image represents a regularly-spaced 3D volume.
+
+        Parameters
+        ----------
+        slice_start: int, optional
+            Zero-based index into the slice positions within the implied
+            volume marking the beginning of the relevant region.
+        index_convention: Sequence[highdicom.PixelIndexDirections], optional
+            Index convention to use to construct the affine matrix.
+
+        Returns
+        -------
+        numpy.ndarray:
+            4 x 4 affine matrix.
+
+        """
         image_position = self.get_image_position_at_volume_position(slice_start)
 
         affine = _create_affine_transformation_matrix(

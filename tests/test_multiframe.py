@@ -11,7 +11,8 @@ def test_slice_spacing():
     )
     db = MultiFrameDBManager(ct_multiframe)
 
-    assert db.get_slice_spacing() == 10.0
+    assert db.number_of_volume_positions == 2
+    assert db.spacing_between_slices == 10.0
 
 
 def test_slice_spacing_irregular():
@@ -25,4 +26,5 @@ def test_slice_spacing_irregular():
 
     db = MultiFrameDBManager(ct_multiframe)
 
-    assert db.get_slice_spacing() is None
+    assert db.number_of_volume_positions is None
+    assert db.spacing_between_slices is None
