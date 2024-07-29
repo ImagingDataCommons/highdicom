@@ -40,6 +40,14 @@ PATIENT_ORIENTATION_OPPOSITES = {
 """Mapping of each patient orientation value to its opposite."""
 
 
+VOLUME_INDEX_CONVENTION = (
+    PixelIndexDirections.I,
+    PixelIndexDirections.D,
+    PixelIndexDirections.R,
+)
+"""The indexing convention used for affine matrices within volumes."""
+
+
 def is_tiled_image(dataset: Dataset) -> bool:
     """Determine whether a dataset represents a tiled image.
 

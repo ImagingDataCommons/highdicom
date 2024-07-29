@@ -22,7 +22,10 @@ from pydicom.tag import BaseTag
 from pydicom.datadict import get_entry, tag_for_keyword
 from pydicom.multival import MultiValue
 
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    CoordinateSystemNames,
+    PixelIndexDirections,
+)
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     _DEFAULT_SPACING_TOLERANCE,
@@ -957,7 +960,15 @@ class MultiFrameDBManager:
         image_position = list(list(cur.execute(query))[0])
         return image_position
 
-    def get_volume_affine(self, slice_start: int = 0) -> np.ndarray:
+    def get_volume_affine(
+        self,
+        slice_start: int = 0,
+        index_convention: Optional[Sequence[PixelIndexDirections]] = (
+            PixelIndexDirections.I,
+            PixelIndexDirections.D,
+            PixelIndexDirections.R,
+        ),
+    ) -> np.ndarray:
 
         image_position = self.get_image_position_at_volume_position(slice_start)
 
@@ -966,6 +977,7 @@ class MultiFrameDBManager:
             image_orientation=self.shared_image_orientation,
             spacing_between_slices=self.spacing_between_slices,
             pixel_spacing=self.shared_pixel_spacing,
+            index_convention=index_convention,
         )
 
         return affine

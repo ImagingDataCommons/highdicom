@@ -9,7 +9,6 @@ from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
     CoordinateSystemNames,
     PatientOrientationValuesBiped,
-    PixelIndexDirections,
 )
 from highdicom.spatial import (
     _create_affine_transformation_matrix,
@@ -17,6 +16,7 @@ from highdicom.spatial import (
     _normalize_patient_orientation,
     _transform_affine_matrix,
     PATIENT_ORIENTATION_OPPOSITES,
+    VOLUME_INDEX_CONVENTION,
     get_closest_patient_orientation,
     get_image_coordinate_system,
     get_plane_sort_index,
@@ -77,13 +77,6 @@ class Volume:
     classes in the ``highdicom.spatial`` module.
 
     """
-    # The indexing convention used for all internal representations of the
-    # affine matrix.
-    _INTERNAL_INDEX_CONVENTION = (
-        PixelIndexDirections.I,
-        PixelIndexDirections.D,
-        PixelIndexDirections.R,
-    )
 
     def __init__(
         self,
@@ -255,7 +248,7 @@ class Volume:
             image_orientation=ds.ImageOrientationPatient,
             pixel_spacing=ds.PixelSpacing,
             spacing_between_slices=slice_spacing,
-            index_convention=cls._INTERNAL_INDEX_CONVENTION,
+            index_convention=VOLUME_INDEX_CONVENTION,
         )
 
         # TODO apply color, modality and VOI lookup
@@ -337,7 +330,7 @@ class Volume:
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
             spacing_between_slices=slice_spacing,
-            index_convention=cls._INTERNAL_INDEX_CONVENTION,
+            index_convention=VOLUME_INDEX_CONVENTION,
         )
 
         # TODO apply VOI color modality LUT etc
@@ -420,7 +413,7 @@ class Volume:
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
             spacing_between_slices=spacing_between_slices,
-            index_convention=cls._INTERNAL_INDEX_CONVENTION,
+            index_convention=VOLUME_INDEX_CONVENTION,
         )
         return cls(
             affine=affine,
