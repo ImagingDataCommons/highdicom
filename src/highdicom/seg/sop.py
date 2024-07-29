@@ -514,8 +514,10 @@ class _SegDBManager(MultiFrameDBManager):
                 )
 
     @contextmanager
-    def iterate_indices_by_volume(
+    def iterate_indices_for_volume(
         self,
+        slice_start: int,
+        slice_end: int,
         segment_numbers: Sequence[int],
         combine_segments: bool = False,
         relabel: bool = False,
@@ -542,6 +544,18 @@ class _SegDBManager(MultiFrameDBManager):
 
         Parameters
         ----------
+        slice_start: int, optional
+            Zero-based index of the "volume position" of the first slice of the
+            returned volume. The "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. Must be a
+            non-negative integer.
+        slice_end: Union[int, None], optional
+            Zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. The "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            Must be a positive integer.
         segment_numbers: Sequence[int]
             Sequence containing segment numbers to include.
         combine_segments: bool, optional
@@ -569,7 +583,7 @@ class _SegDBManager(MultiFrameDBManager):
             numpy arrays directly.
 
         """  # noqa: E501
-        if self.volume_spacing is None:
+        if self.number_of_volume_positions is None:
             raise RuntimeError(
                 'This segmentation does not represent a regularly-spaced '
                 'volume.'
@@ -580,12 +594,15 @@ class _SegDBManager(MultiFrameDBManager):
         # operations, presumably as it is more cache efficient
         query = (
             'SELECT '
-            '    L.VolumePosition,'
+            f'    L.VolumePosition - {slice_start},'
             '    L.FrameNumber - 1,'
             '    S.OutputSegmentNumber '
             'FROM FrameLUT L '
             'INNER JOIN TemporarySegmentNumbers S'
             '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'WHERE '
+            f'    L.VolumePosition >= {slice_start} AND '
+            f'    L.VolumePosition < {slice_end} '
             'ORDER BY L.VolumePosition'
         )
 
@@ -3538,40 +3555,22 @@ class Segmentation(SOPClass):
 
         return types
 
-    def is_3d_volume(
-        self,
-        split_dimensions: Optional[Sequence[str]] = None,
-    ):
-        """Determine whether this segmentation is a 3D volume.
-
-        For this purpose, a 3D volume is a set of regularly slices in 3D space
-        distributed at regular spacings along a vector perpendicular to the
-        normal vector to each image.
-
-        Parameters
-        ----------
-
+    @property
+    def number_of_volume_positions(self) -> Optional[int]:
+        """Union[int, None]: Number of volume positions, if the segmentation
+        represents a regularly-spaced 3D volume. ``None`` otherwise.
 
         """
-        if split_dimensions is not None:
-            split_dimensions = list(split_dimensions)
-            if len(split_dimensions) == 0:
-                raise ValueError(
-                    'Argument "split_dimensions" must not be empty.'
-                )
-            if 'ReferencedSegmentNumber' in split_dimensions:
-                raise ValueError(
-                    'The value "ReferencedSegmentNumber" should not be '
-                    'included in the spplit dimensions.'
-                )
-        else:
-            split_dimensions = []
+        return self._db_man.number_of_volume_positions
 
-        split_dimensions.append('ReferencedSegmentNumber')
+    @property
+    def spacing_between_slices(self) -> Optional[float]:
+        """Union[float, None]: Spacing between slices in the frame of reference
+        coordinate system if the segmentation represents a regularly-spaced 3D
+        volume. ``None`` otherwise.
 
-        spacing = self._db_man.get_slice_spacing(split_dimensions)
-
-        return spacing is not None
+        """
+        return self._db_man.spacing_between_slices
 
     def _get_pixels_by_seg_frame(
         self,
@@ -4378,17 +4377,100 @@ class Segmentation(SOPClass):
                 dtype=dtype,
             )
 
-    def get_pixels_as_volume(
+    def get_volume(
         self,
+        slice_start: int = 0,
+        slice_end: Optional[int] = None,
         segment_numbers: Optional[Sequence[int]] = None,
         combine_segments: bool = False,
         relabel: bool = False,
-        ignore_spatial_locations: bool = False,
-        assert_missing_frames_are_empty: bool = False,
+        allow_missing_frames: bool = True,  # TODO
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
-    ):
+    ) -> Volume:
+        """Create a :class:`highdicom.Volume` from the segmentation.
+
+        This is only possible if the segmentation represents a regularly-spaced
+        3D volume.
+
+        Parameters
+        ----------
+        slice_start: int, optional
+            Zero-based index of the "volume position" of the first slice of the
+            returned volume. The "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. May be
+            negative, in which case standard Python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc).
+        slice_end: Union[int, None], optional
+            Zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. The "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            May be negative, in which case standard Python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). If
+            None, the last volume position is included as the last output
+            slice.
+        segment_numbers: Optional[Sequence[int]], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        ignore_spatial_locations: bool, optional
+            Ignore whether or not spatial locations were preserved in the
+            derivation of the segmentation frames from the source frames. In
+            some segmentation images, the pixel locations in the segmentation
+            frames may not correspond to pixel locations in the frames of the
+            source image from which they were derived. The segmentation image
+            may or may not specify whether or not spatial locations are
+            preserved in this way through use of the optional (0028,135A)
+            SpatialLocationsPreserved attribute. If this attribute specifies
+            that spatial locations are not preserved, or is absent from the
+            segmentation image, highdicom's default behavior is to disallow
+            indexing by source frames. To override this behavior and retrieve
+            segmentation pixels regardless of the presence or value of the
+            spatial locations preserved attribute, set this parameter to True.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the segmentation image contain no segments. If a source frame
+            number is not referenced by the segmentation image and is larger
+            than the frame number of the highest referenced frame, highdicom is
+            unable to check that the frame number is valid in the source image.
+            By default, highdicom will raise an error in this situation. To
+            override this behavior and return a segmentation frame of all zeros
+            for such frames, set this parameter to True.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlap between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+
+        """
         # Checks on validity of the inputs
         if segment_numbers is None:
             segment_numbers = list(self.segment_numbers)
@@ -4397,14 +4479,48 @@ class Segmentation(SOPClass):
                 'Segment numbers may not be empty.'
             )
 
-        with self._db_man.iterate_indices_by_volume(
+        if self.number_of_volume_positions is None:
+            raise RuntimeError(
+                "This segmentation is not a regularly-spaced 3D volume."
+            )
+        n_vol_positions = self.number_of_volume_positions
+
+        if slice_start < 0:
+            slice_start = n_vol_positions + slice_start
+
+        if slice_end is None:
+            slice_end = n_vol_positions + 1
+        elif slice_end > n_vol_positions:
+            raise IndexError(
+                f"Value of {slice_end} is not valid for segmentation with "
+                f"{n_vol_positions} volume positions."
+            )
+        elif slice_end < 0:
+            if slice_end < (- n_vol_positions):
+                raise IndexError(
+                    f"Value of {slice_end} is not valid for segmentation with "
+                    f"{n_vol_positions} volume positions."
+                )
+            slice_end = n_vol_positions + slice_end
+
+        number_of_slices = cast(int, slice_end) - slice_start
+
+        if number_of_slices < 1:
+            raise ValueError(
+                "The combination of 'slice_start' and 'slice_end' gives an "
+                "empty volume."
+            )
+
+        with self._db_man.iterate_indices_for_volume(
+            slice_start=slice_start,
+            slice_end=cast(int, slice_end),
             segment_numbers=segment_numbers,
             combine_segments=combine_segments,
             relabel=relabel,
         ) as indices:
 
-            return self._get_pixels_by_seg_frame(
-                output_shape=self._db_man.number_of_volume_positions,
+            array = self._get_pixels_by_seg_frame(
+                output_shape=number_of_slices,
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4413,6 +4529,14 @@ class Segmentation(SOPClass):
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
             )
+
+        affine = self._db_man.get_volume_affine(slice_start)
+
+        return Volume(
+            array=array,
+            affine=affine,
+            frame_of_reference_uid=self.FrameOfReferenceUID,
+        )
 
     def get_pixels_by_dimension_index_values(
         self,
