@@ -105,8 +105,8 @@ class MultiFrameDBManager:
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
         spacing_hint = None
+        image_position_tag = tag_for_keyword('ImagePositionPatient')
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            image_position_tag = tag_for_keyword('ImagePositionPatient')
             plane_pos_seq_tag = tag_for_keyword('PlanePositionSequence')
             # Include the image position if it is not an index
             if image_position_tag not in self._dim_ind_pointers:
@@ -438,8 +438,14 @@ class MultiFrameDBManager:
             and self.shared_image_orientation is not None
         ):
             if self.shared_image_orientation is not None:
+                if image_position_tag in self._dim_ind_pointers:
+                    image_positions = dim_values[image_position_tag]
+                else:
+                    image_positions = extra_collection_values[
+                        image_position_tag
+                    ]
                 volume_spacing, volume_positions = get_volume_positions(
-                    image_positions=dim_values[image_position_tag],
+                    image_positions=image_positions,
                     image_orientation=self.shared_image_orientation,
                     allow_missing=True,
                     allow_duplicates=True,
