@@ -3570,7 +3570,11 @@ class Segmentation(SOPClass):
         volume. ``None`` otherwise.
 
         """
-        return self._db_man.spacing_between_slices
+        if self._db_man.affine is None:
+            return None
+        slice_vec = self._db_man.affine[:3, 0]
+        spacing = np.sqrt((slice_vec ** 2).sum()).item()
+        return spacing
 
     def _get_pixels_by_seg_frame(
         self,
@@ -4489,7 +4493,7 @@ class Segmentation(SOPClass):
             slice_start = n_vol_positions + slice_start
 
         if slice_end is None:
-            slice_end = n_vol_positions + 1
+            slice_end = n_vol_positions
         elif slice_end > n_vol_positions:
             raise IndexError(
                 f"Value of {slice_end} is not valid for segmentation with "
@@ -4503,7 +4507,7 @@ class Segmentation(SOPClass):
                 )
             slice_end = n_vol_positions + slice_end
 
-        number_of_slices = cast(int, slice_end) - slice_start - 1
+        number_of_slices = cast(int, slice_end) - slice_start
 
         if number_of_slices < 1:
             raise ValueError(

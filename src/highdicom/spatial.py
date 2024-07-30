@@ -1200,6 +1200,39 @@ def _transform_affine_matrix(
     return transformed
 
 
+def _translate_affine_matrix(
+    affine: np.ndarray,
+    pixel_offset: Sequence[int],
+) -> np.ndarray:
+    """Translate the origin of an affine matrix.
+
+    Parameters
+    ----------
+    affine: numpy.ndarray
+        Original affine matrix (4 x 4).
+    pixel_offset: Sequence[int]
+        Offset, in pixel units.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Translated affine matrix.
+
+    """
+    if len(pixel_offset) != 3:
+        raise ValueError(
+            f"Argument 'pixel_spacing' must have three elements."
+        )
+    offset_arr = np.array(pixel_offset)
+    origin = affine[:3, 3]
+    direction = affine[:3, :3]
+    reference_offset = direction @ offset_arr
+    new_origin = origin + reference_offset
+    result = affine.copy()
+    result[:3, 3] = new_origin
+    return result
+
+
 def _transform_affine_to_convention(
     affine: np.ndarray,
     shape: Sequence[int],

@@ -30,6 +30,7 @@ from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     VOLUME_INDEX_CONVENTION,
     _create_affine_transformation_matrix,
+    _translate_affine_matrix,
     get_image_coordinate_system,
     get_volume_positions,
 )
@@ -436,7 +437,7 @@ class MultiFrameDBManager:
 
         # Volume related information
         self.number_of_volume_positions: Optional[int] = None
-        self.spacing_between_slices: Optional[float] = None
+        self.affine: Optional[np.ndarray] = None
         if (
             self._coordinate_system == CoordinateSystemNames.PATIENT
             and self.shared_image_orientation is not None
@@ -456,8 +457,15 @@ class MultiFrameDBManager:
                     spacing_hint=slice_spacing_hint,
                 )
                 if volume_positions is not None:
+                    origin_slice_index = volume_positions.index(0)
                     self.number_of_volume_positions = max(volume_positions) + 1
-                    self.spacing_between_slices = volume_spacing
+                    self.affine = _create_affine_transformation_matrix(
+                        image_position=image_positions[origin_slice_index],
+                        image_orientation=self.shared_image_orientation,
+                        pixel_spacing=self.shared_pixel_spacing,
+                        spacing_between_slices=volume_spacing,
+                        index_convention=VOLUME_INDEX_CONVENTION,
+                    )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
                     col_data.append(volume_positions)
 
@@ -860,17 +868,26 @@ class MultiFrameDBManager:
             4 x 4 affine matrix.
 
         """
-        image_position = self.get_image_position_at_volume_position(slice_start)
+        if self.number_of_volume_positions is None:
+            raise RuntimeError(
+                "This image does not represent a regularly-spaced 3D volume."
+            )
 
-        affine = _create_affine_transformation_matrix(
-            image_position=image_position,
-            image_orientation=self.shared_image_orientation,
-            spacing_between_slices=self.spacing_between_slices,
-            pixel_spacing=self.shared_pixel_spacing,
-            index_convention=index_convention,
-        )
+        if slice_start < 0:
+            raise ValueError(
+                "Argument 'slice_start' should be non-negative."
+            )
+        elif slice_start >= self.number_of_volume_positions:
+            raise ValueError(
+                f"Value of {slice_start} for argument 'slice_start' "
+                'is not valid for image with '
+                f'{self.number_of_volume_positions} volume positions.'
+            )
 
-        return affine
+        if slice_start == 0:
+            return self.affine
+        else:
+            return _translate_affine_matrix(self.affine, [slice_start, 0, 0])
 
     @contextmanager
     def _generate_temp_table(
