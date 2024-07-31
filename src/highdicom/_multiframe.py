@@ -24,7 +24,6 @@ from pydicom.multival import MultiValue
 
 from highdicom.enum import (
     CoordinateSystemNames,
-    PixelIndexDirections,
 )
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
@@ -848,7 +847,6 @@ class MultiFrameDBManager:
     def get_volume_affine(
         self,
         slice_start: int = 0,
-        index_convention: Sequence[PixelIndexDirections] = VOLUME_INDEX_CONVENTION,
     ) -> np.ndarray:
         """Get the affine matrix for the implied volume.
 

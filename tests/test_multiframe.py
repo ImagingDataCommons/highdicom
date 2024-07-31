@@ -1,4 +1,5 @@
 """Tests for the highdicom._multiframe module."""
+import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file, get_testdata_files
 
@@ -11,8 +12,17 @@ def test_slice_spacing():
     )
     db = MultiFrameDBManager(ct_multiframe)
 
+    expected_affine = np.array(
+        [
+            [0.0,   0.0, -0.388672, 99.5],
+            [0.0,   0.388672, 0.0, -301.5],
+            [-10.0, 0.0, 0.0, -149],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    print(db.affine)
     assert db.number_of_volume_positions == 2
-    assert db.spacing_between_slices == 10.0
+    assert np.array_equal(db.affine, expected_affine)
 
 
 def test_slice_spacing_irregular():
@@ -27,4 +37,4 @@ def test_slice_spacing_irregular():
     db = MultiFrameDBManager(ct_multiframe)
 
     assert db.number_of_volume_positions is None
-    assert db.spacing_between_slices is None
+    assert db.affine is None
