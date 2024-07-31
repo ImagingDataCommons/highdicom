@@ -32,9 +32,7 @@ from highdicom.content import (
 
 from pydicom import Dataset, dcmread
 
-# TODO add segmentation get_volume
 # TODO add basic arithmetric operations
-# TODO add normalization
 # TODO add padding
 # TODO add pixel value transformations
 
@@ -1039,14 +1037,7 @@ class Volume:
         """
         new_array = self._array.astype(dtype)
 
-        return self.__class__(
-            array=new_array,
-            affine=self.affine,
-            frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
-            source_frame_numbers=deepcopy(self.source_frame_numbers),
-            source_frame_dimension=self.source_frame_dimension or 0,
-        )
+        return self.with_array(new_array)
 
     def with_array(self, array: np.ndarray) -> 'Volume':
         """Get a new volume using a different array.
@@ -1081,6 +1072,7 @@ class Volume:
             frame_of_reference_uid=self.frame_of_reference_uid,
             source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
             source_frame_numbers=deepcopy(self.source_frame_numbers),
+            source_frame_dimension=self.source_frame_dimension or 0,
         )
 
     def __getitem__(
@@ -1328,6 +1320,185 @@ class Volume:
             result = self
 
         return result.permute(permute_indices)
+
+    def normalize_intensity(
+        self,
+        per_channel: bool = True,
+    ) -> 'Volume':
+        """Normalize the intensities using the mean and variance.
+
+        The resulting volume has zero mean and unit variance.
+
+        Parameters
+        ----------
+        per_channel: bool, optional
+            If True (the default), each channel is normalized by its own mean
+            and variance. If False, all channels are normalized together using
+            the overall mean and variance.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with normalized intensities. Note that the dtype will
+            be promoted to floating point.
+
+        """
+        if (
+            per_channel and
+            self.number_of_channels is not None and
+            self.number_of_channels > 1
+        ):
+            new_array = self.array.copy()
+            for c in range(self.number_of_channels):
+                channel = new_array[:,:, :, c]
+                new_array[:, :, :, c] = (
+                    (channel - channel.mean()) /
+                        channel.std()
+                )
+        else:
+            new_array = (self.array - self.array.mean()) / self.array.std()
+
+        return self.with_array(new_array)
+
+    def normalize_intensity_minmax(
+        self,
+        output_min: float = 0.0,
+        output_max: float = 1.0,
+        per_channel: bool = True,
+    ) -> 'Volume':
+        """Normalize by mapping its full intensity range to a fixed range.
+
+        Other pixel values are scaled linearly within this range.
+
+        Parameters
+        ----------
+        output_min: float, optional
+            The value to which the minimum intensity is mapped.
+        output_max: float, optional
+            The value to which the maximum intensity is mapped.
+        per_channel: bool, optional
+            If True (the default), each channel is normalized by its own mean
+            and variance. If False, all channels are normalized together using
+            the overall mean and variance.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with normalized intensities. Note that the dtype will
+            be promoted to floating point.
+
+        """
+        output_range = output_max - output_min
+
+        if (
+            per_channel and
+            self.number_of_channels is not None and
+            self.number_of_channels > 1
+        ):
+            new_array = self.array.copy()
+            for c in range(self.number_of_channels):
+                channel = new_array[:,:, :, c]
+                imin = channel.min()
+                imax = channel.max()
+                scale_factor = output_range / (imax - imin)
+                new_array[:, :, :, c] = (
+                    (channel - imin) * scale_factor + output_min
+                )
+        else:
+            imin = self.array.min()
+            imax = self.array.max()
+            scale_factor = output_range / (imax - imin)
+            new_array = (self.array - imin) * scale_factor + output_min
+
+        return self.with_array(new_array)
+
+    def clip_intensities(
+        self,
+        a_min: Optional[float],
+        a_max: Optional[float],
+    ) -> 'Volume':
+        """Clip voxel intensities.
+
+        Parameters
+        ----------
+        a_min: Union[float, None]
+            Lower value to clip. May be None if no lower clipping is to be
+            applied.
+        a_max: Union[float, None]
+            Upper value to clip. May be None if no upper clipping is to be
+            applied.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with clipped intensities.
+
+        """
+        new_array = np.clip(self.array, a_min, a_max)
+
+        return self.with_array(new_array)
+
+    def apply_window(
+        self,
+        *,
+        window_min: Optional[float] = None,
+        window_max: Optional[float]= None,
+        window_center: Optional[float] = None,
+        window_width: Optional[float] = None,
+        output_min: float = 0.0,
+        output_max: float = 1.0,
+        clip: bool = True,
+    ) -> 'Volume':
+        """Apply a window (similar to VOI transform) to the volume.
+
+        Parameters
+        ----------
+        window_min: Union[float, None], optional
+            Minimum value of window (mapped to ``output_min``).
+        window_max: Union[float, None], optional
+            Maximum value of window (mapped to ``output_max``).
+        window_center: Union[float, None], optional
+            Center value of the window.
+        window_width: Union[float, None], optional
+            Width of the window.
+        output_min: float, optional
+            Value to which the lower edge of the window is mapped.
+        output_max: float, optional
+            Value to which the upper edge of the window is mapped.
+        clip: bool, optional
+            Whether to clip the values to lie within the output range.
+
+        Note
+        ----
+        Either ``window_min`` and ``window_max`` or ``window_center`` and
+        ``window_width`` should be specified. Other combinations are not valid.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with windowed intensities.
+
+        """
+        if window_min is None != window_max is None:
+            raise TypeError("Invalid combination of inputs specified.")
+        if window_center is None != window_width is None:
+            raise TypeError("Invalid combination of inputs specified.")
+        if window_center is None == window_min is None:
+            raise TypeError("Invalid combination of inputs specified.")
+
+        if window_min is None:
+            window_min = window_center - (window_width / 2)
+        if window_width is None:
+            window_width = window_max - window_min
+        output_range = output_max - output_min
+        scale_factor = output_range / window_width
+
+        new_array = (self.array - window_min) * scale_factor + output_min
+
+        if clip:
+            new_array = np.clip(new_array, output_min, output_max)
+
+        return self.with_array(new_array)
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:
