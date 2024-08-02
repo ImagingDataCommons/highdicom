@@ -39,7 +39,9 @@ from pydicom import Dataset, dcmread
 # TODO handedness checks/constraints
 # TODO should methods copy arrays?
 # TODO crop_or_pad
-# TODO random crop
+# TODO random crop, random flip
+# TODO match geometry
+# TODO trim non-zero
 
 
 class Volume:
@@ -1348,9 +1350,11 @@ class Volume:
 
         return result.permute(permute_indices)
 
-    def normalize_intensity(
+    def normalize_mean_std(
         self,
         per_channel: bool = True,
+        output_mean: float = 0.0,
+        output_std: float = 1.0,
     ) -> 'Volume':
         """Normalize the intensities using the mean and variance.
 
@@ -1362,6 +1366,11 @@ class Volume:
             If True (the default), each channel is normalized by its own mean
             and variance. If False, all channels are normalized together using
             the overall mean and variance.
+        output_mean: float, optional
+            The mean value of the output array (or channel), after scaling.
+        output_std: float, optional
+            The standard deviation of the output array (or channel),
+            after scaling.
 
         Returns
         -------
@@ -1375,19 +1384,23 @@ class Volume:
             self.number_of_channels is not None and
             self.number_of_channels > 1
         ):
-            new_array = self.array.copy()
+            new_array = self.array.astype(np.float64)
             for c in range(self.number_of_channels):
-                channel = new_array[:,:, :, c]
+                channel = new_array[:, :, :, c]
                 new_array[:, :, :, c] = (
                     (channel - channel.mean()) /
-                        channel.std()
-                )
+                    (channel.std() / output_std)
+                ) + output_mean
         else:
-            new_array = (self.array - self.array.mean()) / self.array.std()
+            new_array = (
+                (self.array - self.array.mean()) /
+                (self.array.std() / output_std)
+                + output_mean
+            )
 
         return self.with_array(new_array)
 
-    def normalize_intensity_minmax(
+    def normalize_min_max(
         self,
         output_min: float = 0.0,
         output_max: float = 1.0,
@@ -1416,13 +1429,15 @@ class Volume:
 
         """
         output_range = output_max - output_min
+        if output_range <= 0.0:
+            raise ValueError('Output min must be below output max.')
 
         if (
             per_channel and
             self.number_of_channels is not None and
             self.number_of_channels > 1
         ):
-            new_array = self.array.copy()
+            new_array = self.array.astype(np.float64)
             for c in range(self.number_of_channels):
                 channel = new_array[:,:, :, c]
                 imin = channel.min()
@@ -1439,21 +1454,21 @@ class Volume:
 
         return self.with_array(new_array)
 
-    def clip_intensities(
+    def clip(
         self,
         a_min: Optional[float],
         a_max: Optional[float],
     ) -> 'Volume':
-        """Clip voxel intensities.
+        """Clip voxel intensities to lie within a given range.
 
         Parameters
         ----------
         a_min: Union[float, None]
             Lower value to clip. May be None if no lower clipping is to be
-            applied.
+            applied. Voxel intensities below this value are set to this value.
         a_max: Union[float, None]
             Upper value to clip. May be None if no upper clipping is to be
-            applied.
+            applied. Voxel intensities above this value are set to this value.
 
         Returns
         -------
@@ -1797,7 +1812,21 @@ class Volume:
         )
 
     def crop_to_shape(self, shape: Sequence[int]) -> 'Volume':
+        """Center-crop volume to a given spatial shape.
 
+        Parameters
+        ----------
+        shape: Sequence[int]
+            Sequence of three integers specifying the spatial shape to crop to.
+            This shape must be no larger than the existing shape along any of
+            the three spatial dimensions.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with padding applied.
+
+        """
         if len(shape) != 3:
             raise ValueError(
                 "Argument 'shape' must have length 3."
