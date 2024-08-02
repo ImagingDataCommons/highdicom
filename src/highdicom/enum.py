@@ -376,3 +376,26 @@ class UniversalEntityIDTypeValues(Enum):
 
     X500 = 'X500'
     """An X.500 directory name."""
+
+
+class PadModes(Enum):
+
+    """Enumerated values of modes to pad an array."""
+
+    CONSTANT = 'CONSTANT'
+    """Pad with a specified constant value."""
+
+    EDGE = 'EDGE'
+    """Pad with the edge value."""
+
+    MINIMUM = 'MINIMUM'
+    """Pad with the minimum value."""
+
+    MAXIMUM = 'MAXIMUM'
+    """Pad with the maximum value."""
+
+    MEAN = 'MEAN'
+    """Pad with the mean value."""
+
+    MEDIAN = 'MEDIAN'
+    """Pad with the median value."""

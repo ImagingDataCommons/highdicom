@@ -8,6 +8,7 @@ import numpy as np
 from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
     CoordinateSystemNames,
+    PadModes,
     PatientOrientationValuesBiped,
 )
 from highdicom.spatial import (
@@ -15,6 +16,7 @@ from highdicom.spatial import (
     _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _transform_affine_matrix,
+    _translate_affine_matrix,
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     get_closest_patient_orientation,
@@ -33,8 +35,11 @@ from highdicom.content import (
 from pydicom import Dataset, dcmread
 
 # TODO add basic arithmetric operations
-# TODO add padding
 # TODO add pixel value transformations
+# TODO handedness checks/constraints
+# TODO should methods copy arrays?
+# TODO crop_or_pad
+# TODO random crop
 
 
 class Volume:
@@ -47,7 +52,8 @@ class Volume:
     be extracted from DICOM image, and/or encoded within a DICOM object,
     potentially following any number of processing steps.
 
-    All such geometries exist within DICOM's patient coordinate system.
+    All such volumes have a geometry that exists within DICOM's patient
+    coordinate system.
 
     Internally this class uses the following conventions to represent the
     geometry, however this can be constructed from or transformed to other
@@ -1039,6 +1045,24 @@ class Volume:
 
         return self.with_array(new_array)
 
+    def copy(self) -> 'Volume':
+        """Get an unaltered copy of the volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Copy of the original volume.
+
+        """
+        return self.__class__(
+            array=self.array,  # TODO should this copy?
+            affine=self._affine.copy(),
+            frame_of_reference_uid=self.frame_of_reference_uid,
+            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
+            source_frame_numbers=deepcopy(self.source_frame_numbers),
+            source_frame_dimension=self.source_frame_dimension or 0,
+        )
+
     def with_array(self, array: np.ndarray) -> 'Volume':
         """Get a new volume using a different array.
 
@@ -1084,10 +1108,13 @@ class Volume:
         Parameters
         ----------
         index: Union[int, slice, Tuple[Union[int, slice]]]
+            Index values. All possibilities supported by numpy arrays are
+            supported, including negative indices and different step sizes.
 
         Returns
         -------
         highdicom.Volume:
+            New volume representing a sub-volume of the original volume.
 
         """
         if isinstance(index, int):
@@ -1364,7 +1391,7 @@ class Volume:
         self,
         output_min: float = 0.0,
         output_max: float = 1.0,
-        per_channel: bool = True,
+        per_channel: bool = False,
     ) -> 'Volume':
         """Normalize by mapping its full intensity range to a fixed range.
 
@@ -1377,8 +1404,8 @@ class Volume:
         output_max: float, optional
             The value to which the maximum intensity is mapped.
         per_channel: bool, optional
-            If True (the default), each channel is normalized by its own mean
-            and variance. If False, all channels are normalized together using
+            If True, each channel is normalized by its own mean and variance.
+            If False (the default), all channels are normalized together using
             the overall mean and variance.
 
         Returns
@@ -1499,6 +1526,300 @@ class Volume:
             new_array = np.clip(new_array, output_min, output_max)
 
         return self.with_array(new_array)
+
+    def squeeze_channel(self) -> 'Volume':
+        """Remove a singleton channel axis.
+
+        If the volume has no channels, returns an unaltered copy.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with channel axis removed.
+
+        """
+        if self.number_of_channels is None:
+            return self.copy()
+        if self.number_of_channels == 1:
+            return self.with_array(self.array.squeeze(3))
+        else:
+            raise RuntimeError(
+                'Volume with multiple channels cannot be squeezed.'
+            )
+
+    def ensure_channel(self) -> 'Volume':
+        """Add a singleton channel axis, if needed.
+
+        If the volume has channels already, returns an unaltered copy.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with added channel axis (if required).
+
+        """
+        if self.number_of_channels is None:
+            return self.with_array(self.array[:, :, :, None])
+        return self.copy()
+
+    def pad(
+        self,
+        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        mode: PadModes = PadModes.CONSTANT,
+        constant_value: float = 0.0,
+        per_channel: bool = False,
+    ) -> 'Volume':
+        """Pad volume along the three spatial dimensions.
+
+        Parameters
+        ----------
+        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]]
+            Values to pad the array. Takes the same form as ``numpy.pad()``.
+            May be:
+
+            * A single integer value, which results in that many voxels being
+              added to the beginning and end of all three spatial dimensions.
+            * A sequence of two values in the form ``[before, after]``, which
+              results in 'before' voxels being added to the beginning of each
+              of the three spatial dimensions, and 'after' voxels being added
+              to the end of each of the three spatial dimensions
+            * A nested sequence of integers of the form ``[[pad1], [pad2],
+              [pad3]]``, in which separate padding values are supplied for each
+              of the three spatial axes and used to pad before and after along
+              those axes, or
+            * A nested sequence of integers in the form ``[[before1, after1],
+              [before2, after2], [before3, after3]]``, in which separate values
+              are supplied for the before and after padding of each of the
+              three spatial dimensions.
+        mode: highdicom.PadModes, optional
+            Mode to use to pad the array. See :class:`highdicom.PadModes` for
+            options.
+        constant_value: Union[float, Sequence[float]], optional
+            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
+            if True, a sequence whose length is equal to the number of channels
+            may be passed, and each value will be used for the corresponding
+            channel. With other pad modes, this argument is ignored.
+        per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should not the True if the image does not have a
+            channel dimension.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with padding applied.
+
+        """
+        if isinstance(mode, str):
+            mode = mode.upper()
+        mode = PadModes(mode)
+
+        if per_channel and self.number_of_channels is None:
+            raise ValueError(
+                "Argument 'per_channel' may not be True if the image has no "
+                "channels."
+            )
+
+        if mode in (
+            PadModes.MINIMUM,
+            PadModes.MAXIMUM,
+            PadModes.MEAN,
+            PadModes.MEDIAN,
+        ):
+            used_mode = PadModes.CONSTANT
+        elif (
+            mode == PadModes.CONSTANT and
+            isinstance(constant_value, Sequence)
+        ):
+            used_mode = mode
+            if not per_channel:
+                raise TypeError(
+                    "Argument 'constant_value' should be a single value if "
+                    "'per_channel' is False."
+                )
+            if len(constant_value) != self.number_of_channels:
+                raise ValueError(
+                    "Argument 'constant_value' must have length equal to the "
+                    'number of channels in the volume.'
+                )
+        else:
+            used_mode = mode
+            # per_channel result is same as default result, so just ignore it
+            per_channel = False
+
+        if (
+            self.number_of_channels is None or
+            self.number_of_channels == 1
+        ):
+            # Only one channel, so can ignore the per_channel logic
+            per_channel = False
+
+        padding_with_channels = (
+            self.number_of_channels is not None and not per_channel
+        )
+        if isinstance(pad_width, int):
+            origin_offset = [-pad_width] * 3
+            if padding_with_channels:
+                pad_width = [*([[pad_width]] * 3), [0]]  # no channel padding
+        elif isinstance(pad_width, Sequence):
+            if isinstance(pad_width[0], int):
+                origin_offset = [-pad_width[0]] * 3
+                if padding_with_channels:
+                    pad_width = [*([pad_width] * 3), [0, 0]]  # no channel padding
+            elif isinstance(pad_width[0], Sequence):
+                if len(pad_width[0]) == 1:
+                    origin_offset = [-p[0] for p in pad_width]
+                    if padding_with_channels:
+                        pad_width = pad_width.copy()
+                        pad_width.append([0])  # no channel padding
+                elif len(pad_width[0]) == 2:
+                    origin_offset = [-p[0] for p in pad_width]
+                    if padding_with_channels:
+                        pad_width = pad_width.copy()
+                        pad_width.append([0, 0])  # no channel padding
+                else:
+                    raise ValueError("Invalid arrangement in 'pad_width'.")
+        else:
+            raise TypeError("Invalid format for 'pad_width'.")
+
+        def pad_array(array: np.ndarray, cval: float) -> float:
+            if used_mode == PadModes.CONSTANT:
+                if mode == PadModes.MINIMUM:
+                    v = array.min()
+                elif mode == PadModes.MAXIMUM:
+                    v = array.max()
+                elif mode == PadModes.MEAN:
+                    v = array.mean()
+                elif mode == PadModes.MEDIAN:
+                    v = np.median(array)
+                elif mode == PadModes.CONSTANT:
+                    v = cval
+                pad_kwargs = {'constant_values': v}
+            else:
+                pad_kwargs = {}
+
+            return np.pad(
+                array,
+                pad_width=pad_width,
+                mode=used_mode.value.lower(),
+                **pad_kwargs,
+            )
+
+        if per_channel:
+            if not isinstance(constant_value, Sequence):
+                constant_value = [constant_value] * self.number_of_channels
+            padded_channels = []
+            for c, v in enumerate(constant_value):
+                padded_channels.append(pad_array(self.array[:, :, :, c], v))
+            new_array = np.stack(padded_channels, axis=-1)
+        else:
+            new_array = pad_array(self.array, constant_value)
+
+        new_affine = _translate_affine_matrix(self.affine, origin_offset)
+
+        return self.__class__(
+            array=new_array,
+            affine=new_affine,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+            source_frame_dimension=self.source_frame_dimension or 0,
+        )
+
+    def pad_to_shape(
+        self,
+        shape: Sequence[int],
+        mode: PadModes = PadModes.CONSTANT,
+        constant_value: float = 0.0,
+        per_channel: bool = False,
+    ) -> 'Volume':
+        """Pad volume to given spatial shape.
+
+        The volume is padded symmetrically, placing the original array at the
+        center of the output array, to achieve the given shape. If this
+        requires an odd number of elements to be added along a certain
+        dimension, one more element is placed at the end of the array than at
+        the start.
+
+        Parameters
+        ----------
+        shape: Sequence[int]
+            Sequence of three integers specifying the spatial shape to pad to.
+            This shape must be no smaller than the existing shape along any of
+            the three spatial dimensions.
+        mode: highdicom.PadModes, optional
+            Mode to use to pad the array. See :class:`highdicom.PadModes` for
+            options.
+        constant_value: Union[float, Sequence[float]], optional
+            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
+            if True, a sequence whose length is equal to the number of channels
+            may be passed, and each value will be used for the corresponding
+            channel. With other pad modes, this argument is ignored.
+        per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should not the True if the image does not have a
+            channel dimension.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with padding applied.
+
+        """
+        if len(shape) != 3:
+            raise ValueError(
+                "Argument 'shape' must have length 3."
+            )
+
+        pad_width = []
+        for insize, outsize in zip(self.spatial_shape, shape):
+            to_pad = outsize - insize
+            if to_pad < 0:
+                raise ValueError(
+                    'Shape is smaller than existing shape along at least '
+                    'one axis.'
+                )
+            pad_front = to_pad // 2
+            pad_back = to_pad - pad_front
+            pad_width.append((pad_front, pad_back))
+
+        return self.pad(
+            pad_width=pad_width,
+            mode=mode,
+            constant_value=constant_value,
+            per_channel=per_channel,
+        )
+
+    def crop_to_shape(self, shape: Sequence[int]) -> 'Volume':
+
+        if len(shape) != 3:
+            raise ValueError(
+                "Argument 'shape' must have length 3."
+            )
+
+        crop_vals = []
+        for insize, outsize in zip(self.spatial_shape, shape):
+            to_crop = insize - outsize
+            if to_crop < 0:
+                raise ValueError(
+                    'Shape is larger than existing shape along at least '
+                    'one axis.'
+                )
+            crop_front = to_crop // 2
+            crop_back = to_crop - crop_front
+            crop_vals.append((crop_front, insize - crop_back))
+
+        return self[
+            crop_vals[0][0]:crop_vals[0][1],
+            crop_vals[1][0]:crop_vals[1][1],
+            crop_vals[2][0]:crop_vals[2][1],
+        ]
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:
