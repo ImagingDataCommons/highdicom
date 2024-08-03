@@ -995,14 +995,14 @@ class Volume:
     @property
     def voxel_volume(self) -> float:
         """float: The volume of a single voxel in cubic millimeters."""
-        return np.product(self.spacing).item()
+        return np.prod(self.spacing).item()
 
     @property
     def position(self) -> List[float]:
         """List[float]:
 
         Position in the frame of reference space of the center of voxel at
-        indices (0, 0, [).
+        indices (0, 0, 0).
 
         """
         return self._affine[:3, 3].tolist()
@@ -1032,7 +1032,7 @@ class Volume:
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
 
-    def direction_vectors(self) -> List[np.ndarray]:
+    def spacing_vectors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get the vectors along the three array dimensions.
 
         Note that these vectors are not normalized, they have length equal to
@@ -1040,24 +1040,33 @@ class Volume:
 
         Returns
         -------
-        List[np.ndarray]:
-            List of three vectors for the three axes of the volume array. Each
-            vector is a 1D numpy array.
+        numpy.ndarray:
+            Vector between voxel centers along the increasing first axis.
+            1D NumPy array.
+        numpy.ndarray:
+            Vector between voxel centers along the increasing second axis.
+            1D NumPy array.
+        numpy.ndarray:
+            Vector between voxel centers along the increasing third axis.
+            1D NumPy array.
 
         """
-        return list(self.affine[:3, :3].T)
+        return tuple(self.affine[:3, :3].T)
 
-    def unit_vectors(self) -> List[np.ndarray]:
+    def unit_vectors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get the normalized vectors along the three array dimensions.
 
         Returns
         -------
-        List[np.ndarray]:
-            List of three vectors for the three axes of the volume array. Each
-            vector is a 1D numpy array and has unit length.
+        numpy.ndarray:
+            Unit vector along the increasing first axis. 1D NumPy array.
+        numpy.ndarray:
+            Unit vector along the increasing second axis. 1D NumPy array.
+        numpy.ndarray:
+            Unit vector along the increasing third axis. 1D NumPy array.
 
         """
-        return list(self.direction.T)
+        return tuple(self.direction.T)
 
     def get_closest_patient_orientation(self) -> Tuple[
         PatientOrientationValuesBiped,
@@ -1156,8 +1165,9 @@ class Volume:
         Parameters
         ----------
         index: Union[int, slice, Tuple[Union[int, slice]]]
-            Index values. All possibilities supported by numpy arrays are
+            Index values. MOst possibilities supported by numpy arrays are
             supported, including negative indices and different step sizes.
+            Indexing with lists is not supported.
 
         Returns
         -------
@@ -1437,7 +1447,7 @@ class Volume:
     @property
     def handedness(self) -> AxisHandedness:
         """highdicom.AxisHandedness: Axis handedness of the volume."""
-        v1, v2, v3 = self.direction_vectors()
+        v1, v2, v3 = self.spacing_vectors()
         if np.cross(v1, v2) @ v3 < 0.0:
             return AxisHandedness.LEFT_HANDED
         return AxisHandedness.RIGHT_HANDED

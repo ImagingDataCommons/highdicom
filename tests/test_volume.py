@@ -10,6 +10,21 @@ from highdicom.volume import Volume, concat_channels, volread
 from highdicom import UID
 
 
+def read_multiframe_ct_volume():
+    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+    return Volume.from_image(dcm), dcm
+
+
+def read_ct_series_volume():
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+    return Volume.from_image_series(ct_series), ct_series
+
+
 def test_transforms():
     array = np.zeros((25, 50, 50))
     volume = Volume.from_attributes(
@@ -130,16 +145,10 @@ def test_with_array():
 
 
 def test_volume_single_frame():
-    ct_files = [
-        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-    ]
-    ct_series = [pydicom.dcmread(f) for f in ct_files]
-    volume = Volume.from_image_series(ct_series)
+    volume, ct_series = read_ct_series_volume()
     assert isinstance(volume, Volume)
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
-    assert volume.shape == (len(ct_files), rows, columns)
+    assert volume.shape == (len(ct_series), rows, columns)
     assert volume.spatial_shape == volume.shape
     assert volume.number_of_channels is None
     assert volume.source_frame_numbers is None
@@ -167,11 +176,28 @@ def test_volume_single_frame():
     assert volume.pixel_spacing == ct_series[0].PixelSpacing
     slice_spacing = 1.25
     assert volume.spacing == [slice_spacing, *ct_series[0].PixelSpacing[::-1]]
+    pixel_spacing = ct_series[0].PixelSpacing
+    expected_voxel_volume = (
+        pixel_spacing[0] * pixel_spacing[1] * slice_spacing
+    )
+    expected_volume = expected_voxel_volume * np.prod(volume.spatial_shape)
+    assert np.allclose(volume.voxel_volume, expected_voxel_volume)
+    assert np.allclose(volume.physical_volume, expected_volume)
+    u1, u2, u3 = volume.unit_vectors()
+    for u in [u1, u2, u3]:
+        assert u.shape == (3, )
+        assert np.linalg.norm(u) == 1.0
+    assert np.allclose(u3, orientation[:3])
+    assert np.allclose(u2, orientation[3:])
+
+    v1, v2, v3 = volume.spacing_vectors()
+    for v, spacing in zip([v1, v2, v3], volume.spacing):
+        assert v.shape == (3, )
+        assert np.linalg.norm(v) == spacing
 
 
 def test_volume_multiframe():
-    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-    volume = Volume.from_image(dcm)
+    volume, dcm = read_multiframe_ct_volume()
     assert isinstance(volume, Volume)
     rows, columns = dcm.Rows, dcm.Columns
     assert volume.shape == (dcm.NumberOfFrames, rows, columns)
@@ -215,6 +241,23 @@ def test_volume_multiframe():
     slice_spacing = 10.0
     assert volume.spacing == [slice_spacing, *pixel_spacing[::-1]]
     assert volume.number_of_channels is None
+    expected_voxel_volume = (
+        pixel_spacing[0] * pixel_spacing[1] * slice_spacing
+    )
+    expected_volume = expected_voxel_volume * np.prod(volume.spatial_shape)
+    assert np.allclose(volume.voxel_volume, expected_voxel_volume)
+    assert np.allclose(volume.physical_volume, expected_volume)
+    u1, u2, u3 = volume.unit_vectors()
+    for u in [u1, u2, u3]:
+        assert u.shape == (3, )
+        assert np.linalg.norm(u) == 1.0
+    assert np.allclose(u3, orientation[:3])
+    assert np.allclose(u2, orientation[3:])
+
+    v1, v2, v3 = volume.spacing_vectors()
+    for v, spacing in zip([v1, v2, v3], volume.spacing):
+        assert v.shape == (3, )
+        assert np.linalg.norm(v) == spacing
 
 
 def test_construction_mismatched_source_lists():
