@@ -7,6 +7,7 @@ import numpy as np
 
 from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
+    AxisHandedness,
     CoordinateSystemNames,
     PadModes,
     PatientOrientationValuesBiped,
@@ -36,12 +37,16 @@ from pydicom import Dataset, dcmread
 
 # TODO add basic arithmetric operations
 # TODO add pixel value transformations
-# TODO handedness checks/constraints
 # TODO should methods copy arrays?
-# TODO crop_or_pad
-# TODO random crop, random flip
+# TODO random crop, random flip, random permute
 # TODO match geometry
 # TODO trim non-zero
+# TODO physical extent, physical volume, pixel area, voxel volume
+# TODO support slide coordinate system
+# TODO volume to volume transformer
+# TODO split out a separate geometry only class
+# TODO volread and metadata
+# TODO make RIGHT handed the default
 
 
 class Volume:
@@ -988,15 +993,29 @@ class Volume:
         return norms.tolist()
 
     @property
+    def voxel_volume(self) -> float:
+        """float: The volume of a single voxel in cubic millimeters."""
+        return np.product(self.spacing).item()
+
+    @property
     def position(self) -> List[float]:
         """List[float]:
 
-        Pixel spacing in millimeter units for the three spatial directions.
-        Three values (spacing between slices, spacing spacing between rows,
-        spacing between columns).
+        Position in the frame of reference space of the center of voxel at
+        indices (0, 0, [).
 
         """
         return self._affine[:3, 3].tolist()
+
+    @property
+    def physical_extent(self) -> List[float]:
+        """List[float]: Side lengths of the volume in millimeters."""
+        return [(n + 1) * d for n, d in zip(self.shape, self.spacing)]
+
+    @property
+    def physical_volume(self) -> float:
+        """float: Total volume in cubic millimeter."""
+        return self.voxel_volume * self.array.size
 
     @property
     def direction(self) -> np.ndarray:
@@ -1012,6 +1031,33 @@ class Volume:
         dir_mat = self._affine[:3, :3]
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
+
+    def direction_vectors(self) -> List[np.ndarray]:
+        """Get the vectors along the three array dimensions.
+
+        Note that these vectors are not normalized, they have length equal to
+        the spacing along the relevant dimension.
+
+        Returns
+        -------
+        List[np.ndarray]:
+            List of three vectors for the three axes of the volume array. Each
+            vector is a 1D numpy array.
+
+        """
+        return list(self.affine[:3, :3].T)
+
+    def unit_vectors(self) -> List[np.ndarray]:
+        """Get the normalized vectors along the three array dimensions.
+
+        Returns
+        -------
+        List[np.ndarray]:
+            List of three vectors for the three axes of the volume array. Each
+            vector is a 1D numpy array and has unit length.
+
+        """
+        return list(self.direction.T)
 
     def get_closest_patient_orientation(self) -> Tuple[
         PatientOrientationValuesBiped,
@@ -1216,7 +1262,7 @@ class Volume:
             source_frame_dimension=self.source_frame_dimension or 0,
         )
 
-    def permute(self, indices: Sequence[int]) -> 'Volume':
+    def permute_axes(self, indices: Sequence[int]) -> 'Volume':
         # TODO add tests for this
         """Create a new volume by permuting the spatial axes.
 
@@ -1266,6 +1312,39 @@ class Volume:
             source_frame_dimension=new_source_frame_dimension,
         )
 
+    def swap_axes(self, axis_1: int, axis_2: int) -> 'Volume':
+        """Swap the spatial axes of the array.
+
+        Parameters
+        ----------
+        axis_1: int
+            Spatial axis index (0, 1 or 2) to swap with ``axis_2``.
+        axis_2: int
+            Spatial axis index (0, 1 or 2) to swap with ``axis_1``.
+
+        Returns
+        -------
+        highdicom.Volume:
+            New volume with spatial axes swapped as requested.
+
+        """
+        for a in [axis_1, axis_2]:
+            if a not in {0, 1, 2}:
+                raise ValueError(
+                    'Axis values must be one of 0, 1 or 2.'
+                )
+
+        if axis_1 == axis_2:
+            raise ValueError(
+                "Arguments 'axis_1' and 'axis_2' must be different."
+            )
+
+        permutation = [0, 1, 2]
+        permutation[axis_1] = axis_2
+        permutation[axis_2] = axis_1
+
+        return self.permute_axes(permutation)
+
     def flip(self, axis: Union[int, Sequence[int]]) -> 'Volume':
         """Flip the spatial axes of the array.
 
@@ -1275,8 +1354,8 @@ class Volume:
         Parameters
         ----------
         axis: Union[int, Sequence[int]]
-            Axis or list of axes that should be flipped. These should include
-            only the spatial axes (0, 1, and/or 2).
+            Axis or list of axis indices that should be flipped. These should
+            include only the spatial axes (0, 1, and/or 2).
 
         Returns
         -------
@@ -1325,6 +1404,11 @@ class Volume:
             highdicom.enum.PatientOrientationValuesBiped values, or a string
             such as ``"FPL"`` using the same characters.
 
+        Returns
+        -------
+        highdicom.Volume:
+            New volume with the requested patient orientation.
+
         """  # noqa: E501
         desired_orientation = _normalize_patient_orientation(
             patient_orientation
@@ -1348,7 +1432,69 @@ class Volume:
         else:
             result = self
 
-        return result.permute(permute_indices)
+        return result.permute_axes(permute_indices)
+
+    @property
+    def handedness(self) -> AxisHandedness:
+        """highdicom.AxisHandedness: Axis handedness of the volume."""
+        v1, v2, v3 = self.direction_vectors()
+        if np.cross(v1, v2) @ v3 < 0.0:
+            return AxisHandedness.LEFT_HANDED
+        return AxisHandedness.RIGHT_HANDED
+
+    def ensure_handedness(
+        self,
+        handedness: Union[AxisHandedness, str],
+        flip_axis: Optional[int] = None,
+        swap_axes: Optional[Sequence[int]] = None,
+    ) -> 'Volume':
+        """Manipulate the volume if necessary to ensure a given handedness.
+
+        If the volume already has the specified handedness, it is returned
+        unaltered.
+
+        If the volume does not meet the requirement, the volume is manipulated
+        using a user specified operation to meet the requirement. The two
+        options are reversing the direction of a single axis ("flipping") or
+        swapping the position of two axes.
+
+        Parameters
+        ----------
+        handedness: highdicom.AxisHandedness
+            Handedness to ensure.
+        flip_axis: Union[int, None], optional
+            Specification of a spatial axis index (0, 1, or 2) to flip if
+            required to meet the given handedness requirement.
+        swap_axes: Union[int, None], optional
+            Specification of a sequence of two spatial axis indices (each being
+            0, 1, or 2) to swap if required to meet the given handedness
+            requirement.
+
+        Note
+        ----
+        Either ``flip_axis`` or ``swap_axes`` must be provided (and not both)
+        to specify the operation to perform to correct the handedness (if
+        required).
+
+        """
+        if (flip_axis is None) == (swap_axes is None):
+            raise TypeError(
+                "Exactly one of either 'flip_axis' or 'swap_axes' "
+                "must be specified."
+            )
+        handedness = AxisHandedness(handedness)
+        if handedness == self.handedness:
+            return self
+
+        if flip_axis is not None:
+            return self.flip(flip_axis)
+
+        if len(swap_axes) != 2:
+            raise ValueError(
+                "Argument 'swap_axes' must have length 2."
+            )
+
+        return self.swap_axes(swap_axes[0], swap_axes[1])
 
     def normalize_mean_std(
         self,
@@ -1745,7 +1891,7 @@ class Volume:
 
     def pad_to_shape(
         self,
-        shape: Sequence[int],
+        spatial_shape: Sequence[int],
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -1760,7 +1906,7 @@ class Volume:
 
         Parameters
         ----------
-        shape: Sequence[int]
+        spatial_shape: Sequence[int]
             Sequence of three integers specifying the spatial shape to pad to.
             This shape must be no smaller than the existing shape along any of
             the three spatial dimensions.
@@ -1787,13 +1933,13 @@ class Volume:
             Volume with padding applied.
 
         """
-        if len(shape) != 3:
+        if len(spatial_shape) != 3:
             raise ValueError(
                 "Argument 'shape' must have length 3."
             )
 
         pad_width = []
-        for insize, outsize in zip(self.spatial_shape, shape):
+        for insize, outsize in zip(self.spatial_shape, spatial_shape):
             to_pad = outsize - insize
             if to_pad < 0:
                 raise ValueError(
@@ -1811,12 +1957,12 @@ class Volume:
             per_channel=per_channel,
         )
 
-    def crop_to_shape(self, shape: Sequence[int]) -> 'Volume':
+    def crop_to_shape(self, spatial_shape: Sequence[int]) -> 'Volume':
         """Center-crop volume to a given spatial shape.
 
         Parameters
         ----------
-        shape: Sequence[int]
+        spatial_shape: Sequence[int]
             Sequence of three integers specifying the spatial shape to crop to.
             This shape must be no larger than the existing shape along any of
             the three spatial dimensions.
@@ -1827,13 +1973,13 @@ class Volume:
             Volume with padding applied.
 
         """
-        if len(shape) != 3:
+        if len(spatial_shape) != 3:
             raise ValueError(
                 "Argument 'shape' must have length 3."
             )
 
         crop_vals = []
-        for insize, outsize in zip(self.spatial_shape, shape):
+        for insize, outsize in zip(self.spatial_shape, spatial_shape):
             to_crop = insize - outsize
             if to_crop < 0:
                 raise ValueError(
@@ -1849,6 +1995,87 @@ class Volume:
             crop_vals[1][0]:crop_vals[1][1],
             crop_vals[2][0]:crop_vals[2][1],
         ]
+
+    def pad_or_crop_to_shape(
+        self,
+        spatial_shape: Sequence[int],
+        mode: PadModes = PadModes.CONSTANT,
+        constant_value: float = 0.0,
+        per_channel: bool = False,
+    ) -> 'Volume':
+        """Pad and/or crop volume to given spatial shape.
+
+        For each dimension where padding is required, the volume is padded
+        symmetrically, placing the original array at the center of the output
+        array, to achieve the given shape. If this requires an odd number of
+        elements to be added along a certain dimension, one more element is
+        placed at the end of the array than at the start.
+
+        For each dimension where cropping is required, center cropping is used.
+
+        Parameters
+        ----------
+        spatial_shape: Sequence[int]
+            Sequence of three integers specifying the spatial shape to pad or
+            crop to.
+        mode: highdicom.PadModes, optional
+            Mode to use to pad the array, if padding is required. See
+            :class:`highdicom.PadModes` for options.
+        constant_value: Union[float, Sequence[float]], optional
+            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
+            if True, a sequence whose length is equal to the number of channels
+            may be passed, and each value will be used for the corresponding
+            channel. With other pad modes, this argument is ignored.
+        per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should not the True if the image does not have a
+            channel dimension.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume with padding and/or cropping applied.
+
+        """
+        if len(spatial_shape) != 3:
+            raise ValueError(
+                "Argument 'shape' must have length 3."
+            )
+
+        pad_width = []
+        crop_vals = []
+        for insize, outsize in zip(self.spatial_shape, spatial_shape):
+            diff = outsize - insize
+            if diff > 0:
+                pad_front = diff // 2
+                pad_back = diff - pad_front
+                pad_width.append((pad_front, pad_back))
+                crop_vals.append((0, outsize))
+            elif diff < 0:
+                crop_front = (-diff) // 2
+                crop_back = (-diff) - crop_front
+                crop_vals.append((crop_front, insize - crop_back))
+                pad_width.append((0, 0))
+            else:
+                pad_width.append((0, 0))
+                crop_vals.append((0, outsize))
+
+        cropped = self[
+            crop_vals[0][0]:crop_vals[0][1],
+            crop_vals[1][0]:crop_vals[1][1],
+            crop_vals[2][0]:crop_vals[2][1],
+        ]
+        padded = cropped.pad(
+            pad_width=pad_width,
+            mode=mode,
+            constant_value=constant_value,
+            per_channel=per_channel,
+        )
+        return padded
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:

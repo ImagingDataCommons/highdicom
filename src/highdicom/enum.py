@@ -399,3 +399,34 @@ class PadModes(Enum):
 
     MEDIAN = 'MEDIAN'
     """Pad with the median value."""
+
+
+class AxisHandedness(Enum):
+
+    """Enumerated values for axis handedness.
+
+    Axis handedness refers to a property of a mapping between voxel indices and
+    their corresponding coordinates in the frame-of-reference coordinate
+    system, as represented by the affine matrix.
+
+    """
+
+    LEFT_HANDED = "LEFT_HANDED"
+    """
+
+    The unit vectors of the first, second and third axes form a left hand when
+    drawn in the frame-of-reference coordinate system with the thumb
+    representing the first vector, the index finger representing the second
+    vector, and the middle finger representing the third vector.
+
+    """
+
+    RIGHT_HANDED = "RIGHT_HANDED"
+    """
+
+    The unit vectors of the first, second and third axes form a right hand when
+    drawn in the frame-of-reference coordinate system with the thumb
+    representing the first vector, the index finger representing the second
+    vector, and the middle finger representing the third vector.
+
+    """

@@ -34,6 +34,7 @@ from highdicom.content import (
     VOILUTTransformation,
 )
 from highdicom.enum import (
+    AxisHandedness,
     AnatomicalOrientationTypeValues,
     CoordinateSystemNames,
     ContentQualificationValues,
@@ -69,6 +70,7 @@ __all__ = [
     'VOILUT',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
+    'AxisHandedness',
     'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
     'CoordinateSystemNames',
