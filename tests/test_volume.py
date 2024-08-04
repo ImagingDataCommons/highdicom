@@ -151,18 +151,6 @@ def test_volume_single_frame():
     assert volume.shape == (len(ct_series), rows, columns)
     assert volume.spatial_shape == volume.shape
     assert volume.number_of_channels is None
-    assert volume.source_frame_numbers is None
-    source_sop_instance_uids = [
-        ct_series[0].SOPInstanceUID,
-        ct_series[2].SOPInstanceUID,
-        ct_series[1].SOPInstanceUID,
-    ]
-    assert volume.source_sop_instance_uids == source_sop_instance_uids
-    assert volume.get_index_for_sop_instance_uid(
-        ct_series[2].SOPInstanceUID
-    ) == 1
-    with pytest.raises(RuntimeError):
-        volume.get_index_for_frame_number(2)
     orientation = ct_series[0].ImageOrientationPatient
     assert volume.direction_cosines == orientation
     direction = volume.direction
@@ -202,13 +190,6 @@ def test_volume_multiframe():
     rows, columns = dcm.Rows, dcm.Columns
     assert volume.shape == (dcm.NumberOfFrames, rows, columns)
     assert volume.spatial_shape == volume.shape
-    assert volume.source_frame_numbers == [2, 1]
-    assert volume.source_sop_instance_uids is None
-    with pytest.raises(RuntimeError):
-        volume.get_index_for_sop_instance_uid(
-            dcm.SOPInstanceUID
-        )
-    assert volume.get_index_for_frame_number(2) == 0
     orientation = (
         dcm
         .SharedFunctionalGroupsSequence[0]
@@ -229,10 +210,9 @@ def test_volume_multiframe():
     assert direction[:, 0] @ direction[:, 1] == 0.0
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
-    first_frame = volume.source_frame_numbers[0]
     first_frame_pos = (
         dcm
-        .PerFrameFunctionalGroupsSequence[first_frame - 1]
+        .PerFrameFunctionalGroupsSequence[1]  # due to ordering
         .PlanePositionSequence[0]
         .ImagePositionPatient
     )
@@ -260,32 +240,6 @@ def test_volume_multiframe():
         assert np.linalg.norm(v) == spacing
 
 
-def test_construction_mismatched_source_lists():
-    array = np.random.randint(0, 100, (50, 50, 25))
-    affine = np.array([
-        [ 0.0,  0.0,  1.0,  0.0],
-        [ 0.0,  1.0,  0.0,  0.0],
-        [10.0,  0.0,  0.0, 30.0],
-        [ 0.0,  0.0,  0.0,  1.0],
-    ])
-    sop_instance_uids = [UID() for _ in range(25)]
-    frame_numbers = list(range(25))
-    with pytest.raises(ValueError):
-        Volume(
-            array=array,
-            affine=affine,
-            source_sop_instance_uids=sop_instance_uids,
-            source_frame_dimension=0,
-        )
-    with pytest.raises(ValueError):
-        Volume(
-            array=array,
-            affine=affine,
-            source_frame_numbers=frame_numbers,
-            source_frame_dimension=0,
-        )
-
-
 def test_indexing():
     array = np.random.randint(0, 100, (25, 50, 50))
     volume = Volume.from_attributes(
@@ -294,7 +248,6 @@ def test_indexing():
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
-        source_frame_numbers=list(range(1, 26)),
     )
 
     # Single integer index
@@ -308,26 +261,22 @@ def test_indexing():
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4])
-    assert subvolume.source_frame_numbers == [4]
 
     # With colons
     subvolume = volume[3, :]
     assert subvolume.shape == (1, 50, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4])
-    assert subvolume.source_frame_numbers == [4]
     subvolume = volume[3, :, :]
     assert subvolume.shape == (1, 50, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4])
-    assert subvolume.source_frame_numbers == [4]
 
     # Single slice index
     subvolume = volume[3:13]
     assert subvolume.shape == (10, 50, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:13])
-    assert subvolume.source_frame_numbers == list(range(4, 14))
 
     # Multiple integer indices
     subvolume = volume[3, 7]
@@ -340,19 +289,16 @@ def test_indexing():
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4, 7:8])
-    assert subvolume.source_frame_numbers == [4]
 
     # Multiple integer indices in sequence (should be the same as above)
     subvolume = volume[:, 7][3, :]
     assert subvolume.shape == (1, 1, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4, 7:8])
-    assert subvolume.source_frame_numbers == [4]
     subvolume = volume[3, :][:, 7]
     assert subvolume.shape == (1, 1, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[3:4, 7:8])
-    assert subvolume.source_frame_numbers == [4]
 
     # Negative index
     subvolume = volume[-4]
@@ -365,14 +311,12 @@ def test_indexing():
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[-4:-3])
-    assert subvolume.source_frame_numbers == [22]
 
     # Negative index range
     subvolume = volume[-4:-2, :, :]
     assert subvolume.shape == (2, 50, 50)
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[-4:-2])
-    assert subvolume.source_frame_numbers == [22, 23]
 
     # Non-zero steps
     subvolume = volume[12:16:2, ::-1, :]
@@ -385,7 +329,6 @@ def test_indexing():
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
     assert np.array_equal(subvolume.array, array[12:16:2, ::-1])
-    assert subvolume.source_frame_numbers == [13, 15]
 
 
 def test_indexing_source_dimension_2():
@@ -396,19 +339,12 @@ def test_indexing_source_dimension_2():
         [10.0,  0.0,  0.0, 30.0],
         [ 0.0,  0.0,  0.0,  1.0],
     ])
-    sop_instance_uids = [UID() for _ in range(25)]
     volume = Volume(
         array=array,
         affine=affine,
-        source_sop_instance_uids=sop_instance_uids,
-        source_frame_dimension=2,
     )
 
     subvolume = volume[12:14, :, 12:6:-2]
-    assert (
-        subvolume.source_sop_instance_uids ==
-        sop_instance_uids[12:6:-2]
-    )
     assert np.array_equal(subvolume.array, array[12:14, :, 12:6:-2])
 
 
@@ -459,7 +395,6 @@ def test_to_patient_orientation(desired):
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
-        source_frame_numbers=list(range(1, 26)),
     )
     desired_tup = _normalize_patient_orientation(desired)
 

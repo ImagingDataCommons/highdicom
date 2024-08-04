@@ -94,9 +94,6 @@ class Volume:
         array: np.ndarray,
         affine: np.ndarray,
         frame_of_reference_uid: Optional[str] = None,
-        source_sop_instance_uids: Optional[Sequence[str]] = None,
-        source_frame_numbers: Optional[Sequence[int]] = None,
-        source_frame_dimension: int = 0,
     ):
         """
 
@@ -115,20 +112,6 @@ class Volume:
             component. The last row should have value [0, 0, 0, 1].
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
-        source_sop_instance_uids: Optional[Sequence[str]], optional
-            SOP instance UIDs corresponding to each slice (stacked down
-            dimension 0) of the implied volume. This is relevant if and only if
-            the volume is formed from a series of single frame DICOM images.
-        source_frame_numbers: Optional[Sequence[int]], optional
-            Frame numbers of the source image (if any) corresponding to each
-            slice (stacked down dimension 0). This is relevant if and only if
-            the volume is formed from a set of frames of a single multiframe
-            DICOM image.
-        source_frame_dimension: int
-            Dimension (as a zero-based dimension index) down which source
-            frames were stacked to form the volume. Only applicable if
-            ``source_sop_instance_uids`` or ``source_frame_numbers`` is
-            provided, otherwise ignored.
 
         """
         if array.ndim not in (3, 4):
@@ -150,52 +133,6 @@ class Volume:
         self._array = array
         self._affine = affine
         self._frame_of_reference_uid = frame_of_reference_uid
-
-        if source_frame_dimension not in (0, 1, 2):
-            raise ValueError(
-                f'Argument "source_frame_dimension" must have value 0, 1, or 2.'
-            )
-
-        if source_frame_numbers is not None:
-            if any(not isinstance(f, int) for f in source_frame_numbers):
-                raise TypeError(
-                    "Argument 'source_frame_numbers' should be a sequence of ints."
-                )
-            if any(f < 1 for f in source_frame_numbers):
-                raise ValueError(
-                    "Argument 'source_frame_numbers' should contain only "
-                    "(strictly) positive integers."
-                )
-            if len(source_frame_numbers) != self._array.shape[source_frame_dimension]:
-                raise ValueError(
-                    "Length of 'source_frame_numbers' should match size "
-                    "of 'array' along the axis given by 'source_frame_dimension'."
-                )
-            self._source_frame_numbers = list(source_frame_numbers)
-        else:
-            self._source_frame_numbers = None
-        if source_sop_instance_uids is not None:
-            if any(not isinstance(u, str) for u in source_sop_instance_uids):
-                raise TypeError(
-                    "Argument 'source_sop_instance_uids' should be a sequence of "
-                    "str."
-                )
-            if (
-                    len(source_sop_instance_uids) !=
-                    self._array.shape[source_frame_dimension]
-            ):
-                raise ValueError(
-                    "Length of 'source_sop_instance_uids' should match size "
-                    "of 'array' along the axis given by 'source_frame_dimension'."
-                )
-            self._source_sop_instance_uids = list(source_sop_instance_uids)
-        else:
-            self._source_sop_instance_uids = None
-
-        if source_frame_numbers is not None or source_sop_instance_uids is not None:
-            self._source_frame_dimension = source_frame_dimension
-        else:
-            self._source_frame_dimension = None
 
     @classmethod
     def from_image_series(
@@ -241,9 +178,6 @@ class Volume:
             raise ValueError('Images do not share a frame of reference.')
 
         series_datasets = sort_datasets(series_datasets)
-        sorted_source_sop_instance_uids = [
-            ds.SOPInstanceUID for ds in series_datasets
-        ]
 
         ds = series_datasets[0]
 
@@ -269,7 +203,6 @@ class Volume:
             affine=affine,
             array=array,
             frame_of_reference_uid=frame_of_reference_uid,
-            source_sop_instance_uids=sorted_source_sop_instance_uids,
         )
 
     @classmethod
@@ -321,7 +254,6 @@ class Volume:
             image_orientation,
         )
         sorted_positions = [image_positions[i] for i in sort_index]
-        sorted_source_frame_numbers = [f + 1 for f in sort_index]
 
         if 'PixelMeasuresSequence' not in sfgs:
             raise ValueError('Frames do not share pixel measures.')
@@ -354,7 +286,6 @@ class Volume:
             affine=affine,
             array=array,
             frame_of_reference_uid=dataset.FrameOfReferenceUID,
-            source_frame_numbers=sorted_source_frame_numbers,
         )
 
     @classmethod
@@ -366,8 +297,6 @@ class Volume:
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
         frame_of_reference_uid: Optional[str] = None,
-        source_sop_instance_uids: Optional[Sequence[str]] = None,
-        source_frame_numbers: Optional[Sequence[int]] = None,
     ) -> "Volume":
         """Create a volume from DICOM attributes.
 
@@ -403,15 +332,6 @@ class Volume:
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
-        source_sop_instance_uids: Union[Sequence[str], None], optional
-            Ordered SOP Instance UIDs of each frame, if known, in the situation
-            that the volume is formed from a sequence of individual DICOM
-            instances, stacked down the first axis (index 0)..
-        source_frame_numbers: Union[Sequence[int], None], optional
-            Ordered frame numbers of each frame of the source image, in the
-            situation that the volume is formed from a sequence of frames of
-            one multi-frame DICOM image, stacked down the first axis (index
-            0).
 
         Returns
         -------
@@ -430,8 +350,6 @@ class Volume:
             affine=affine,
             array=array,
             frame_of_reference_uid=frame_of_reference_uid,
-            source_sop_instance_uids=source_sop_instance_uids,
-            source_frame_numbers=source_frame_numbers,
         )
 
     @classmethod
@@ -442,8 +360,6 @@ class Volume:
         direction: Sequence[float],
         spacing: Sequence[float],
         frame_of_reference_uid: Optional[str] = None,
-        source_sop_instance_uids: Optional[Sequence[str]] = None,
-        source_frame_numbers: Optional[Sequence[int]] = None,
     ) -> "Volume":
         """Construct a Volume from components.
 
@@ -468,14 +384,6 @@ class Volume:
             Sequence of three integers giving the shape of the volume.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
-        source_sop_instance_uids: Union[Sequence[str], None], optional
-            Ordered SOP Instance UIDs of each frame, if known, in the situation
-            that the volume is formed from a sequence of individual DICOM
-            instances, stacked down the first axis (index 0).
-        source_frame_numbers: Union[Sequence[int], None], optional
-            Ordered frame numbers of each frame of the source image, in the
-            situation that the volume is formed from a sequence of frames of
-            one multi-frame DICOM image, stacked down the first axis (index 0).
 
         Returns
         -------
@@ -517,60 +425,7 @@ class Volume:
             array=array,
             affine=affine,
             frame_of_reference_uid=frame_of_reference_uid,
-            source_sop_instance_uids=source_sop_instance_uids,
-            source_frame_numbers=source_frame_numbers,
         )
-
-    def get_index_for_frame_number(
-        self,
-        frame_number: int,
-    ) -> int:
-        """Get the slice index for a frame number.
-
-        This is intended for volumes representing for multi-frame images.
-
-        Parameters
-        ----------
-        frame_number: int
-            1-based frame number in the original image.
-
-        Returns
-        -------
-            0-based index of this frame number down the
-            dimension of the volume given by ``source_frame_dimension``.
-
-        """
-        if self._source_frame_numbers is None:
-            raise RuntimeError(
-                "Frame information is not present."
-            )
-        return self._source_frame_numbers.index(frame_number)
-
-    def get_index_for_sop_instance_uid(
-        self,
-        sop_instance_uid: str,
-    ) -> int:
-        """Get the slice index for a SOP Instance UID.
-
-        This is intended for volumes representing a series of single-frame
-        images.
-
-        Parameters
-        ----------
-        sop_instance_uid: str
-            SOP Instance of a particular image in the series.
-
-        Returns
-        -------
-            0-based index of the image with the given SOP Instance UID down the
-            dimension of the volume given by ``source_frame_dimension``.
-
-        """
-        if self._source_sop_instance_uids is None:
-            raise RuntimeError(
-                "SOP Instance UID information is not present."
-            )
-        return self._source_sop_instance_uids.index(sop_instance_uid)
 
     def get_center_index(self, round_output: bool = False) -> np.ndarray:
         """Get array index of center of the volume.
@@ -883,17 +738,6 @@ class Volume:
         return None
 
     @property
-    def source_frame_dimension(self) -> Optional[int]:
-        """Optional[int]: Dimension along which source frames were stacked.
-
-        Will return either 0, 1, or 2 when the volume was created from a source
-        image or image series. Will return ``None`` if the volume was not
-        created from a source image or image series.
-
-        """
-        return self._source_frame_dimension
-
-    @property
     def array(self) -> np.ndarray:
         """numpy.ndarray: Volume array."""
         return self._array
@@ -919,25 +763,6 @@ class Volume:
                 "Array must match the spatial shape of the existing array."
             )
         self._array = value
-
-    @property
-    def source_sop_instance_uids(self) -> Union[List[str], None]:
-        # TODO account for rotated arrays
-        """Union[List[str], None]: SOP Instance UID at each index."""
-        if self._source_sop_instance_uids is not None:
-            return self._source_sop_instance_uids.copy()
-
-    @property
-    def source_frame_numbers(self) -> Union[List[int], None]:
-        # TODO account for rotated arrays
-        """Union[List[int], None]:
-
-        Frame number within the source image at each index down the first
-        dimension.
-
-        """
-        if self._source_frame_numbers is not None:
-            return self._source_frame_numbers.copy()
 
     @property
     def direction_cosines(self) -> List[float]:
@@ -1115,9 +940,6 @@ class Volume:
             array=self.array,  # TODO should this copy?
             affine=self._affine.copy(),
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
-            source_frame_numbers=deepcopy(self.source_frame_numbers),
-            source_frame_dimension=self.source_frame_dimension or 0,
         )
 
     def with_array(self, array: np.ndarray) -> 'Volume':
@@ -1151,9 +973,6 @@ class Volume:
             array=array,
             affine=self._affine.copy(),
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
-            source_frame_numbers=deepcopy(self.source_frame_numbers),
-            source_frame_dimension=self.source_frame_dimension or 0,
         )
 
     def __getitem__(
@@ -1227,31 +1046,6 @@ class Volume:
             new_vectors.append(self._affine[:3, d] * step)
             origin_indices.append(first)
 
-            if self.source_frame_dimension is not None:
-                if d == self.source_frame_dimension:
-                    if index_item is not None:
-                        # Need to index the source frame lists along this
-                        # dimension
-                        if self._source_sop_instance_uids is not None:
-                            new_sop_instance_uids = (
-                                self._source_sop_instance_uids[
-                                    index_item
-                                ]
-                            )
-                        if self._source_frame_numbers is not None:
-                            new_frame_numbers = self._source_frame_numbers[
-                                index_item
-                            ]
-                    else:
-                        # Not indexing along this dimension so the lists are
-                        # unchanged
-                        new_sop_instance_uids = deepcopy(
-                            self.source_sop_instance_uids
-                        )
-                        new_frame_numbers = deepcopy(
-                            self.source_frame_numbers
-                        )
-
         origin_index_arr = np.array([origin_indices])
         new_origin_arr = self.map_indices_to_reference(origin_index_arr).T
 
@@ -1267,9 +1061,6 @@ class Volume:
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=new_sop_instance_uids,
-            source_frame_numbers=new_frame_numbers,
-            source_frame_dimension=self.source_frame_dimension or 0,
         )
 
     def permute_axes(self, indices: Sequence[int]) -> 'Volume':
@@ -1306,20 +1097,10 @@ class Volume:
             permute_indices=indices,
         )
 
-        if self.source_frame_dimension is None:
-            new_source_frame_dimension = 0
-        else:
-            new_source_frame_dimension = indices.index(
-                self.source_frame_dimension
-            )
-
         return self.__class__(
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_sop_instance_uids=deepcopy(self.source_sop_instance_uids),
-            source_frame_numbers=deepcopy(self.source_frame_numbers),
-            source_frame_dimension=new_source_frame_dimension,
         )
 
     def swap_axes(self, axis_1: int, axis_2: int) -> 'Volume':
@@ -1896,7 +1677,6 @@ class Volume:
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
-            source_frame_dimension=self.source_frame_dimension or 0,
         )
 
     def pad_to_shape(
