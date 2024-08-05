@@ -1028,8 +1028,6 @@ class Volume:
 
         new_array = self._array[tuple_index]
 
-        new_sop_instance_uids = None
-        new_frame_numbers = None
         new_vectors = []
         origin_indices = []
 
@@ -1866,6 +1864,34 @@ class Volume:
             per_channel=per_channel,
         )
         return padded
+
+    def random_crop(self, spatial_shape: Sequence[int]) -> 'Volume':
+        """Create a random crop of a certain shape from the volume.
+
+        Parameters
+        ----------
+        spatial_shape: Sequence[int]
+            Sequence of three integers specifying the spatial shape to pad or
+            crop to.
+
+        Returns
+        -------
+        highdicom.Volume:
+            New volume formed by cropping the volumes.
+
+        """
+        crop_slices = []
+        for c, d in zip(spatial_shape, self.spatial_shape):
+            max_start = d - c
+            if max_start < 0:
+                raise ValueError(
+                    'Crop shape is larger than volume in at least one '
+                    'dimension.'
+                )
+            start = np.random.randint(0, max_start + 1)
+            crop_slices.append(slice(start, start + c))
+
+        return self[tuple(crop_slices)]
 
 
 def concat_channels(volumes: Sequence[Volume]) -> Volume:
