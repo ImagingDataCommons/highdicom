@@ -6,6 +6,7 @@ from typing import List, Optional, Sequence, Union, Tuple
 import numpy as np
 
 from highdicom._module_utils import is_multiframe_image
+from highdicom.color import ColorManager
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -34,6 +35,12 @@ from highdicom.content import (
 )
 
 from pydicom import Dataset, dcmread
+from pydicom.pixel_data_handlers.util import (
+    apply_modality_lut,
+    apply_color_lut,
+    apply_voi_lut,
+    convert_color_space,
+)
 
 # TODO add basic arithmetric operations
 # TODO add pixel value transformations
@@ -41,7 +48,6 @@ from pydicom import Dataset, dcmread
 # TODO random crop, random flip, random permute
 # TODO match geometry
 # TODO trim non-zero
-# TODO physical extent, physical volume, pixel area, voxel volume
 # TODO support slide coordinate system
 # TODO volume to volume transformer
 # TODO split out a separate geometry only class
@@ -138,6 +144,12 @@ class Volume:
     def from_image_series(
         cls,
         series_datasets: Sequence[Dataset],
+        apply_modality_transform: bool = True,
+        apply_voi_transform: bool = False,
+        voi_transform_index: int = 0,
+        apply_palette_color_lut: bool = True,
+        apply_icc_transform: bool = True,
+        standardize_color_space: bool = True,
     ) -> "Volume":
         """Create volume from a series of single frame images.
 
@@ -146,6 +158,29 @@ class Volume:
         series_datasets: Sequence[pydicom.Dataset]
             Series of single frame datasets. There is no requirement on the
             sorting of the datasets.
+        apply_modality_transform: bool, optional
+            Whether to apply the modality transform (either a rescale intercept
+            and slope or modality LUT) to the pixel values, if present in the
+            datasets.
+        apply_voi_transform: bool, optional
+            Whether to apply the value of interest (VOI) transform (either a
+            windowing operation or VOI LUT) to the pixel values, if present in
+            the datasets.
+        voi_transform_index: int, optional
+            Index of the VOI transform to apply if multiple are included in the
+            datasets. Ignored if ``apply_voi_transform`` is ``False`` or no VOI
+            transform is included in the datasets.
+        apply_palette_color_lut: bool, optional
+            Whether to apply the palette color LUT if a dataset has photometric
+            interpretation ``'PALETTE_COLOR'``.
+        apply_icc_transform: bool, optional
+            Whether to apply an ICC color profile, if present in the datasets.
+        convert_color_space: bool, optional
+            Whether to convert the color space to a standardized space. If
+            True, images with photometric interpretation ``MONOCHROME1`` are
+            inverted to mimic ``MONOCHROME2``, and images with photometric
+            interpretation ``YBR_FULL`` or ``YBR_FULL_422`` are converted to
+            ``RGB``.
 
         Returns
         -------
@@ -153,6 +188,10 @@ class Volume:
             Volume created from the series.
 
         """
+        if apply_voi_transform and not apply_modality_lut:
+            raise ValueError(
+                "Argument 'apply_voi_transform' requires 'apply_modality_lut'."
+            )
         series_instance_uid = series_datasets[0].SeriesInstanceUID
         if not all(
             ds.SeriesInstanceUID == series_instance_uid
@@ -196,8 +235,38 @@ class Volume:
             index_convention=VOLUME_INDEX_CONVENTION,
         )
 
-        # TODO apply color, modality and VOI lookup
-        array = np.stack([ds.pixel_array for ds in series_datasets])
+        frames = []
+        for ds in series_datasets:
+            frame = ds.pixel_array
+            max_value = 2 ** np.iinfo(ds.pixel_array.dtype).bits
+            if apply_modality_transform:
+                frame = apply_modality_lut(frame, ds)
+            if apply_voi_transform:
+                frame = apply_voi_lut(frame, ds, voi_transform_index)
+            if (
+                apply_palette_color_lut and 
+                ds.PhotometricInterpretation == 'PALETTE_COLOR'
+            ):
+                frame = apply_color_lut(frame, ds)
+            if apply_icc_transform and 'ICCProfile' in ds:
+                manager = ColorManager(ds.ICCProfile)
+                frame = manager.transform_frame(frame)
+            if standardize_color_space:
+                if ds.PhotometricInterpretation == 'MONOCHROME1':
+                    # TODO what if a VOI_LUT has been applied
+                    frame = max_value - frame
+                elif ds.PhotometricInterpretation in (
+                    'YBR_FULL', 'YBR_FULL_422'
+                ):
+                    frame = convert_color_space(
+                        frame,
+                        current=ds.PhotometricInterpretation,
+                        desired='RGB'
+                    )
+
+            frames.append(frame)
+
+        array = np.stack(frames)
 
         return cls(
             affine=affine,
@@ -1157,7 +1226,7 @@ class Volume:
 
         if len(axis) > 3 or len(set(axis) - {0, 1, 2}) > 0:
             raise ValueError(
-                'Arugment "axis" must contain only values 0, 1, and/or 2.'
+                'Argument "axis" must contain only values 0, 1, and/or 2.'
             )
 
         # We will re-use the existing __getitem__ implementation, which has all
@@ -1515,7 +1584,7 @@ class Volume:
     def pad(
         self,
         pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
-        mode: PadModes = PadModes.CONSTANT,
+        mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
     ) -> 'Volume':
@@ -1541,7 +1610,7 @@ class Volume:
               [before2, after2], [before3, after3]]``, in which separate values
               are supplied for the before and after padding of each of the
               three spatial dimensions.
-        mode: highdicom.PadModes, optional
+        mode: Union[highdicom.PadModes, str], optional
             Mode to use to pad the array. See :class:`highdicom.PadModes` for
             options.
         constant_value: Union[float, Sequence[float]], optional
