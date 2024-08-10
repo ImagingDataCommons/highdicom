@@ -15,6 +15,7 @@ import pydicom
 
 from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
+    AxisHandedness,
     CoordinateSystemNames,
     PixelIndexDirections,
     PatientOrientationValuesBiped,
@@ -41,11 +42,10 @@ PATIENT_ORIENTATION_OPPOSITES = {
 
 
 VOLUME_INDEX_CONVENTION = (
-    PixelIndexDirections.I,
     PixelIndexDirections.D,
     PixelIndexDirections.R,
 )
-"""The indexing convention used for affine matrices within volumes."""
+"""Indexing convention used within volumes."""
 
 
 def is_tiled_image(dataset: Dataset) -> bool:
@@ -610,27 +610,6 @@ def _get_spatial_information(
     return position, orientation, pixel_spacing, spacing_between_slices
 
 
-def _get_normal_vector(image_orientation: Sequence[float]) -> np.ndarray:
-    """Get normal vector given image cosines.
-
-    Parameters
-    ----------
-    image_orientation: Sequence[float]
-        Row and column cosines (6 element list) giving the orientation of the
-        image.
-
-    Returns
-    -------
-    np.ndarray
-        Array of shape (3, ) giving the normal vector to the image plane.
-
-    """
-    row_cosines = np.array(image_orientation[:3], dtype=float)
-    column_cosines = np.array(image_orientation[3:], dtype=float)
-    n = np.cross(row_cosines.T, column_cosines.T)
-    return n
-
-
 def _are_images_coplanar(
     image_position_a: Sequence[float],
     image_orientation_a: Sequence[float],
@@ -641,9 +620,9 @@ def _are_images_coplanar(
     """Determine whether two images or image frames are coplanar.
 
     Two images are coplanar in the frame of reference coordinate system if and
-    only if their vectors have the same (or opposite direction) and the
-    shortest distance from the plane to the coordinate system origin is
-    the same for both planes.
+    only if their normal vectors have the same (or opposite direction) and the
+    shortest distance from the plane to the coordinate system origin is the
+    same for both planes.
 
     Parameters
     ----------
@@ -668,8 +647,8 @@ def _are_images_coplanar(
         True if the two images are coplanar. False otherwise.
 
     """
-    n_a = _get_normal_vector(image_orientation_a)
-    n_b = _get_normal_vector(image_orientation_b)
+    n_a = get_normal_vector(image_orientation_a)
+    n_b = get_normal_vector(image_orientation_b)
     if 1.0 - np.abs(n_a @ n_b) > tol:
         return False
 
@@ -682,24 +661,24 @@ def _are_images_coplanar(
 
 def _normalize_pixel_index_convention(
     c: Union[str, Sequence[Union[str, PixelIndexDirections]]],
-) -> Tuple[PixelIndexDirections, PixelIndexDirections, PixelIndexDirections]:
+) -> Tuple[PixelIndexDirections, PixelIndexDirections]:
     """Normalize and check a pixel index convention.
 
     Parameters
     ----------
     c: Union[str, Sequence[Union[str, highdicom.enum.PixelIndexDirections]]]
-        Pixel index convention description consisting of three directions,
-        either L or R, either U or D, and either I or O, in any order.
+        Pixel index convention description consisting of two directions,
+        either L or R, and either U or D.
 
     Returns
     -------
-    Tuple[highdicom.enum.PixelIndexDirections, highdicom.enum.PixelIndexDirections, highdicom.enum.PixelIndexDirections]:
-        Convention description in a canonical form as a tuple of three enum
+    Tuple[highdicom.enum.PixelIndexDirections, highdicom.enum.PixelIndexDirections]:
+        Convention description in a canonical form as a tuple of two enum
         instances. Furthermore this is guaranteed to be a valid description.
 
     """  # noqa: E501
-    if len(c) != 3:
-        raise ValueError('Length of pixel index convention must be 3.')
+    if len(c) != 2:
+        raise ValueError('Length of pixel index convention must be 2.')
 
     c = tuple(PixelIndexDirections(d) for d in c)
 
@@ -708,7 +687,6 @@ def _normalize_pixel_index_convention(
     criteria = [
         ('L' in c_set) != ('R' in c_set),
         ('U' in c_set) != ('D' in c_set),
-        ('I' in c_set) != ('O' in c_set),
     ]
     if not all(criteria):
         c_str = [d.value for d in c]
@@ -724,13 +702,13 @@ def _normalize_patient_orientation(
     PatientOrientationValuesBiped,
     PatientOrientationValuesBiped,
 ]:
-    """Normalize and check a frame of reference direction convention.
+    """Normalize and check a patient orientation.
 
     Parameters
     ----------
     c: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
-        Frame of reference convention description consisting of three directions,
-        either L or R, either A or P, and either F or H, in any order.
+        Patient orientation consisting of three directions, either L or R,
+        either A or P, and either F or H, in any order.
 
     Returns
     -------
@@ -869,10 +847,100 @@ def _is_matrix_orthogonal(
     return np.allclose(m.T @ m, np.diag(norm_squared), atol=tol)
 
 
+def get_normal_vector(
+    image_orientation: Sequence[float],
+    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+        PixelIndexDirections.R,
+        PixelIndexDirections.D,
+    ),
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+):
+    """Get a vector normal to an imaging plane.
+
+    Parameters
+    ----------
+    image_orientation: Sequence[float]
+        Image orientation in the standard DICOM format used for the
+        ImageOrientationPatient and ImageOrientationSlide attributes,
+        consisting of 6 numbers representing the direction cosines along the
+        rows (first three elements) and columns (second three elements).
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to index pixels. Should be a sequence of two
+        :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the positive direction of the resulting normal in order to give
+        this handedness in the resulting coordinate system. This assumes that
+        the normal vector will be used to define a coordinate system when
+        combined with the column cosines (unit vector pointing down the
+        columns) and row cosines (unit vector pointing along the rows) in that
+        order (for the sake of handedness, it does not matter whether the axis
+        defined by the normal vector is placed before or after the column and
+        row vectors because the two possibilities are cyclic permutations of
+        each other). If used to define a coordinte system with the row cosines
+        followed by the column cosines, the handedness of the resulting
+        coordinate system will be inverted.
+
+    Returns
+    -------
+    np.ndarray:
+        Unit normal vector as a NumPy array with shape (3, ).
+
+    """
+    image_orientation_arr = np.array(image_orientation, dtype=np.float64)
+    if image_orientation_arr.ndim != 1 or image_orientation_arr.shape[0] != 6:
+        raise ValueError(
+            "Argument 'image_orientation' should be an array of "
+            "length 6."
+        )
+    index_convention_ = _normalize_pixel_index_convention(index_convention)
+    handedness_ = AxisHandedness(handedness)
+
+    # Find normal vector to the imaging plane
+    row_cosines = image_orientation_arr[:3]
+    column_cosines = image_orientation_arr[3:]
+
+    rotation_columns = []
+    for d in index_convention_:
+        if d == PixelIndexDirections.R:
+            rotation_columns.append(row_cosines)
+        elif d == PixelIndexDirections.L:
+            rotation_columns.append(-row_cosines)
+        elif d == PixelIndexDirections.D:
+            rotation_columns.append(column_cosines)
+        elif d == PixelIndexDirections.U:
+            rotation_columns.append(-column_cosines)
+
+    if handedness_ == AxisHandedness.RIGHT_HANDED:
+        n = np.cross(rotation_columns[0], rotation_columns[1])
+    else:
+        n = np.cross(rotation_columns[1], rotation_columns[0])
+
+    return n
+
+
 def create_rotation_matrix(
     image_orientation: Sequence[float],
+    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+        PixelIndexDirections.R,
+        PixelIndexDirections.D,
+    ),
+    slices_first: bool = False,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    pixel_spacing: Union[float, Sequence[float]] = 1.0,
+    spacing_between_slices: float = 1.0,
 ) -> np.ndarray:
-    """Builds a rotation matrix.
+    """Builds a rotation matrix (with or without scaling).
 
     Parameters
     ----------
@@ -882,34 +950,139 @@ def create_rotation_matrix(
         vertical, top to bottom, increasing row index) direction expressed in
         the three-dimensional patient or slide coordinate system defined by the
         frame of reference.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to index pixels. Should be a sequence of two
+        :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+    slices_first: bool, optional
+        Whether the slice index dimension is placed before the rows and columns
+        (``True``) or after them.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Handedness to use to determine the positive direction of the slice
+        index. The resulting rotation matrix will have the given handedness.
+    pixel_spacing: Union[float, Sequence[float]], optional
+        Spacing between pixels in the in-frame dimensions. Either a single
+        value to apply in both the row and column dimensions, or a sequence of
+        length 2 giving ``[spacing_between_rows, spacing_between_columns]`` in
+        the same format as the DICOM "PixelSpacing" attribute.
 
     Returns
     -------
     numpy.ndarray
-        3 x 3 rotation matrix. Pre-multiplying a pixel index in format (column
+        3 x 3 rotation matrix. Pre-multiplying an image coordinate in the format (column
         index, row index, slice index) by this matrix gives the x, y, z
         position in the frame-of-reference coordinate system.
 
     """
     if len(image_orientation) != 6:
         raise ValueError('Argument "image_orientation" must have length 6.')
+    index_convention_ = _normalize_pixel_index_convention(index_convention)
+    handedness_ = AxisHandedness(handedness)
+
     row_cosines = np.array(image_orientation[:3], dtype=float)
     column_cosines = np.array(image_orientation[3:], dtype=float)
-    n = np.cross(row_cosines.T, column_cosines.T)
+    if isinstance(pixel_spacing, Sequence):
+        if len(pixel_spacing) != 2:
+            raise Value.LEF(
+                "A sequence passed to argument 'pixel_spacing' must have "
+                "length 2."
+            )
+        spacing_between_rows = float(pixel_spacing[0])
+        spacing_between_columns = float(pixel_spacing[1])
+    else:
+        spacing_between_rows = pixel_spacing
+        spacing_between_columns = pixel_spacing
 
-    return np.column_stack([
-        row_cosines,
-        column_cosines,
-        n,
-    ])
+    rotation_columns = []
+    spacings = []
+    for d in index_convention_:
+        if d == PixelIndexDirections.R:
+            rotation_columns.append(row_cosines)
+            spacings.append(spacing_between_columns)
+        elif d == PixelIndexDirections.L:
+            rotation_columns.append(-row_cosines)
+            spacings.append(spacing_between_columns)
+        elif d == PixelIndexDirections.D:
+            rotation_columns.append(column_cosines)
+            spacings.append(spacing_between_rows)
+        elif d == PixelIndexDirections.U:
+            rotation_columns.append(-column_cosines)
+            spacings.append(spacing_between_rows)
+
+    if handedness_ == AxisHandedness.RIGHT_HANDED:
+        n = np.cross(rotation_columns[0], rotation_columns[1])
+    else:
+        n = np.cross(rotation_columns[1], rotation_columns[0])
+
+    if slices_first:
+        rotation_columns.insert(0, n)
+        spacings.insert(0, spacing_between_slices)
+    else:
+        rotation_columns.append(n)
+        spacings.append(spacing_between_slices)
+
+    rotation_columns = [c * s for c, s in zip(rotation_columns, spacings)]
+
+    return np.column_stack(rotation_columns)
+
+
+def _stack_affine_matrix(
+    rotation: np.ndarray,
+    translation: np.ndarray,
+) -> np.ndarray:
+    """Create an affine matrix by stacking together.
+
+    Parameters
+    ----------
+    rotation: numpy.ndarray
+        Numpy array of shape ``(3, 3)`` representing a scaled rotation matrix.
+    position: numpy.ndarray
+        Numpy array with three elements representing a translation.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Affine matrix of shape ``(4, 4)``.
+
+    """
+    if rotation.shape != (3, 3):
+        raise ValueError(
+            "Argument 'rotation' must have shape (3, 3)."
+        )
+    if translation.size != 3:
+        raise ValueError(
+            "Argument 'translation' must have 3 elements."
+        )
+
+    return np.row_stack(
+        [
+            np.column_stack([rotation, translation.reshape(3, 1)]),
+            [0.0, 0.0, 0.0, 1.0]
+        ]
+    )
 
 
 def _create_affine_transformation_matrix(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
-    pixel_spacing: Sequence[float],
+    pixel_spacing: Union[float, Sequence[float]],
     spacing_between_slices: float = 1.0,
-    index_convention: Optional[Sequence[PixelIndexDirections]] = None,
+    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+        PixelIndexDirections.R,
+        PixelIndexDirections.D,
+    ),
+    slices_first: bool = False,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
 ) -> np.ndarray:
     """Create affine matrix for transformation.
 
@@ -937,12 +1110,32 @@ def _create_affine_transformation_matrix(
         direction (first value: spacing between rows, vertical, top to
         bottom, increasing row index) and the rows direction (second value:
         spacing between columns: horizontal, left to right, increasing
-        column index)
+        column index). This matches the format of the DICOM "PixelSpacing"
+        attribute. Alternatiely, a single value that is used along both
+        directions.
     spacing_between_slices: float
-        Spacing between consecutive slices.
-    index_convention: Union[Sequence[highdicom.enum.PixelIndexDirections], None]
-        Desired convention for the pixel index directions. Must consist of only
-        D, I, and R.
+        Spacing between consecutive slices in the frame of reference coordinate
+        system in millimeter units.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to index pixels. Should be a sequence of two
+        :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+    slices_first: bool, optional
+        Whether the slice index dimension is placed before the rows and columns
+        (``True``) or after them.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Handedness to use to determine the positive direction of the slice
+        index. The resulting rotation matrix will have the given handedness.
 
     Returns
     -------
@@ -965,50 +1158,28 @@ def _create_affine_transformation_matrix(
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
 
-    x_offset = float(image_position[0])
-    y_offset = float(image_position[1])
-    z_offset = float(image_position[2])
-    translation = np.array([x_offset, y_offset, z_offset], dtype=float)
+    index_convention_ = _normalize_pixel_index_convention(index_convention)
+    if (
+        PixelIndexDirections.L in index_convention_ or 
+        PixelIndexDirections.U in index_convention_
+    ):
+        raise ValueError(
+            f"Index convention cannot include 'L' or 'U'."
+
+        )
+    translation = np.array([float(x) for x in image_position], dtype=float)
 
     rotation = create_rotation_matrix(
-        image_orientation,
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing,
+        spacing_between_slices=spacing_between_slices,
+        index_convention=index_convention_,
+        handedness=handedness,
+        slices_first=slices_first,
     )
-    # Column direction (spacing between rows)
-    spacing_between_rows = float(pixel_spacing[0])
-    # Row direction (spacing between columns)
-    spacing_between_columns = float(pixel_spacing[1])
-
-    rotation[:, 0] *= spacing_between_columns
-    rotation[:, 1] *= spacing_between_rows
-    rotation[:, 2] *= spacing_between_slices
 
     # 4x4 transformation matrix
-    affine = np.row_stack(
-        [
-            np.column_stack([
-                rotation,
-                translation,
-            ]),
-            [0.0, 0.0, 0.0, 1.0]
-        ]
-    )
-
-    if index_convention is not None:
-        current_convention = (
-            PixelIndexDirections.R,
-            PixelIndexDirections.D,
-            PixelIndexDirections.I,
-        )
-        if set(index_convention) != set(current_convention):
-            raise ValueError(
-                'Index convention must consist of D, I, and R.'
-            )
-        affine = _transform_affine_to_convention(
-            affine=affine,
-            shape=(1, 1, 1),  # dummy (not used)
-            from_index_convention=current_convention,
-            to_index_convention=index_convention,
-        )
+    affine = _stack_affine_matrix(rotation, translation)
 
     return affine
 
@@ -1080,31 +1251,20 @@ def _create_inv_affine_transformation_matrix(
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
 
-    x_offset = float(image_position[0])
-    y_offset = float(image_position[1])
-    z_offset = float(image_position[2])
-    translation = np.array([x_offset, y_offset, z_offset])
+    translation = np.array([float(x) for x in image_position], dtype=float)
 
-    rotation = create_rotation_matrix(image_orientation)
+    rotation = create_rotation_matrix(
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing,
+        spacing_between_slices=spacing_between_slices,
+    )
 
-    # Column direction (spacing between rows)
-    spacing_between_rows = float(pixel_spacing[0])
-    # Row direction (spacing between columns)
-    spacing_between_columns = float(pixel_spacing[1])
-    rotation[:, 0] *= spacing_between_columns
-    rotation[:, 1] *= spacing_between_rows
-    rotation[:, 2] *= spacing_between_slices
     inv_rotation = np.linalg.inv(rotation)
 
     # 4x4 transformation matrix
-    return np.row_stack(
-        [
-            np.column_stack([
-                inv_rotation,
-                -np.dot(inv_rotation, translation)
-            ]),
-            [0.0, 0.0, 0.0, 1.0]
-        ]
+    return _stack_affine_matrix(
+        rotation=inv_rotation,
+        translation=-np.dot(inv_rotation, translation)
     )
 
 
@@ -1204,7 +1364,7 @@ def _translate_affine_matrix(
     affine: np.ndarray,
     pixel_offset: Sequence[int],
 ) -> np.ndarray:
-    """Translate the origin of an affine matrix.
+    """Translate the origin of an affine matrix by a pixel offset.
 
     Parameters
     ----------
@@ -1236,18 +1396,12 @@ def _translate_affine_matrix(
 def _transform_affine_to_convention(
     affine: np.ndarray,
     shape: Sequence[int],
-    from_index_convention: Union[
-        str, Sequence[Union[str, PixelIndexDirections]], None
-    ] = None,
-    to_index_convention: Union[
-        str, Sequence[Union[str, PixelIndexDirections]], None
-    ] = None,
     from_reference_convention: Union[
-        str, Sequence[Union[str, PatientOrientationValuesBiped]], None
-    ] = None,
+        str, Sequence[Union[str, PatientOrientationValuesBiped]],
+    ],
     to_reference_convention: Union[
-        str, Sequence[Union[str, PatientOrientationValuesBiped]], None
-    ] = None,
+        str, Sequence[Union[str, PatientOrientationValuesBiped]],
+    ]
 ) -> np.ndarray:
     """Transform an affine matrix between different conventions.
 
@@ -1257,13 +1411,9 @@ def _transform_affine_to_convention(
         Affine matrix to transform.
     shape: Sequence[int]
         Shape of the array.
-    from_index_convention: Union[str, Sequence[Union[str, PixelIndexDirections]], None], optional
-        Index convention used in the input affine.
-    to_index_convention: Union[str, Sequence[Union[str, PixelIndexDirections]], None], optional
-        Desired index convention for the output affine.
-    from_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]], None], optional
+    from_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
         Reference convention used in the input affine.
-    to_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]], None], optional
+    to_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
         Desired reference convention for the output affine.
 
     Returns
@@ -1272,80 +1422,30 @@ def _transform_affine_to_convention(
         Affine matrix after operations are applied.
 
     """  # noqa: E501
-    indices_opposites = {
-        PixelIndexDirections.U: PixelIndexDirections.D,
-        PixelIndexDirections.D: PixelIndexDirections.U,
-        PixelIndexDirections.L: PixelIndexDirections.R,
-        PixelIndexDirections.R: PixelIndexDirections.L,
-        PixelIndexDirections.I: PixelIndexDirections.O,
-        PixelIndexDirections.O: PixelIndexDirections.I,
-    }
+    from_reference_normed = _normalize_patient_orientation(
+        from_reference_convention
+    )
+    to_reference_normed = _normalize_patient_orientation(
+        to_reference_convention
+    )
 
-    if (from_index_convention is None) != (to_index_convention is None):
-        raise TypeError(
-            'Arguments "from_index_convention" and "to_index_convention" '
-            'should either both be None, or neither should be None.'
-        )
-    if from_index_convention is not None and to_index_convention is not None:
-        from_index_normed = _normalize_pixel_index_convention(
-            from_index_convention
-        )
-        to_index_normed = _normalize_pixel_index_convention(
-            to_index_convention
-        )
-        flip_indices = [
-            d not in from_index_normed for d in to_index_normed
-        ]
-
-        permute_indices = []
-        for d, flipped in zip(to_index_normed, flip_indices):
-            if flipped:
-                d_ = indices_opposites[d]
-                permute_indices.append(from_index_normed.index(d_))
-            else:
-                permute_indices.append(from_index_normed.index(d))
-    else:
-        flip_indices = None
-        permute_indices = None
-
-    if (
-        (from_reference_convention is None) != (to_reference_convention is None)
-    ):
-        raise TypeError(
-            'Arguments "from_reference_convention" and "to_reference_convention" '
-            'should either both be None, or neither should be None.'
-        )
-    if (
-        from_reference_convention is not None
-        and to_reference_convention is not None
-    ):
-        from_reference_normed = _normalize_patient_orientation(
-            from_reference_convention
-        )
-        to_reference_normed = _normalize_patient_orientation(
-            to_reference_convention
-        )
-
-        flip_reference = [
-            d not in to_reference_normed for d in from_reference_normed
-        ]
-        permute_reference = []
-        for d, flipped in zip(to_reference_normed, flip_reference):
-            if flipped:
-                d_ = PATIENT_ORIENTATION_OPPOSITES[d]
-                permute_reference.append(from_reference_normed.index(d_))
-            else:
-                permute_reference.append(from_reference_normed.index(d))
-    else:
-        flip_reference = None
-        permute_reference = None
+    flip_reference = [
+        d not in to_reference_normed for d in from_reference_normed
+    ]
+    permute_reference = []
+    for d, flipped in zip(to_reference_normed, flip_reference):
+        if flipped:
+            d_ = PATIENT_ORIENTATION_OPPOSITES[d]
+            permute_reference.append(from_reference_normed.index(d_))
+        else:
+            permute_reference.append(from_reference_normed.index(d))
 
     return _transform_affine_matrix(
         affine=affine,
         shape=shape,
-        permute_indices=permute_indices,
+        permute_indices=None,
         permute_reference=permute_reference,
-        flip_indices=flip_indices,
+        flip_indices=None,
         flip_reference=flip_reference,
     )
 
@@ -2863,9 +2963,14 @@ def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
     tol: float = _DEFAULT_SPACING_TOLERANCE,
     sort: bool = True,
-    enforce_right_handed: bool = False,
     allow_missing: bool = False,
     allow_duplicates: bool = False,
+    index_convention: Union[
+        str,
+        Sequence[Union[PixelIndexDirections, str]]
+    ] = VOLUME_INDEX_CONVENTION,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    enforce_handedness: bool = False,
 ) -> Tuple[Optional[float], Optional[List[int]]]:
     """Get volume positions and spacing for a series of single frame images.
 
@@ -2894,14 +2999,6 @@ def get_series_volume_positions(
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    enforce_right_handed: bool, optional
-        If True and sort is False, require that the images are not only
-        regularly spaced but also that they are ordered correctly to give a
-        right-handed coordinate system, i.e. frames are ordered along the
-        direction of the increasing normal vector, as opposed to being ordered
-        regularly along the direction of the decreasing normal vector. If sort
-        is True, this has no effect since positions will be sorted in the
-        right-handed direction before finding the spacing.
     allow_missing: bool, optional
         Allow for slices missing from the volume. If True, the smallest
         distance between two consective slices is found and returned as the
@@ -2912,6 +3009,35 @@ def get_series_volume_positions(
     allow_duplicates: bool, optional
         Allow multiple slices to map to the same position within the volume.
         If False, duplicated image positions will result in failure.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to determine how to order frames. Should be a sequence
+        of two :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+        This is used in combination with the ``handedness`` to determine
+        the positive direction used to order frames.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the frame order in order such that the frame axis creates a
+        coordinate system with this handedness in the when combined with
+        the within-frame convention given by ``index_convention``.
+    enforce_handedness: bool, optional
+        If True and sort is False, require that the images are not only
+        regularly spaced but also that they are ordered correctly to give a
+        coordinate system with the specified handedness, i.e. frames are
+        ordered along the direction of the increasing normal vector, as opposed
+        to being ordered regularly along the direction of the decreasing normal
+        vector. If sort is True, this has no effect since positions will be
+        sorted in the correct direction before finding the spacing.
 
     Returns
     -------
@@ -2951,11 +3077,13 @@ def get_series_volume_positions(
         image_positions=positions,
         image_orientation=image_orientation,
         tol=tol,
-        enforce_right_handed=enforce_right_handed,
         sort=sort,
         allow_duplicates=allow_duplicates,
         allow_missing=allow_missing,
         spacing_hint=spacing_hint,
+        index_convention=index_convention,
+        handedness=handedness,
+        enforce_handedness=enforce_handedness,
     )
 
 
@@ -2964,10 +3092,15 @@ def get_volume_positions(
     image_orientation: Sequence[float],
     tol: float = _DEFAULT_SPACING_TOLERANCE,
     sort: bool = True,
-    enforce_right_handed: bool = False,
     allow_missing: bool = False,
     allow_duplicates: bool = False,
     spacing_hint: Optional[float] = None,
+    index_convention: Union[
+        str,
+        Sequence[Union[PixelIndexDirections, str]]
+    ] = VOLUME_INDEX_CONVENTION,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    enforce_handedness: bool = False,
 ) -> Tuple[Optional[float], Optional[List[int]]]:
     """Get the spacing and positions of images within a 3D volume.
 
@@ -2977,12 +3110,12 @@ def get_volume_positions(
     the in-plane image coordinates.
 
     If the positions represent a volume, returns the absolute value of the
-    slice spacing and the slice indices in the volume for each of the input
-    positions. If the positions do not represent a volume, returns None for both
-    outputs.
+    slice spacing and the volume indices for each of the input positions. If
+    the positions do not represent a volume, returns None for both outputs.
 
     Note that we stipulate that a single image is a 3D volume for the purposes
-    of this function. In this case the returned slice spacing will be 1.0.
+    of this function. In this case, and it ``spacing_hint`` is not provied, the
+    returned slice spacing will be 1.0.
 
     Parameters
     ----------
@@ -3002,14 +3135,6 @@ def get_volume_positions(
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    enforce_right_handed: bool, optional
-        If True and sort is False, require that the images are not only
-        regularly spaced but also that they are ordered correctly to give a
-        right-handed coordinate system, i.e. frames are ordered along the
-        direction of the increasing normal vector, as opposed to being ordered
-        regularly along the direction of the decreasing normal vector. If sort
-        is True, this has no effect since positions will be sorted in the
-        right-handed direction before finding the spacing.
     allow_missing: bool, optional
         Allow for slices missing from the volume. If True, the smallest
         distance between two consective slices is found and returned as the
@@ -3027,6 +3152,35 @@ def get_volume_positions(
         ``allow_missing`` is ``True`` and a ``spacing_hint`` is given, the hint
         is used to calculate the index positions instead of the smallest
         consecutive spacing.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to determine how to order frames. Should be a sequence
+        of two :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+        This is used in combination with the ``handedness`` to determine
+        the positive direction used to order frames.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the frame order in order such that the frame axis creates a
+        coordinate system with this handedness in the when combined with
+        the within-frame convention given by ``index_convention``.
+    enforce_handedness: bool, optional
+        If True and sort is False, require that the images are not only
+        regularly spaced but also that they are ordered correctly to give a
+        coordinate system with the specified handedness, i.e. frames are
+        ordered along the direction of the increasing normal vector, as opposed
+        to being ordered regularly along the direction of the decreasing normal
+        vector. If sort is True, this has no effect since positions will be
+        sorted in the correct direction before finding the spacing.
 
     Returns
     -------
@@ -3070,7 +3224,11 @@ def get_volume_positions(
         # Special case, we stipluate that this has spacing 0.0
         return 1.0, [0]
 
-    normal_vector = get_normal_vector(image_orientation)
+    normal_vector = get_normal_vector(
+        image_orientation,
+        index_convention=index_convention,
+        handedness=handedness,
+    )
 
     if allow_duplicates:
         # Unique index specifies, for each position in the input positions
@@ -3141,7 +3299,7 @@ def get_volume_positions(
             atol=tol
         ).all()
 
-    if is_regular and enforce_right_handed:
+    if is_regular and enforce_handedness:
         if spacing < 0.0:
             return None, None
 
@@ -3164,43 +3322,14 @@ def get_volume_positions(
         return None, None
 
 
-def get_normal_vector(
-    image_orientation: Sequence[float],
-):
-    """Get a vector normal to an imaging plane.
-
-    Parameters
-    ----------
-    image_orientation: Sequence[float]
-        Image orientation in the standard DICOM format used for the
-        ImageOrientationPatient and ImageOrientationSlide attributes,
-        consisting of 6 numbers representing the direction cosines along the
-        rows (first three elements) and columns (second three elements).
-
-    Returns
-    -------
-    np.ndarray:
-        Unit normal vector as a NumPy array with shape (3, ).
-
-    """
-    image_orientation_arr = np.array(image_orientation, dtype=np.float64)
-    if image_orientation_arr.ndim != 1 or image_orientation_arr.shape[0] != 6:
-        raise ValueError(
-            "Argument 'image_orientation' should be an array of "
-            "length 6."
-        )
-
-    # Find normal vector to the imaging plane
-    v1 = image_orientation_arr[:3]
-    v2 = image_orientation_arr[3:]
-    v3 = np.cross(v1, v2)
-
-    return v3
-
-
 def get_plane_sort_index(
     image_positions: Sequence[Sequence[float]],
     image_orientation: Sequence[float],
+    index_convention: Union[
+        str,
+        Sequence[Union[PixelIndexDirections, str]]
+    ] = VOLUME_INDEX_CONVENTION,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
 ) -> List[int]:
     """
 
@@ -3214,6 +3343,27 @@ def get_plane_sort_index(
         Image orientation as direction cosine values taken directly from the
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to determine how to order frames. Should be a sequence
+        of two :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+        This is used in combination with the ``handedness`` to determine
+        the positive direction used to order frames.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the frame order in order such that the frame axis creates a
+        coordinate system with this handedness in the when combined with
+        the within-frame convention given by ``index_convention``.
 
     Returns
     -------
@@ -3231,7 +3381,11 @@ def get_plane_sort_index(
     if ori_arr.ndim != 1 or ori_arr.shape[0] != 6:
         raise ValueError("Argument 'image_orientation' must have shape (6, )")
 
-    normal_vector = get_normal_vector(ori_arr)
+    normal_vector = get_normal_vector(
+        ori_arr,
+        index_convention=index_convention,
+        handedness=handedness,
+    )
 
     # Calculate distance of each slice from coordinate system origin along the
     # normal vector
@@ -3242,13 +3396,41 @@ def get_plane_sort_index(
     return sort_index.tolist()
 
 
-def get_dataset_sort_index(datasets: Sequence[Dataset]) -> List[int]:
+def get_dataset_sort_index(
+    datasets: Sequence[Dataset],
+    index_convention: Union[
+        str,
+        Sequence[Union[PixelIndexDirections, str]]
+    ] = VOLUME_INDEX_CONVENTION,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+) -> List[int]:
     """Get index to sort single frame datasets spatially.
 
     Parameters
     ----------
     datasets: Sequence[pydicom.Dataset]
         Datasets containing single frame images, with a consistent orientation.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to determine how to order frames. Should be a sequence
+        of two :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+        This is used in combination with the ``handedness`` to determine
+        the positive direction used to order frames.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the frame order in order such that the frame axis creates a
+        coordinate system with this handedness in the when combined with
+        the within-frame convention given by ``index_convention``.
 
     Returns
     -------
@@ -3272,16 +3454,50 @@ def get_dataset_sort_index(datasets: Sequence[Dataset]) -> List[int]:
     ):
         raise ValueError('Datasets do not have a consistent orientation.')
     positions = [ds.ImagePositionPatient for ds in datasets]
-    return get_plane_sort_index(positions, image_orientation)
+    return get_plane_sort_index(
+        positions,
+        image_orientation,
+        index_convention=index_convention,
+        handedness=handedness,
+    )
 
 
-def sort_datasets(datasets: Sequence[Dataset]) -> List[Dataset]:
+def sort_datasets(
+    datasets: Sequence[Dataset],
+    index_convention: Union[
+        str,
+        Sequence[Union[PixelIndexDirections, str]]
+    ] = VOLUME_INDEX_CONVENTION,
+    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+) -> List[Dataset]:
     """Sort single frame datasets spatially.
 
     Parameters
     ----------
     datasets: Sequence[pydicom.Dataset]
         Datasets containing single frame images, with a consistent orientation.
+    index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+        Convention used to determine how to order frames. Should be a sequence
+        of two :class:`highdicom.enum.PixelIndexDirections` or their string
+        representations, giving in order, the indexing conventions used for
+        specifying pixel indices. For example ``('R', 'D')`` means that the
+        first pixel index indexes the columns from left to right, and the
+        second pixel index indexes the rows from top to bottom (this is the
+        convention typically used within DICOM). As another example ``('D',
+        'R')`` would switch the order of the indices to give the convention
+        typically used within NumPy.
+
+        Alternatively, a single shorthand string may be passed that combines
+        the string representations of the two directions. So for example,
+        passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+        This is used in combination with the ``handedness`` to determine
+        the positive direction used to order frames.
+    handedness: Union[highdicom.enum.AxisHandedness, str], optional
+        Choose the frame order in order such that the frame axis creates a
+        coordinate system with this handedness in the when combined with
+        the within-frame convention given by ``index_convention``.
+
 
     Returns
     -------
@@ -3292,7 +3508,11 @@ def sort_datasets(datasets: Sequence[Dataset]) -> List[Dataset]:
         plane.
 
     """
-    sort_index = get_dataset_sort_index(datasets)
+    sort_index = get_dataset_sort_index(
+        datasets,
+        index_convention=index_convention,
+        handedness=handedness,
+    )
     return [datasets[i] for i in sort_index]
 
 

@@ -27,9 +27,9 @@ from highdicom.enum import (
 )
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
-    VOLUME_INDEX_CONVENTION,
     _create_affine_transformation_matrix,
     _translate_affine_matrix,
+    VOLUME_INDEX_CONVENTION,
     get_image_coordinate_system,
     get_volume_positions,
 )
@@ -464,6 +464,7 @@ class MultiFrameDBManager:
                         pixel_spacing=self.shared_pixel_spacing,
                         spacing_between_slices=volume_spacing,
                         index_convention=VOLUME_INDEX_CONVENTION,
+                        slices_first=True,
                     )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
                     col_data.append(volume_positions)
@@ -857,8 +858,6 @@ class MultiFrameDBManager:
         slice_start: int, optional
             Zero-based index into the slice positions within the implied
             volume marking the beginning of the relevant region.
-        index_convention: Sequence[highdicom.PixelIndexDirections], optional
-            Index convention to use to construct the affine matrix.
 
         Returns
         -------

@@ -12,7 +12,11 @@ from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    AxisHandedness,
+    CoordinateSystemNames,
+    PixelIndexDirections,
+)
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.spatial import (
     _get_slice_distances,
@@ -611,6 +615,11 @@ class DimensionIndexSequence(DataElementSequence):
         self,
         plane_positions: Sequence[PlanePositionSequence],
         image_orientation: Optional[Sequence[float]] = None,
+        index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+            PixelIndexDirections.R,
+            PixelIndexDirections.D,
+        ),
+        handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get values of indexed attributes that specify position of planes.
 
@@ -618,7 +627,38 @@ class DimensionIndexSequence(DataElementSequence):
         ----------
         plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane position of frames in a multi-frame image or in a series of
-            single-frame images
+            single-frame images.
+        image_orientation: Union[Sequence[float], None], optional
+            An image orientation to use to order frames within a 3D coordinate
+            system. By default (if ``image_orientation`` is ``None``), the
+            plane positions are ordered using their raw numerical values and
+            not along any particular spatial vector. If ``image_orientation``
+            is provided, planes are ordered along the positive direction of the
+            vector normal to the specified. Should be a sequence of 6 floats.
+            This is only valid when plane position inputs contain only the
+            ImagePositionPatient.
+        index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+            Convention used to determine how to order frames if
+            ``image_orientation`` is specified. Should be a sequence of two
+            :class:`highdicom.enum.PixelIndexDirections` or their string
+            representations, giving in order, the indexing conventions used for
+            specifying pixel indices. For example ``('R', 'D')`` means that the
+            first pixel index indexes the columns from left to right, and the
+            second pixel index indexes the rows from top to bottom (this is the
+            convention typically used within DICOM). As another example ``('D',
+            'R')`` would switch the order of the indices to give the convention
+            typically used within NumPy.
+
+            Alternatively, a single shorthand string may be passed that combines
+            the string representations of the two directions. So for example,
+            passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+            This is used in combination with the ``handedness`` to determine
+            the positive direction used to order frames.
+        handedness: Union[highdicom.enum.AxisHandedness, str], optional
+            Choose the frame order in order such that the frame axis creates a
+            coordinate system with this handedness in the when combined with
+            the within-frame convention given by ``index_convention``.
 
         Returns
         -------
@@ -631,15 +671,6 @@ class DimensionIndexSequence(DataElementSequence):
         plane_indices: numpy.ndarray
             1D array of planes indices for sorting frames according to their
             spatial position specified by the dimension index
-        image_orientation: Union[Sequence[float], None], optional
-            An image orientation to use to order frames within a 3D coordinate
-            system. By default (if ``image_orientation`` is ``None``), the
-            plane positions are ordered using their raw numerical values and
-            not along any particular spatial vector. If ``image_orientation``
-            is provided, planes are ordered along the positive direction of the
-            vector normal to the specified. Should be a sequence of 6 floats.
-            This is only valid when plane position inputs contain only the
-            ImagePositionPatient.
 
         Note
         ----
@@ -679,7 +710,11 @@ class DimensionIndexSequence(DataElementSequence):
                     'Provided "image_orientation" is only valid when '
                     'plane_positions contain the ImagePositionPatient.'
                 )
-            normal_vector = get_normal_vector(image_orientation)
+            normal_vector = get_normal_vector(
+                image_orientation,
+                index_convention=index_convention,
+                handedness=handedness,
+            )
             origin_distances = _get_slice_distances(
                 plane_position_values[:, 0, :],
                 normal_vector,

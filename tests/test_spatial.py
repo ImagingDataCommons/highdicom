@@ -926,7 +926,7 @@ def test_get_spacing_duplicates():
     positions = [
         [0.0, 0.0, i * expected_spacing] for i in position_indices
     ]
-    orientation = [1, 0, 0, 0, 1, 0]
+    orientation = [1, 0, 0, 0, -1, 0]
 
     spacing, volume_positions = get_volume_positions(
         positions,
@@ -955,7 +955,7 @@ def test_get_spacing_missing():
     positions = [
         [0.0, 0.0, i * expected_spacing] for i in position_indices
     ]
-    orientation = [1, 0, 0, 0, 1, 0]
+    orientation = [1, 0, 0, 0, -1, 0]
 
     spacing, volume_positions = get_volume_positions(
         positions,
@@ -977,7 +977,7 @@ def test_get_spacing_missing_duplicates():
     positions = [
         [0.0, 0.0, i * expected_spacing] for i in position_indices
     ]
-    orientation = [1, 0, 0, 0, 1, 0]
+    orientation = [1, 0, 0, 0, -1, 0]
 
     spacing, volume_positions = get_volume_positions(
         positions,
@@ -1006,7 +1006,7 @@ def test_get_spacing_missing_duplicates_non_consecutive():
     positions = [
         [0.0, 0.0, i * expected_spacing] for i in position_indices
     ]
-    orientation = [1, 0, 0, 0, 1, 0]
+    orientation = [1, 0, 0, 0, -1, 0]
 
     # Without the spacing_hint, the positions do not appear to be a volume
     spacing, volume_positions = get_volume_positions(

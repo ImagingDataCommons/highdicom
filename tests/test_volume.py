@@ -36,11 +36,11 @@ def test_transforms():
     )
     plane_positions = volume.get_plane_positions()
     for i, pos in enumerate(plane_positions):
-        assert np.array_equal(pos[0].ImagePositionPatient, [0.0, 0.0, 10.0 * i])
+        assert np.array_equal(pos[0].ImagePositionPatient, [0.0, 0.0, -10.0 * i])
 
     indices = np.array([[1, 2, 3]])
     coords = volume.map_indices_to_reference(indices)
-    assert np.array_equal(coords, np.array([[3.0, 2.0, 10.0]]))
+    assert np.array_equal(coords, np.array([[3.0, 2.0, -10.0]]))
     round_trip = volume.map_reference_to_indices(coords)
     assert np.array_equal(round_trip, indices)
     index_center = volume.get_center_index()
@@ -48,7 +48,7 @@ def test_transforms():
     index_center = volume.get_center_index(round_output=True)
     assert np.array_equal(index_center, [12, 24, 24])
     coord_center = volume.get_center_coordinate()
-    assert np.array_equal(coord_center, [24.5, 24.5, 120])
+    assert np.array_equal(coord_center, [24.5, 24.5, -120])
 
 
 @pytest.mark.parametrize(
@@ -160,7 +160,7 @@ def test_volume_single_frame():
     assert direction[:, 0] @ direction[:, 1] == 0.0
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
-    assert volume.position == ct_series[0].ImagePositionPatient
+    assert volume.position == ct_series[1].ImagePositionPatient  # sorting
     assert volume.pixel_spacing == ct_series[0].PixelSpacing
     slice_spacing = 1.25
     assert volume.spacing == [slice_spacing, *ct_series[0].PixelSpacing[::-1]]
@@ -212,7 +212,7 @@ def test_volume_multiframe():
     assert (direction[:, 0] ** 2).sum() == 1.0
     first_frame_pos = (
         dcm
-        .PerFrameFunctionalGroupsSequence[1]  # due to ordering
+        .PerFrameFunctionalGroupsSequence[0]
         .PlanePositionSequence[0]
         .ImagePositionPatient
     )
@@ -256,7 +256,7 @@ def test_indexing():
     expected_affine = np.array([
         [ 0.0,  0.0,  1.0,  0.0],
         [ 0.0,  1.0,  0.0,  0.0],
-        [10.0,  0.0,  0.0, 30.0],
+        [-10.0,  0.0,  0.0, -30.0],
         [ 0.0,  0.0,  0.0,  1.0],
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
@@ -284,7 +284,7 @@ def test_indexing():
     expected_affine = np.array([
         [ 0.0,  0.0,  1.0,  0.0],
         [ 0.0,  1.0,  0.0,  7.0],
-        [10.0,  0.0,  0.0, 30.0],
+        [-10.0,  0.0,  0.0, -30.0],
         [ 0.0,  0.0,  0.0,  1.0],
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
@@ -306,7 +306,7 @@ def test_indexing():
     expected_affine = np.array([
         [ 0.0,  0.0,  1.0,   0.0],
         [ 0.0,  1.0,  0.0,   0.0],
-        [10.0,  0.0,  0.0, 210.0],
+        [-10.0,  0.0,  0.0, -210.0],
         [ 0.0,  0.0,  0.0,   1.0],
     ])
     assert np.array_equal(subvolume.affine, expected_affine)
@@ -324,7 +324,7 @@ def test_indexing():
     expected_affine = np.array([
         [ 0.0,  0.0,  1.0,   0.0],
         [ 0.0, -1.0,  0.0,  49.0],
-        [20.0,  0.0,  0.0, 120.0],
+        [-20.0,  0.0,  0.0, -120.0],
         [ 0.0,  0.0,  0.0,   1.0],
     ])
     assert np.array_equal(subvolume.affine, expected_affine)

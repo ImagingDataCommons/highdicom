@@ -21,100 +21,28 @@ class PixelIndexDirections(Enum):
     L = 'L'
     """
 
-    Left: Pixel index that increases moving across the image from right to left.
+    Left: Pixel index that increases moving across the rows from right to left.
 
     """
 
     R = 'R'
     """
 
-    Right: Pixel index that increases moving across the image from left to right.
+    Right: Pixel index that increases moving across the rows from left to right.
 
     """
 
     U = 'U'
     """
 
-    Up: Pixel index that increases moving up the image from bottom to top.
+    Up: Pixel index that increases moving up the columns from bottom to top.
 
     """
 
     D = 'D'
     """
 
-    Down: Pixel index that increases moving down the image from top to bottom.
-
-    """
-
-    I = 'I'
-    """
-
-    In: Pixel index that increases moving through the slices in the away from
-    the viewer.
-
-    """
-
-    O = 'O'
-    """
-
-    Out: Pixel index that increases moving through the slices in the towards
-    the viewer.
-
-    """
-
-
-class PatientFrameOfReferenceDirections(Enum):
-
-    """
-
-    Enumerated values used to describe directions in the patient frame of
-    reference coordinate space.
-
-    """
-
-    L = 'L'
-    """
-
-    Left: Direction that increases moving from the patient's right to left.
-
-    """
-
-    R = 'R'
-    """
-
-    Right: Direction that increases moving from the patient's left to right.
-
-    """
-
-    P = 'P'
-    """
-
-    Posterior: Direction that increases moving from the patient's anterior to
-    posterior.
-
-    """
-
-    A = 'A'
-    """
-
-    Anterior: Direction that increases moving from the patient's posterior to
-    anterior.
-
-    """
-
-    I = 'I'
-    """
-
-    Inferior: Direction that increases moving from the patient's superior to
-    inferior.
-
-    """
-
-    S = 'S'
-    """
-
-    Superior: Direction that increases moving from the patient's ingerior to
-    superior.
+    Down: Pixel index that increases moving down the columns from top to bottom.
 
     """
 

@@ -1197,8 +1197,7 @@ class TestSegmentation:
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
 
-        # Frames are regularly but ordered the wrong way in this case
-        assert not hasattr(instance, 'DimensionOrganizationType')
+        assert hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
 
     def test_construction_5(self):
@@ -1569,7 +1568,7 @@ class TestSegmentation:
             self._manufacturer,
             self._manufacturer_model_name,
             self._software_versions,
-            self._device_serial_number
+            self._device_serial_number,
         )
         # This is a "volume" image, so the output instance should have
         # the DimensionOrganizationType set correctly and should have deduced
@@ -3817,7 +3816,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3844,7 +3843,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3871,7 +3870,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3901,7 +3900,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3930,7 +3929,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3959,7 +3958,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -3988,7 +3987,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -4017,7 +4016,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -4047,7 +4046,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -4073,7 +4072,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -4099,7 +4098,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )
@@ -4126,7 +4125,7 @@ class TestSegmentationParsing:
             .ImageOrientationPatient
         )
         assert vol.get_closest_patient_orientation() == (
-            PatientOrientationValuesBiped.H,
+            PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
         )

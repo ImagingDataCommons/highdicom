@@ -1839,12 +1839,12 @@ class Segmentation(SOPClass):
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
             if from_volume:
                 # Skip checks as this is 3D by construction
-                # TODO check handedness
                 # TODO what about omitted frames
                 dimension_organization_type = (
                     DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                 )
             else:
+                # TODO calculate spacing before omitting frames?
                 spacing, _ = get_volume_positions(
                     image_positions=np.array(
                         plane_position_values[plane_sort_index, 0, :]
@@ -1852,8 +1852,6 @@ class Segmentation(SOPClass):
                     image_orientation=np.array(
                         plane_orientation[0].ImageOrientationPatient
                     ),
-                    sort=False,
-                    enforce_right_handed=True,
                 )
 
                 if spacing is not None and spacing > 0.0:
