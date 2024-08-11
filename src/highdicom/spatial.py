@@ -1268,6 +1268,55 @@ def _create_inv_affine_transformation_matrix(
     )
 
 
+def rotation_for_patient_orientation(
+    patient_orientation: Union[
+        str,
+        Sequence[Union[str, PatientOrientationValuesBiped]],
+    ],
+    spacing: Union[float, Sequence[float]] = 1.0,
+) -> np.ndarray:
+    """Create a (scaled) rotation matrix for a given patient orientation.
+
+    The result is an axis-aligned rotation matrix.
+
+    Parameters
+    ----------
+    patient_orientation: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
+        Desired patient orientation, as either a sequence of three
+        highdicom.enum.PatientOrientationValuesBiped values, or a string
+        such as ``"FPL"`` using the same characters.
+    spacing: Union[float, Sequence[float]], optional
+        Spacing between voxels along each of the three dimensions in the frame
+        of reference coordinate system in pixel units.
+
+    Returns
+    -------
+    numpy.ndarray:
+        (Scaled) rotation matrix of shape (3 x 3).
+
+    """  # noqa: E501
+    norm_orientation = _normalize_patient_orientation(patient_orientation)
+
+    direction_to_vector_mapping = {
+        PatientOrientationValuesBiped.L: np.array([ 1.,  0.,  0.]),
+        PatientOrientationValuesBiped.R: np.array([-1.,  0.,  0.]),
+        PatientOrientationValuesBiped.P: np.array([ 0.,  1.,  0.]),
+        PatientOrientationValuesBiped.A: np.array([ 0., -1.,  0.]),
+        PatientOrientationValuesBiped.H: np.array([ 0.,  0.,  1.]),
+        PatientOrientationValuesBiped.F: np.array([ 0.,  0., -1.]),
+    }
+
+    if isinstance(spacing, float):
+        spacing = [spacing] * 3
+
+    return np.column_stack(
+        [
+            s * direction_to_vector_mapping[d]
+            for d, s in zip(norm_orientation, spacing)
+        ]
+    )
+
+
 def _transform_affine_matrix(
     affine: np.ndarray,
     shape: Sequence[int],

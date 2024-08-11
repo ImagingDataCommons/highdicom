@@ -16,9 +16,10 @@ from highdicom.spatial import (
     _transform_affine_matrix,
     create_rotation_matrix,
     get_closest_patient_orientation,
-    get_volume_positions,
     get_series_volume_positions,
+    get_volume_positions,
     is_tiled_image,
+    rotation_for_patient_orientation,
 )
 
 
@@ -744,6 +745,40 @@ def test_get_closest_patient_orientation(
     assert get_closest_patient_orientation(
         rotation_matrix
     ) == codes
+
+
+@pytest.mark.parametrize(
+    'orientation_str',
+    ['LPH', 'PLF', 'RPF', 'FLA']
+)
+def test_rotation_from_patient_orientation(
+    orientation_str,
+):
+    codes = _normalize_patient_orientation(orientation_str)
+    rotation_matrix = rotation_for_patient_orientation(
+        orientation_str
+    )
+    assert get_closest_patient_orientation(
+        rotation_matrix
+    ) == codes
+
+
+def test_rotation_from_patient_orientation_spacing():
+    rotation_matrix = rotation_for_patient_orientation(
+        ['F', 'P', 'L'],
+        spacing=(1.0, 2.0, 2.5)
+    )
+    expected = np.array(
+        [
+            [ 0.0, 0.0, 2.5],
+            [ 0.0, 2.0, 0.0],
+            [-1.0, 0.0, 0.0],
+        ]
+    )
+    assert np.array_equal(
+        rotation_matrix,
+        expected,
+    )
 
 
 all_single_image_transformer_classes = [
