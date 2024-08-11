@@ -1,7 +1,6 @@
 """Tools for working with multiframe DICOM images."""
 from collections import Counter
 from contextlib import contextmanager
-import itertools
 import logging
 import sqlite3
 from typing import (
@@ -37,6 +36,7 @@ from highdicom.uid import UID as hd_UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
 )
+from highdicom.volume import VolumeGeometry
 
 
 # Dictionary mapping DCM VRs to appropriate SQLite types
@@ -110,7 +110,7 @@ class MultiFrameDBManager:
         extra_collection_func_pointers = {}
         slice_spacing_hint = None
         image_position_tag = tag_for_keyword('ImagePositionPatient')
-        self.shared_pixel_spacing = None
+        shared_pixel_spacing: Optional[List[float]] = None
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
             plane_pos_seq_tag = tag_for_keyword('PlanePositionSequence')
             # Include the image position if it is not an index
@@ -125,8 +125,8 @@ class MultiFrameDBManager:
                 if hasattr(sfgs, 'PixelMeasuresSequence'):
                     measures = sfgs.PixelMeasuresSequence[0]
                     slice_spacing_hint = measures.get('SpacingBetweenSlices')
-                    self.shared_pixel_spacing = measures.get('PixelSpacing')
-            if slice_spacing_hint is None or self.shared_pixel_spacing is None:
+                    shared_pixel_spacing = measures.get('PixelSpacing')
+            if slice_spacing_hint is None or shared_pixel_spacing is None:
                 # Get the orientation of the first frame, and in the later loop
                 # check whether it is shared.
                 if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
@@ -135,7 +135,7 @@ class MultiFrameDBManager:
                         slice_spacing_hint = pfg1.PixelMeasuresSequence[0].get(
                             'SpacingBetweenSlices'
                         )
-                        self.shared_pixel_spacing = pfg1.get('PixelSpacing')
+                        shared_pixel_spacing = pfg1.get('PixelSpacing')
 
         dim_ind_positions = {
             dim_ind.DimensionIndexPointer: i
@@ -153,22 +153,22 @@ class MultiFrameDBManager:
         }
 
         # Get the shared orientation
-        self.shared_image_orientation = None
+        shared_image_orientation: Optional[List[float]] = None
         if hasattr(dataset, 'ImageOrientationSlide'):
-            self.shared_image_orientation = dataset.ImageOrientationSlide
+            shared_image_orientation = dataset.ImageOrientationSlide
         if hasattr(dataset, 'SharedFunctionalGroupsSequence'):
             sfgs = dataset.SharedFunctionalGroupsSequence[0]
             if hasattr(sfgs, 'PlaneOrientationSequence'):
-                self.shared_image_orientation = (
+                shared_image_orientation = (
                     sfgs.PlaneOrientationSequence[0].ImageOrientationPatient
                 )
-        if self.shared_image_orientation is None:
+        if shared_image_orientation is None:
             # Get the orientation of the first frame, and in the later loop
             # check whether it is shared.
             if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
                 pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
                 if hasattr(pfg1, 'PlaneOrientationSequence'):
-                    self.shared_image_orientation = (
+                    shared_image_orientation = (
                         pfg1
                         .PlaneOrientationSequence[0]
                         .ImageOrientationPatient
@@ -326,15 +326,15 @@ class MultiFrameDBManager:
                     referenced_frames.append(frame_source_frames[0])
 
                 # Check that this doesn't have a conflicting orientation
-                if self.shared_image_orientation is not None:
+                if shared_image_orientation is not None:
                     if hasattr(frame_item, 'PlaneOrientationSequence'):
                         iop = (
                             frame_item
                             .PlaneOrientationSequence[0]
                             .ImageOrientationPatient
                         )
-                        if iop != self.shared_image_orientation:
-                            self.shared_image_orientation = None
+                        if iop != shared_image_orientation:
+                            shared_image_orientation = None
 
             # Summarise
             if any(
@@ -435,13 +435,12 @@ class MultiFrameDBManager:
                 col_data.append(dim_values[t])
 
         # Volume related information
-        self.number_of_volume_positions: Optional[int] = None
-        self.affine: Optional[np.ndarray] = None
+        self.volume_geometry: Optional[VolumeGeometry] = None
         if (
             self._coordinate_system == CoordinateSystemNames.PATIENT
-            and self.shared_image_orientation is not None
+            and shared_image_orientation is not None
         ):
-            if self.shared_image_orientation is not None:
+            if shared_image_orientation is not None:
                 if image_position_tag in self._dim_ind_pointers:
                     image_positions = dim_values[image_position_tag]
                 else:
@@ -450,21 +449,22 @@ class MultiFrameDBManager:
                     ]
                 volume_spacing, volume_positions = get_volume_positions(
                     image_positions=image_positions,
-                    image_orientation=self.shared_image_orientation,
+                    image_orientation=shared_image_orientation,
                     allow_missing=True,
                     allow_duplicates=True,
                     spacing_hint=slice_spacing_hint,
                 )
                 if volume_positions is not None:
                     origin_slice_index = volume_positions.index(0)
-                    self.number_of_volume_positions = max(volume_positions) + 1
-                    self.affine = _create_affine_transformation_matrix(
+                    number_of_slices = max(volume_positions) + 1
+                    self.volume_geometry = VolumeGeometry.from_attributes(
                         image_position=image_positions[origin_slice_index],
-                        image_orientation=self.shared_image_orientation,
-                        pixel_spacing=self.shared_pixel_spacing,
+                        image_orientation=shared_image_orientation,
+                        rows=dataset.Rows,
+                        columns=dataset.Columns,
+                        pixel_spacing=shared_pixel_spacing,
+                        number_of_frames=number_of_slices,
                         spacing_between_slices=volume_spacing,
-                        index_convention=VOLUME_INDEX_CONVENTION,
-                        slices_first=True,
                     )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
                     col_data.append(volume_positions)
@@ -803,7 +803,7 @@ class MultiFrameDBManager:
         volume_position: int
             Zero-based index into the slice positions within the implied
             volume. Must be an integer between >= 0 and <
-            ``number_of_volume_positions``.
+            ``volume_geometry.spatial_shape[0]``.
 
         Returns
         -------
@@ -815,7 +815,7 @@ class MultiFrameDBManager:
 
         """
 
-        if self.number_of_volume_positions is None:
+        if self.volume_geometry is None:
             raise RuntimeError(
                 "This image does not represent a regularly-spaced 3D volume."
             )
@@ -824,11 +824,13 @@ class MultiFrameDBManager:
             raise ValueError(
                 "Argument 'volume_position' should be non-negative."
             )
-        elif volume_position >= self.number_of_volume_positions:
-            raise ValueError(
-                "Value of {volume_position} for argument 'volume_position' "
-                "is not valid for image with "
-            )
+        else:
+            n_slices = self.volume_geometry.spatial_shape[0]
+            if volume_position >= n_slices:
+                raise ValueError(
+                    f"Value of {volume_position} for argument 'volume_position' "
+                    f"is not valid for image with {n_slices} volume positions."
+                )
 
         cur = self._db_con.cursor()
 
@@ -844,47 +846,6 @@ class MultiFrameDBManager:
 
         image_position = list(list(cur.execute(query))[0])
         return image_position
-
-    def get_volume_affine(
-        self,
-        slice_start: int = 0,
-    ) -> np.ndarray:
-        """Get the affine matrix for the implied volume.
-
-        This requires that the image represents a regularly-spaced 3D volume.
-
-        Parameters
-        ----------
-        slice_start: int, optional
-            Zero-based index into the slice positions within the implied
-            volume marking the beginning of the relevant region.
-
-        Returns
-        -------
-        numpy.ndarray:
-            4 x 4 affine matrix.
-
-        """
-        if self.number_of_volume_positions is None:
-            raise RuntimeError(
-                "This image does not represent a regularly-spaced 3D volume."
-            )
-
-        if slice_start < 0:
-            raise ValueError(
-                "Argument 'slice_start' should be non-negative."
-            )
-        elif slice_start >= self.number_of_volume_positions:
-            raise ValueError(
-                f"Value of {slice_start} for argument 'slice_start' "
-                'is not valid for image with '
-                f'{self.number_of_volume_positions} volume positions.'
-            )
-
-        if slice_start == 0:
-            return self.affine
-        else:
-            return _translate_affine_matrix(self.affine, [slice_start, 0, 0])
 
     @contextmanager
     def _generate_temp_table(

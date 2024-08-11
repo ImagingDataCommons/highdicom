@@ -54,10 +54,9 @@ from pydicom.pixel_data_handlers.util import (
 # TODO support slide coordinate system
 # TODO volume to volume transformer
 # TODO volread and metadata
-# TODO make RIGHT handed the default
 # TODO constructors for geometry, do they make sense for volume?
-# TODO ordering of frames in seg, applying 3D
-# TODO use VolumeGeometry within MultiFrameDB manager
+# TODO ordering of frames in seg, setting 3D dimension organization
+# TODO tests for equality of geometry
 
 
 class _VolumeBase(ABC):
@@ -1206,6 +1205,77 @@ class VolumeGeometry(_VolumeBase):
             raise ValueError("Argument 'spatial_shape' must have length 3.")
         self._spatial_shape = tuple(spatial_shape)
 
+    @classmethod
+    def from_attributes(
+        cls,
+        image_position: Sequence[float],
+        image_orientation: Sequence[float],
+        rows: int,
+        columns: int,
+        pixel_spacing: Sequence[float],
+        spacing_between_slices: float,
+        number_of_frames: int,
+        frame_of_reference_uid: Optional[str] = None,
+    ) -> "VolumeGeometry":
+        """Create a volume from DICOM attributes.
+
+        Parameters
+        ----------
+        image_position: Sequence[float]
+            Position in the frame of reference space of the center of the top
+            left pixel of the image. Corresponds to DICOM attributes
+            "ImagePositionPatient". Should be a sequence of length 3.
+        image_orientation: Sequence[float]
+            Cosines of the row direction (first triplet: horizontal, left to
+            right, increasing column index) and the column direction (second
+            triplet: vertical, top to bottom, increasing row index) direction
+            expressed in the three-dimensional patient or slide coordinate
+            system defined by the frame of reference. Corresponds to the DICOM
+            attribute "ImageOrientationPatient".
+        rows: int
+            Number of rows in each frame.
+        columns: int
+            Number of columns in each frame.
+        pixel_spacing: Sequence[float]
+            Spacing between pixels in millimeter unit along the column
+            direction (first value: spacing between rows, vertical, top to
+            bottom, increasing row index) and the row direction (second value:
+            spacing between columns: horizontal, left to right, increasing
+            column index). Corresponds to DICOM attribute "PixelSpacing".
+        spacing_between_slices: float
+            Spacing between slices in millimeter units in the frame of
+            reference coordinate system space. Corresponds to the DICOM
+            attribute "SpacingBetweenSlices" (however, this may not be present in
+            many images and may need to be inferred from "ImagePositionPatient"
+            attributes of consecutive slices).
+        number_of_frames: int
+            Number of frames in the volume.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID, if known. Corresponds to DICOM attribute
+            FrameOfReferenceUID.
+
+        Returns
+        -------
+        highdicom.Volume:
+            New Volume using the given array and DICOM attributes.
+
+        """
+        affine = _create_affine_transformation_matrix(
+            image_position=image_position,
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            spacing_between_slices=spacing_between_slices,
+            index_convention=VOLUME_INDEX_CONVENTION,
+            slices_first=True,
+        )
+        spatial_shape = (number_of_frames, rows, columns)
+
+        return cls(
+            affine=affine,
+            spatial_shape=spatial_shape,
+            frame_of_reference_uid=frame_of_reference_uid,
+        )
+
     @property
     def spatial_shape(self) -> Tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
@@ -1333,6 +1403,28 @@ class VolumeGeometry(_VolumeBase):
         return self.__class__(
             spatial_shape=new_shape,
             affine=new_affine,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+        )
+
+    def create_volume(self, array: np.ndarray) -> 'Volume':
+        """Crrate a volume using this geometry and an array.
+
+        Parameters
+        ----------
+        array: numpy.ndarray
+            Array of voxel data. Must be either 3D (three spatial dimensions),
+            or 4D (three spatial dimensions followed by a channel dimension).
+            Any datatype is permitted.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume objects using this geometry and the given array.
+
+        """
+        return Volume(
+            array=array,
+            affine=self.affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 

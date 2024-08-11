@@ -60,6 +60,7 @@ from highdicom import utils
 from highdicom.version import __version__
 from highdicom.volume import (
     Volume,
+    VolumeGeometry,
     volread,
     concat_channels,
 )
@@ -108,6 +109,7 @@ __all__ = [
     'VOILUTFunctionValues',
     'VOILUTTransformation',
     'Volume',
+    'VolumeGeometry',
     '__version__',
     'ann',
     'color',

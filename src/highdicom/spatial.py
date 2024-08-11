@@ -3113,7 +3113,7 @@ def get_volume_positions(
     slice spacing and the volume indices for each of the input positions. If
     the positions do not represent a volume, returns None for both outputs.
 
-    Note that we stipulate that a single image is a 3D volume for the purposes
+    Note that we stipulate that a single plane is a 3D volume for the purposes
     of this function. In this case, and it ``spacing_hint`` is not provied, the
     returned slice spacing will be 1.0.
 
@@ -3221,8 +3221,10 @@ def get_volume_positions(
             "Argument 'image_positions' should contain at least 1 position."
         )
     elif n == 1:
-        # Special case, we stipluate that this has spacing 0.0
-        return 1.0, [0]
+        # Special case, we stipluate that this has spacing 1.0
+        # if not otherwise specified
+        spacing = 1.0 if spacing_hint is None else spacing_hint
+        return spacing, [0]
 
     normal_vector = get_normal_vector(
         image_orientation,
@@ -3242,6 +3244,12 @@ def get_volume_positions(
     else:
         unique_positions = image_positions_arr
         unique_index = np.arange(image_positions_arr.shape[0])
+
+    if len(unique_positions) == 1:
+        # Special case, we stipluate that this has spacing 1.0
+        # if not otherwise specified
+        spacing = 1.0 if spacing_hint is None else spacing_hint
+        return spacing, [0] * n
 
     # Calculate distance of each slice from coordinate system origin along the
     # normal vector
@@ -3288,7 +3296,7 @@ def get_volume_positions(
         spacing = spacings.mean()
 
         if spacing_hint is not None:
-            if not np.isclose(spacing, spacing_hint):
+            if not np.isclose(abs(spacing), spacing_hint):
                 raise RuntimeError(
                     "Inferred spacing does not match the given 'spacing_hint'."
                 )

@@ -20,9 +20,8 @@ def test_slice_spacing():
             [0.0, 0.0, 0.0, 1.0],
         ]
     )
-    print(db.affine)
-    assert db.number_of_volume_positions == 2
-    assert np.array_equal(db.affine, expected_affine)
+    assert db.volume_geometry.spatial_shape[0] == 2
+    assert np.array_equal(db.volume_geometry.affine, expected_affine)
 
 
 def test_slice_spacing_irregular():
@@ -36,5 +35,4 @@ def test_slice_spacing_irregular():
 
     db = MultiFrameDBManager(ct_multiframe)
 
-    assert db.number_of_volume_positions is None
-    assert db.affine is None
+    assert db.volume_geometry is None

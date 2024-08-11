@@ -87,7 +87,7 @@ from highdicom.valuerep import (
     _check_long_string,
 )
 from highdicom.uid import UID as hd_UID
-from highdicom.volume import Volume
+from highdicom.volume import Volume, VolumeGeometry
 
 
 logger = logging.getLogger(__name__)
@@ -583,7 +583,7 @@ class _SegDBManager(MultiFrameDBManager):
             numpy arrays directly.
 
         """  # noqa: E501
-        if self.number_of_volume_positions is None:
+        if self.volume_geometry is None:
             raise RuntimeError(
                 'This segmentation does not represent a regularly-spaced '
                 'volume.'
@@ -3554,25 +3554,13 @@ class Segmentation(SOPClass):
         return types
 
     @property
-    def number_of_volume_positions(self) -> Optional[int]:
-        """Union[int, None]: Number of volume positions, if the segmentation
-        represents a regularly-spaced 3D volume. ``None`` otherwise.
+    def volume_geometry(self) -> Optional[VolumeGeometry]:
+        """Union[highdicom.VolumeGeometry, None]: Geometry of the volume if the
+        segmentation represents a regularly-spaced 3D volume. ``None``
+        otherwise.
 
         """
-        return self._db_man.number_of_volume_positions
-
-    @property
-    def spacing_between_slices(self) -> Optional[float]:
-        """Union[float, None]: Spacing between slices in the frame of reference
-        coordinate system if the segmentation represents a regularly-spaced 3D
-        volume. ``None`` otherwise.
-
-        """
-        if self._db_man.affine is None:
-            return None
-        slice_vec = self._db_man.affine[:3, 0]
-        spacing = np.sqrt((slice_vec ** 2).sum()).item()
-        return spacing
+        return self._db_man.volume_geometry
 
     def _get_pixels_by_seg_frame(
         self,
@@ -4481,11 +4469,11 @@ class Segmentation(SOPClass):
                 'Segment numbers may not be empty.'
             )
 
-        if self.number_of_volume_positions is None:
+        if self.volume_geometry is None:
             raise RuntimeError(
                 "This segmentation is not a regularly-spaced 3D volume."
             )
-        n_vol_positions = self.number_of_volume_positions
+        n_vol_positions = self.volume_geometry.spatial_shape[0]
 
         if slice_start < 0:
             slice_start = n_vol_positions + slice_start
@@ -4532,7 +4520,7 @@ class Segmentation(SOPClass):
                 dtype=dtype,
             )
 
-        affine = self._db_man.get_volume_affine(slice_start)
+        affine = self._db_man.volume_geometry[slice_start].affine
 
         return Volume(
             array=array,

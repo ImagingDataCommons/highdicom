@@ -3807,7 +3807,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.spacing_between_slices
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_seg
@@ -3834,7 +3834,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -3861,7 +3861,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -3891,7 +3891,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -3920,7 +3920,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -3949,7 +3949,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -3978,7 +3978,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -4007,7 +4007,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.spacing_between_slices
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -4037,7 +4037,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.spacing_between_slices
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_overlap_seg
@@ -4063,7 +4063,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.spacing_between_slices
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_binary_seg
@@ -4089,7 +4089,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.spacing_between_slices
+            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_true_fractional_seg
@@ -4116,7 +4116,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.spacing_between_slices
+            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
         )
         assert vol.direction_cosines == (
             self._ct_true_fractional_seg
