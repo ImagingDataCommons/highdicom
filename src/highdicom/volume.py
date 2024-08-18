@@ -21,6 +21,7 @@ from highdicom.spatial import (
     _stack_affine_matrix,
     _transform_affine_matrix,
     _translate_affine_matrix,
+    _DEFAULT_EQUALITY_TOLERANCE,
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     get_closest_patient_orientation,
@@ -385,10 +386,10 @@ class _VolumeBase(ABC):
         return np.linalg.inv(self._affine)
 
     @property
-    def direction_cosines(self) -> List[float]:
-        """List[float]:
+    def direction_cosines(self) -> Tuple[float, float, float, float, float, float]:
+        """Tuple[float, float, float, float, float float]:
 
-        List of 6 floats giving the direction cosines of the
+        Tuple of 6 floats giving the direction cosines of the
         vector along the rows and the vector along the columns, matching the
         format of the DICOM Image Orientation Patient attribute.
 
@@ -397,11 +398,11 @@ class _VolumeBase(ABC):
         vec_along_columns = self._affine[:3, 1].copy()
         vec_along_columns /= np.sqrt((vec_along_columns ** 2).sum())
         vec_along_rows /= np.sqrt((vec_along_rows ** 2).sum())
-        return [*vec_along_rows.tolist(), *vec_along_columns.tolist()]
+        return tuple([*vec_along_rows.tolist(), *vec_along_columns.tolist()])
 
     @property
-    def pixel_spacing(self) -> List[float]:
-        """List[float]:
+    def pixel_spacing(self) -> Tuple[float, float]:
+        """Tuple[float, float]:
 
         Within-plane pixel spacing in millimeter units. Two
         values (spacing between rows, spacing between columns).
@@ -411,7 +412,7 @@ class _VolumeBase(ABC):
         vec_along_columns = self._affine[:3, 1]
         spacing_between_columns = np.sqrt((vec_along_rows ** 2).sum()).item()
         spacing_between_rows = np.sqrt((vec_along_columns ** 2).sum()).item()
-        return [spacing_between_rows, spacing_between_columns]
+        return spacing_between_rows, spacing_between_columns
 
     @property
     def spacing_between_slices(self) -> float:
@@ -425,8 +426,8 @@ class _VolumeBase(ABC):
         return spacing
 
     @property
-    def spacing(self) -> List[float]:
-        """List[float]:
+    def spacing(self) -> Tuple[float]:
+        """Tuple[float, float, float]:
 
         Pixel spacing in millimeter units for the three spatial directions.
         Three values, one for each spatial dimension.
@@ -434,7 +435,7 @@ class _VolumeBase(ABC):
         """
         dir_mat = self._affine[:3, :3]
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
-        return norms.tolist()
+        return tuple(norms.tolist())
 
     @property
     def voxel_volume(self) -> float:
@@ -442,19 +443,21 @@ class _VolumeBase(ABC):
         return np.prod(self.spacing).item()
 
     @property
-    def position(self) -> List[float]:
-        """List[float]:
+    def position(self) -> Tuple[float, float, float]:
+        """Tuple[float, float, float]:
 
         Position in the frame of reference space of the center of voxel at
         indices (0, 0, 0).
 
         """
-        return self._affine[:3, 3].tolist()
+        return tuple(self._affine[:3, 3].tolist())
 
     @property
-    def physical_extent(self) -> List[float]:
+    def physical_extent(self) -> Tuple[float, float, float]:
         """List[float]: Side lengths of the volume in millimeters."""
-        return [n * d for n, d in zip(self.spatial_shape, self.spacing)]
+        return tuple(
+            [n * d for n, d in zip(self.spatial_shape, self.spacing)]
+        )
 
     @property
     def physical_volume(self) -> float:
@@ -678,7 +681,6 @@ class _VolumeBase(ABC):
                 raise ValueError(
                     f"Argument 'pad_width' cannot contain negative values."
                 )
-            origin_offset = [-pad_width] * 3
             full_pad_width: List[List[int]] = [[pad_width, pad_width]] * 3
         elif isinstance(pad_width, Sequence):
             if isinstance(pad_width[0], int):
@@ -1172,6 +1174,67 @@ class _VolumeBase(ABC):
             crop_slices.append(slice(start, start + c))
 
         return self[tuple(crop_slices)]
+
+    def match_geometry(
+        self,
+        other: Union['Volume', 'VolumeGeometry'],
+        mode: PadModes = PadModes.CONSTANT,
+        constant_value: float = 0.0,
+        per_channel: bool = False,
+        tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    ) -> '_VolumeBase':
+        """
+
+        """
+
+        permute_indices = []
+        step_sizes = []
+        for u, s in zip(self.unit_vectors(), self.spacing):
+            for j, (v, t) in enumerate(
+                zip(other.unit_vectors(), other.spacing)
+            ):
+                dot_product = u @ v
+                if np.abs(dot_product) - 1.0 < tol:
+
+                    permute_indices.append(j)
+
+                    scale_factor = t / s
+                    step = np.round(scale_factor)
+                    if abs(scale_factor - step) > tol:
+                        raise RuntimeError(
+                            "Non-integer scale factor required."
+                        )
+
+                    if dot_product < 0.0:
+                        step = -step
+
+                    step_sizes.append(step)
+
+                    break
+            else:
+                raise RuntimeError(
+                    "Direction vectors could not be aligned."
+                )
+
+        if permute_indices != [0, 1, 2]:
+            new_volume = self.permute_axes(permute_indices)
+        else:
+            new_volume = self
+
+        # Now figure out cropping
+
+        # Finally padding
+
+
+        if new_volume is self:
+            # TODO make sure cannot return self
+            return self.copy()
+
+        return new_volume
+
+
+
+
 
 
 class VolumeGeometry(_VolumeBase):
