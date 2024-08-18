@@ -32,7 +32,6 @@ from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
     PatientOrientationValuesBiped,
-    PixelIndexDirections,
 )
 from highdicom.seg import (
     create_segmentation_pyramid,
@@ -1481,7 +1480,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            instance.pixel_array,
+            np.flip(instance.pixel_array, axis=0),
             self._ct_seg_volume.array,
         )
 
@@ -1497,7 +1496,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions(),
+            self._ct_seg_volume.get_plane_positions()[::-1],
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -3800,7 +3799,7 @@ class TestSegmentationParsing:
         assert isinstance(vol, Volume)
         assert vol.spatial_shape == (3, 16, 16)
         assert vol.shape == (3, 16, 16, 1)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3809,7 +3808,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3827,7 +3826,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (165, 16, 16)
         assert vol.shape == (165, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3836,7 +3835,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3854,7 +3853,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (165, 16, 16)
         assert vol.shape == (165, 16, 16, 1)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3863,7 +3862,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3884,7 +3883,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (165, 16, 16)
         assert vol.shape == (165, 16, 16)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3893,7 +3892,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3913,7 +3912,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (5, 16, 16)
         assert vol.shape == (5, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3922,7 +3921,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3942,7 +3941,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (6, 16, 16)
         assert vol.shape == (6, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3951,7 +3950,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -3971,7 +3970,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (17, 16, 16)
         assert vol.shape == (17, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -3980,7 +3979,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -4000,7 +3999,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (155, 16, 16)
         assert vol.shape == (155, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -4009,7 +4008,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -4030,7 +4029,7 @@ class TestSegmentationParsing:
         # Note that this segmentation has a large number of missing slices
         assert vol.spatial_shape == (7, 16, 16)
         assert vol.shape == (7, 16, 16, 2)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -4039,7 +4038,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -4056,7 +4055,7 @@ class TestSegmentationParsing:
         assert isinstance(vol, Volume)
         assert vol.spatial_shape == (3, 16, 16)
         assert vol.shape == (3, 16, 16)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_binary_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -4065,7 +4064,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_binary_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_binary_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -4082,7 +4081,7 @@ class TestSegmentationParsing:
         assert isinstance(vol, Volume)
         assert vol.spatial_shape == (3, 16, 16)
         assert vol.shape == (3, 16, 16, 1)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_true_fractional_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -4091,7 +4090,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]
@@ -4109,7 +4108,7 @@ class TestSegmentationParsing:
         assert isinstance(vol, Volume)
         assert vol.spatial_shape == (3, 16, 16)
         assert vol.shape == (3, 16, 16, 1)
-        assert vol.pixel_spacing == (
+        assert vol.pixel_spacing == tuple(
             self._ct_true_fractional_seg
             .SharedFunctionalGroupsSequence[0]
             .PixelMeasuresSequence[0]
@@ -4118,7 +4117,7 @@ class TestSegmentationParsing:
         assert vol.spacing_between_slices == (
             self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
         )
-        assert vol.direction_cosines == (
+        assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg
             .SharedFunctionalGroupsSequence[0]
             .PlaneOrientationSequence[0]

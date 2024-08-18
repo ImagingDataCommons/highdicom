@@ -2,10 +2,15 @@ from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
+from pydicom.pixel_data_handlers.util import pixel_dtype
 import pytest
+from highdicom import spatial
 
 
-from highdicom.spatial import _normalize_patient_orientation
+from highdicom.spatial import (
+    _normalize_patient_orientation,
+    _translate_affine_matrix,
+)
 from highdicom.volume import (
     Volume,
     VolumeGeometry,
@@ -102,9 +107,9 @@ def test_volume_from_attributes(
         pixel_spacing=pixel_spacing,
         spacing_between_slices=spacing_between_slices,
     )
-    assert volume.position == list(image_position)
-    assert volume.direction_cosines == list(image_orientation)
-    assert volume.pixel_spacing == list(pixel_spacing)
+    assert volume.position == tuple(image_position)
+    assert volume.direction_cosines == tuple(image_orientation)
+    assert volume.pixel_spacing == tuple(pixel_spacing)
     assert volume.spacing_between_slices == spacing_between_slices
     assert volume.shape == (10, 10, 10)
     assert volume.spatial_shape == (10, 10, 10)
@@ -157,7 +162,7 @@ def test_volume_single_frame():
     assert volume.spatial_shape == volume.shape
     assert volume.number_of_channels is None
     orientation = ct_series[0].ImageOrientationPatient
-    assert volume.direction_cosines == orientation
+    assert volume.direction_cosines == tuple(orientation)
     direction = volume.direction
     assert np.array_equal(direction[:, 1], orientation[3:])
     assert np.array_equal(direction[:, 2], orientation[:3])
@@ -165,10 +170,10 @@ def test_volume_single_frame():
     assert direction[:, 0] @ direction[:, 1] == 0.0
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
-    assert volume.position == ct_series[1].ImagePositionPatient  # sorting
-    assert volume.pixel_spacing == ct_series[0].PixelSpacing
+    assert volume.position == tuple(ct_series[1].ImagePositionPatient)  # sorting
+    assert volume.pixel_spacing == tuple(ct_series[0].PixelSpacing)
     slice_spacing = 1.25
-    assert volume.spacing == [slice_spacing, *ct_series[0].PixelSpacing[::-1]]
+    assert volume.spacing == (slice_spacing, *ct_series[0].PixelSpacing[::-1])
     pixel_spacing = ct_series[0].PixelSpacing
     expected_voxel_volume = (
         pixel_spacing[0] * pixel_spacing[1] * slice_spacing
@@ -207,7 +212,7 @@ def test_volume_multiframe():
         .PixelMeasuresSequence[0]
         .PixelSpacing
     )
-    assert volume.direction_cosines == orientation
+    assert volume.direction_cosines == tuple(orientation)
     direction = volume.direction
     assert np.array_equal(direction[:, 1], orientation[3:])
     assert np.array_equal(direction[:, 2], orientation[:3])
@@ -221,10 +226,10 @@ def test_volume_multiframe():
         .PlanePositionSequence[0]
         .ImagePositionPatient
     )
-    assert volume.position == first_frame_pos
-    assert volume.pixel_spacing == pixel_spacing
+    assert volume.position == tuple(first_frame_pos)
+    assert volume.pixel_spacing == tuple(pixel_spacing)
     slice_spacing = 10.0
-    assert volume.spacing == [slice_spacing, *pixel_spacing[::-1]]
+    assert volume.spacing == (slice_spacing, *pixel_spacing[::-1])
     assert volume.number_of_channels is None
     expected_voxel_volume = (
         pixel_spacing[0] * pixel_spacing[1] * slice_spacing
@@ -516,6 +521,136 @@ def test_volume_transformer():
             else:
                 assert outputs.dtype == np.float64
             assert np.array_equal(outputs, expected)
+
+
+@pytest.mark.parametrize(
+    'crop,pad,permute,reversible',
+    [
+        (
+            (slice(None), slice(14, None), slice(None, None, -1)),
+            ((0, 0), (0, 32), (3, 3)),
+            (1, 0, 2),
+            True,
+        ),
+        (
+            (1, slice(256, 320), slice(256, 320)),
+            ((0, 0), (0, 0), (0, 0)),
+            (0, 2, 1),
+            True,
+        ),
+        (
+            (slice(None), slice(None, None, -1), slice(None)),
+            ((12, 31), (1, 23), (5, 7)),
+            (0, 2, 1),
+            True,
+        ),
+        (
+            (slice(None, None, -1), slice(None, None, -2), slice(None)),
+            ((0, 0), (0, 0), (0, 0)),
+            (2, 1, 0),
+            False,
+        ),
+    ],
+)
+def test_match_geometry(crop, pad, permute, reversible):
+    vol, _ = read_multiframe_ct_volume()
+
+    transformed = (
+        vol[crop]
+        .pad(pad)
+        .permute_axes(permute)
+     )
+
+    forward_matched = vol.match_geometry(transformed)
+    assert forward_matched.geometry_equal(transformed)
+    assert np.array_equal(forward_matched.array, transformed.array)
+
+    if reversible:
+        reverse_matched = transformed.match_geometry(vol)
+        assert reverse_matched.geometry_equal(vol)
+
+        # Perform the transform again on the recovered image to ensure that we
+        # end up with the transformed
+        inverted_transformed = (
+            vol[crop]
+            .pad(pad)
+            .permute_axes(permute)
+         )
+        assert inverted_transformed.geometry_equal(transformed)
+        assert np.array_equal(transformed.array, inverted_transformed.array)
+
+
+def test_match_geometry_nonintersecting():
+    vol, _ = read_multiframe_ct_volume()
+
+    new_affine = _translate_affine_matrix(
+        vol.affine,
+        [0, -32, 32]
+    )
+
+    # This geometry has no overlap with the original volume
+    geometry = VolumeGeometry(
+        new_affine,
+        [2, 16, 16]
+    )
+
+    transformed = vol.match_geometry(geometry)
+
+    # Result should be an empty array with the requested geometry
+    assert transformed.geometry_equal(geometry)
+    assert transformed.array.min() == 0
+    assert transformed.array.max() == 0
+
+
+def test_match_geometry_failure_translation():
+    vol, _ = read_multiframe_ct_volume()
+
+    new_affine = _translate_affine_matrix(
+        vol.affine,
+        [0.0, 0.5, 0.0]
+    )
+    geometry = VolumeGeometry(
+        new_affine,
+        vol.shape,
+    )
+
+    with pytest.raises(RuntimeError):
+        vol.match_geometry(geometry)
+
+
+def test_match_geometry_failure_spacing():
+    vol, _ = read_multiframe_ct_volume()
+
+    new_affine = vol.affine.copy()
+    new_affine[:3, 2] *= 0.33
+    geometry = VolumeGeometry(
+        new_affine,
+        vol.shape,
+    )
+
+    with pytest.raises(RuntimeError):
+        vol.match_geometry(geometry)
+
+
+def test_match_geometry_failure_rotation():
+    vol, _ = read_multiframe_ct_volume()
+
+    # Geometry that is rotated with respect to input volume
+    geometry = VolumeGeometry.from_attributes(
+        image_orientation=(
+            np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0,
+            np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0,
+        ),
+        image_position=vol.position,
+        pixel_spacing=vol.pixel_spacing,
+        spacing_between_slices=vol.spacing_between_slices,
+        number_of_frames=vol.shape[0],
+        columns=vol.shape[2],
+        rows=vol.shape[1],
+    )
+
+    with pytest.raises(RuntimeError):
+        vol.match_geometry(geometry)
 
 
 @pytest.mark.parametrize(

@@ -50,14 +50,11 @@ from pydicom.pixel_data_handlers.util import (
 # TODO add pixel value transformations
 # TODO should methods copy arrays?
 # TODO random crop, random flip, random permute
-# TODO match geometry
 # TODO trim non-zero
 # TODO support slide coordinate system
-# TODO volume to volume transformer
 # TODO volread and metadata
 # TODO constructors for geometry, do they make sense for volume?
 # TODO ordering of frames in seg, setting 3D dimension organization
-# TODO tests for equality of geometry
 
 
 class _VolumeBase(ABC):
@@ -631,6 +628,7 @@ class _VolumeBase(ABC):
     def pad(
         self,
         pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        *,
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -742,6 +740,18 @@ class _VolumeBase(ABC):
         )
 
     @abstractmethod
+    def copy(self) -> '_VolumeBase':
+        """Create a copy of the object.
+
+        Returns
+        -------
+        highdicom.volume._VolumeBase:
+            Copy of the original object.
+
+        """
+        pass
+
+    @abstractmethod
     def permute_axes(self, indices: Sequence[int]) -> '_VolumeBase':
         """Create a new volume by permuting the spatial axes.
 
@@ -799,7 +809,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume with the requested patient orientation.
 
         """  # noqa: E501
@@ -839,7 +849,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume with spatial axes swapped as requested.
 
         """
@@ -874,7 +884,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume with spatial axes flipped as requested.
 
         """
@@ -908,6 +918,7 @@ class _VolumeBase(ABC):
     def ensure_handedness(
         self,
         handedness: Union[AxisHandedness, str],
+        *,
         flip_axis: Optional[int] = None,
         swap_axes: Optional[Sequence[int]] = None,
     ) -> '_VolumeBase':
@@ -962,6 +973,7 @@ class _VolumeBase(ABC):
     def pad_to_shape(
         self,
         spatial_shape: Sequence[int],
+        *,
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -999,7 +1011,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with padding applied.
 
         """
@@ -1039,7 +1051,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with padding applied.
 
         """
@@ -1069,6 +1081,7 @@ class _VolumeBase(ABC):
     def pad_or_crop_to_shape(
         self,
         spatial_shape: Sequence[int],
+        *,
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -1107,7 +1120,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with padding and/or cropping applied.
 
         """
@@ -1158,7 +1171,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume formed by cropping the volumes.
 
         """
@@ -1175,17 +1188,89 @@ class _VolumeBase(ABC):
 
         return self[tuple(crop_slices)]
 
+    def geometry_equal(
+        self,
+        other: Union['Volume', 'VolumeGeometry'],
+        tol: Optional[float] = _DEFAULT_EQUALITY_TOLERANCE,
+    ) -> bool:
+        """Determine whether two volumes have the same geometry.
+
+        Parameters
+        ----------
+        other: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+            Volume or volume geometry to which this volume should be compared.
+        tol: Union[float, None], optional
+            Absolute Tolerance used to determine equality of affine matrices.
+            If None, affine matrices must match exactly.
+
+        Return
+        ------
+        bool:
+            True if the geometries match (up to the specified tolerance). False
+            otherwise.
+
+        """
+        if (
+            self.frame_of_reference_uid is not None and
+            other.frame_of_reference_uid is not None
+        ):
+            if self.frame_of_reference_uid != self.frame_of_reference_uid:
+                return False
+
+        if self.spatial_shape != other.spatial_shape:
+            return False
+
+        if tol is None:
+            return np.array_equal(self._affine, other._affine)
+        else:
+            return np.allclose(
+                self._affine, 
+                other._affine,
+                atol=tol,
+            )
+
     def match_geometry(
         self,
         other: Union['Volume', 'VolumeGeometry'],
+        *,
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
         tol: float = _DEFAULT_EQUALITY_TOLERANCE,
     ) -> '_VolumeBase':
-        """
+        """Match the geometry of this volume to another.
+
+        This performs a combination of permuting, padding and cropping, and
+        flipping (in that order) such that the geometry of this volume matches
+        that of ``other``. Notably, the voxels are not resampled. If the
+        geometry cannot be matched using these operations, then a
+        ``RuntimeError`` is raised.
+
+        Parameters
+        ----------
+        other: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+            Volume or volume geometry to which this volume should be matched.
+
+        Returns
+        -------
+        highdicom.volume._VolumeBase:
+            New volume formed by matching the geometry of this volume to that
+            of ``other``.
+
+        Raises
+        ------
+        RuntimeError:
+            If the geometries cannot be matched without resampling the array.
 
         """
+        if (
+            self.frame_of_reference_uid is not None and
+            other.frame_of_reference_uid is not None
+        ):
+            if self.frame_of_reference_uid != self.frame_of_reference_uid:
+                raise RuntimeError(
+                    "Volumes do not have matching frame of reference UIDs."
+                )
 
         permute_indices = []
         step_sizes = []
@@ -1194,12 +1279,14 @@ class _VolumeBase(ABC):
                 zip(other.unit_vectors(), other.spacing)
             ):
                 dot_product = u @ v
-                if np.abs(dot_product) - 1.0 < tol:
-
+                if (
+                    np.abs(dot_product - 1.0) < tol or
+                    np.abs(dot_product + 1.0) < tol
+                ):
                     permute_indices.append(j)
 
                     scale_factor = t / s
-                    step = np.round(scale_factor)
+                    step = int(np.round(scale_factor))
                     if abs(scale_factor - step) > tol:
                         raise RuntimeError(
                             "Non-integer scale factor required."
@@ -1216,25 +1303,87 @@ class _VolumeBase(ABC):
                     "Direction vectors could not be aligned."
                 )
 
-        if permute_indices != [0, 1, 2]:
+        requires_permute = permute_indices != [0, 1, 2]
+        if requires_permute:
             new_volume = self.permute_axes(permute_indices)
+            step_sizes = [step_sizes[i] for i in permute_indices]
         else:
             new_volume = self
 
         # Now figure out cropping
+        origin_offset = (
+            np.array(other.position) -
+            np.array(new_volume.position)
+        )
 
-        # Finally padding
+        crop_slices = []
+        pad_values = []
+        requires_crop = False
+        requires_pad = False
 
+        for v, spacing, step, out_shape, in_shape in zip(
+            new_volume.unit_vectors(),
+            new_volume.spacing,
+            step_sizes,
+            other.spatial_shape,
+            new_volume.spatial_shape,
+        ):
+            offset = v @ origin_offset
+            start_ind = offset / spacing
+            start_pos = int(np.round(start_ind))
+            end_pos = start_pos + out_shape * step
 
-        if new_volume is self:
-            # TODO make sure cannot return self
-            return self.copy()
+            if abs(start_pos - start_ind) > tol:
+                raise RuntimeError(
+                    "Required translation is non-integer "
+                    "multiple of voxel spacing."
+                )
+
+            if step > 0:
+                pad_before = max(-start_pos, 0)
+                pad_after = max(end_pos - in_shape, 0)
+                crop_start = start_pos + pad_before
+                crop_stop = end_pos + pad_before
+
+                if crop_start > 0 or crop_stop < out_shape:
+                    requires_crop = True
+            else:
+                pad_after = max(start_pos - in_shape + 1, 0)
+                pad_before = max(-end_pos - 1, 0)
+                crop_start = start_pos + pad_before
+                crop_stop = end_pos + pad_before
+
+                # Need the crop operation to flip
+                requires_crop = True
+
+                if crop_stop == -1:
+                    crop_stop = None
+
+            if pad_before > 0 or pad_after > 0:
+                requires_pad = True
+
+            crop_slices.append(
+                slice(crop_start, crop_stop, step)
+            )
+            pad_values.append((pad_before, pad_after))
+
+        if not (
+            requires_permute or requires_pad or requires_crop
+        ):
+            new_volume = new_volume.copy()
+
+        if requires_pad:
+            new_volume = new_volume.pad(
+                pad_values,
+                mode=mode,
+                constant_value=constant_value,
+                per_channel=per_channel,
+            )
+
+        if requires_crop:
+            new_volume = new_volume[tuple(crop_slices)]
 
         return new_volume
-
-
-
-
 
 
 class VolumeGeometry(_VolumeBase):
@@ -1319,7 +1468,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New Volume using the given array and DICOM attributes.
 
         """
@@ -1339,6 +1488,21 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid,
         )
 
+    def copy(self) -> 'VolumeGeometry':
+        """Get an unaltered copy of the geometry.
+
+        Returns
+        -------
+        highdicom.volume.VolumeGeometry:
+            Copy of the original geometry.
+
+        """
+        return self.__class__(
+            affine=self._affine.copy(),
+            spatial_shape=self.spatial_shape,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+        )
+
     @property
     def spatial_shape(self) -> Tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
@@ -1352,7 +1516,7 @@ class VolumeGeometry(_VolumeBase):
     def shape(self) -> Tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
-        For objects of type :class:`highdicom.VolumeGeometry`, this is
+        For objects of type :class:`highdicom.volume.VolumeGeometry`, this is
         equivalent to `.shape`.
 
         """
@@ -1373,7 +1537,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.VolumeGeometry:
+        highdicom.volume.VolumeGeometry:
             New volume representing a sub-volume of the original volume.
 
         """
@@ -1389,6 +1553,7 @@ class VolumeGeometry(_VolumeBase):
     def pad(
         self,
         pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        *,
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -1419,15 +1584,15 @@ class VolumeGeometry(_VolumeBase):
 
             In all cases, all integer values must be non-negative.
         mode: Union[highdicom.PadModes, str], optional
-            Ignored for :class:`highdicom.VolumeGeometry`.
+            Ignored for :class:`highdicom.volume.VolumeGeometry`.
         constant_value: Union[float, Sequence[float]], optional
-            Ignored for :class:`highdicom.VolumeGeometry`.
+            Ignored for :class:`highdicom.volume.VolumeGeometry`.
         per_channel: bool, optional
-            Ignored for :class:`highdicom.VolumeGeometry`.
+            Ignored for :class:`highdicom.volume.VolumeGeometry`.
 
         Returns
         -------
-        highdicom.VolumeGeometry:
+        highdicom.volume.VolumeGeometry:
             Volume with padding applied.
 
         """
@@ -1455,7 +1620,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.VolumeGeometry:
+        highdicom.volume.VolumeGeometry:
             New geometry with spatial axes permuted in the provided order.
 
         """
@@ -1469,8 +1634,8 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def create_volume(self, array: np.ndarray) -> 'Volume':
-        """Crrate a volume using this geometry and an array.
+    def with_array(self, array: np.ndarray) -> 'Volume':
+        """Create a volume using this geometry and an array.
 
         Parameters
         ----------
@@ -1481,7 +1646,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume objects using this geometry and the given array.
 
         """
@@ -1833,7 +1998,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New Volume using the given array and DICOM attributes.
 
         """
@@ -2007,7 +2172,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume with given datatype, and metadata copied from this
             volume.
 
@@ -2021,12 +2186,12 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Copy of the original volume.
 
         """
         return self.__class__(
-            array=self.array,  # TODO should this copy?
+            array=self.array.copy(),  # TODO should this copy?
             affine=self._affine.copy(),
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
@@ -2046,7 +2211,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume using the given array and the metadata of this volume.
 
         """
@@ -2079,7 +2244,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume representing a sub-volume of the original volume.
 
         """
@@ -2105,7 +2270,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             New volume with spatial axes permuted in the provided order.
 
         """
@@ -2146,7 +2311,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with normalized intensities. Note that the dtype will
             be promoted to floating point.
 
@@ -2195,7 +2360,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with normalized intensities. Note that the dtype will
             be promoted to floating point.
 
@@ -2244,7 +2409,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with clipped intensities.
 
         """
@@ -2289,7 +2454,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with windowed intensities.
 
         """
@@ -2321,7 +2486,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with channel axis removed.
 
         """
@@ -2341,7 +2506,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with added channel axis (if required).
 
         """
@@ -2352,6 +2517,7 @@ class Volume(_VolumeBase):
     def pad(
         self,
         pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        *,
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
@@ -2400,7 +2566,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.volume.Volume:
             Volume with padding applied.
 
         """
@@ -2498,14 +2664,14 @@ def concat_channels(volumes: Sequence[Volume]) -> Volume:
 
     Parameters
     ----------
-    volumes: Sequence[highdicom.Volume]
+    volumes: Sequence[highdicom.volume.Volume]
         Sequence of one or more volumes to concatenate. Volumes must
         share the same spatial shape and affine matrix, but may differ
         by number and presence of channels.
 
     Returns
     -------
-    highdicom.Volume:
+    highdicom.volume.Volume:
         New volume formed by concatenating the input volumes.
 
     """
@@ -2554,7 +2720,9 @@ def concat_channels(volumes: Sequence[Volume]) -> Volume:
 
 class VolumeToVolumeTransformer:
 
-    """Class for transforming voxel indices between two volumes.
+    """
+
+    Class for transforming voxel indices between two volumes.
 
     """
 
@@ -2572,9 +2740,9 @@ class VolumeToVolumeTransformer:
 
         Parameters
         ----------
-        volume_from: Union[highdicom.Volume, highdicom.VolumeGeometry]
+        volume_from: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
             Volume to which input volume indices refer.
-        volume_to: Union[highdicom.Volume, highdicom.VolumeGeometry]
+        volume_to: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
             Volume to which output volume indices refer.
         round_output: bool, optional
             Whether to round the output to the nearest integer (if ``True``) or
@@ -2583,7 +2751,7 @@ class VolumeToVolumeTransformer:
             Whether to perform a bounds check before returning the output
             indices. Note there is no bounds check on the input indices.
 
-        """
+        """  # noqa: E501
         self._affine = volume_to.inverse_affine @ volume_from.affine
         self._output_shape = volume_to.spatial_shape
         self._round_output = round_output
@@ -2687,7 +2855,7 @@ def volread(
 
     Returns
     -------
-    highdicom.Volume
+    highdicom.volume.Volume
         Volume formed from the specified image file(s).
 
     """
