@@ -2489,6 +2489,123 @@ def concat_channels(volumes: Sequence[Volume]) -> Volume:
     )
 
 
+class VolumeToVolumeTransformer:
+
+    """Class for transforming voxel indices between two volumes.
+
+    """
+
+    def __init__(
+        self,
+        volume_from: Union[Volume, VolumeGeometry],
+        volume_to: Union[Volume, VolumeGeometry],
+        round_output: bool = False,
+        check_bounds: bool = False,
+    ):
+        """Construct transformation object.
+
+        The resulting object will map volume indices of the "from" volume to
+        volume indices of the "to" volume.
+
+        Parameters
+        ----------
+        volume_from: Union[highdicom.Volume, highdicom.VolumeGeometry]
+            Volume to which input volume indices refer.
+        volume_to: Union[highdicom.Volume, highdicom.VolumeGeometry]
+            Volume to which output volume indices refer.
+        round_output: bool, optional
+            Whether to round the output to the nearest integer (if ``True``) or
+            return with sub-voxel accuracy as floats (if ``False``).
+        check_bounds: bool, optional
+            Whether to perform a bounds check before returning the output
+            indices. Note there is no bounds check on the input indices.
+
+        """
+        self._affine = volume_to.inverse_affine @ volume_from.affine
+        self._output_shape = volume_to.spatial_shape
+        self._round_output = round_output
+        self._check_bounds = check_bounds
+
+    @property
+    def affine(self) -> np.ndarray:
+        """numpy.ndarray: 4x4 affine transformation matrix"""
+        return self._affine.copy()
+
+    def __call__(self, indices: np.ndarray) -> np.ndarray:
+        """Transform volume indices between two volumes.
+
+        Parameters
+        ----------
+        indices: numpy.ndarray
+            Array of voxel indices in the "from" volume. Array of integer or
+            floating-point values with shape ``(n, 3)``, where *n* is the
+            number of coordinates. The order of the three indices corresponds
+            to the three spatial dimensions volume in that order. Point ``(0,
+            0, 0)`` refers to the center of the voxel at index ``(0, 0, 0)`` in
+            the array.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of indices in the output volume that spatially correspond to
+            those in the indices in the input array. This will have dtype an
+            integer datatype if ``round_output`` is ``True`` and a floating
+            point datatype otherwise. The output datatype will be matched to
+            the input datatype if possible, otherwise either ``np.int64`` or
+            ``np.float64`` is used.
+
+        Raises
+        ------
+        ValueError
+            If ``check_bounds`` is ``True`` and the output indices would
+            otherwise contain invalid indices for the "to" volume.
+
+        """
+        if indices.ndim != 2 or indices.shape[1] != 3:
+            raise ValueError(
+                'Argument "indices" must be a two-dimensional array '
+                'with shape [n, 3].'
+            )
+        input_is_int = indices.dtype.kind == 'i'
+        augmented_input = np.row_stack(
+            [
+                indices.T,
+                np.ones((indices.shape[0], ), dtype=indices.dtype),
+            ]
+        )
+        augmented_output = np.dot(self._affine, augmented_input)
+        output_indices = augmented_output[:3, :].T
+
+        if self._round_output:
+            output_dtype = indices.dtype if input_is_int else np.int64
+            output_indices = np.around(output_indices).astype(output_dtype)
+        else:
+            if not input_is_int:
+                output_indices = output_indices.astype(indices.dtype)
+
+        if self._check_bounds:
+            bounds_fail = False
+            min_indices = np.min(output_indices, axis=1)
+            max_indices = np.max(output_indices, axis=1)
+
+            for shape, min_ind, max_ind in zip(
+                self._output_shape,
+                min_indices,
+                max_indices,
+            ):
+                if min_ind < -0.5:
+                    bounds_fail = True
+                    break
+                if max_ind > shape - 0.5:
+                    bounds_fail = True
+                    break
+
+            if bounds_fail:
+                raise ValueError("Bounds check failed.")
+
+        return output_indices
+
+
 def volread(
     fp: Union[str, bytes, PathLike, List[Union[str, PathLike]]],
     glob: str = '*.dcm',

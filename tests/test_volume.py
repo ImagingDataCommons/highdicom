@@ -6,8 +6,13 @@ import pytest
 
 
 from highdicom.spatial import _normalize_patient_orientation
-from highdicom.volume import Volume, concat_channels, volread
-from highdicom import UID
+from highdicom.volume import (
+    Volume,
+    VolumeGeometry,
+    VolumeToVolumeTransformer,
+    concat_channels,
+    volread,
+)
 
 
 def read_multiframe_ct_volume():
@@ -405,6 +410,112 @@ def test_to_patient_orientation(desired):
     flipped = volume.to_patient_orientation(desired_tup)
     assert isinstance(flipped, Volume)
     assert flipped.get_closest_patient_orientation() == desired_tup
+
+
+def test_volume_transformer():
+
+    geometry = VolumeGeometry(
+        np.eye(4),
+        [32, 32, 32],
+    )
+
+    indices = np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+        ]
+    )
+
+    expected = np.array(
+        [
+            [1, 5, 8],
+            [1, 5, 9],
+        ]
+    )
+
+    geometry2 = geometry[1:11, 5:15, 8:18]
+
+    for round_output in [False, True]:
+        for check_bounds in [False, True]:
+            transformer = VolumeToVolumeTransformer(
+                geometry2,
+                geometry,
+                check_bounds=check_bounds,
+                round_output=round_output,
+            )
+
+            outputs = transformer(indices)
+            if round_output:
+                assert outputs.dtype == np.int64
+            else:
+                assert outputs.dtype == np.float64
+            assert np.array_equal(outputs, expected)
+
+    transformer = VolumeToVolumeTransformer(
+        geometry2,
+        geometry,
+        check_bounds=True,
+    )
+    out_of_bounds_indices = np.array([[31, 0, 0]])
+    with pytest.raises(ValueError):
+        transformer(out_of_bounds_indices)
+
+    expected = np.array(
+        [
+            [-1, -5, -8],
+            [-1, -5, -7],
+        ]
+    )
+    for round_output in [False, True]:
+        transformer = VolumeToVolumeTransformer(
+            geometry,
+            geometry2,
+            round_output=round_output,
+        )
+
+        outputs = transformer(indices)
+        if round_output:
+            assert outputs.dtype == np.int64
+        else:
+            assert outputs.dtype == np.float64
+        assert np.array_equal(outputs, expected)
+
+    transformer = VolumeToVolumeTransformer(
+        geometry,
+        geometry2,
+        check_bounds=True,
+    )
+    for oob_indices in [
+        [0, 5, 8],
+        [0, 0, 1],
+        [11, 5, 8],
+    ]:
+        with pytest.raises(ValueError):
+            transformer(np.array([oob_indices]))
+
+    geometry3 = geometry2.permute_axes([2, 1, 0])
+    expected = np.array(
+        [
+            [1, 5, 8],
+            [2, 5, 8],
+        ]
+    )
+
+    for round_output in [False, True]:
+        for check_bounds in [False, True]:
+            transformer = VolumeToVolumeTransformer(
+                geometry3,
+                geometry,
+                check_bounds=check_bounds,
+                round_output=round_output,
+            )
+
+            outputs = transformer(indices)
+            if round_output:
+                assert outputs.dtype == np.int64
+            else:
+                assert outputs.dtype == np.float64
+            assert np.array_equal(outputs, expected)
 
 
 @pytest.mark.parametrize(
