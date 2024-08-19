@@ -423,7 +423,7 @@ class _VolumeBase(ABC):
         return spacing
 
     @property
-    def spacing(self) -> Tuple[float]:
+    def spacing(self) -> Tuple[float, float, float]:
         """Tuple[float, float, float]:
 
         Pixel spacing in millimeter units for the three spatial directions.
