@@ -3256,7 +3256,7 @@ def get_volume_positions(
 
     if spacing_hint is not None and spacing_hint <= 0.0:
         raise ValueError(
-            "Argument 'spacing_hint' should be a postive value."
+            "Argument 'spacing_hint' should be a positive value."
         )
     image_positions_arr = np.array(image_positions)
 
@@ -3270,7 +3270,7 @@ def get_volume_positions(
             "Argument 'image_positions' should contain at least 1 position."
         )
     elif n == 1:
-        # Special case, we stipluate that this has spacing 1.0
+        # Special case, we stipulate that this has spacing 1.0
         # if not otherwise specified
         spacing = 1.0 if spacing_hint is None else spacing_hint
         return spacing, [0]
@@ -3295,7 +3295,7 @@ def get_volume_positions(
         unique_index = np.arange(image_positions_arr.shape[0])
 
     if len(unique_positions) == 1:
-        # Special case, we stipluate that this has spacing 1.0
+        # Special case, we stipulate that this has spacing 1.0
         # if not otherwise specified
         spacing = 1.0 if spacing_hint is None else spacing_hint
         return spacing, [0] * n
@@ -3347,7 +3347,8 @@ def get_volume_positions(
         if spacing_hint is not None:
             if not np.isclose(abs(spacing), spacing_hint):
                 raise RuntimeError(
-                    "Inferred spacing does not match the given 'spacing_hint'."
+                    f"Inferred spacing ({abs(spacing):.3f}) does not match the "
+                    f"given 'spacing_hint' ({spacing_hint})."
                 )
 
         is_regular = np.isclose(
