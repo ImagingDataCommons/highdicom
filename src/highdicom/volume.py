@@ -1774,20 +1774,6 @@ class Volume(_VolumeBase):
     geometry, however this can be constructed from or transformed to other
     conventions with appropriate optional parameters to its methods:
 
-    * The pixel indices are ordered (slice index, row index, column index).
-    * Pixel indices are zero-based and represent the center of the pixel.
-    * Column indices are ordered top to bottom, row indices are ordered left to
-      right. The interpretation of the slice indices direction is not defined.
-    * The x, y, z coordinates of frame-of-reference coordinate system follow
-      the "LPS" convention used in DICOM (see
-      :dcm:`Part 3 Section C.7.6.2.1.1 <part03/sect_C.7.6.2.html#sect_C.7.6.2.1.1>`).
-      I.e.
-      * The first coordinate (``x``) increases from the patient's right to left
-      * The second coordinate (``y``) increases from the patient's anterior to
-        posterior.
-      * The third coordinate (``z``) increases from the patient's caudal
-        direction (inferior) to cranial direction (superior).
-
     Note
     ----
     The ordering of pixel indices used by this class (slice, row, column)
