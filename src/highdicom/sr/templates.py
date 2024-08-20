@@ -3487,8 +3487,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
         """
         instance = super().from_sequence(sequence)
-        instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
-        return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -3762,11 +3762,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
         """
         instance = super().from_sequence(sequence)
-        instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
-        return cast(
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-            instance
-        )
+        instance.__class__ = cls
+        return cast(cls, instance)
 
 
 class ImageLibraryEntryDescriptors(Template):
@@ -4221,8 +4218,8 @@ class MeasurementReport(Template):
             is_root=True,
             copy=copy
         )
-        instance.__class__ = MeasurementReport
-        return cast(MeasurementReport, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
     def get_observer_contexts(
         self,

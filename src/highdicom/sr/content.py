@@ -181,7 +181,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(LongitudinalTemporalOffsetFromEvent, item)
+        return cast(cls, item)
 
 
 class SourceImageForMeasurementGroup(ImageContentItem):
@@ -293,7 +293,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurementGroup, item)
+        return cast(cls, item)
 
 
 class SourceImageForMeasurement(ImageContentItem):
@@ -405,7 +405,7 @@ class SourceImageForMeasurement(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurement, item)
+        return cast(cls, item)
 
 
 class SourceImageForRegion(ImageContentItem):
@@ -514,7 +514,7 @@ class SourceImageForRegion(ImageContentItem):
         """
         dataset_copy = deepcopy(dataset)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForRegion, item)
+        return cast(cls, item)
 
 
 class SourceImageForSegmentation(ImageContentItem):
@@ -626,7 +626,7 @@ class SourceImageForSegmentation(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForSegmentation, item)
+        return cast(cls, item)
 
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
@@ -705,7 +705,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceSeriesForSegmentation, item)
+        return cast(cls, item)
 
 
 class ImageRegion(ScoordContentItem):
@@ -806,7 +806,7 @@ class ImageRegion(ScoordContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion, item)
+        return cast(cls, item)
 
 
 class ImageRegion3D(Scoord3DContentItem):
@@ -882,7 +882,7 @@ class ImageRegion3D(Scoord3DContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion3D, item)
+        return cast(cls, item)
 
 
 class VolumeSurface(ContentSequence):
@@ -1270,7 +1270,7 @@ class RealWorldValueMap(CompositeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(RealWorldValueMap, item)
+        return cast(cls, item)
 
 
 class FindingSite(CodeContentItem):
@@ -1394,7 +1394,7 @@ class FindingSite(CodeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(FindingSite, item)
+        return cast(cls, item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -1516,7 +1516,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
-        return cast(ReferencedSegmentationFrame, new_seq)
+        return cast(cls, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -1902,7 +1902,7 @@ class ReferencedSegment(ContentSequence):
             )
 
         new_seq.__class__ = cls
-        return cast(ReferencedSegment, new_seq)
+        return cast(cls, new_seq)
 
     @classmethod
     def from_segmentation(

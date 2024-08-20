@@ -45,8 +45,8 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom._multiframe import MultiFrameDBManager
-from highdicom.base import SOPClass, _check_little_endian
+from highdicom._multiframe import MultiFrameImage
+from highdicom.base import _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     PlaneOrientationSequence,
@@ -158,739 +158,7 @@ def _check_numpy_value_representation(
         )
 
 
-class _SegDBManager(MultiFrameDBManager):
-
-    """Database manager for data associated with a segmentation image."""
-
-    def are_referenced_sop_instances_unique(self) -> bool:
-        """Check if Referenced SOP Instance UIDs uniquely identify frames.
-
-        This is a pre-requisite for requesting segmentation masks defined by
-        the SOP Instance UIDs of their source frames, such as using the
-        Segmentation.get_pixels_by_source_instance() method and
-        _SegDBManager.iterate_indices_by_source_instance() method.
-
-        Returns
-        -------
-        bool
-            True if the ReferencedSOPInstanceUID (in combination with the
-            segment number) uniquely identifies frames of the segmentation
-            image.
-
-        """
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
-            'ReferencedSegmentNumber)'
-        ).fetchone()[0]
-        return n_unique_combos == self._number_of_frames
-
-    def are_referenced_frames_unique(self) -> bool:
-        """Check if Referenced Frame Numbers uniquely identify frames.
-
-        Returns
-        -------
-        bool
-            True if the ReferencedFrameNumber (in combination with the
-            segment number) uniquely identifies frames of the segmentation
-            image.
-
-        """
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
-            'ReferencedSegmentNumber)'
-        ).fetchone()[0]
-        return n_unique_combos == self._number_of_frames
-
-    @contextmanager
-    def _generate_temp_segment_table(
-        self,
-        segment_numbers: Sequence[int],
-        combine_segments: bool,
-        relabel: bool
-    ) -> Generator[None, None, None]:
-        """Context manager that handles a temporary table for segments.
-
-        The temporary table is named "TemporarySegmentNumbers" with columns
-        OutputSegmentNumber and SegmentNumber that are populated with values
-        derived from the input. Control flow then returns to code within the
-        "with" block. After the "with" block has completed, the cleanup of
-        the table is automatically handled.
-
-        Parameters
-        ----------
-        segment_numbers: Sequence[int]
-            Segment numbers to include, in the order desired.
-        combine_segments: bool
-            Whether the segments will be combined into a label map.
-        relabel: bool
-            Whether the output segment numbers should be relabelled to 1-n
-            (True) or retain their values in the original segmentation object.
-
-        Yields
-        ------
-        None:
-            Yields control to the "with" block, with the temporary table
-            created.
-
-        """
-        if combine_segments:
-            if relabel:
-                # Output segment numbers are consecutive and start at 1
-                data = enumerate(segment_numbers, 1)
-            else:
-                # Output segment numbers are the same as the input
-                # segment numbers
-                data = zip(segment_numbers, segment_numbers)
-        else:
-            # Output segment numbers are indices along the output
-            # array's segment dimension, so are consecutive starting at
-            # 0
-            data = enumerate(segment_numbers)
-
-        cmd = (
-            'CREATE TABLE TemporarySegmentNumbers('
-            '    SegmentNumber INTEGER UNIQUE NOT NULL,'
-            '    OutputSegmentNumber INTEGER UNIQUE NOT NULL'
-            ')'
-        )
-
-        with self._db_con:
-            self._db_con.execute(cmd)
-            self._db_con.executemany(
-                'INSERT INTO '
-                'TemporarySegmentNumbers('
-                '    OutputSegmentNumber, SegmentNumber'
-                ')'
-                'VALUES(?, ?)',
-                data
-            )
-
-        # Yield execution to "with" block
-        yield
-
-        # Clean up table after user code executes
-        with self._db_con:
-            self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
-
-    @contextmanager
-    def iterate_indices_by_source_instance(
-        self,
-        source_sop_instance_uids: Sequence[str],
-        segment_numbers: Sequence[int],
-        combine_segments: bool = False,
-        relabel: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    int
-                ]
-            ],
-            None,
-            None,
-        ]:
-        """Iterate over segmentation frame indices for given source image
-        instances.
-
-        This is intended for the case of a segmentation image that references
-        multiple single frame sources images (typically a series). In this
-        case, the user supplies a list of SOP Instance UIDs of the source
-        images of interest, and this method returns information about the
-        frames of the segmentation image relevant to these source images.
-
-        This yields an iterator to the underlying database result that iterates
-        over information on the steps required to construct the requested
-        segmentation mask from the stored frames of the segmentation image.
-
-        This method is intended to be used as a context manager that yields the
-        requested iterator. The iterator is only valid while the context
-        manager is active.
-
-        Parameters
-        ----------
-        source_sop_instance_uids: str
-            SOP Instance UID of the source instances for which segmentation
-            image frames are requested.
-        segment_numbers: Sequence[int]
-            Numbers of segments to include.
-        combine_segments: bool, optional
-            If True, produce indices to combine the different segments into a
-            single label map in which the value of a pixel represents its
-            segment. If False (the default), segments are binary and stacked
-            down the last dimension of the output array.
-        relabel: bool, optional
-            If True and ``combine_segments`` is ``True``, the output segment
-            numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) according to the position of
-            the original segment numbers in ``segment_numbers`` parameter.  If
-            ``combine_segments`` is ``False``, this has no effect.
-
-        Yields
-        ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
-            Indices required to construct the requested mask. Each
-            triplet denotes the (output indexer, segmentation indexer,
-            output segment number) representing a list of "instructions" to
-            create the requested output array by copying frames from the
-            segmentation dataset and inserting them into the output array with
-            a given segment value. Output indexer and segmentation indexer are
-            tuples that can be used to index the output and segmentations
-            numpy arrays directly.
-
-        """  # noqa: E501
-        # Run query to create the iterable of indices needed to construct the
-        # desired pixel array. The approach here is to create two temporary
-        # tables in the SQLite database, one for the desired source UIDs, and
-        # another for the desired segments, then use table joins with the
-        # referenced UIDs table and the frame LUT at the relevant rows, before
-        # clearing up the temporary tables.
-
-        # Create temporary table of desired frame numbers
-        table_name = 'TemporarySOPInstanceUIDs'
-        column_defs = [
-            'OutputFrameIndex INTEGER UNIQUE NOT NULL',
-            'SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
-        ]
-        column_data = enumerate(source_sop_instance_uids)
-
-        # Construct the query The ORDER BY is not logically necessary
-        # but seems to improve performance of the downstream numpy
-        # operations, presumably as it is more cache efficient
-        query = (
-            'SELECT '
-            '    T.OutputFrameIndex,'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM TemporarySOPInstanceUIDs T '
-            'INNER JOIN FrameLUT L'
-            '    ON T.SourceSOPInstanceUID = L.ReferencedSOPInstanceUID '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
-            'ORDER BY T.OutputFrameIndex'
-        )
-
-        with self._generate_temp_table(
-            table_name=table_name,
-            column_defs=column_defs,
-            column_data=column_data,
-        ):
-            with self._generate_temp_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            ):
-                yield (
-                    (
-                        (fo, slice(None), slice(None)),
-                        (fi, slice(None), slice(None)),
-                        seg_no
-                    )
-                    for (fo, fi, seg_no) in self._db_con.execute(query)
-                )
-
-    @contextmanager
-    def iterate_indices_by_source_frame(
-        self,
-        source_sop_instance_uid: str,
-        source_frame_numbers: Sequence[int],
-        segment_numbers: Sequence[int],
-        combine_segments: bool = False,
-        relabel: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    int
-                ]
-            ],
-            None,
-            None,
-        ]:
-        """Iterate over frame indices for given source image frames.
-
-        This is intended for the case of a segmentation image that references a
-        single multi-frame source image instance. In this case, the user
-        supplies a list of frames numbers of interest within the single source
-        instance, and this method returns information about the frames
-        of the segmentation image relevant to these frames.
-
-        This yields an iterator to the underlying database result that iterates
-        over information on the steps required to construct the requested
-        segmentation mask from the stored frames of the segmentation image.
-
-        This method is intended to be used as a context manager that yields the
-        requested iterator. The iterator is only valid while the context
-        manager is active.
-
-        Parameters
-        ----------
-        source_sop_instance_uid: str
-            SOP Instance UID of the source instance that contains the source
-            frames.
-        source_frame_numbers: Sequence[int]
-            A sequence of frame numbers (1-based) within the source instance
-            for which segmentations are requested.
-        segment_numbers: Sequence[int]
-            Sequence containing segment numbers to include.
-        combine_segments: bool, optional
-            If True, produce indices to combine the different segments into a
-            single label map in which the value of a pixel represents its
-            segment. If False (the default), segments are binary and stacked
-            down the last dimension of the output array.
-        relabel: bool, optional
-            If True and ``combine_segments`` is ``True``, the output segment
-            numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) according to the position of
-            the original segment numbers in ``segment_numbers`` parameter.  If
-            ``combine_segments`` is ``False``, this has no effect.
-
-        Yields
-        ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
-            Indices required to construct the requested mask. Each
-            triplet denotes the (output indexer, segmentation indexer,
-            output segment number) representing a list of "instructions" to
-            create the requested output array by copying frames from the
-            segmentation dataset and inserting them into the output array with
-            a given segment value. Output indexer and segmentation indexer are
-            tuples that can be used to index the output and segmentations
-            numpy arrays directly.
-
-        """  # noqa: E501
-        # Run query to create the iterable of indices needed to construct the
-        # desired pixel array. The approach here is to create two temporary
-        # tables in the SQLite database, one for the desired frame numbers, and
-        # another for the desired segments, then use table joins with the frame
-        # LUT to arrive at the relevant rows, before clearing up the temporary
-        # tables.
-
-        # Create temporary table of desired frame numbers
-        table_name = 'TemporaryFrameNumbers'
-        column_defs = [
-            'OutputFrameIndex INTEGER UNIQUE NOT NULL',
-            'SourceFrameNumber INTEGER UNIQUE NOT NULL'
-        ]
-        column_data = enumerate(source_frame_numbers)
-
-        # Construct the query The ORDER BY is not logically necessary
-        # but seems to improve performance of the downstream numpy
-        # operations, presumably as it is more cache efficient
-        query = (
-            'SELECT '
-            '    F.OutputFrameIndex,'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM TemporaryFrameNumbers F '
-            'INNER JOIN FrameLUT L'
-            '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
-            'ORDER BY F.OutputFrameIndex'
-        )
-
-        with self._generate_temp_table(
-            table_name=table_name,
-            column_defs=column_defs,
-            column_data=column_data,
-        ):
-            with self._generate_temp_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            ):
-                yield (
-                    (
-                        (fo, slice(None), slice(None)),
-                        (fi, slice(None), slice(None)),
-                        seg_no
-                    )
-                    for (fo, fi, seg_no) in self._db_con.execute(query)
-                )
-
-    @contextmanager
-    def iterate_indices_for_volume(
-        self,
-        slice_start: int,
-        slice_end: int,
-        segment_numbers: Sequence[int],
-        combine_segments: bool = False,
-        relabel: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    int
-                ]
-            ],
-            None,
-            None,
-        ]:
-        """Iterate over frame indices sorted by volume.
-
-        This yields an iterator to the underlying database result that iterates
-        over information on the steps required to construct the requested
-        segmentation mask from the stored frames of the segmentation image.
-
-        This method is intended to be used as a context manager that yields the
-        requested iterator. The iterator is only valid while the context
-        manager is active.
-
-        Parameters
-        ----------
-        slice_start: int, optional
-            Zero-based index of the "volume position" of the first slice of the
-            returned volume. The "volume position" refers to the position of
-            slices after sorting spatially, and may correspond to any frame in
-            the segmentation file, depending on its construction. Must be a
-            non-negative integer.
-        slice_end: Union[int, None], optional
-            Zero-based index of the "volume position" one beyond the last slice
-            of the returned volume. The "volume position" refers to the
-            position of slices after sorting spatially, and may correspond to
-            any frame in the segmentation file, depending on its construction.
-            Must be a positive integer.
-        segment_numbers: Sequence[int]
-            Sequence containing segment numbers to include.
-        combine_segments: bool, optional
-            If True, produce indices to combine the different segments into a
-            single label map in which the value of a pixel represents its
-            segment. If False (the default), segments are binary and stacked
-            down the last dimension of the output array.
-        relabel: bool, optional
-            If True and ``combine_segments`` is ``True``, the output segment
-            numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) according to the position of
-            the original segment numbers in ``segment_numbers`` parameter.  If
-            ``combine_segments`` is ``False``, this has no effect.
-
-        Yields
-        ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
-            Indices required to construct the requested mask. Each
-            triplet denotes the (output indexer, segmentation indexer,
-            output segment number) representing a list of "instructions" to
-            create the requested output array by copying frames from the
-            segmentation dataset and inserting them into the output array with
-            a given segment value. Output indexer and segmentation indexer are
-            tuples that can be used to index the output and segmentations
-            numpy arrays directly.
-
-        """  # noqa: E501
-        if self.volume_geometry is None:
-            raise RuntimeError(
-                'This segmentation does not represent a regularly-spaced '
-                'volume.'
-            )
-
-        # Construct the query The ORDER BY is not logically necessary
-        # but seems to improve performance of the downstream numpy
-        # operations, presumably as it is more cache efficient
-        query = (
-            'SELECT '
-            f'    L.VolumePosition - {slice_start},'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM FrameLUT L '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
-            'WHERE '
-            f'    L.VolumePosition >= {slice_start} AND '
-            f'    L.VolumePosition < {slice_end} '
-            'ORDER BY L.VolumePosition'
-        )
-
-        with self._generate_temp_segment_table(
-            segment_numbers=segment_numbers,
-            combine_segments=combine_segments,
-            relabel=relabel
-        ):
-            yield (
-                (
-                    (fo, slice(None), slice(None)),
-                    (fi, slice(None), slice(None)),
-                    seg_no
-                )
-                for (fo, fi, seg_no) in self._db_con.execute(query)
-            )
-
-    @contextmanager
-    def iterate_indices_by_dimension_index_values(
-        self,
-        dimension_index_values: Sequence[Sequence[int]],
-        dimension_index_pointers: Sequence[int],
-        segment_numbers: Sequence[int],
-        combine_segments: bool = False,
-        relabel: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    int
-                ]
-            ],
-            None,
-            None,
-        ]:
-        """Iterate over frame indices for given dimension index values.
-
-        This is intended to be the most flexible and lowest-level (and there
-        also least convenient) method to request information about
-        segmentation frames. The user can choose to specify which segmentation
-        frames are of interest using arbitrary dimension indices and their
-        associated values. This makes no assumptions about the dimension
-        organization of the underlying segmentation, except that the given
-        dimension indices can be used to uniquely identify frames in the
-        segmentation image.
-
-        This yields an iterator to the underlying database result that iterates
-        over information on the steps required to construct the requested
-        segmentation mask from the stored frames of the segmentation image.
-
-        This method is intended to be used as a context manager that yields the
-        requested iterator. The iterator is only valid while the context
-        manager is active.
-
-        Parameters
-        ----------
-        dimension_index_values: Sequence[Sequence[int]]
-            Dimension index values for the requested frames.
-        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
-            The data element tags that identify the indices used in the
-            ``dimension_index_values`` parameter.
-        segment_numbers: Sequence[int]
-            Sequence containing segment numbers to include.
-        combine_segments: bool, optional
-            If True, produce indices to combine the different segments into a
-            single label map in which the value of a pixel represents its
-            segment. If False (the default), segments are binary and stacked
-            down the last dimension of the output array.
-        relabel: bool, optional
-            If True and ``combine_segments`` is ``True``, the output segment
-            numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) according to the position of
-            the original segment numbers in ``segment_numbers`` parameter.  If
-            ``combine_segments`` is ``False``, this has no effect.
-
-        Yields
-        ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
-            Indices required to construct the requested mask. Each
-            triplet denotes the (output indexer, segmentation indexer,
-            output segment number) representing a list of "instructions" to
-            create the requested output array by copying frames from the
-            segmentation dataset and inserting them into the output array with
-            a given segment value. Output indexer and segmentation indexer are
-            tuples that can be used to index the output and segmentations
-            numpy arrays directly.
-
-        """  # noqa: E501
-        # Create temporary table of desired dimension indices
-        table_name = 'TemporaryDimensionIndexValues'
-
-        dim_ind_cols = [
-            self._dim_ind_col_names[p] for p in dimension_index_pointers
-        ]
-        column_defs = (
-            ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
-            [f'{col} INTEGER NOT NULL' for col in dim_ind_cols]
-        )
-        column_data = (
-            (i, *tuple(row))
-            for i, row in enumerate(dimension_index_values)
-        )
-
-        # Construct the query The ORDER BY is not logically necessary
-        # but seems to improve performance of the downstream numpy
-        # operations, presumably as it is more cache efficient
-        join_str = ' AND '.join(f'D.{col} = L.{col}' for col in dim_ind_cols)
-        query = (
-            'SELECT '
-            '    D.OutputFrameIndex,'  # frame index of the output array
-            '    L.FrameNumber - 1,'  # frame *index* of segmentation image
-            '    S.OutputSegmentNumber '  # output segment number
-            'FROM TemporaryDimensionIndexValues D '
-            'INNER JOIN FrameLUT L'
-            f'   ON {join_str} '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
-            'ORDER BY D.OutputFrameIndex'
-        )
-
-        with self._generate_temp_table(
-            table_name=table_name,
-            column_defs=column_defs,
-            column_data=column_data,
-        ):
-            with self._generate_temp_segment_table(
-                segment_numbers=segment_numbers,
-                combine_segments=combine_segments,
-                relabel=relabel
-            ):
-                yield (
-                    (
-                        (fo, slice(None), slice(None)),
-                        (fi, slice(None), slice(None)),
-                        seg_no
-                    )
-                    for (fo, fi, seg_no) in self._db_con.execute(query)
-                )
-
-    @contextmanager
-    def iterate_indices_for_tiled_region(
-        self,
-        row_start: int,
-        row_end: int,
-        column_start: int,
-        column_end: int,
-        tile_shape: Tuple[int, int],
-        segment_numbers: Sequence[int],
-        combine_segments: bool = False,
-        relabel: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    int
-                ]
-            ],
-            None,
-            None,
-        ]:
-        """Iterate over segmentation frame indices for a given region of the
-        segmentation's total pixel matrix.
-
-        This is intended for the case of a segmentation image that is stored as
-        a tiled representation of total pixel matrix.
-
-        This yields an iterator to the underlying database result that iterates
-        over information on the steps required to construct the requested
-        segmentation mask from the stored frames of the segmentation image.
-
-        This method is intended to be used as a context manager that yields the
-        requested iterator. The iterator is only valid while the context
-        manager is active.
-
-        Parameters
-        ----------
-        row_start: int
-            Row index (1-based) in the total pixel matrix of the first row of
-            the output array. May be negative (last row is -1).
-        row_end: int
-            Row index (1-based) in the total pixel matrix one beyond the last
-            row of the output array. May be negative (last row is -1).
-        column_start: int
-            Column index (1-based) in the total pixel matrix of the first
-            column of the output array. May be negative (last column is -1).
-        column_end: int
-            Column index (1-based) in the total pixel matrix one beyond the last
-            column of the output array. May be negative (last column is -1).
-        tile_shape: Tuple[int, int]
-            Shape of each tile (rows, columns).
-        segment_numbers: Sequence[int]
-            Numbers of segments to include.
-        combine_segments: bool, optional
-            If True, produce indices to combine the different segments into a
-            single label map in which the value of a pixel represents its
-            segment. If False (the default), segments are binary and stacked
-            down the last dimension of the output array.
-        relabel: bool, optional
-            If True and ``combine_segments`` is ``True``, the output segment
-            numbers are relabelled into the range ``0`` to
-            ``len(segment_numbers)`` (inclusive) according to the position of
-            the original segment numbers in ``segment_numbers`` parameter.  If
-            ``combine_segments`` is ``False``, this has no effect.
-
-        Yields
-        ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
-            Indices required to construct the requested mask. Each
-            triplet denotes the (output indexer, segmentation indexer,
-            output segment number) representing a list of "instructions" to
-            create the requested output array by copying frames from the
-            segmentation dataset and inserting them into the output array with
-            a given segment value. Output indexer and segmentation indexer are
-            tuples that can be used to index the output and segmentations
-            numpy arrays directly.
-
-        """  # noqa: E501
-        th, tw = tile_shape
-
-        oh = row_end - row_start
-        ow = column_end - column_start
-
-        row_offset_start = row_start - th + 1
-        column_offset_start = column_start - tw + 1
-
-        # Construct the query The ORDER BY is not logically necessary
-        # but seems to improve performance of the downstream numpy
-        # operations, presumably as it is more cache efficient
-        query = (
-            'SELECT '
-            '    L.RowPositionInTotalImagePixelMatrix,'
-            '    L.ColumnPositionInTotalImagePixelMatrix,'
-            '    L.FrameNumber - 1,'
-            '    S.OutputSegmentNumber '
-            'FROM FrameLUT L '
-            'INNER JOIN TemporarySegmentNumbers S'
-            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
-            'WHERE ('
-            '    L.RowPositionInTotalImagePixelMatrix >= '
-            f'        {row_offset_start}'
-            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
-            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
-            f'        {column_offset_start}'
-            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
-            ')'
-            'ORDER BY '
-            '     L.RowPositionInTotalImagePixelMatrix,'
-            '     L.ColumnPositionInTotalImagePixelMatrix,'
-            '     S.OutputSegmentNumber'
-        )
-
-        with self._generate_temp_segment_table(
-            segment_numbers=segment_numbers,
-            combine_segments=combine_segments,
-            relabel=relabel
-        ):
-            yield (
-                (
-                    (
-                        slice(
-                            max(rp - row_start, 0),
-                            min(rp + th - row_start, oh)
-                        ),
-                        slice(
-                            max(cp - column_start, 0),
-                            min(cp + tw - column_start, ow)
-                        ),
-                    ),
-                    (
-                        fi,
-                        slice(
-                            max(row_start - rp, 0),
-                            min(row_end - rp, th)
-                        ),
-                        slice(
-                            max(column_start - cp, 0),
-                            min(column_end - cp, tw)
-                        ),
-                    ),
-                    seg_no
-                )
-                for (rp, cp, fi, seg_no) in self._db_con.execute(query)
-            )
-
-
-class Segmentation(SOPClass):
+class Segmentation(MultiFrameImage):
 
     """SOP class for the Segmentation IOD."""
 
@@ -3106,7 +2374,7 @@ class Segmentation(SOPClass):
             seg = deepcopy(dataset)
         else:
             seg = dataset
-        seg.__class__ = Segmentation
+        seg.__class__ = cls
 
         sf_groups = seg.SharedFunctionalGroupsSequence[0]
         if hasattr(seg, 'PlaneOrientationSequence'):
@@ -3183,78 +2451,9 @@ class Segmentation(SOPClass):
                     )
                     pffg_item.PixelMeasuresSequence = pixel_measures
 
-        seg._build_luts()
+        seg = super().from_dataset(seg, copy=False)
 
-        return cast(Segmentation, seg)
-
-    def _get_ref_instance_uids(self) -> List[Tuple[str, str, str]]:
-        """List all instances referenced in the segmentation.
-
-        Returns
-        -------
-        List[Tuple[str, str, str]]
-            List of all instances referenced in the segmentation in the format
-            (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
-
-        """
-        instance_data = []
-        if hasattr(self, 'ReferencedSeriesSequence'):
-            for ref_series in self.ReferencedSeriesSequence:
-                for ref_ins in ref_series.ReferencedInstanceSequence:
-                    instance_data.append(
-                        (
-                            self.StudyInstanceUID,
-                            ref_series.SeriesInstanceUID,
-                            ref_ins.ReferencedSOPInstanceUID
-                        )
-                    )
-        other_studies_kw = 'StudiesContainingOtherReferencedInstancesSequence'
-        if hasattr(self, other_studies_kw):
-            for ref_study in getattr(self, other_studies_kw):
-                for ref_series in ref_study.ReferencedSeriesSequence:
-                    for ref_ins in ref_series.ReferencedInstanceSequence:
-                        instance_data.append(
-                            (
-                                ref_study.StudyInstanceUID,
-                                ref_series.SeriesInstanceUID,
-                                ref_ins.ReferencedSOPInstanceUID,
-                            )
-                        )
-
-        # There shouldn't be duplicates here, but there's no explicit rule
-        # preventing it.
-        # Since dictionary ordering is preserved, this trick deduplicates
-        # the list without changing the order
-        unique_instance_data = list(dict.fromkeys(instance_data))
-        if len(unique_instance_data) != len(instance_data):
-            counts = Counter(instance_data)
-            duplicate_sop_uids = [
-                f"'{key[2]}'" for key, value in counts.items() if value > 1
-            ]
-            display_str = ', '.join(duplicate_sop_uids)
-            logger.warning(
-                'Duplicate entries found in the ReferencedSeriesSequence. '
-                f"Segmentation SOP Instance UID: '{self.SOPInstanceUID}', "
-                f'duplicated referenced SOP Instance UID items: {display_str}.'
-            )
-
-        return unique_instance_data
-
-    def _build_luts(self) -> None:
-        """Build lookup tables for efficient querying.
-
-        Two lookup tables are currently constructed. The first maps the
-        SOPInstanceUIDs of all datasets referenced in the segmentation to a
-        tuple containing the StudyInstanceUID, SeriesInstanceUID and
-        SOPInstanceUID.
-
-        The second look-up table contains information about each frame of the
-        segmentation, including the segment it contains, the instance and frame
-        from which it was derived (if these are unique), and its dimension
-        index values.
-
-        """
-        self._db_man = _SegDBManager(self)
+        return cast(cls, seg)
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:
@@ -3553,15 +2752,6 @@ class Segmentation(SOPClass):
 
         return types
 
-    @property
-    def volume_geometry(self) -> Optional[VolumeGeometry]:
-        """Union[highdicom.VolumeGeometry, None]: Geometry of the volume if the
-        segmentation represents a regularly-spaced 3D volume. ``None``
-        otherwise.
-
-        """
-        return self._db_man.volume_geometry
-
     def _get_pixels_by_seg_frame(
         self,
         output_shape: Union[int, Tuple[int, int]],
@@ -3802,19 +2992,6 @@ class Segmentation(SOPClass):
 
         return out_array
 
-    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
-        """Get UIDs for all source SOP instances referenced in the dataset.
-
-        Returns
-        -------
-        List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
-            List of tuples containing Study Instance UID, Series Instance UID
-            and SOP Instance UID for every SOP Instance referenced in the
-            dataset.
-
-        """
-        return self._db_man.get_source_image_uids()
-
     def get_default_dimension_index_pointers(
         self
     ) -> List[BaseTag]:
@@ -3836,7 +3013,7 @@ class Segmentation(SOPClass):
         """
         referenced_segment_number = tag_for_keyword('ReferencedSegmentNumber')
         return [
-            t for t in self._db_man.dimension_index_pointers[:]
+            t for t in self.dimension_index_pointers
             if t != referenced_segment_number
         ]
 
@@ -3876,7 +3053,7 @@ class Segmentation(SOPClass):
             )
         dimension_index_pointers = list(dimension_index_pointers)
         for ptr in dimension_index_pointers:
-            if ptr not in self._db_man.dimension_index_pointers:
+            if ptr not in self.dimension_index_pointers:
                 kw = keyword_for_tag(ptr)
                 if kw == '':
                     kw = '<no keyword>'
@@ -3888,9 +3065,736 @@ class Segmentation(SOPClass):
         dimension_index_pointers.append(
             tag_for_keyword('ReferencedSegmentNumber')
         )
-        return self._db_man.are_dimension_indices_unique(
+        return super().are_dimension_indices_unique(
             dimension_index_pointers
         )
+
+    def _are_referenced_sop_instances_unique(self) -> bool:
+        """Check if Referenced SOP Instance UIDs uniquely identify frames.
+
+        This is a pre-requisite for requesting segmentation masks defined by
+        the SOP Instance UIDs of their source frames, such as using the
+        Segmentation.get_pixels_by_source_instance() method and
+        Segmentation._iterate_indices_by_source_instance() method.
+
+        Returns
+        -------
+        bool
+            True if the ReferencedSOPInstanceUID (in combination with the
+            segment number) uniquely identifies frames of the segmentation
+            image.
+
+        """
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            'SELECT COUNT(*) FROM '
+            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
+            'ReferencedSegmentNumber)'
+        ).fetchone()[0]
+        return n_unique_combos == self.NumberOfFrames
+
+    def _are_referenced_frames_unique(self) -> bool:
+        """Check if Referenced Frame Numbers uniquely identify frames.
+
+        Returns
+        -------
+        bool
+            True if the ReferencedFrameNumber (in combination with the
+            segment number) uniquely identifies frames of the segmentation
+            image.
+
+        """
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            'SELECT COUNT(*) FROM '
+            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
+            'ReferencedSegmentNumber)'
+        ).fetchone()[0]
+        return n_unique_combos == self.NumberOfFrames
+
+    @contextmanager
+    def _generate_temp_segment_table(
+        self,
+        segment_numbers: Sequence[int],
+        combine_segments: bool,
+        relabel: bool
+    ) -> Generator[None, None, None]:
+        """Context manager that handles a temporary table for segments.
+
+        The temporary table is named "TemporarySegmentNumbers" with columns
+        OutputSegmentNumber and SegmentNumber that are populated with values
+        derived from the input. Control flow then returns to code within the
+        "with" block. After the "with" block has completed, the cleanup of
+        the table is automatically handled.
+
+        Parameters
+        ----------
+        segment_numbers: Sequence[int]
+            Segment numbers to include, in the order desired.
+        combine_segments: bool
+            Whether the segments will be combined into a label map.
+        relabel: bool
+            Whether the output segment numbers should be relabelled to 1-n
+            (True) or retain their values in the original segmentation object.
+
+        Yields
+        ------
+        None:
+            Yields control to the "with" block, with the temporary table
+            created.
+
+        """
+        if combine_segments:
+            if relabel:
+                # Output segment numbers are consecutive and start at 1
+                data = enumerate(segment_numbers, 1)
+            else:
+                # Output segment numbers are the same as the input
+                # segment numbers
+                data = zip(segment_numbers, segment_numbers)
+        else:
+            # Output segment numbers are indices along the output
+            # array's segment dimension, so are consecutive starting at
+            # 0
+            data = enumerate(segment_numbers)
+
+        cmd = (
+            'CREATE TABLE TemporarySegmentNumbers('
+            '    SegmentNumber INTEGER UNIQUE NOT NULL,'
+            '    OutputSegmentNumber INTEGER UNIQUE NOT NULL'
+            ')'
+        )
+
+        with self._db_con:
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO '
+                'TemporarySegmentNumbers('
+                '    OutputSegmentNumber, SegmentNumber'
+                ')'
+                'VALUES(?, ?)',
+                data
+            )
+
+        # Yield execution to "with" block
+        yield
+
+        # Clean up table after user code executes
+        with self._db_con:
+            self._db_con.execute('DROP TABLE TemporarySegmentNumbers')
+
+    @contextmanager
+    def _iterate_indices_by_source_instance(
+        self,
+        source_sop_instance_uids: Sequence[str],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over segmentation frame indices for given source image
+        instances.
+
+        This is intended for the case of a segmentation image that references
+        multiple single frame sources images (typically a series). In this
+        case, the user supplies a list of SOP Instance UIDs of the source
+        images of interest, and this method returns information about the
+        frames of the segmentation image relevant to these source images.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        source_sop_instance_uids: str
+            SOP Instance UID of the source instances for which segmentation
+            image frames are requested.
+        segment_numbers: Sequence[int]
+            Numbers of segments to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        # Run query to create the iterable of indices needed to construct the
+        # desired pixel array. The approach here is to create two temporary
+        # tables in the SQLite database, one for the desired source UIDs, and
+        # another for the desired segments, then use table joins with the
+        # referenced UIDs table and the frame LUT at the relevant rows, before
+        # clearing up the temporary tables.
+
+        # Create temporary table of desired frame numbers
+        table_name = 'TemporarySOPInstanceUIDs'
+        column_defs = [
+            'OutputFrameIndex INTEGER UNIQUE NOT NULL',
+            'SourceSOPInstanceUID VARCHAR UNIQUE NOT NULL'
+        ]
+        column_data = enumerate(source_sop_instance_uids)
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            '    T.OutputFrameIndex,'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM TemporarySOPInstanceUIDs T '
+            'INNER JOIN FrameLUT L'
+            '    ON T.SourceSOPInstanceUID = L.ReferencedSOPInstanceUID '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'ORDER BY T.OutputFrameIndex'
+        )
+
+        with self._generate_temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self._generate_temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            ):
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
+
+    @contextmanager
+    def _iterate_indices_by_source_frame(
+        self,
+        source_sop_instance_uid: str,
+        source_frame_numbers: Sequence[int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over frame indices for given source image frames.
+
+        This is intended for the case of a segmentation image that references a
+        single multi-frame source image instance. In this case, the user
+        supplies a list of frames numbers of interest within the single source
+        instance, and this method returns information about the frames
+        of the segmentation image relevant to these frames.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        source_sop_instance_uid: str
+            SOP Instance UID of the source instance that contains the source
+            frames.
+        source_frame_numbers: Sequence[int]
+            A sequence of frame numbers (1-based) within the source instance
+            for which segmentations are requested.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        # Run query to create the iterable of indices needed to construct the
+        # desired pixel array. The approach here is to create two temporary
+        # tables in the SQLite database, one for the desired frame numbers, and
+        # another for the desired segments, then use table joins with the frame
+        # LUT to arrive at the relevant rows, before clearing up the temporary
+        # tables.
+
+        # Create temporary table of desired frame numbers
+        table_name = 'TemporaryFrameNumbers'
+        column_defs = [
+            'OutputFrameIndex INTEGER UNIQUE NOT NULL',
+            'SourceFrameNumber INTEGER UNIQUE NOT NULL'
+        ]
+        column_data = enumerate(source_frame_numbers)
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            '    F.OutputFrameIndex,'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM TemporaryFrameNumbers F '
+            'INNER JOIN FrameLUT L'
+            '    ON F.SourceFrameNumber = L.ReferencedFrameNumber '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'ORDER BY F.OutputFrameIndex'
+        )
+
+        with self._generate_temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self._generate_temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            ):
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
+
+    @contextmanager
+    def _iterate_indices_for_tiled_region(
+        self,
+        row_start: int,
+        row_end: int,
+        column_start: int,
+        column_end: int,
+        tile_shape: Tuple[int, int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over segmentation frame indices for a given region of the
+        segmentation's total pixel matrix.
+
+        This is intended for the case of a segmentation image that is stored as
+        a tiled representation of total pixel matrix.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        row_start: int
+            Row index (1-based) in the total pixel matrix of the first row of
+            the output array. May be negative (last row is -1).
+        row_end: int
+            Row index (1-based) in the total pixel matrix one beyond the last
+            row of the output array. May be negative (last row is -1).
+        column_start: int
+            Column index (1-based) in the total pixel matrix of the first
+            column of the output array. May be negative (last column is -1).
+        column_end: int
+            Column index (1-based) in the total pixel matrix one beyond the last
+            column of the output array. May be negative (last column is -1).
+        tile_shape: Tuple[int, int]
+            Shape of each tile (rows, columns).
+        segment_numbers: Sequence[int]
+            Numbers of segments to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        th, tw = tile_shape
+
+        oh = row_end - row_start
+        ow = column_end - column_start
+
+        row_offset_start = row_start - th + 1
+        column_offset_start = column_start - tw + 1
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            '    L.RowPositionInTotalImagePixelMatrix,'
+            '    L.ColumnPositionInTotalImagePixelMatrix,'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM FrameLUT L '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'WHERE ('
+            '    L.RowPositionInTotalImagePixelMatrix >= '
+            f'        {row_offset_start}'
+            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
+            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
+            f'        {column_offset_start}'
+            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+            ')'
+            'ORDER BY '
+            '     L.RowPositionInTotalImagePixelMatrix,'
+            '     L.ColumnPositionInTotalImagePixelMatrix,'
+            '     S.OutputSegmentNumber'
+        )
+
+        with self._generate_temp_segment_table(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel
+        ):
+            yield (
+                (
+                    (
+                        slice(
+                            max(rp - row_start, 0),
+                            min(rp + th - row_start, oh)
+                        ),
+                        slice(
+                            max(cp - column_start, 0),
+                            min(cp + tw - column_start, ow)
+                        ),
+                    ),
+                    (
+                        fi,
+                        slice(
+                            max(row_start - rp, 0),
+                            min(row_end - rp, th)
+                        ),
+                        slice(
+                            max(column_start - cp, 0),
+                            min(column_end - cp, tw)
+                        ),
+                    ),
+                    seg_no
+                )
+                for (rp, cp, fi, seg_no) in self._db_con.execute(query)
+            )
+
+    @contextmanager
+    def _iterate_indices_for_volume(
+        self,
+        slice_start: int,
+        slice_end: int,
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over frame indices sorted by volume.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        slice_start: int, optional
+            Zero-based index of the "volume position" of the first slice of the
+            returned volume. The "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. Must be a
+            non-negative integer.
+        slice_end: Union[int, None], optional
+            Zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. The "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            Must be a positive integer.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        if self.volume_geometry is None:
+            raise RuntimeError(
+                'This segmentation does not represent a regularly-spaced '
+                'volume.'
+            )
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        query = (
+            'SELECT '
+            f'    L.VolumePosition - {slice_start},'
+            '    L.FrameNumber - 1,'
+            '    S.OutputSegmentNumber '
+            'FROM FrameLUT L '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'WHERE '
+            f'    L.VolumePosition >= {slice_start} AND '
+            f'    L.VolumePosition < {slice_end} '
+            'ORDER BY L.VolumePosition'
+        )
+
+        with self._generate_temp_segment_table(
+            segment_numbers=segment_numbers,
+            combine_segments=combine_segments,
+            relabel=relabel
+        ):
+            yield (
+                (
+                    (fo, slice(None), slice(None)),
+                    (fi, slice(None), slice(None)),
+                    seg_no
+                )
+                for (fo, fi, seg_no) in self._db_con.execute(query)
+            )
+
+    @contextmanager
+    def _iterate_indices_by_dimension_index_values(
+        self,
+        dimension_index_values: Sequence[Sequence[int]],
+        dimension_index_pointers: Sequence[int],
+        segment_numbers: Sequence[int],
+        combine_segments: bool = False,
+        relabel: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    int
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over frame indices for given dimension index values.
+
+        This is intended to be the most flexible and lowest-level (and there
+        also least convenient) method to request information about
+        segmentation frames. The user can choose to specify which segmentation
+        frames are of interest using arbitrary dimension indices and their
+        associated values. This makes no assumptions about the dimension
+        organization of the underlying segmentation, except that the given
+        dimension indices can be used to uniquely identify frames in the
+        segmentation image.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        segmentation mask from the stored frames of the segmentation image.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        dimension_index_values: Sequence[Sequence[int]]
+            Dimension index values for the requested frames.
+        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
+            The data element tags that identify the indices used in the
+            ``dimension_index_values`` parameter.
+        segment_numbers: Sequence[int]
+            Sequence containing segment numbers to include.
+        combine_segments: bool, optional
+            If True, produce indices to combine the different segments into a
+            single label map in which the value of a pixel represents its
+            segment. If False (the default), segments are binary and stacked
+            down the last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the output segment
+            numbers are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each
+            triplet denotes the (output indexer, segmentation indexer,
+            output segment number) representing a list of "instructions" to
+            create the requested output array by copying frames from the
+            segmentation dataset and inserting them into the output array with
+            a given segment value. Output indexer and segmentation indexer are
+            tuples that can be used to index the output and segmentations
+            numpy arrays directly.
+
+        """  # noqa: E501
+        # Create temporary table of desired dimension indices
+        table_name = 'TemporaryDimensionIndexValues'
+
+        dim_ind_cols = [
+            self._dim_ind_col_names[p] for p in dimension_index_pointers
+        ]
+        column_defs = (
+            ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
+            [f'{col} INTEGER NOT NULL' for col in dim_ind_cols]
+        )
+        column_data = (
+            (i, *tuple(row))
+            for i, row in enumerate(dimension_index_values)
+        )
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        join_str = ' AND '.join(f'D.{col} = L.{col}' for col in dim_ind_cols)
+        query = (
+            'SELECT '
+            '    D.OutputFrameIndex,'  # frame index of the output array
+            '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+            '    S.OutputSegmentNumber '  # output segment number
+            'FROM TemporaryDimensionIndexValues D '
+            'INNER JOIN FrameLUT L'
+            f'   ON {join_str} '
+            'INNER JOIN TemporarySegmentNumbers S'
+            '    ON L.ReferencedSegmentNumber = S.SegmentNumber '
+            'ORDER BY D.OutputFrameIndex'
+        )
+
+        with self._generate_temp_table(
+            table_name=table_name,
+            column_defs=column_defs,
+            column_data=column_data,
+        ):
+            with self._generate_temp_segment_table(
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel
+            ):
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        seg_no
+                    )
+                    for (fo, fi, seg_no) in self._db_con.execute(query)
+                )
 
     def get_pixels_by_source_instance(
         self,
@@ -4047,7 +3951,7 @@ class Segmentation(SOPClass):
 
         """
         # Check that indexing in this way is possible
-        self._db_man._check_indexing_with_source_frames(
+        self._check_indexing_with_source_frames(
             ignore_spatial_locations
         )
 
@@ -4070,7 +3974,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        if not self._db_man.are_referenced_sop_instances_unique():
+        if not self._are_referenced_sop_instances_unique():
             raise RuntimeError(
                 'Source SOP instance UIDs and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -4079,7 +3983,7 @@ class Segmentation(SOPClass):
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
             unique_uids = (
-                self._db_man.get_unique_referenced_sop_instance_uids()
+                self._get_unique_referenced_sop_instance_uids()
             )
             missing_uids = set(source_sop_instance_uids) - unique_uids
             if len(missing_uids) > 0:
@@ -4091,7 +3995,7 @@ class Segmentation(SOPClass):
                 )
                 raise KeyError(msg)
 
-        with self._db_man.iterate_indices_by_source_instance(
+        with self._iterate_indices_by_source_instance(
             source_sop_instance_uids=source_sop_instance_uids,
             segment_numbers=segment_numbers,
             combine_segments=combine_segments,
@@ -4303,7 +4207,7 @@ class Segmentation(SOPClass):
 
         """
         # Check that indexing in this way is possible
-        self._db_man._check_indexing_with_source_frames(
+        self._check_indexing_with_source_frames(
             ignore_spatial_locations
         )
 
@@ -4326,7 +4230,7 @@ class Segmentation(SOPClass):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        if not self._db_man.are_referenced_frames_unique():
+        if not self._are_referenced_frames_unique():
             raise RuntimeError(
                 'Source frame numbers and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -4335,7 +4239,7 @@ class Segmentation(SOPClass):
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
             max_frame_number = (
-                self._db_man.get_max_referenced_frame_number()
+                self._get_max_referenced_frame_number()
             )
             for f in source_frame_numbers:
                 if f > max_frame_number:
@@ -4348,7 +4252,7 @@ class Segmentation(SOPClass):
                     )
                     raise ValueError(msg)
 
-        with self._db_man.iterate_indices_by_source_frame(
+        with self._iterate_indices_by_source_frame(
             source_sop_instance_uid=source_sop_instance_uid,
             source_frame_numbers=source_frame_numbers,
             segment_numbers=segment_numbers,
@@ -4369,6 +4273,7 @@ class Segmentation(SOPClass):
 
     def get_volume(
         self,
+        *,
         slice_start: int = 0,
         slice_end: Optional[int] = None,
         segment_numbers: Optional[Sequence[int]] = None,
@@ -4501,7 +4406,7 @@ class Segmentation(SOPClass):
                 "empty volume."
             )
 
-        with self._db_man.iterate_indices_for_volume(
+        with self._iterate_indices_for_volume(
             slice_start=slice_start,
             slice_end=cast(int, slice_end),
             segment_numbers=segment_numbers,
@@ -4520,7 +4425,7 @@ class Segmentation(SOPClass):
                 dtype=dtype,
             )
 
-        affine = self._db_man.volume_geometry[slice_start].affine
+        affine = self._volume_geometry[slice_start].affine
 
         return Volume(
             array=array,
@@ -4710,7 +4615,7 @@ class Segmentation(SOPClass):
         )
         if dimension_index_pointers is None:
             dimension_index_pointers = [
-                t for t in self._db_man.dimension_index_pointers
+                t for t in self.dimension_index_pointers
                 if t != referenced_segment_number_tag
             ]
         else:
@@ -4724,7 +4629,7 @@ class Segmentation(SOPClass):
                         "Do not include the ReferencedSegmentNumber in the "
                         "argument 'dimension_index_pointers'."
                     )
-                if ptr not in self._db_man.dimension_index_pointers:
+                if ptr not in self.dimension_index_pointers:
                     kw = keyword_for_tag(ptr)
                     if kw == '':
                         kw = '<no keyword>'
@@ -4754,7 +4659,7 @@ class Segmentation(SOPClass):
 
         # Check that all frame numbers requested actually exist
         if not assert_missing_frames_are_empty:
-            unique_dim_ind_vals = self._db_man.get_unique_dim_index_values(
+            unique_dim_ind_vals = self._get_unique_dim_index_values(
                 dimension_index_pointers
             )
             queried_dim_inds = set(tuple(r) for r in dimension_index_values)
@@ -4769,7 +4674,7 @@ class Segmentation(SOPClass):
                 )
                 raise ValueError(msg)
 
-        with self._db_man.iterate_indices_by_dimension_index_values(
+        with self._iterate_indices_by_dimension_index_values(
             dimension_index_values=dimension_index_values,
             dimension_index_pointers=dimension_index_pointers,
             segment_numbers=segment_numbers,
@@ -4924,7 +4829,7 @@ class Segmentation(SOPClass):
         # Check whether this segmentation is appropriate for tile-based indexing
         if not is_tiled_image(self):
             raise RuntimeError("Segmentation is not a tiled image.")
-        if not self._db_man.is_indexable_as_total_pixel_matrix():
+        if not self.is_indexable_as_total_pixel_matrix():
             raise RuntimeError(
                 "Segmentation does not have appropriate dimension indices "
                 "to be indexed as a total pixel matrix."
@@ -4983,7 +4888,7 @@ class Segmentation(SOPClass):
             column_end - column_start,
         )
 
-        with self._db_man.iterate_indices_for_tiled_region(
+        with self._iterate_indices_for_tiled_region(
             row_start=row_start,
             row_end=row_end,
             column_start=column_start,

@@ -135,8 +135,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             algo_id_sequence = deepcopy(sequence)
         else:
             algo_id_sequence = sequence
-        algo_id_sequence.__class__ = AlgorithmIdentificationSequence
-        return cast(AlgorithmIdentificationSequence, algo_id_sequence)
+        algo_id_sequence.__class__ = cls
+        return cast(cls, algo_id_sequence)
 
     @property
     def name(self) -> str:
@@ -389,8 +389,8 @@ class PixelMeasuresSequence(DataElementSequence):
             pixel_measures = deepcopy(sequence)
         else:
             pixel_measures = sequence
-        pixel_measures.__class__ = PixelMeasuresSequence
-        return cast(PixelMeasuresSequence, pixel_measures)
+        pixel_measures.__class__ = cls
+        return cast(cls, pixel_measures)
 
     def __eq__(self, other: DataElementSequence) -> bool:
         """Determine whether two sets of pixel measures are the same.
@@ -599,8 +599,8 @@ class PlanePositionSequence(DataElementSequence):
             plane_position = deepcopy(sequence)
         else:
             plane_position = sequence
-        plane_position.__class__ = PlanePositionSequence
-        return cast(PlanePositionSequence, plane_position)
+        plane_position.__class__ = cls
+        return cast(cls, plane_position)
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -736,8 +736,8 @@ class PlaneOrientationSequence(DataElementSequence):
             plane_orientation = deepcopy(sequence)
         else:
             plane_orientation = sequence
-        plane_orientation.__class__ = PlaneOrientationSequence
-        return cast(PlaneOrientationSequence, plane_orientation)
+        plane_orientation.__class__ = cls
+        return cast(cls, plane_orientation)
 
 
 class IssuerOfIdentifier(Dataset):
@@ -835,7 +835,7 @@ class IssuerOfIdentifier(Dataset):
         issuer_of_identifier._issuer_of_identifier = issuer_id
         issuer_of_identifier._issuer_of_identifier_type = issuer_type
 
-        return cast(IssuerOfIdentifier, issuer_of_identifier)
+        return cast(cls, issuer_of_identifier)
 
 
 class SpecimenCollection(ContentSequence):

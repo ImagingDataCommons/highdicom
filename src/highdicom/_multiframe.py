@@ -1,6 +1,7 @@
 """Tools for working with multiframe DICOM images."""
 from collections import Counter
 from contextlib import contextmanager
+from copy import deepcopy
 import logging
 import sqlite3
 from typing import (
@@ -14,6 +15,7 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    cast,
 )
 import numpy as np
 from pydicom import Dataset
@@ -21,14 +23,13 @@ from pydicom.tag import BaseTag
 from pydicom.datadict import get_entry, tag_for_keyword
 from pydicom.multival import MultiValue
 
+from highdicom._module_utils import is_multiframe_image
+from highdicom.base import SOPClass, _check_little_endian
 from highdicom.enum import (
     CoordinateSystemNames,
 )
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
-    _create_affine_transformation_matrix,
-    _translate_affine_matrix,
-    VOLUME_INDEX_CONVENTION,
     get_image_coordinate_system,
     get_volume_positions,
 )
@@ -66,39 +67,87 @@ _NO_FRAME_REF_VALUE = -1
 logger = logging.getLogger(__name__)
 
 
-class MultiFrameDBManager:
+class MultiFrameImage(SOPClass):
 
     """Database manager for frame information in a multiframe image."""
 
-    def __init__(
-        self,
+    _coordinate_system: CoordinateSystemNames
+    _is_tiled_full: bool
+    _single_source_frame_per_frame: bool
+    _dim_ind_pointers: List[BaseTag]
+    _dim_ind_col_names: Dict[int, str]
+    _locations_preserved: Optional[SpatialLocationsPreservedValues]
+    _db_con: sqlite3.Connection
+    _volume_geometry: Optional[VolumeGeometry]
+
+    @classmethod
+    def from_dataset(
+        cls,
         dataset: Dataset,
-    ):
-        """
+        copy: bool = True,
+    ) -> 'MultiFrameImage':
+        """Create a MultiFrameImage from an existing pydicom Dataset.
 
         Parameters
         ----------
         dataset: pydicom.Dataset
             Dataset of a multi-frame image.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        """
+        if not isinstance(dataset, Dataset):
+            raise TypeError(
+                'Dataset must be of type pydicom.dataset.Dataset.'
+            )
+        _check_little_endian(dataset)
+
+        # Checks on integrity of input dataset
+        if not is_multiframe_image(dataset):
+            raise ValueError('Dataset is not a multiframe image.')
+        if copy:
+            im = deepcopy(dataset)
+        else:
+            im = dataset
+        im.__class__ = cls
+        im = cast(cls, im)
+
+        im._build_luts()
+        return im
+
+    def _build_luts(self) -> None:
+        """Build lookup tables for efficient querying.
+
+        Two lookup tables are currently constructed. The first maps the
+        SOPInstanceUIDs of all datasets referenced in the image to a
+        tuple containing the StudyInstanceUID, SeriesInstanceUID and
+        SOPInstanceUID.
+
+        The second look-up table contains information about each frame of the
+        segmentation, including the segment it contains, the instance and frame
+        from which it was derived (if these are unique), and its dimension
+        index values.
 
         """
         self._coordinate_system = get_image_coordinate_system(
-            dataset
+            self
         )
-        referenced_uids = self._get_ref_instance_uids(dataset)
+        referenced_uids = self._get_ref_instance_uids()
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
         self._is_tiled_full = (
-            hasattr(dataset, 'DimensionOrganizationType') and
-            dataset.DimensionOrganizationType == 'TILED_FULL'
+            hasattr(self, 'DimensionOrganizationType') and
+            self.DimensionOrganizationType == 'TILED_FULL'
         )
 
         self._dim_ind_pointers = [
             dim_ind.DimensionIndexPointer
-            for dim_ind in dataset.DimensionIndexSequence
+            for dim_ind in self.DimensionIndexSequence
         ]
         func_grp_pointers = {}
-        for dim_ind in dataset.DimensionIndexSequence:
+        for dim_ind in self.DimensionIndexSequence:
             ptr = dim_ind.DimensionIndexPointer
             if ptr in self._dim_ind_pointers:
                 grp_ptr = getattr(dim_ind, "FunctionalGroupPointer", None)
@@ -120,8 +169,8 @@ class MultiFrameDBManager:
                     image_position_tag
                 ] = plane_pos_seq_tag
 
-            if hasattr(dataset, 'SharedFunctionalGroupsSequence'):
-                sfgs = dataset.SharedFunctionalGroupsSequence[0]
+            if hasattr(self, 'SharedFunctionalGroupsSequence'):
+                sfgs = self.SharedFunctionalGroupsSequence[0]
                 if hasattr(sfgs, 'PixelMeasuresSequence'):
                     measures = sfgs.PixelMeasuresSequence[0]
                     slice_spacing_hint = measures.get('SpacingBetweenSlices')
@@ -129,8 +178,8 @@ class MultiFrameDBManager:
             if slice_spacing_hint is None or shared_pixel_spacing is None:
                 # Get the orientation of the first frame, and in the later loop
                 # check whether it is shared.
-                if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
-                    pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
+                if hasattr(self, 'PerFrameFunctionalGroupsSequence'):
+                    pfg1 = self.PerFrameFunctionalGroupsSequence[0]
                     if hasattr(pfg1, 'PixelMeasuresSequence'):
                         slice_spacing_hint = pfg1.PixelMeasuresSequence[0].get(
                             'SpacingBetweenSlices'
@@ -139,7 +188,7 @@ class MultiFrameDBManager:
 
         dim_ind_positions = {
             dim_ind.DimensionIndexPointer: i
-            for i, dim_ind in enumerate(dataset.DimensionIndexSequence)
+            for i, dim_ind in enumerate(self.DimensionIndexSequence)
         }
         dim_indices: Dict[int, List[int]] = {
             ptr: [] for ptr in self._dim_ind_pointers
@@ -154,10 +203,10 @@ class MultiFrameDBManager:
 
         # Get the shared orientation
         shared_image_orientation: Optional[List[float]] = None
-        if hasattr(dataset, 'ImageOrientationSlide'):
-            shared_image_orientation = dataset.ImageOrientationSlide
-        if hasattr(dataset, 'SharedFunctionalGroupsSequence'):
-            sfgs = dataset.SharedFunctionalGroupsSequence[0]
+        if hasattr(self, 'ImageOrientationSlide'):
+            shared_image_orientation = self.ImageOrientationSlide
+        if hasattr(self, 'SharedFunctionalGroupsSequence'):
+            sfgs = self.SharedFunctionalGroupsSequence[0]
             if hasattr(sfgs, 'PlaneOrientationSequence'):
                 shared_image_orientation = (
                     sfgs.PlaneOrientationSequence[0].ImageOrientationPatient
@@ -165,8 +214,8 @@ class MultiFrameDBManager:
         if shared_image_orientation is None:
             # Get the orientation of the first frame, and in the later loop
             # check whether it is shared.
-            if hasattr(dataset, 'PerFrameFunctionalGroupsSequence'):
-                pfg1 = dataset.PerFrameFunctionalGroupsSequence[0]
+            if hasattr(self, 'PerFrameFunctionalGroupsSequence'):
+                pfg1 = self.PerFrameFunctionalGroupsSequence[0]
                 if hasattr(pfg1, 'PlaneOrientationSequence'):
                     shared_image_orientation = (
                         pfg1
@@ -202,12 +251,12 @@ class MultiFrameDBManager:
                 dim_values[x_tag],
                 dim_values[y_tag],
                 dim_values[z_tag],
-            ) = zip(*iter_tiled_full_frame_data(dataset))
+            ) = zip(*iter_tiled_full_frame_data(self))
 
-            if hasattr(dataset, 'SegmentSequence'):
+            if hasattr(self, 'SegmentSequence'):
                 segment_tag = tag_for_keyword('ReferencedSegmentNumber')
                 dim_values[segment_tag] = channel_numbers
-            elif hasattr(dataset, 'OpticalPathSequence'):
+            elif hasattr(self, 'OpticalPathSequence'):
                 op_tag = tag_for_keyword('OpticalPathIdentifier')
                 dim_values[op_tag] = channel_numbers
 
@@ -233,7 +282,7 @@ class MultiFrameDBManager:
             ]
             locations_preserved: locations_list_type = []
 
-            for frame_item in dataset.PerFrameFunctionalGroupsSequence:
+            for frame_item in self.PerFrameFunctionalGroupsSequence:
                 # Get dimension indices for this frame
                 content_seq = frame_item.FrameContentSequence[0]
                 indices = content_seq.DimensionIndexValues
@@ -319,7 +368,7 @@ class MultiFrameDBManager:
                             'the source image sequence is not included in the '
                             'Referenced Series Sequence or Studies Containing '
                             'Other Referenced Instances Sequence. This is an '
-                            'error with the integrity of the Segmentation '
+                            'error with the integrity of the '
                             'object.'
                         )
                     referenced_instances.append(ref_instance_uid)
@@ -343,9 +392,7 @@ class MultiFrameDBManager:
                 for v in locations_preserved
             ):
 
-                self._locations_preserved: Optional[
-                    SpatialLocationsPreservedValues
-                ] = SpatialLocationsPreservedValues.NO
+                self._locations_preserved = SpatialLocationsPreservedValues.NO
             elif all(
                 isinstance(v, SpatialLocationsPreservedValues) and
                 v == SpatialLocationsPreservedValues.YES
@@ -359,21 +406,19 @@ class MultiFrameDBManager:
                 referenced_instances = None
                 referenced_frames = None
 
-        self._db_con: sqlite3.Connection = sqlite3.connect(":memory:")
+        self._db_con = sqlite3.connect(":memory:")
 
         self._create_ref_instance_table(referenced_uids)
 
-        self._number_of_frames = dataset.NumberOfFrames
-
         # Construct the columns and values to put into a frame look-up table
         # table within sqlite. There will be one row per frame in the
-        # segmentation instance
+        # image
         col_defs = []  # SQL column definitions
         col_data = []  # lists of column data
 
         # Frame number column
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        col_data.append(list(range(1, self._number_of_frames + 1)))
+        col_data.append(list(range(1, self.NumberOfFrames + 1)))
 
         self._dim_ind_col_names = {}
         for i, t in enumerate(dim_indices.keys()):
@@ -435,7 +480,7 @@ class MultiFrameDBManager:
                 col_data.append(dim_values[t])
 
         # Volume related information
-        self.volume_geometry: Optional[VolumeGeometry] = None
+        self._volume_geometry = None
         if (
             self._coordinate_system == CoordinateSystemNames.PATIENT
             and shared_image_orientation is not None
@@ -457,11 +502,11 @@ class MultiFrameDBManager:
                 if volume_positions is not None:
                     origin_slice_index = volume_positions.index(0)
                     number_of_slices = max(volume_positions) + 1
-                    self.volume_geometry = VolumeGeometry.from_attributes(
+                    self._volume_geometry = VolumeGeometry.from_attributes(
                         image_position=image_positions[origin_slice_index],
                         image_orientation=shared_image_orientation,
-                        rows=dataset.Rows,
-                        columns=dataset.Columns,
+                        rows=self.Rows,
+                        columns=self.Columns,
                         pixel_spacing=shared_pixel_spacing,
                         number_of_frames=number_of_slices,
                         spacing_between_slices=volume_spacing,
@@ -498,15 +543,8 @@ class MultiFrameDBManager:
                 zip(*col_data),
             )
 
-    def _get_ref_instance_uids(
-        self,
-        dataset: Dataset,
-    ) -> List[Tuple[str, str, str]]:
+    def _get_ref_instance_uids(self) -> List[Tuple[str, str, str]]:
         """List all instances referenced in the image.
-
-        Parameters
-        ----------
-        dataset
 
         Returns
         -------
@@ -516,19 +554,19 @@ class MultiFrameDBManager:
 
         """
         instance_data = []
-        if hasattr(dataset, 'ReferencedSeriesSequence'):
-            for ref_series in dataset.ReferencedSeriesSequence:
+        if hasattr(self, 'ReferencedSeriesSequence'):
+            for ref_series in self.ReferencedSeriesSequence:
                 for ref_ins in ref_series.ReferencedInstanceSequence:
                     instance_data.append(
                         (
-                            dataset.StudyInstanceUID,
+                            self.StudyInstanceUID,
                             ref_series.SeriesInstanceUID,
                             ref_ins.ReferencedSOPInstanceUID
                         )
                     )
         other_studies_kw = 'StudiesContainingOtherReferencedInstancesSequence'
-        if hasattr(dataset, other_studies_kw):
-            for ref_study in getattr(dataset, other_studies_kw):
+        if hasattr(self, other_studies_kw):
+            for ref_study in getattr(self, other_studies_kw):
                 for ref_series in ref_study.ReferencedSeriesSequence:
                     for ref_ins in ref_series.ReferencedInstanceSequence:
                         instance_data.append(
@@ -552,7 +590,7 @@ class MultiFrameDBManager:
             display_str = ', '.join(duplicate_sop_uids)
             logger.warning(
                 'Duplicate entries found in the ReferencedSeriesSequence. '
-                f"SOP Instance UID: '{dataset.SOPInstanceUID}', "
+                f"SOP Instance UID: '{self.SOPInstanceUID}', "
                 f'duplicated referenced SOP Instance UID items: {display_str}.'
             )
 
@@ -570,7 +608,7 @@ class MultiFrameDBManager:
             * Spatial locations are not preserved.
             * The dataset does not specify that spatial locations are preserved
               and the user has not asserted that they are.
-            * At least one frame in the segmentation lists multiple
+            * At least one frame in the image lists multiple
               source frames.
 
         Parameters
@@ -584,8 +622,8 @@ class MultiFrameDBManager:
         # dataset
         if self._is_tiled_full:
             raise RuntimeError(
-                'Indexing via source frames is not possible when a '
-                'segmentation is stored using the DimensionOrganizationType '
+                'Indexing via source frames is not possible when an '
+                'image is stored using the DimensionOrganizationType '
                 '"TILED_FULL".'
             )
         elif self._locations_preserved is None:
@@ -593,7 +631,7 @@ class MultiFrameDBManager:
                 raise RuntimeError(
                     'Indexing via source frames is not permissible since this '
                     'image does not specify that spatial locations are '
-                    'preserved in the course of deriving the segmentation '
+                    'preserved in the course of deriving the image '
                     'from the source image. If you are confident that spatial '
                     'locations are preserved, or do not require that spatial '
                     'locations are preserved, you may override this behavior '
@@ -604,7 +642,7 @@ class MultiFrameDBManager:
                 raise RuntimeError(
                     'Indexing via source frames is not permissible since this '
                     'image specifies that spatial locations are not preserved '
-                    'in the course of deriving the segmentation from the '
+                    'in the course of deriving the image from the '
                     'source image. If you do not require that spatial '
                     ' locations are preserved you may override this behavior '
                     "with the 'ignore_spatial_locations' parameter."
@@ -612,7 +650,7 @@ class MultiFrameDBManager:
         if not self._single_source_frame_per_frame:
             raise RuntimeError(
                 'Indexing via source frames is not permissible since some '
-                'frames in the segmentation specify multiple source frames.'
+                'frames in the image specify multiple source frames.'
             )
 
     @property
@@ -629,13 +667,12 @@ class MultiFrameDBManager:
         """Create a table of referenced instances.
 
         The resulting table (called InstanceUIDs) contains Study, Series and
-        SOP instance UIDs for each instance referenced by the segmentation
-        image.
+        SOP instance UIDs for each instance referenced by the image.
 
         Parameters
         ----------
         referenced_uids: List[Tuple[str, str, str]]
-            List of UIDs for each instance referenced in the segmentation.
+            List of UIDs for each instance referenced in the image.
             Each tuple should be in the format
             (StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID).
 
@@ -665,7 +702,7 @@ class MultiFrameDBManager:
 
         For a given list of dimension index pointers, check whether every
         combination of index values for these pointers identifies a unique
-        frame image. This is a pre-requisite for indexing using this list of
+        image frame. This is a pre-requisite for indexing using this list of
         dimension index pointers.
 
         Parameters
@@ -687,7 +724,7 @@ class MultiFrameDBManager:
         n_unique_combos = cur.execute(
             f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
         ).fetchone()[0]
-        return n_unique_combos == self._number_of_frames
+        return n_unique_combos == self.NumberOfFrames
 
     def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
         """Get UIDs of source image instances referenced in the image.
@@ -696,7 +733,7 @@ class MultiFrameDBManager:
         -------
         List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID]]
             (Study Instance UID, Series Instance UID, SOP Instance UID) triplet
-            for every image instance referenced in the segmentation.
+            for every image instance referenced in the image.
 
         """
         cur = self._db_con.cursor()
@@ -709,7 +746,7 @@ class MultiFrameDBManager:
             (hd_UID(a), hd_UID(b), hd_UID(c)) for a, b, c in res.fetchall()
         ]
 
-    def get_unique_referenced_sop_instance_uids(self) -> Set[str]:
+    def _get_unique_referenced_sop_instance_uids(self) -> Set[str]:
         """Get set of unique Referenced SOP Instance UIDs.
 
         Returns
@@ -726,7 +763,7 @@ class MultiFrameDBManager:
             )
         }
 
-    def get_max_referenced_frame_number(self) -> int:
+    def _get_max_referenced_frame_number(self) -> int:
         """Get highest frame number of any referenced frame.
 
         Absent access to the referenced dataset itself, being less than this
@@ -736,7 +773,7 @@ class MultiFrameDBManager:
         Returns
         -------
         int
-            Highest frame number referenced in the segmentation image.
+            Highest frame number referenced in the image.
 
         """
         cur = self._db_con.cursor()
@@ -750,7 +787,7 @@ class MultiFrameDBManager:
         Returns
         -------
         bool:
-            True if the segmentation may be indexed using row and column
+            True if the image may be indexed using row and column
             positions in the total pixel matrix. False otherwise.
 
         """
@@ -761,7 +798,7 @@ class MultiFrameDBManager:
             col_pos_kw in self._dim_ind_col_names
         )
 
-    def get_unique_dim_index_values(
+    def _get_unique_dim_index_values(
         self,
         dimension_index_pointers: Sequence[int],
     ) -> Set[Tuple[int, ...]]:
@@ -790,62 +827,14 @@ class MultiFrameDBManager:
             )
         }
 
-    def get_image_position_at_volume_position(
-        self,
-        volume_position: int,
-    ) -> List[float]:
-        """Get the image position at a location in the implied volume.
-
-        This requires that the image represents a regularly-spaced 3D volume.
-
-        Parameters
-        ----------
-        volume_position: int
-            Zero-based index into the slice positions within the implied
-            volume. Must be an integer between >= 0 and <
-            ``volume_geometry.spatial_shape[0]``.
-
-        Returns
-        -------
-        List[float]:
-            Image position (x, y, z) in the frame of reference coordinate
-            system of the center of the top-left pixel. This definition matches
-            the standard DICOM definition used in the ImagePositionPatient
-            attribute.
+    @property
+    def volume_geometry(self) -> Optional[VolumeGeometry]:
+        """Union[highdicom.VolumeGeometry, None]: Geometry of the volume if the
+        image represents a regularly-spaced 3D volume. ``None``
+        otherwise.
 
         """
-
-        if self.volume_geometry is None:
-            raise RuntimeError(
-                "This image does not represent a regularly-spaced 3D volume."
-            )
-
-        if volume_position < 0:
-            raise ValueError(
-                "Argument 'volume_position' should be non-negative."
-            )
-        else:
-            n_slices = self.volume_geometry.spatial_shape[0]
-            if volume_position >= n_slices:
-                raise ValueError(
-                    f"Value of {volume_position} for argument 'volume_position' "
-                    f"is not valid for image with {n_slices} volume positions."
-                )
-
-        cur = self._db_con.cursor()
-
-        query = (
-            'SELECT '
-            'ImagePositionPatient_0, '
-            'ImagePositionPatient_1, '
-            'ImagePositionPatient_2 '
-            'FROM FrameLUT '
-            f'WHERE VolumePosition={volume_position} '
-            'LIMIT 1;'
-        )
-
-        image_position = list(list(cur.execute(query))[0])
-        return image_position
+        return self._volume_geometry
 
     @contextmanager
     def _generate_temp_table(

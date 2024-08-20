@@ -174,8 +174,8 @@ class KeyObjectSelection(ContentSequence):
                 'because it does not have Template Identifier "2010".'
             )
         instance = ContentSequence.from_sequence(sequence, is_root=True)
-        instance.__class__ = KeyObjectSelection
-        return cast(KeyObjectSelection, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
     def get_observer_contexts(
         self,

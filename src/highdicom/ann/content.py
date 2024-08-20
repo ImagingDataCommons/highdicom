@@ -165,7 +165,7 @@ class Measurements(Dataset):
             )
         ]
 
-        return cast(Measurements, measurements)
+        return cast(cls, measurements)
 
 
 class AnnotationGroup(Dataset):
@@ -838,4 +838,4 @@ class AnnotationGroup(Dataset):
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
-        return cast(AnnotationGroup, group)
+        return cast(cls, group)
