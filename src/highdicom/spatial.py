@@ -3052,9 +3052,9 @@ def get_series_volume_positions(
         Allow for slices missing from the volume. If True, the smallest
         distance between two consective slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of
-        this value (within tolerance). Alternatively, if ``spacing_hint`` is
-        used, that value will be used instead of the minimum consecutive
-        spacing. If False, any gaps will result in failure.
+        this value (within tolerance). Alternatively, if a SpacingBetweenSlices
+        value is found in the datasets, that value will be used instead of the
+        minimum consecutive spacing. If False, any gaps will result in failure.
     allow_duplicates: bool, optional
         Allow multiple slices to map to the same position within the volume.
         If False, duplicated image positions will result in failure.
@@ -3254,10 +3254,13 @@ def get_volume_positions(
                 "Argument 'allow_missing' requires 'sort'."
             )
 
-    if spacing_hint is not None and spacing_hint <= 0.0:
-        raise ValueError(
-            "Argument 'spacing_hint' should be a positive value."
-        )
+    if spacing_hint is not None:
+        if spacing_hint < 0.0:
+            # There are some edge cases of the standard where this is valid
+            spacing_hint = abs(spacing_hint)
+        if spacing_hint == 0.0:
+            raise ValueError("Argument 'spacing_hint' cannot be 0.")
+
     image_positions_arr = np.array(image_positions)
 
     if image_positions_arr.ndim != 2 or image_positions_arr.shape[1] != 3:

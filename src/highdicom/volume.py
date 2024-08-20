@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from os import PathLike
 from pathlib import Path
 from typing import List, Optional, Sequence, Union, Tuple, cast
@@ -46,15 +45,19 @@ from pydicom.pixel_data_handlers.util import (
 )
 
 
-# TODO add basic arithmetric operations
 # TODO add pixel value transformations
 # TODO should methods copy arrays?
-# TODO random crop, random flip, random permute
 # TODO trim non-zero
 # TODO support slide coordinate system
 # TODO volread and metadata
 # TODO constructors for geometry, do they make sense for volume?
 # TODO ordering of frames in seg, setting 3D dimension organization
+# TODO get_volume to multiframe image
+# TODO lazy loading for multiframe
+# TODO pickalble sqlite
+# TODO get volume from legacy series
+# TODO make multiframe public
+# TODO figure out type hinting for _VolumeBase
 
 
 class _VolumeBase(ABC):
@@ -770,6 +773,49 @@ class _VolumeBase(ABC):
         """
         pass
 
+    def random_permute_axes(
+        self,
+        axes: Sequence[int] = (0, 1, 2)
+    ) -> '_VolumeBase':
+        """Create a new geometry by randomly permuting the spatial axes.
+
+        Parameters
+        ----------
+        axes: Optional[Sequence[int]]
+            Sequence of three integers containing the values 0, 1 and 2 in some
+            order. The sequence must contain 2 or 3 elements. This subset of
+            axes will axes will be included when generating indices for
+            permutation. Any axis not in this sequence will remain in its
+            original position.
+
+        Returns
+        -------
+        highdicom.volume._VolumeBase:
+            New geometry with spatial axes permuted randomly.
+
+        """
+        if len(axes) < 2 or len(axes) > 3:
+            raise ValueError(
+                "Argument 'axes' must contain 2 or 3 items."
+            )
+
+        if len(set(axes)) != len(axes):
+            raise ValueError(
+                "Argument 'axes' should contain unique values."
+            )
+
+        if set(axes) <= {0, 1, 2}:
+            raise ValueError(
+                "Argument 'axes' should contain only 0, 1, and 2."
+            )
+
+        indices = np.random.permutation(axes).tolist()
+        if len(indices) == 2:
+            missing_index = {0, 1, 2} - set(indices)
+            indices.insert(missing_index, missing_index)
+
+        return self.permute_axes(indices)
+
     def get_closest_patient_orientation(self) -> Tuple[
         PatientOrientationValuesBiped,
         PatientOrientationValuesBiped,
@@ -870,7 +916,7 @@ class _VolumeBase(ABC):
 
         return self.permute_axes(permutation)
 
-    def flip(self, axis: Union[int, Sequence[int]]) -> '_VolumeBase':
+    def flip(self, axes: Union[int, Sequence[int]]) -> '_VolumeBase':
         """Flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -878,7 +924,7 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        axis: Union[int, Sequence[int]]
+        axes: Union[int, Sequence[int]]
             Axis or list of axis indices that should be flipped. These should
             include only the spatial axes (0, 1, and/or 2).
 
@@ -888,10 +934,10 @@ class _VolumeBase(ABC):
             New volume with spatial axes flipped as requested.
 
         """
-        if isinstance(axis, int):
-            axis = [axis]
+        if isinstance(axes, int):
+            axes = [axes]
 
-        if len(axis) > 3 or len(set(axis) - {0, 1, 2}) > 0:
+        if len(axes) > 3 or len(set(axes) - {0, 1, 2}) > 0:
             raise ValueError(
                 'Argument "axis" must contain only values 0, 1, and/or 2.'
             )
@@ -900,12 +946,58 @@ class _VolumeBase(ABC):
         # this logic figured out already
         index = []
         for d in range(3):
-            if d in axis:
+            if d in axes:
                 index.append(slice(-1, None, -1))
             else:
                 index.append(slice(None))
 
         return self[tuple(index)]
+
+    def random_flip(self, axes: Sequence[int] = (0, 1, 2)) -> '_VolumeBase':
+        """Randomly flip the spatial axes of the array.
+
+        Note that this flips the array and updates the affine to reflect the
+        flip.
+
+        Parameters
+        ----------
+        axes: Union[int, Sequence[int]]
+            Axis or list of axis indices that may be flipped. These should
+            include only the spatial axes (0, 1, and/or 2). Each axis in this
+            list is flipped in the output volume with probability 0.5.
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            New volume with selected spatial axes randomly flipped.
+
+        """
+        if len(axes) < 2 or len(axes) > 3:
+            raise ValueError(
+                "Argument 'axes' must contain 2 or 3 items."
+            )
+
+        if len(set(axes)) != len(axes):
+            raise ValueError(
+                "Argument 'axes' should contain unique values."
+            )
+
+        if set(axes) <= {0, 1, 2}:
+            raise ValueError(
+                "Argument 'axes' should contain only 0, 1, and 2."
+            )
+
+        slices = []
+        for d in range(3):
+            if d in axes:
+                if np.random.randint(2) == 1:
+                    slices.append(slice(None, None, -1))
+                else:
+                    slices.append(slice(None))
+            else:
+                slices.append(slice(None))
+
+        return self[tuple(slices)]
 
     @property
     def handedness(self) -> AxisHandedness:
@@ -1387,6 +1479,14 @@ class _VolumeBase(ABC):
 
 
 class VolumeGeometry(_VolumeBase):
+
+    """Class encapsulating the geometry of a volume.
+
+    Unlike the similar :class:`highdicom.volume.Volume`, items of this class do
+    not contain voxel data for the underlying volume, just a description of the
+    geometry.
+
+    """
 
     def __init__(
         self,

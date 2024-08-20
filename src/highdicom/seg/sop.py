@@ -4425,7 +4425,7 @@ class Segmentation(MultiFrameImage):
                 dtype=dtype,
             )
 
-        affine = self._volume_geometry[slice_start].affine
+        affine = self.volume_geometry[slice_start].affine
 
         return Volume(
             array=array,
