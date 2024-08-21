@@ -117,6 +117,63 @@ class MultiFrameImage(SOPClass):
         im._build_luts()
         return im
 
+    def __getstate__(self) -> Dict[str, Any]:
+        """Get the state for pickling.
+
+        This is required to work around the fact that a sqlite3
+        Connection object cannot be pickled.
+
+        Returns
+        -------
+        Dict[str, Any]:
+            State of the object.
+
+        """
+        state = super().__getstate__().copy()
+
+        db_data = self._serialize_db()
+
+        del state['_db_con']
+        state['db_data'] = db_data
+
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        """Set the state of the object.
+
+        This is required to work around the fact that a sqlite3
+        Connection object cannot be pickled.
+
+        Parameters
+        ----------
+        state: Dict[str, Any]
+            State of the object.
+
+        """
+        self._db_con = sqlite3.connect(':memory:')
+        with self._db_con:
+            self._db_con.executescript(state['db_data'].decode('utf-8'))
+
+        del state['db_data']
+
+        super().__setstate__(state)
+
+    def _serialize_db(self) -> bytes:
+        """Get a serialized copy of the internal database.
+
+        Returns
+        -------
+        bytes:
+            Serialized copy of the internal database.
+
+        """
+        return b''.join(
+            [
+                line.encode('utf-8')
+                for line in self._db_con.iterdump()
+            ]
+        )
+
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
 

@@ -54,7 +54,6 @@ from pydicom.pixel_data_handlers.util import (
 # TODO ordering of frames in seg, setting 3D dimension organization
 # TODO get_volume to multiframe image
 # TODO lazy loading for multiframe
-# TODO pickalble sqlite
 # TODO get volume from legacy series
 # TODO make multiframe public
 # TODO figure out type hinting for _VolumeBase
