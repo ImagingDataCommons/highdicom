@@ -6,8 +6,8 @@ import numpy as np
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
-from pydicom.pixel_data_handlers.numpy_handler import pack_bits
-from pydicom.pixel_data_handlers.rle_handler import rle_encode_frame
+from pydicom.pixels.utils import pack_bits
+from pydicom.pixels.encoders.base import RLELosslessEncoder
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -317,7 +317,14 @@ def encode_frame(
                 image.save(buf, format=image_format, **kwargs)
                 data = buf.getvalue()
         elif transfer_syntax_uid == RLELossless:
-            data = rle_encode_frame(array)
+            data = RLELosslessEncoder.encode(
+                array,
+                bits_allocated=bits_allocated,
+                bits_stored=bits_stored,
+                photometric_interpretation=photometric_interpretation,
+                pixel_representation=pixel_representation,
+                planar_configuration=planar_configuration,
+            )
         else:
             raise ValueError(
                 f'Transfer Syntax "{transfer_syntax_uid}" is not supported.'

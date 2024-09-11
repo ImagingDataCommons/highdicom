@@ -154,7 +154,6 @@ class SOPClass(Dataset):
             '1.2.826.0.1.3680043.9.7433.1.1'
         )
         self.file_meta.ImplementationVersionName = f'highdicom{__version__}'
-        self.fix_meta_info(enforce_standard=True)
         with BytesIO() as fp:
             write_file_meta_info(fp, self.file_meta, enforce_standard=True)
             self.file_meta.FileMetaInformationGroupLength = len(fp.getvalue())

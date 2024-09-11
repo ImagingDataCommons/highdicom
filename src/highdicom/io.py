@@ -16,7 +16,7 @@ from pydicom.filereader import (
     read_file_meta_info,
     read_partial
 )
-from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
+from pydicom.pixels.utils import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
 from pydicom.uid import UID
 

@@ -29,7 +29,7 @@ from pydicom.dataset import Dataset
 from pydicom.datadict import get_entry, keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
 from pydicom.multival import MultiValue
-from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixels.utils import pack_bits
 from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
     ExplicitVRLittleEndian,

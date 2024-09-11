@@ -11,7 +11,7 @@ from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DS, format_number_as_ds
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
     CoordinateSystemNames,
