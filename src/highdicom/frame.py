@@ -319,6 +319,10 @@ def encode_frame(
         elif transfer_syntax_uid == RLELossless:
             data = RLELosslessEncoder.encode(
                 array,
+                rows=array.shape[0],
+                columns=array.shape[1],
+                samples_per_pixel=samples_per_pixel,
+                number_of_frames=1,
                 bits_allocated=bits_allocated,
                 bits_stored=bits_stored,
                 photometric_interpretation=photometric_interpretation,

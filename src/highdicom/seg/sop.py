@@ -95,7 +95,9 @@ logger = logging.getLogger(__name__)
 _NO_FRAME_REF_VALUE = -1
 
 # These codes are needed many times in loops so we precompute them
-_DERIVATION_CODE = CodedConcept.from_code(codes.cid7203.Segmentation)
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.cid7203.SegmentationImageDerivation
+)
 _PURPOSE_CODE = CodedConcept.from_code(
     codes.cid7202.SourceImageForImageProcessingOperation
 )
