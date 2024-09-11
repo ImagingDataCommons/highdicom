@@ -7,7 +7,7 @@ name = "highdicom"
 dynamic = ["version"]
 description = "High-level DICOM abstractions."
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 authors = [
     { name = "Markus D. Herrmann" },
 ]
@@ -24,10 +24,6 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -38,7 +34,7 @@ dependencies = [
     "numpy>=1.19",
     "pillow-jpls>=1.0",
     "pillow>=8.3",
-    "pydicom>=2.3.0,!=2.4.0",
+    "pydicom>=3.0.0",
 ]
 
 [project.optional-dependencies]
