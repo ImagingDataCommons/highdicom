@@ -633,6 +633,78 @@ class ImageFileReader:
 
         return frame_array
 
+    def read_frame_transformed(
+        self,
+        index: int,
+        correct_color: bool = True,
+        apply_modality_transform: bool = True,
+        apply_voi_transform: bool = False,
+        voi_transform_index: int = 0,
+        apply_palette_color_lut: bool = True,
+        apply_icc_transform: bool = True,
+    ) -> np.ndarray:
+        """Return a frame with pixel transformations applied.
+
+        Parameters
+        ----------
+        apply_modality_transform: bool, optional
+            Whether to apply the modality transform (either a rescale intercept
+            and slope or modality LUT) to the pixel values, if present in the
+            datasets.
+        apply_voi_transform: bool, optional
+            Whether to apply the value of interest (VOI) transform (either a
+            windowing operation or VOI LUT) to the pixel values, if present in
+            the datasets.
+        voi_transform_index: int, optional
+            Index of the VOI transform to apply if multiple are included in the
+            datasets. Ignored if ``apply_voi_transform`` is ``False`` or no VOI
+            transform is included in the datasets.
+        apply_palette_color_lut: bool, optional
+            Whether to apply the palette color LUT if a dataset has photometric
+            interpretation ``'PALETTE_COLOR'``.
+        apply_icc_transform: bool, optional
+            Whether to apply an ICC color profile, if present in the datasets.
+        convert_color_space: bool, optional
+            Whether to convert the color space to a standardized space. If
+            True, images with photometric interpretation ``MONOCHROME1`` are
+            inverted to mimic ``MONOCHROME2``, and images with photometric
+            interpretation ``YBR_FULL`` or ``YBR_FULL_422`` are converted to
+            ``RGB``.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Numpy array of frame with requested transformations applied.
+
+        """
+        frame = self.read_frame(index, correct_color=False)
+
+        # TODO fix this from here
+        if apply_modality_transform:
+            frame = apply_modality_lut(frame, ds)
+        if apply_voi_transform:
+            frame = apply_voi_lut(frame, ds, voi_transform_index)
+        if (
+            apply_palette_color_lut and 
+            ds.PhotometricInterpretation == 'PALETTE_COLOR'
+        ):
+            frame = apply_color_lut(frame, ds)
+        if apply_icc_transform and 'ICCProfile' in ds:
+            manager = ColorManager(ds.ICCProfile)
+            frame = manager.transform_frame(frame)
+        if standardize_color_space:
+            if ds.PhotometricInterpretation == 'MONOCHROME1':
+                # TODO what if a VOI_LUT has been applied
+                frame = max_value - frame
+            elif ds.PhotometricInterpretation in (
+                'YBR_FULL', 'YBR_FULL_422'
+            ):
+                frame = convert_color_space(
+                    frame,
+                    current=ds.PhotometricInterpretation,
+                    desired='RGB'
+                )
+
     @property
     def number_of_frames(self) -> int:
         """int: Number of frames"""
