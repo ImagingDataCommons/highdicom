@@ -448,16 +448,4 @@ def decode_frame(
 
     array = ds.pixel_array
 
-    # In case of the JPEG baseline transfer syntax, the pixel_array property
-    # does not convert the pixel data into the correct (or let's say expected)
-    # color space after decompression.
-    if (
-        'YBR' in ds.PhotometricInterpretation and
-        ds.SamplesPerPixel == 3 and
-        transfer_syntax_uid == JPEGBaseline8Bit
-    ):
-        image = Image.fromarray(array, mode='YCbCr')
-        image = image.convert(mode='RGB')
-        array = np.asarray(image)
-
     return array
