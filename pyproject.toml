@@ -49,8 +49,8 @@ libjpeg = [
 ]
 test = [
     "mypy==0.971",
-    "pytest==7.1.2",
-    "pytest-cov==3.0.0",
+    "pytest==7.4.4",
+    "pytest-cov==4.1.0",
     "pytest-flake8==1.1.1",
     "numpy-stubs @ git+https://github.com/numpy/numpy-stubs@201115370a0c011d879d69068b60509accc7f750",
 ]
@@ -68,12 +68,15 @@ documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
 [tool.pytest.ini_options]
-addopts = "--doctest-modules"
+minversion = "7"
+addopts = ["--doctest-modules", "-ra", "--strict-config", "--strict-markers"]
 testpaths = ["tests"]
 log_cli_level = "INFO"
+xfail_strict = true
 
 [tool.mypy]
 warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 
 [[tool.mypy.overrides]]
 module = "mypy-pydicom.*"
