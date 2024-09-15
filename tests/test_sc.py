@@ -9,8 +9,10 @@ from pydicom.filereader import dcmread
 from pydicom.uid import (
     RLELossless,
     JPEGBaseline8Bit,
+    JPEG2000,
     JPEG2000Lossless,
     JPEGLSLossless,
+    JPEGLSNearLossless,
 )
 from pydicom.valuerep import DA, TM
 
@@ -373,7 +375,7 @@ class TestSCImage(unittest.TestCase):
         reread_frame = self.get_array_after_writing(instance)
         np.testing.assert_allclose(frame, reread_frame, rtol=1.2)
 
-    def test_monochrome_jpeg2000(self):
+    def test_monochrome_jpeg2000lossless(self):
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -400,9 +402,37 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
+    def test_monochrome_jpeg2000(self):
+        bits_allocated = 8
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
     def test_rgb_jpeg2000(self):
         bits_allocated = 8
-        photometric_interpretation = 'YBR_FULL'
+        photometric_interpretation = 'YBR_RCT'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(
@@ -455,10 +485,39 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
+    def test_monochrome_jpegls(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 16
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSNearLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSNearLossless
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
     def test_rgb_jpegls(self):
         pytest.importorskip("libjpeg")
         bits_allocated = 8
-        photometric_interpretation = 'YBR_FULL'
+        photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(

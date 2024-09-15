@@ -3,17 +3,20 @@ from io import BytesIO
 from typing import Optional, Union
 
 import numpy as np
+from openjpeg.utils import encode_array
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
 from pydicom.pixels.utils import pack_bits
-from pydicom.pixels.encoders.base import RLELosslessEncoder
+from pydicom.pixels.encoders.base import get_encoder
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
+    JPEG2000,
     JPEGBaseline8Bit,
     JPEGLSLossless,
+    JPEGLSNearLossless,
     UID,
     RLELossless,
 )
@@ -51,7 +54,15 @@ def encode_frame(
     bits_stored: int
         Number of bits that are required to store a pixel sample
     photometric_interpretation: Union[PhotometricInterpretationValues, str]
-        Photometric interpretation
+        Photometric interpretation that will be used to store data.  Usually,
+        this will match the photometric interpretation of the input pixel
+        array, however for ``"JPEGBaseline8Bit"``, ``"JPEG2000"``, and
+        ``"JPEG2000Lossless"`` transfer syntaxes with color images, the pixel
+        data must be passed in in RGB format and will be converted and stored
+        as ``"YBR_FULL_422"`` (``"JPEGBaseline8Bit"``), ``"YBR_ICT"``
+        (``"JPEG2000"``), or `"YBR_RCT"`` (``"JPEG2000Lossless"``). In these
+        cases the values of photometric metric passed must match those given
+        above.
     pixel_representation: Union[highdicom.PixelRepresentationValues, int, None], optional
         Whether pixel samples are represented as unsigned integers or
         2's complements
@@ -111,8 +122,10 @@ def encode_frame(
     }
     compressed_transfer_syntaxes = {
         JPEGBaseline8Bit,
+        JPEG2000,
         JPEG2000Lossless,
         JPEGLSLossless,
+        JPEGLSNearLossless,
         RLELossless,
     }
     supported_transfer_syntaxes = uncompressed_transfer_syntaxes.union(
@@ -132,6 +145,16 @@ def encode_frame(
                     'Planar configuration must be 0 for color image frames '
                     'with native encoding.'
                 )
+        allowable_pis = {
+            1: ['MONOCHROME1', 'MONOCHROME2', 'PALETTE_COLOR'],
+            3: ['RGB', 'YBR_FULL'],
+        }[samples_per_pixel]
+        if photometric_interpretation not in allowable_pis:
+            raise ValueError(
+                'Photometric_interpretation of '
+                f"'{photometric_interpretation}' "
+                f'not supported for samples_per_pixel={samples_per_pixel}.'
+            )
         if bits_allocated == 1:
             if (rows * cols * samples_per_pixel) % 8 != 0:
                 raise ValueError(
@@ -142,37 +165,66 @@ def encode_frame(
         else:
             return array.flatten().tobytes()
 
-    else:
-        compression_lut = {
-            JPEGBaseline8Bit: (
-                'jpeg',
-                {
-                    'quality': 95
-                },
-            ),
-            JPEG2000Lossless: (
-                'jpeg2000',
-                {
-                    'tile_size': None,
-                    'num_resolutions': 1,
-                    'irreversible': False,
-                    'no_jp2': True,
-                },
-            ),
-            JPEGLSLossless: (
-                'JPEG-LS',
-                {
-                    'near_lossless': 0,
-                }
+    elif transfer_syntax_uid == JPEGBaseline8Bit:
+        if samples_per_pixel == 1:
+            if planar_configuration is not None:
+                raise ValueError(
+                    'Planar configuration must be absent for encoding of '
+                    'monochrome image frames with JPEG Baseline codec.'
+                )
+            if photometric_interpretation not in (
+                    'MONOCHROME1', 'MONOCHROME2'
+                ):
+                raise ValueError(
+                    'Photometric intpretation must be either "MONOCHROME1" '
+                    'or "MONOCHROME2" for encoding of monochrome image '
+                    'frames with JPEG Baseline codec.'
+                )
+        elif samples_per_pixel == 3:
+            if photometric_interpretation != 'YBR_FULL_422':
+                raise ValueError(
+                    'Photometric intpretation must be "YBR_FULL_422" for '
+                    'encoding of color image frames with '
+                    'JPEG Baseline codec.'
+                )
+            if planar_configuration != 0:
+                raise ValueError(
+                    'Planar configuration must be 0 for encoding of '
+                    'color image frames with JPEG Baseline codec.'
+                )
+        else:
+            raise ValueError(
+                'Samples per pixel must be 1 or 3 for '
+                'encoding of image frames with JPEG Baseline codec.'
             )
-        }
+        if bits_allocated != 8 or bits_stored != 8:
+            raise ValueError(
+                'Bits allocated and bits stored must be 8 for '
+                'encoding of image frames with JPEG Baseline codec.'
+            )
+        if pixel_representation != 0:
+            raise ValueError(
+                'Pixel representation must be 0 for '
+                'encoding of image frames with JPEG Baseline codec.'
+            )
 
-        if transfer_syntax_uid == JPEGBaseline8Bit:
+        # Pydicom does not have an encoder for JPEGBaseline8Bit so
+        # we do this manually
+        if samples_per_pixel == 3:
+            image = Image.fromarray(array, mode='RGB')
+        else:
+            image = Image.fromarray(array)
+        with BytesIO() as buf:
+            image.save(buf, format='jpeg', quality=95)
+            data = buf.getvalue()
+    else:
+        kwargs = {}
+        if transfer_syntax_uid == JPEG2000:
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
                         'Planar configuration must be absent for encoding of '
-                        'monochrome image frames with JPEG Baseline codec.'
+                        'monochrome image frames with JPEG 2000 codec.'
                     )
                 if photometric_interpretation not in (
                         'MONOCHROME1', 'MONOCHROME2'
@@ -180,35 +232,41 @@ def encode_frame(
                     raise ValueError(
                         'Photometric intpretation must be either "MONOCHROME1" '
                         'or "MONOCHROME2" for encoding of monochrome image '
-                        'frames with JPEG Baseline codec.'
+                        'frames with JPEG 2000 codec.'
+                    )
+                if bits_allocated not in (8, 16):
+                    raise ValueError(
+                        'Bits Allocated must be 8 or 16 for encoding of '
+                        'monochrome image frames with JPEG 2000 codec.'
                     )
             elif samples_per_pixel == 3:
-                if photometric_interpretation != 'YBR_FULL_422':
+                if photometric_interpretation != 'YBR_ICT':
                     raise ValueError(
-                        'Photometric intpretation must be "YBR_FULL_422" for '
+                        'Photometric interpretation must be "YBR_ICT" for '
                         'encoding of color image frames with '
-                        'JPEG Baseline codec.'
+                        'JPEG 2000 codec.'
                     )
                 if planar_configuration != 0:
                     raise ValueError(
                         'Planar configuration must be 0 for encoding of '
-                        'color image frames with JPEG Baseline codec.'
+                        'color image frames with JPEG 2000 codec.'
+                    )
+                if bits_allocated != 8:
+                    raise ValueError(
+                        'Bits Allocated must be 8 for encoding of '
+                        'color image frames with JPEG 2000 codec.'
                     )
             else:
                 raise ValueError(
                     'Samples per pixel must be 1 or 3 for '
-                    'encoding of image frames with JPEG Baseline codec.'
-                )
-            if bits_allocated != 8 or bits_stored != 8:
-                raise ValueError(
-                    'Bits allocated and bits stored must be 8 for '
-                    'encoding of image frames with JPEG Baseline codec.'
+                    'encoding of image frames with JPEG 2000 codec.'
                 )
             if pixel_representation != 0:
                 raise ValueError(
                     'Pixel representation must be 0 for '
-                    'encoding of image frames with JPEG Baseline codec.'
+                    'encoding of image frames with JPEG 2000 codec.'
                 )
+            kwargs = {'j2k_psnr': [100]}
 
         elif transfer_syntax_uid == JPEG2000Lossless:
             if samples_per_pixel == 1:
@@ -225,15 +283,15 @@ def encode_frame(
                         'or "MONOCHROME2" for encoding of monochrome image '
                         'frames with Lossless JPEG 2000 codec.'
                     )
-                if bits_allocated not in (8, 16):
+                if bits_allocated not in (1, 8, 16):
                     raise ValueError(
-                        'Bits Allocated must be 8 or 16 for encoding of '
+                        'Bits Allocated must be 1, 8, or 16 for encoding of '
                         'monochrome image frames with Lossless JPEG 2000 codec.'
                     )
             elif samples_per_pixel == 3:
-                if photometric_interpretation != 'YBR_FULL':
+                if photometric_interpretation != 'YBR_RCT':
                     raise ValueError(
-                        'Photometric interpretation must be "YBR_FULL" for '
+                        'Photometric interpretation must be "YBR_RCT" for '
                         'encoding of color image frames with '
                         'Lossless JPEG 2000 codec.'
                     )
@@ -258,13 +316,16 @@ def encode_frame(
                     'encoding of image frames with Lossless JPEG 2000 codec.'
                 )
 
-        elif transfer_syntax_uid == JPEGLSLossless:
-            import pillow_jpls  # noqa
+        elif transfer_syntax_uid in (JPEGLSLossless, JPEGLSNearLossless):
+            name = {
+                JPEGLSLossless: "Lossless JPEG-LS",
+                JPEGLSNearLossless: "Near-Lossless JPEG-LS",
+            }[transfer_syntax_uid]
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
                         'Planar configuration must be absent for encoding of '
-                        'monochrome image frames with Lossless JPEG-LS codec.'
+                        f'monochrome image frames with {name} codec.'
                     )
                 if photometric_interpretation not in (
                         'MONOCHROME1', 'MONOCHROME2'
@@ -272,52 +333,67 @@ def encode_frame(
                     raise ValueError(
                         'Photometric intpretation must be either "MONOCHROME1" '
                         'or "MONOCHROME2" for encoding of monochrome image '
-                        'frames with Lossless JPEG-LS codec.'
+                        f'frames with with {name} codec.'
                     )
                 if bits_allocated not in (8, 16):
                     raise ValueError(
                         'Bits Allocated must be 8 or 16 for encoding of '
-                        'monochrome image frames with Lossless JPEG-LS codec.'
+                        f'monochrome image frames with with {name} codec.'
                     )
             elif samples_per_pixel == 3:
-                if photometric_interpretation != 'YBR_FULL':
+                if photometric_interpretation != 'RGB':
                     raise ValueError(
-                        'Photometric interpretation must be "YBR_FULL" for '
+                        'Photometric interpretation must be "RGB" for '
                         'encoding of color image frames with '
-                        'Lossless JPEG-LS codec.'
+                        f'{name} codec.'
                     )
                 if planar_configuration != 0:
                     raise ValueError(
                         'Planar configuration must be 0 for encoding of '
-                        'color image frames with Lossless JPEG-LS codec.'
+                        f'color image frames with {name} codec.'
                     )
                 if bits_allocated != 8:
                     raise ValueError(
                         'Bits Allocated must be 8 for encoding of '
-                        'color image frames with Lossless JPEG-LS codec.'
+                        f'color image frames with {name} codec.'
                     )
             else:
                 raise ValueError(
                     'Samples per pixel must be 1 or 3 for '
-                    'encoding of image frames with Lossless JPEG-LS codec.'
+                    f'encoding of image frames with {name} codec.'
                 )
             if pixel_representation != 0:
                 raise ValueError(
                     'Pixel representation must be 0 for '
-                    'encoding of image frames with Lossless JPEG-LS codec.'
+                    f'encoding of image frames with {name} codec.'
                 )
-
-        if transfer_syntax_uid in compression_lut:
-            image_format, kwargs = compression_lut[transfer_syntax_uid]
-            if samples_per_pixel == 3:
-                image = Image.fromarray(array, mode='RGB')
-            else:
-                image = Image.fromarray(array)
-            with BytesIO() as buf:
-                image.save(buf, format=image_format, **kwargs)
-                data = buf.getvalue()
         elif transfer_syntax_uid == RLELossless:
-            data = RLELosslessEncoder.encode(
+            # No further checks needed
+            pass
+        else:
+            raise ValueError(
+                f'Transfer Syntax "{transfer_syntax_uid}" is not supported.'
+            )
+
+        if transfer_syntax_uid == JPEG2000Lossless and bits_allocated == 1:
+            # Single bit JPEG2000 compression. Pydicom doesn't (yet) support
+            # this case
+            if array.dtype != bool:
+                if array.max() > 1:
+                    raise ValueError(
+                        'Array must contain only 0 and 1 for bits_allocated = 1'
+                    )
+                array = array.astype(bool)
+            data = encode_array(
+                array,
+                bits_stored=1,
+                photometric_interpretation=2,
+                use_mct=False,
+            )
+        else:
+            encoder = get_encoder(transfer_syntax_uid)
+
+            data = encoder.encode(
                 array,
                 rows=array.shape[0],
                 columns=array.shape[1],
@@ -328,10 +404,7 @@ def encode_frame(
                 photometric_interpretation=photometric_interpretation,
                 pixel_representation=pixel_representation,
                 planar_configuration=planar_configuration,
-            )
-        else:
-            raise ValueError(
-                f'Transfer Syntax "{transfer_syntax_uid}" is not supported.'
+                **kwargs,
             )
     return data
 

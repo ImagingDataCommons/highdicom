@@ -725,7 +725,13 @@ class TestSegmentation:
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
     @staticmethod
-    @pytest.fixture(params=[ExplicitVRLittleEndian, ImplicitVRLittleEndian])
+    @pytest.fixture(
+        params=[
+            ExplicitVRLittleEndian,
+            ImplicitVRLittleEndian,
+            JPEG2000Lossless,
+        ]
+    )
     def binary_transfer_syntax_uid(request):
         return request.param
 
@@ -1579,7 +1585,10 @@ class TestSegmentation:
         else:
             omit_empty_frames_values = [False, True]
 
-        transfer_syntax_uids = [ExplicitVRLittleEndian]
+        transfer_syntax_uids = [
+            ExplicitVRLittleEndian,
+            JPEG2000Lossless,
+        ]
         if segmentation_type.value == 'FRACTIONAL':
             try:
                 import libjpeg  # noqa: F401
@@ -1587,7 +1596,6 @@ class TestSegmentation:
                 pass
             else:
                 transfer_syntax_uids += [
-                    JPEG2000Lossless,
                     JPEGLSLossless,
                 ]
 
