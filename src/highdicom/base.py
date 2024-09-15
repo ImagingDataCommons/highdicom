@@ -139,8 +139,6 @@ class SOPClass(Dataset):
                 "Big Endian transfer syntaxes are retired and no longer "
                 "supported by highdicom."
             )
-        self.is_little_endian = True  # backwards compatibility
-        self.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.

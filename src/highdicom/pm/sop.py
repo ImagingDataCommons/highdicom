@@ -664,8 +664,14 @@ class ParametricMap(SOPClass):
             self.PixelRepresentation = 0
         elif pixel_data_type == _PixelDataType.SINGLE:
             self.BitsAllocated = 32
+
+            # This should not be here but is needed to work around pydicom bugs
+            self.BitsStored = self.BitsAllocated
         elif pixel_data_type == _PixelDataType.DOUBLE:
             self.BitsAllocated = 64
+
+            # This should not be here but is needed to work around pydicom bugs
+            self.BitsStored = self.BitsAllocated
         else:
             raise ValueError('Encountered unexpected pixel data type.')
 

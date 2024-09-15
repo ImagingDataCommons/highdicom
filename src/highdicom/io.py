@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.dataset import Dataset
-from pydicom.encaps import get_frame_offsets
+from pydicom.encaps import parse_basic_offsets
 from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -120,7 +120,7 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
         fp.is_implicit_VR, 'OB'
     )
     fp.seek(pixel_data_element_value_offset - 4, 1)
-    is_empty, offsets = get_frame_offsets(fp)
+    offsets = parse_basic_offsets(fp)
     return offsets
 
 
@@ -249,7 +249,7 @@ class ImageFileReader:
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, DicomFileLike):
+        if isinstance(filename, (DicomFileLike, DicomBytesIO)):
             fp = filename
             self._fp = fp
             if isinstance(filename, DicomBytesIO):

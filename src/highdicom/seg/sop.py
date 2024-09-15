@@ -1634,7 +1634,10 @@ class Segmentation(SOPClass):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
-            if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            if (
+                self.file_meta.TransferSyntaxUID != JPEG2000Lossless and
+                self.file_meta.TransferSyntaxUID.is_encapsulated
+            ):
                 raise ValueError(
                     'The chosen transfer syntax '
                     f'{self.file_meta.TransferSyntaxUID} '

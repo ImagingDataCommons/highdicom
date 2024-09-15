@@ -6,7 +6,7 @@ from typing import Sequence
 import numpy as np
 import pytest
 from pydicom import dcmread
-from pydicom.data import get_testdata_files
+from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import (
@@ -230,6 +230,10 @@ class TestParametricMap(unittest.TestCase):
 
         self._ct_image = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+        self._ct_multiframe_image = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
         )
 
         self._sm_image = dcmread(
@@ -549,7 +553,7 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = np.random.randint(
             low=0,
             high=2**8,
-            size=self._sm_image.pixel_array.shape[:3],
+            size=self._ct_multiframe_image.pixel_array.shape[:3],
             dtype=np.uint8
         )
         window_center = 128
@@ -564,7 +568,7 @@ class TestParametricMap(unittest.TestCase):
             slope=1
         )
         pmap = ParametricMap(
-            [self._sm_image],
+            [self._ct_multiframe_image],
             pixel_array,
             self._series_instance_uid,
             self._series_number,

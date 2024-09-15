@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 import pytest
-from pydicom.encaps import generate_pixel_data_frame
+from pydicom.encaps import generate_fragmented_frames
 from pydicom.filereader import dcmread
 from pydicom.uid import (
     RLELossless,
@@ -67,7 +67,7 @@ class TestSCImage(unittest.TestCase):
                 pixel_representation=ds.PixelRepresentation,
                 planar_configuration=getattr(ds, 'PlanarConfiguration', None)
             )
-            for value in generate_pixel_data_frame(instance.PixelData)
+            for (value, ) in generate_fragmented_frames(instance.PixelData)
         ]
         if len(decoded_frame_arrays) > 1:
             return np.stack(decoded_frame_arrays)

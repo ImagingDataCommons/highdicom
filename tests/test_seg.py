@@ -657,6 +657,22 @@ class TestSegmentation:
         self._sm_image = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
+
+        # Hack around the openjpeg bug encoding images smaller than 32 pixels
+        frame = self._sm_image.pixel_array
+        frame = np.pad(frame, ((0, 0), (12, 12), (12, 12), (0, 0)))
+        self._sm_image.PixelData = frame.flatten().tobytes()
+        self._sm_image.TotalPixelMatrixRows = (
+                frame.shape[1] *
+                int(self._sm_image.TotalPixelMatrixRows / self._sm_image.Rows)
+        )
+        self._sm_image.TotalPixelMatrixColumns = (
+            frame.shape[2] *
+            int(self._sm_image.TotalPixelMatrixColumns / self._sm_image.Columns)
+        )
+        self._sm_image.Rows = frame.shape[1]
+        self._sm_image.Columns = frame.shape[2]
+
         # Override te existing ImageOrientationSlide to make the frame ordering
         # simpler for the tests
         self._sm_pixel_array = np.zeros(
@@ -697,6 +713,16 @@ class TestSegmentation:
             ct_series,
             key=lambda x: x.ImagePositionPatient[2]
         )
+
+        # Hack around the fact that the images are too small to be encoded by
+        # openjpeg
+        for im in self._ct_series:
+            frame = im.pixel_array
+            frame = np.pad(frame, ((8, 8), (8, 8)))
+            im.Rows = frame.shape[0]
+            im.Columns = frame.shape[1]
+            im.PixelData = frame.flatten().tobytes()
+
         self._ct_series_mask_array = np.zeros(
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=bool
@@ -1525,10 +1551,8 @@ class TestSegmentation:
     @pytest.fixture(
         params=[
             None,
-            (10, 10),
-            (10, 25),
-            (25, 25),
-            (30, 30),
+            (32, 32),
+            (48, 48),
         ])
     def tile_size(request):
         return request.param
