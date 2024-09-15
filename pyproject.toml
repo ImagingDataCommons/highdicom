@@ -32,7 +32,6 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.19",
-    "pillow-jpls>=1.0",
     "pillow>=8.3",
     "pydicom>=3.0.0",
 ]
