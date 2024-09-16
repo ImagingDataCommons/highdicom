@@ -341,6 +341,11 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
             content_label=content_label
         )
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
+
         assert pmap.SOPClassUID == '1.2.840.10008.5.1.4.1.1.30'
         assert pmap.SOPInstanceUID == self._sop_instance_uid
         assert pmap.SeriesInstanceUID == self._series_instance_uid
@@ -655,6 +660,11 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
         )
         assert pmap.BitsAllocated == 64
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
+
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_ushort_native(self):
@@ -769,6 +779,10 @@ class TestParametricMap(unittest.TestCase):
             window_center=window_center,
             window_width=window_width,
         )
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
 
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
