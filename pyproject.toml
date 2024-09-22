@@ -33,7 +33,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.19",
     "pillow>=8.3",
-    "pydicom>=3.0.0",
+    "pydicom>=3.0.1",
 ]
 
 [project.optional-dependencies]
