@@ -34,13 +34,14 @@ dependencies = [
     "numpy>=1.19",
     "pillow>=8.3",
     "pydicom>=3.0.1",
+    "pyjpegls>=1.0.0",
 ]
 
 [project.optional-dependencies]
 libjpeg = [
-    "pylibjpeg-libjpeg>=1.3",
-    "pylibjpeg-openjpeg>=1.2",
-    "pylibjpeg>=1.4",
+    "pylibjpeg-libjpeg>=2.1",
+    "pylibjpeg-openjpeg>=2.0.0",
+    "pylibjpeg>=2.0",
 ]
 test = [
     "mypy==0.971",
