@@ -562,7 +562,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.14.2': codes.cid29.IntravascularOpticalCoherenceTomography,  # noqa: E501
         '1.2.840.10008.5.1.4.1.1.20': codes.cid29.NuclearMedicine,
         '1.2.840.10008.5.1.4.1.1.66.1': codes.cid32.Registration,
-        '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducials,
+        '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducialsProducer,
         '1.2.840.10008.5.1.4.1.1.66.3': codes.cid32.Registration,
         '1.2.840.10008.5.1.4.1.1.66.4': codes.cid32.Segmentation,
         '1.2.840.10008.5.1.4.1.1.67': codes.cid32.RealWorldValueMap,
