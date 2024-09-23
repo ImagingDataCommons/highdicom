@@ -742,7 +742,7 @@ def _create_affine_transformation_matrix(
     rotation[:, 1] *= column_spacing
 
     # 4x4 transformation matrix
-    return np.row_stack(
+    return np.vstack(
         [
             np.column_stack([
                 rotation,
@@ -828,7 +828,7 @@ def _create_inv_affine_transformation_matrix(
     inv_rotation = np.linalg.inv(rotation)
 
     # 4x4 transformation matrix
-    return np.row_stack(
+    return np.vstack(
         [
             np.column_stack([
                 inv_rotation,
@@ -970,7 +970,7 @@ class PixelToReferenceTransformer:
                 'Argument "indices" must be a two-dimensional array '
                 'of integers.'
             )
-        pixel_matrix_coordinates = np.row_stack([
+        pixel_matrix_coordinates = np.vstack([
             indices.T.astype(float),
             np.zeros((indices.shape[0], ), dtype=float),
             np.ones((indices.shape[0], ), dtype=float),
@@ -1175,7 +1175,7 @@ class ReferenceToPixelTransformer:
                 'Argument "coordinates" must be a two-dimensional array '
                 'with shape [n, 3].'
             )
-        reference_coordinates = np.row_stack([
+        reference_coordinates = np.vstack([
             coordinates.T.astype(float),
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
@@ -1424,7 +1424,7 @@ class PixelToPixelTransformer:
                 'Argument "indices" must be a two-dimensional array '
                 'of integers.'
             )
-        pixel_matrix_coordinates = np.row_stack([
+        pixel_matrix_coordinates = np.vstack([
             indices.T.astype(float),
             np.zeros((indices.shape[0], ), dtype=float),
             np.ones((indices.shape[0], ), dtype=float),
@@ -1637,7 +1637,7 @@ class ImageToReferenceTransformer:
                 'Argument "coordinates" must be a two-dimensional array '
                 'with shape [n, 2].'
             )
-        image_coordinates = np.row_stack([
+        image_coordinates = np.vstack([
             coordinates.T.astype(float),
             np.zeros((coordinates.shape[0], ), dtype=float),
             np.ones((coordinates.shape[0], ), dtype=float),
@@ -1843,7 +1843,7 @@ class ReferenceToImageTransformer:
                 'Argument "coordinates" must be a two-dimensional array '
                 'with shape [n, 3].'
             )
-        reference_coordinates = np.row_stack([
+        reference_coordinates = np.vstack([
             coordinates.T.astype(float),
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
@@ -2086,7 +2086,7 @@ class ImageToImageTransformer:
                 'Argument "coordinates" must be a two-dimensional array '
                 'with shape [n, 2].'
             )
-        image_coordinates = np.row_stack([
+        image_coordinates = np.vstack([
             coordinates.T.astype(float),
             np.zeros((coordinates.shape[0], ), dtype=float),
             np.ones((coordinates.shape[0], ), dtype=float),
