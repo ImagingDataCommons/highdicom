@@ -261,8 +261,8 @@ class ImageFileReader:
             self._fp = None
         else:
             raise TypeError(
-                'Argument "filename" must either an open DICOM file object or '
-                'the path to a DICOM file stored on disk.'
+                'Argument "filename" must be either an open DICOM file object '
+                'or the path to a DICOM file stored on disk.'
             )
         self._metadata = None
 
