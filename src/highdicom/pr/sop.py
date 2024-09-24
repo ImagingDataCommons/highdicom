@@ -8,7 +8,7 @@ import numpy as np
 from pydicom import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import ExplicitVRLittleEndian
-from pydicom._storage_sopclass_uids import (
+from pydicom.uid import (
     AdvancedBlendingPresentationStateStorage,
     ColorSoftcopyPresentationStateStorage,
     GrayscaleSoftcopyPresentationStateStorage,

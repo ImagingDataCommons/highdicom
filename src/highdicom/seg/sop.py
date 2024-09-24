@@ -29,7 +29,7 @@ from pydicom.dataset import Dataset
 from pydicom.datadict import get_entry, keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
 from pydicom.multival import MultiValue
-from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixels.utils import pack_bits
 from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -95,7 +95,9 @@ logger = logging.getLogger(__name__)
 _NO_FRAME_REF_VALUE = -1
 
 # These codes are needed many times in loops so we precompute them
-_DERIVATION_CODE = CodedConcept.from_code(codes.cid7203.Segmentation)
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.cid7203.SegmentationImageDerivation
+)
 _PURPOSE_CODE = CodedConcept.from_code(
     codes.cid7202.SourceImageForImageProcessingOperation
 )
@@ -1632,7 +1634,10 @@ class Segmentation(SOPClass):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
-            if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            if (
+                self.file_meta.TransferSyntaxUID != JPEG2000Lossless and
+                self.file_meta.TransferSyntaxUID.is_encapsulated
+            ):
                 raise ValueError(
                     'The chosen transfer syntax '
                     f'{self.file_meta.TransferSyntaxUID} '

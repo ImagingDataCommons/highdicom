@@ -4,8 +4,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 from pydicom.uid import (
+    JPEG2000,
     JPEG2000Lossless,
     JPEGLSLossless,
+    JPEGLSNearLossless,
     JPEGBaseline8Bit,
 )
 
@@ -160,14 +162,71 @@ class TestEncodeFrame(TestCase):
 
     def test_jpeg2000_rgb(self):
         bits_allocated = 8
-        frame = np.ones((16, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
+        frame = np.ones((48, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
+        frame[2:4, 5:30, 0] = 7
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=JPEG2000,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='YBR_ICT',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        assert compressed_frame.startswith(b"\xFF\x4F\xFF\x51")
+        assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEG2000,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=frame.shape[2],
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='YBR_ICT',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_allclose(frame, decoded_frame, atol=2)
+
+    def test_jpeg2000_monochrome(self):
+        bits_allocated = 8
+        frame = np.zeros((48, 32), dtype=np.dtype(f'uint{bits_allocated}'))
+        frame[2:4, 5:30] = 7
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=JPEG2000,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+        )
+        assert compressed_frame.startswith(b"\xFF\x4F\xFF\x51")
+        assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEG2000,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=1,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_allclose(frame, decoded_frame, atol=2)
+
+    def test_jpeg2000lossless_rgb(self):
+        bits_allocated = 8
+        frame = np.ones((48, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
         frame *= 255
         compressed_frame = encode_frame(
             frame,
             transfer_syntax_uid=JPEG2000Lossless,
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
-            photometric_interpretation='YBR_FULL',
+            photometric_interpretation='YBR_RCT',
             pixel_representation=0,
             planar_configuration=0
         )
@@ -181,15 +240,43 @@ class TestEncodeFrame(TestCase):
             samples_per_pixel=frame.shape[2],
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
-            photometric_interpretation='YBR_FULL',
+            photometric_interpretation='YBR_RCT',
             pixel_representation=0,
             planar_configuration=0
         )
         np.testing.assert_array_equal(frame, decoded_frame)
 
-    def test_jpeg2000_monochrome(self):
+    def test_jpeg2000lossless_monochrome(self):
         bits_allocated = 16
-        frame = np.zeros((16, 32), dtype=np.dtype(f'uint{bits_allocated}'))
+        frame = np.zeros((48, 32), dtype=np.dtype(f'uint{bits_allocated}'))
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=JPEG2000Lossless,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+        )
+        assert compressed_frame.startswith(b"\xFF\x4F\xFF\x51")
+        assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEG2000Lossless,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=1,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_array_equal(frame, decoded_frame)
+
+    def test_jpeg2000lossless_single_bit(self):
+        bits_allocated = 1
+        frame = np.zeros((48, 32), dtype=np.dtype(f'uint8'))
+        frame[12:45, 3:6] = 1
         compressed_frame = encode_frame(
             frame,
             transfer_syntax_uid=JPEG2000Lossless,
@@ -224,7 +311,7 @@ class TestEncodeFrame(TestCase):
             transfer_syntax_uid=JPEGLSLossless,
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
-            photometric_interpretation='YBR_FULL',
+            photometric_interpretation='RGB',
             pixel_representation=0,
             planar_configuration=0
         )
@@ -238,7 +325,7 @@ class TestEncodeFrame(TestCase):
             samples_per_pixel=frame.shape[2],
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
-            photometric_interpretation='YBR_FULL',
+            photometric_interpretation='RGB',
             pixel_representation=0,
             planar_configuration=0
         )
@@ -271,6 +358,64 @@ class TestEncodeFrame(TestCase):
             planar_configuration=0
         )
         np.testing.assert_array_equal(frame, decoded_frame)
+
+    def test_jpeglsnearlossless_rgb(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 8
+        frame = np.ones((16, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
+        frame *= 255
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=JPEGLSNearLossless,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='RGB',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        assert compressed_frame.startswith(b'\xFF\xD8')
+        assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEGLSNearLossless,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=frame.shape[2],
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='RGB',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_allclose(frame, decoded_frame)
+
+    def test_jpeglsnearlossless_monochrome(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 16
+        frame = np.zeros((16, 32), dtype=np.dtype(f'uint{bits_allocated}'))
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=JPEGLSNearLossless,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+        )
+        assert compressed_frame.startswith(b'\xFF\xD8')
+        assert compressed_frame.endswith(b'\xFF\xD9')
+        decoded_frame = decode_frame(
+            value=compressed_frame,
+            transfer_syntax_uid=JPEGLSNearLossless,
+            rows=frame.shape[0],
+            columns=frame.shape[1],
+            samples_per_pixel=1,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        np.testing.assert_allclose(frame, decoded_frame)
 
     def test_jpeg_rgb_wrong_photometric_interpretation(self):
         frame = np.ones((16, 32, 3), dtype=np.uint8)

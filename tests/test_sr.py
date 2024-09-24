@@ -5232,7 +5232,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         value_item = group[4].MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
-        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
         assert isinstance(group[5], NumContentItem)
         assert group[5].name == codes.DCM.VerticalPixelSpacing
@@ -5243,7 +5243,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         value_item = group[6].MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
-        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
         assert isinstance(group[7], NumContentItem)
         assert group[7].name == codes.DCM.SliceThickness

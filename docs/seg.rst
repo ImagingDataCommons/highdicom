@@ -807,38 +807,37 @@ We recommend that if you do this, you specify ``max_fractional_value=1`` to
 clearly communicate that the segmentation is inherently binary in nature.
 
 Why would you want to make this seemingly rather strange choice? Well,
-``"FRACTIONAL"`` SEGs tend to compress *much* better than ``"BINARY"`` ones
-(see next section). Note however, that this is arguably an misuse of the intent
-of the standard, so *caveat emptor*.
+``"FRACTIONAL"`` SEGs tend to compress better than ``"BINARY"`` ones (see next
+section). Note however, that this is arguably an misuse of the intent of the
+standard, so *caveat emptor*. Also note that while this used to be a more
+serious issue it is less serious now that ``"JPEG2000Lossless"`` compression is
+now supported for ``"BINARY"`` segmentations as of highdicom v0.23.0.
 
 Compression
 -----------
 
 The types of pixel compression available in segmentation images depends on the
-segmentation type. Pixels in a ``"BINARY"`` segmentation image are "bit-packed"
-such that 8 pixels are grouped into 1 byte in the stored array. If a given frame
-contains a number of pixels that is not divisible by 8 exactly, a single byte 
+segmentation type.
+
+Pixels in an uncompressed ``"BINARY"`` segmentation image are "bit-packed" such
+that 8 pixels are grouped into 1 byte in the stored array. If a given frame
+contains a number of pixels that is not divisible by 8 exactly, a single byte
 will straddle a frame boundary into the next frame if there is one, or the byte
 will be padded with zeroes of there are no further frames. This means that
-retrieving individual frames from segmentation images in which each frame
-size is not divisible by 8 becomes problematic. No further compression may be
-applied to frames of ``"BINARY"`` segmentation images.
+retrieving individual frames from segmentation images in which each frame size
+is not divisible by 8 becomes problematic. For this reason, as well as for
+space efficiency (sparse segmentations tend to compress very well), we
+therefore strongly recommend using ``"JPEG2000Lossless"`` compression with
+``"BINRARY"`` segmentations. This is the only compression method currently
+supported for ``"BINARY"`` segmentations. However, beware that reading these
+single-bit JPEG 2000 images may not be supported by all other tools and
+viewers.
 
 Pixels in ``"FRACTIONAL"`` segmentation images may be compressed using one of
 the lossless compression methods available within DICOM. Currently *highdicom*
 supports the following compressed transfer syntaxes when creating
 ``"FRACTIONAL"`` segmentation images: ``"RLELossless"``,
 ``"JPEG2000Lossless"``, and ``"JPEGLSLossless"``.
-
-Note that there may be advantages to using ``"FRACTIONAL"`` segmentations to
-store segmentation images that are binary in nature (i.e. only taking values 0
-and 1):
-
-- If the segmentation is very simple or sparse, the lossless compression methods
-  available in ``"FRACTIONAL"`` images may be more effective than the
-  "bit-packing" method required by ``"BINARY"`` segmentations.
-- The clear frame boundaries make retrieving individual frames from
-  ``"FRACTIONAL"`` image files possible.
 
 Multiprocessing
 ---------------
