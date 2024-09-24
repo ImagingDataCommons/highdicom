@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
+from itertools import chain
 from os import PathLike
 import sqlite3
 from typing import (
@@ -44,7 +45,11 @@ from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 from pydicom.filereader import dcmread
 
-from highdicom._module_utils import ModuleUsageValues, get_module_usage
+from highdicom._module_utils import (
+    ModuleUsageValues,
+    get_module_usage,
+    does_iod_have_pixel_data,
+)
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -1191,6 +1196,7 @@ class Segmentation(SOPClass):
         tile_size: Union[Sequence[int], None] = None,
         pyramid_uid: Optional[str] = None,
         pyramid_label: Optional[str] = None,
+        further_source_images: Optional[Sequence[Dataset]] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -1400,6 +1406,13 @@ class Segmentation(SOPClass):
             Human readable label for the pyramid containing this segmentation.
             Should only be used if this segmentation is part of a
             multi-resolution pyramid.
+        further_source_images: Optional[Sequence[pydicom.Dataset]], optional
+            Additional images to record as source images in the segmentation.
+            Unlike the main ``source_images`` parameter, these images will
+            *not* be used to infer the position and orientation of the
+            ``pixel_array`` in the case that no plane positions are supplied.
+            Images from multiple series may be passed, however they must all
+            belong to the same study.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1570,12 +1583,35 @@ class Segmentation(SOPClass):
 
         # General Reference
 
+        if further_source_images is not None:
+            # We make no requirement here that images should be from the same
+            # series etc, but they should belong to the same study and be image
+            # objects
+            for s_img in further_source_images:
+                if not isinstance(s_img, Dataset):
+                    raise TypeError(
+                        "All items in 'further_source_images' should be "
+                        "of type 'pydicom.Dataset'."
+                    )
+                if s_img.StudyInstanceUID != self.StudyInstanceUID:
+                    raise ValueError(
+                        "All items in 'further_source_images' should belong "
+                        "to the same study as 'source_images'."
+                    )
+                if not does_iod_have_pixel_data(s_img.SOPClassUID):
+                    raise ValueError(
+                        "All items in 'further_source_images' should be "
+                        "image objects."
+                    )
+        else:
+            further_source_images = []
+
         # Note that appending directly to the SourceImageSequence is typically
         # slow so it's more efficient to build as a Python list then convert
         # later. We save conversion for after the main loop
         source_image_seq: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
-        for s_img in source_images:
+        for s_img in chain(source_images, further_source_images):
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
             ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
