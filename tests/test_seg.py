@@ -1641,8 +1641,15 @@ class TestSegmentation:
 
         transfer_syntax_uids = [
             ExplicitVRLittleEndian,
-            JPEG2000Lossless,
         ]
+        try:
+            import openjpeg  # noqa: F401
+        except ModuleNotFoundError:
+            pass
+        else:
+            transfer_syntax_uids += [
+                JPEG2000Lossless,
+            ]
         if segmentation_type.value == 'FRACTIONAL':
             try:
                 import libjpeg  # noqa: F401
@@ -1749,6 +1756,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if fractional_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
         if fractional_transfer_syntax_uid == JPEGLSLossless:
             pytest.importorskip("libjpeg")
 
@@ -1907,6 +1916,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if binary_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
         sources, mask = self._tests[test_data]
 
         # Two segments, overlapping

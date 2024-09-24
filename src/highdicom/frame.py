@@ -3,7 +3,6 @@ from io import BytesIO
 from typing import Optional, Union
 
 import numpy as np
-from openjpeg.utils import encode_array
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
@@ -313,6 +312,15 @@ def encode_frame(
                         'Array must contain only 0 and 1 for bits_allocated = 1'
                     )
                 array = array.astype(bool)
+
+            try:
+                from openjpeg.utils import encode_array
+            except ModuleNotFoundError:
+                raise ModuleNotFoundError(
+                    "Highdicom requires the pylibjpeg-openjpeg package to compress "
+                    "frames using the JPEG2000Lossless transfer syntax."
+                )
+
             data = encode_array(
                 array,
                 bits_stored=1,

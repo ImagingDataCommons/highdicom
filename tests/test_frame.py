@@ -25,6 +25,7 @@ class TestDecodeFrame(TestCase):
         )
 
     def test_jpeg_rgb(self):
+        pytest.importorskip("libjpeg")
         filepath = str(self._test_files_dir.joinpath('frame_rgb.jpeg'))
         with open(filepath, 'br') as fp:
             compressed_frame = fp.read()
@@ -70,6 +71,7 @@ class TestDecodeFrame(TestCase):
         )
 
     def test_jpeg_rgb_empty(self):
+        pytest.importorskip("libjpeg")
         filepath = str(self._test_files_dir.joinpath('frame_rgb_empty.jpeg'))
         with open(filepath, 'br') as fp:
             compressed_frame = fp.read()
@@ -161,6 +163,7 @@ class TestEncodeFrame(TestCase):
         assert compressed_frame.endswith(b'\xFF\xD9')
 
     def test_jpeg2000_rgb(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         frame = np.ones((48, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
         frame[2:4, 5:30, 0] = 7
@@ -190,6 +193,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_allclose(frame, decoded_frame, atol=2)
 
     def test_jpeg2000_monochrome(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         frame = np.zeros((48, 32), dtype=np.dtype(f'uint{bits_allocated}'))
         frame[2:4, 5:30] = 7
@@ -218,6 +222,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_allclose(frame, decoded_frame, atol=2)
 
     def test_jpeg2000lossless_rgb(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         frame = np.ones((48, 32, 3), dtype=np.dtype(f'uint{bits_allocated}'))
         frame *= 255
@@ -247,6 +252,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpeg2000lossless_monochrome(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 16
         frame = np.zeros((48, 32), dtype=np.dtype(f'uint{bits_allocated}'))
         compressed_frame = encode_frame(
@@ -274,6 +280,7 @@ class TestEncodeFrame(TestCase):
         np.testing.assert_array_equal(frame, decoded_frame)
 
     def test_jpeg2000lossless_single_bit(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 1
         frame = np.zeros((48, 32), dtype=np.dtype('uint8'))
         frame[12:45, 3:6] = 1

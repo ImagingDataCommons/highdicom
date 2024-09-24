@@ -320,6 +320,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_monochrome_jpeg_baseline(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -349,6 +350,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_jpeg_baseline(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         photometric_interpretation = 'YBR_FULL_422'
         coordinate_system = 'PATIENT'
@@ -376,6 +378,7 @@ class TestSCImage(unittest.TestCase):
         np.testing.assert_allclose(frame, reread_frame, rtol=1.2)
 
     def test_monochrome_jpeg2000lossless(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -403,6 +406,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_monochrome_jpeg2000(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -431,6 +435,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_jpeg2000(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         photometric_interpretation = 'YBR_RCT'
         coordinate_system = 'PATIENT'

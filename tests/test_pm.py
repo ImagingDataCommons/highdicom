@@ -555,6 +555,7 @@ class TestParametricMap(unittest.TestCase):
         assert instance.PixelPresentation == 'MONOCHROME'
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
+        pytest.importorskip("openjpeg")
         pixel_array = np.random.randint(
             low=0,
             high=2**8,
