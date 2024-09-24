@@ -478,7 +478,7 @@ class PlanePositionSequence(DataElementSequence):
                     'integers.'
                 )
 
-            # Use hard-coded tags to avoid the keywork dictionary lookup
+            # Use hard-coded tags to avoid the keyword dictionary lookup
             # (this constructor is called a large number of times in large
             # multiframe images, so some optimization makes sense)
             x_tag = 0x0040072a  # XOffsetInSlideCoordinateSystem

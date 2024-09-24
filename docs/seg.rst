@@ -828,7 +828,7 @@ retrieving individual frames from segmentation images in which each frame size
 is not divisible by 8 becomes problematic. For this reason, as well as for
 space efficiency (sparse segmentations tend to compress very well), we
 therefore strongly recommend using ``"JPEG2000Lossless"`` compression with
-``"BINRARY"`` segmentations. This is the only compression method currently
+``"BINARY"`` segmentations. This is the only compression method currently
 supported for ``"BINARY"`` segmentations. However, beware that reading these
 single-bit JPEG 2000 images may not be supported by all other tools and
 viewers.

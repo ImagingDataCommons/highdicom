@@ -1428,7 +1428,7 @@ class TestSubjectContextSpecimen(unittest.TestCase):
         assert specimen_context.specimen_type == codes.SCT.TissueSection
 
     def test_from_image_no_specimen_type(self):
-        # Specimen type is optional, for_image method should cope corectly if
+        # Specimen type is optional, for_image method should cope correctly if
         # it is missing
         image = deepcopy(self._sm_image)
         delattr(
