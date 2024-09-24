@@ -2167,6 +2167,41 @@ class SubjectContext(Template):
             raise TypeError('Unexpected subject class specific context.')
         self.extend(subject_class_specific_context)
 
+    @classmethod
+    def from_image(cls, image: Dataset) -> 'Optional[SubjectContext]':
+        """Get a subject context inferred from an existing image.
+
+        Currently this is only supported for subjects that are specimens.
+
+        Parameters
+        ----------
+        image: pydicom.Dataset
+            Dataset of an existing DICOM image object
+            containing metadata on the imaging subject. Highdicom will attempt
+            to infer the subject context from this image. If successful, it
+            will be returned as a ``SubjectContext``, otherwise ``None``.
+
+        Returns
+        -------
+        Optional[highdicom.sr.SubjectContext]:
+            SubjectContext, if it can be inferred from the image. Otherwise,
+            ``None``.
+
+        """
+        try:
+            subject_context_specimen = SubjectContextSpecimen.from_image(
+                image
+            )
+        except ValueError:
+            pass
+        else:
+            return cls(
+                subject_class=codes.DCM.Specimen,
+                subject_class_specific_context=subject_context_specimen,
+            )
+
+        return None
+
     @property
     def subject_class(self) -> CodedConcept:
         """highdicom.sr.CodedConcept: type of subject"""
