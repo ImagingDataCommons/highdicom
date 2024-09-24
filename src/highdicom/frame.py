@@ -317,8 +317,9 @@ def encode_frame(
                 from openjpeg.utils import encode_array
             except ModuleNotFoundError:
                 raise ModuleNotFoundError(
-                    "Highdicom requires the pylibjpeg-openjpeg package to compress "
-                    "frames using the JPEG2000Lossless transfer syntax."
+                    "Highdicom requires the pylibjpeg-openjpeg package to "
+                    "compress frames using the JPEG2000Lossless transfer "
+                    "syntax."
                 )
 
             data = encode_array(
