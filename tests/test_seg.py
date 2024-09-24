@@ -1529,6 +1529,36 @@ class TestSegmentation:
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
+    def test_construction_further_source_images(self):
+        further_source_image = deepcopy(self._ct_image)
+        series_uid = UID()
+        sop_uid = UID()
+        further_source_image.SeriesInstanceUID = series_uid
+        further_source_image.SOPInstanceUID = sop_uid
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_pixel_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            further_source_images=[further_source_image],
+        )
+        assert len(instance.SourceImageSequence) == 2
+        further_item = instance.SourceImageSequence[1]
+        assert further_item.ReferencedSOPInstanceUID == sop_uid
+
+        assert len(instance.ReferencedSeriesSequence) == 2
+        further_item = instance.ReferencedSeriesSequence[1]
+        assert further_item.SeriesInstanceUID == series_uid
+
     @staticmethod
     @pytest.fixture(
         params=[
