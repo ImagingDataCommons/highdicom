@@ -139,8 +139,6 @@ class SOPClass(Dataset):
                 "Big Endian transfer syntaxes are retired and no longer "
                 "supported by highdicom."
             )
-        self.is_little_endian = True  # backwards compatibility
-        self.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
@@ -154,7 +152,6 @@ class SOPClass(Dataset):
             '1.2.826.0.1.3680043.9.7433.1.1'
         )
         self.file_meta.ImplementationVersionName = f'highdicom{__version__}'
-        self.fix_meta_info(enforce_standard=True)
         with BytesIO() as fp:
             write_file_meta_info(fp, self.file_meta, enforce_standard=True)
             self.file_meta.FileMetaInformationGroupLength = len(fp.getvalue())

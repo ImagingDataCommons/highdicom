@@ -281,3 +281,25 @@ def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
     return any(
         is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
     )
+
+
+def is_multiframe_image(dataset: Dataset):
+    """Determine whether an image is a multiframe image.
+    The definition used is whether the IOD allows for multiple frames, not
+    whether this particular instance has more than one frame.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        A dataset to check.
+
+    Returns
+    -------
+    bool:
+        Whether the image belongs to a multiframe IOD.
+
+    """
+    return is_attribute_in_iod(
+        'PerFrameFunctionalGroupsSequence',
+        dataset.SOPClassUID,
+    )

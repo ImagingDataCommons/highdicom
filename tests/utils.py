@@ -7,15 +7,17 @@ from pydicom.filereader import dcmread
 def write_and_read_dataset(dataset: Dataset):
     """Write DICOM dataset to buffer and read it back from buffer."""
     clone = Dataset(dataset)
-    clone.is_little_endian = True
     if hasattr(dataset, 'file_meta'):
         clone.file_meta = FileMetaDataset(dataset.file_meta)
-        if dataset.file_meta.TransferSyntaxUID == '1.2.840.10008.1.2':
-            clone.is_implicit_VR = True
-        else:
-            clone.is_implicit_VR = False
+        little_endian = None
+        implicit_vr = None
     else:
-        clone.is_implicit_VR = False
+        little_endian = True
+        implicit_vr = True
     with BytesIO() as fp:
-        clone.save_as(fp)
+        clone.save_as(
+            fp,
+            implicit_vr=implicit_vr,
+            little_endian=little_endian,
+        )
         return dcmread(fp, force=True)

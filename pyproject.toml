@@ -7,7 +7,7 @@ name = "highdicom"
 dynamic = ["version"]
 description = "High-level DICOM abstractions."
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 authors = [
     { name = "Markus D. Herrmann" },
 ]
@@ -15,6 +15,7 @@ maintainers = [
     { name = "Markus D. Herrmann" },
     { name = "Christopher P. Bridge" },
 ]
+license = { text = "LICENSE" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -23,10 +24,6 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -35,16 +32,16 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.19",
-    "pillow-jpls>=1.0",
     "pillow>=8.3",
-    "pydicom>=2.3.0,!=2.4.0",
+    "pydicom>=3.0.1",
+    "pyjpegls>=1.0.0",
 ]
 
 [project.optional-dependencies]
 libjpeg = [
-    "pylibjpeg-libjpeg>=1.3",
-    "pylibjpeg-openjpeg>=1.2",
-    "pylibjpeg>=1.4",
+    "pylibjpeg-libjpeg>=2.1",
+    "pylibjpeg-openjpeg>=2.0.0",
+    "pylibjpeg>=2.0",
 ]
 test = [
     "mypy==0.971",
