@@ -74,7 +74,7 @@ class TestBase(unittest.TestCase):
             )
 
     def test_explicit_vr(self):
-        sop_class = SOPClass(
+        _ = SOPClass(
             study_instance_uid=UID(),
             series_instance_uid=UID(),
             series_number=1,
@@ -87,7 +87,7 @@ class TestBase(unittest.TestCase):
         )
 
     def test_implicit_vr(self):
-        sop_class = SOPClass(
+        _ = SOPClass(
             study_instance_uid=UID(),
             series_instance_uid=UID(),
             series_number=1,

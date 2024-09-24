@@ -1479,8 +1479,9 @@ class TestSubjectContext(unittest.TestCase):
         for item in subject_context:
 
             # SpecimenUID
+            specimen_uid = '2.25.281821656492584880365678271074145532563'
             if item.ConceptNameCodeSequence[0].CodeValue == '121039':
-                assert item.UID == '2.25.281821656492584880365678271074145532563'
+                assert item.UID == specimen_uid
                 has_specimen_uid = True
 
             # Specimen Identifier

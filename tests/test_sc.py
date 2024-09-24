@@ -485,7 +485,7 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
-    def test_monochrome_jpegls(self):
+    def test_monochrome_jpegls_near_lossless(self):
         pytest.importorskip("libjpeg")
         bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'

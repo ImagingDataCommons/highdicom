@@ -389,7 +389,9 @@ class _SR(SOPClass):
                             UID(instance_ds.ReferencedSOPClassUID),
                         )
 
-        current_evidence_seq = self.get('CurrentRequestedProcedureEvidenceSequence')
+        current_evidence_seq = self.get(
+            'CurrentRequestedProcedureEvidenceSequence'
+        )
         if current_evidence_seq is not None:
             current_evidence = extract_evidence(current_evidence_seq)
         else:
@@ -440,7 +442,9 @@ class _SR(SOPClass):
                         UID(series_ds.SeriesInstanceUID),
                     )
 
-        current_evidence_seq = self.get('CurrentRequestedProcedureEvidenceSequence')
+        current_evidence_seq = self.get(
+            'CurrentRequestedProcedureEvidenceSequence'
+        )
         if current_evidence_seq is not None:
             current_evidence = extract_evidence_series(current_evidence_seq)
         else:
@@ -458,6 +462,7 @@ class _SR(SOPClass):
         evidence = list(dict.fromkeys(evidence))
 
         return evidence
+
 
 class EnhancedSR(_SR):
 

@@ -257,8 +257,9 @@ def encode_frame(
                 if transfer_syntax_uid == JPEG2000Lossless:
                     if bits_allocated not in (1, 8, 16):
                         raise ValueError(
-                            'Bits Allocated must be 1, 8, or 16 for encoding of '
-                            f'monochrome image frames with with {name} codec.'
+                            'Bits Allocated must be 1, 8, or 16 for encoding '
+                            f'of monochrome image frames with with {name} '
+                            'codec.'
                         )
                 else:
                     if bits_allocated not in (8, 16):
@@ -287,9 +288,9 @@ def encode_frame(
 
                 if photometric_interpretation != required_pi.value:
                     raise ValueError(
-                        f'Photometric interpretation must be "{required_pi.value}" '
-                        'for encoding of color image frames with '
-                        f'{name} codec.'
+                        f'Photometric interpretation must be '
+                        f'"{required_pi.value}" for encoding of color image '
+                        f'frames with {name} codec.'
                     )
 
         if transfer_syntax_uid == JPEG2000:

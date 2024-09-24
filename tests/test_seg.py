@@ -663,8 +663,8 @@ class TestSegmentation:
         frame = np.pad(frame, ((0, 0), (12, 12), (12, 12), (0, 0)))
         self._sm_image.PixelData = frame.flatten().tobytes()
         self._sm_image.TotalPixelMatrixRows = (
-                frame.shape[1] *
-                int(self._sm_image.TotalPixelMatrixRows / self._sm_image.Rows)
+            frame.shape[1] *
+            int(self._sm_image.TotalPixelMatrixRows / self._sm_image.Rows)
         )
         self._sm_image.TotalPixelMatrixColumns = (
             frame.shape[2] *
@@ -3871,11 +3871,14 @@ class TestPyramid(unittest.TestCase):
 
             resized_multisegment = np.stack(
                 [
-                    im.resize(out_size, Image.Resampling.NEAREST) for im in seg_pil_multisegment
+                    im.resize(out_size, Image.Resampling.NEAREST)
+                    for im in seg_pil_multisegment
                 ],
                 axis=-1
             )[None]
-            self._downsampled_pix_arrays_multisegment.append(resized_multisegment)
+            self._downsampled_pix_arrays_multisegment.append(
+                resized_multisegment
+            )
 
             # Mock lower-resolution source images. No need to have their pixel
             # data correctly set as it isn't used. Just update the relevant

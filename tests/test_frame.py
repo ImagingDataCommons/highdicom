@@ -275,7 +275,7 @@ class TestEncodeFrame(TestCase):
 
     def test_jpeg2000lossless_single_bit(self):
         bits_allocated = 1
-        frame = np.zeros((48, 32), dtype=np.dtype(f'uint8'))
+        frame = np.zeros((48, 32), dtype=np.dtype('uint8'))
         frame[12:45, 3:6] = 1
         compressed_frame = encode_frame(
             frame,
