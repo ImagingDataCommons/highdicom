@@ -3772,6 +3772,20 @@ class TestEnhancedSR(unittest.TestCase):
             performed_procedure_codes=self._performed_procedures
         )
         assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+        evidence = report.get_evidence()
+        assert len(evidence) == 1
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 1
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
 
     def test_construction_content_is_sequence(self):
         report = EnhancedSR(
@@ -3913,6 +3927,21 @@ class TestComprehensiveSR(unittest.TestCase):
         with pytest.raises(AttributeError):
             assert report.PertinentOtherEvidenceSequence
 
+        evidence = report.get_evidence()
+        assert len(evidence) == 1
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 1
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+
     def test_construction_content_is_sequence(self):
         report = ComprehensiveSR(
             evidence=[self._ref_dataset],
@@ -4028,6 +4057,96 @@ class TestComprehensiveSR(unittest.TestCase):
         assert len(ref_evd_items) == 2
         with pytest.raises(AttributeError):
             assert report.PertinentOtherEvidenceSequence
+
+        evidence = report.get_evidence()
+        assert len(evidence) == 2
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        assert evidence[1] == (
+            ref_dataset.StudyInstanceUID,
+            ref_dataset.SeriesInstanceUID,
+            ref_dataset.SOPInstanceUID,
+            ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 2
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+        assert evidence_series[1] == (
+            ref_dataset.StudyInstanceUID,
+            ref_dataset.SeriesInstanceUID,
+        )
+
+    def test_current_and_other_evidence(self):
+        ref_dataset2 = deepcopy(self._ref_dataset)
+        ref_dataset2.SeriesInstanceUID = '1.2.3'
+        ref_dataset2.SOPInstanceUID = '1.2.3'
+
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, ref_dataset2],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
+
+        evidence = report.get_evidence()
+        assert len(evidence) == 2
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        assert evidence[1] == (
+            ref_dataset2.StudyInstanceUID,
+            ref_dataset2.SeriesInstanceUID,
+            ref_dataset2.SOPInstanceUID,
+            ref_dataset2.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 2
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+        assert evidence_series[1] == (
+            ref_dataset2.StudyInstanceUID,
+            ref_dataset2.SeriesInstanceUID,
+        )
+
+        current_evidence = report.get_evidence(
+            current_procedure_only=True
+        )
+        assert len(current_evidence) == 1
+        assert current_evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        current_evidence_series = report.get_evidence_series(
+            current_procedure_only=True
+        )
+        assert len(current_evidence_series) == 1
+        assert current_evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
 
     def test_srread(self):
         report = ComprehensiveSR(
