@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "highdicom"
-dynamic = ["version"]
+version = "0.23.0"
 description = "High-level DICOM abstractions."
 readme = "README.md"
 requires-python = ">=3.10"
