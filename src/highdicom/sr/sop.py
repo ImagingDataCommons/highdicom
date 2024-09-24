@@ -427,8 +427,7 @@ class _SR(SOPClass):
         -------
         List[Tuple[highdicom.UID, highdicom.UID]]:
             List of tuples of UIDs, each representing a single series. Each
-            tuple consists of (StudyInstanceUID, SeriesInstanceUID,
-            SOPInstanceUID, SOPClassUID).
+            tuple consists of (StudyInstanceUID, SeriesInstanceUID).
 
         """
         def extract_evidence_series(
