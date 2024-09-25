@@ -48,7 +48,6 @@ test = [
     "pytest==7.4.4",
     "pytest-cov==4.1.0",
     "pytest-flake8==1.1.1",
-    "numpy-stubs @ git+https://github.com/numpy/numpy-stubs@201115370a0c011d879d69068b60509accc7f750",
 ]
 docs = [
     "sphinx-autodoc-typehints==1.17.0",
