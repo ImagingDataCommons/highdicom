@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
+from itertools import chain
 from os import PathLike
 from typing import (
     Any,
@@ -25,7 +26,7 @@ from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.encaps import encapsulate
-from pydicom.pixel_data_handlers.numpy_handler import pack_bits
+from pydicom.pixels.utils import pack_bits
 from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -42,6 +43,7 @@ from pydicom.filereader import dcmread
 
 from highdicom._module_utils import (
     ModuleUsageValues,
+    does_iod_have_pixel_data,
     get_module_usage,
     is_multiframe_image,
 )
@@ -94,7 +96,9 @@ logger = logging.getLogger(__name__)
 
 
 # These codes are needed many times in loops so we precompute them
-_DERIVATION_CODE = CodedConcept.from_code(codes.cid7203.Segmentation)
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.cid7203.SegmentationImageDerivation
+)
 _PURPOSE_CODE = CodedConcept.from_code(
     codes.cid7202.SourceImageForImageProcessingOperation
 )
@@ -201,6 +205,7 @@ class Segmentation(MultiFrameImage):
         tile_size: Union[Sequence[int], None] = None,
         pyramid_uid: Optional[str] = None,
         pyramid_label: Optional[str] = None,
+        further_source_images: Optional[Sequence[Dataset]] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -426,6 +431,13 @@ class Segmentation(MultiFrameImage):
             Human readable label for the pyramid containing this segmentation.
             Should only be used if this segmentation is part of a
             multi-resolution pyramid.
+        further_source_images: Optional[Sequence[pydicom.Dataset]], optional
+            Additional images to record as source images in the segmentation.
+            Unlike the main ``source_images`` parameter, these images will
+            *not* be used to infer the position and orientation of the
+            ``pixel_array`` in the case that no plane positions are supplied.
+            Images from multiple series may be passed, however they must all
+            belong to the same study.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -632,12 +644,35 @@ class Segmentation(MultiFrameImage):
 
         # General Reference
 
+        if further_source_images is not None:
+            # We make no requirement here that images should be from the same
+            # series etc, but they should belong to the same study and be image
+            # objects
+            for s_img in further_source_images:
+                if not isinstance(s_img, Dataset):
+                    raise TypeError(
+                        "All items in 'further_source_images' should be "
+                        "of type 'pydicom.Dataset'."
+                    )
+                if s_img.StudyInstanceUID != self.StudyInstanceUID:
+                    raise ValueError(
+                        "All items in 'further_source_images' should belong "
+                        "to the same study as 'source_images'."
+                    )
+                if not does_iod_have_pixel_data(s_img.SOPClassUID):
+                    raise ValueError(
+                        "All items in 'further_source_images' should be "
+                        "image objects."
+                    )
+        else:
+            further_source_images = []
+
         # Note that appending directly to the SourceImageSequence is typically
         # slow so it's more efficient to build as a Python list then convert
         # later. We save conversion for after the main loop
         source_image_seq: List[Dataset] = []
         referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
-        for s_img in source_images:
+        for s_img in chain(source_images, further_source_images):
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
             ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
@@ -696,7 +731,10 @@ class Segmentation(MultiFrameImage):
         if self.SegmentationType == SegmentationTypeValues.BINARY.value:
             self.BitsAllocated = 1
             self.HighBit = 0
-            if self.file_meta.TransferSyntaxUID.is_encapsulated:
+            if (
+                self.file_meta.TransferSyntaxUID != JPEG2000Lossless and
+                self.file_meta.TransferSyntaxUID.is_encapsulated
+            ):
                 raise ValueError(
                     'The chosen transfer syntax '
                     f'{self.file_meta.TransferSyntaxUID} '
@@ -1831,7 +1869,7 @@ class Segmentation(MultiFrameImage):
                     else:
                         segments_overlap = SegmentsOverlapValues.NO
 
-        elif pixel_array.dtype in (np.float_, np.float32, np.float64):
+        elif pixel_array.dtype in (np.float32, np.float64):
             unique_values = np.unique(pixel_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
@@ -2017,7 +2055,7 @@ class Segmentation(MultiFrameImage):
             (0 or 1).
 
         """
-        if pixel_array.dtype in (np.float_, np.float32, np.float64):
+        if pixel_array.dtype in (np.float32, np.float64):
             # Based on the previous checks and casting, if we get here the
             # output is a FRACTIONAL segmentation Floating-point numbers must
             # be mapped to 8-bit integers in the range [0,

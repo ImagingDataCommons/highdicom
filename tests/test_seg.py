@@ -674,6 +674,22 @@ class TestSegmentation:
         self._sm_image = dcmread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
+
+        # Hack around the openjpeg bug encoding images smaller than 32 pixels
+        frame = self._sm_image.pixel_array
+        frame = np.pad(frame, ((0, 0), (12, 12), (12, 12), (0, 0)))
+        self._sm_image.PixelData = frame.flatten().tobytes()
+        self._sm_image.TotalPixelMatrixRows = (
+            frame.shape[1] *
+            int(self._sm_image.TotalPixelMatrixRows / self._sm_image.Rows)
+        )
+        self._sm_image.TotalPixelMatrixColumns = (
+            frame.shape[2] *
+            int(self._sm_image.TotalPixelMatrixColumns / self._sm_image.Columns)
+        )
+        self._sm_image.Rows = frame.shape[1]
+        self._sm_image.Columns = frame.shape[2]
+
         # Override te existing ImageOrientationSlide to make the frame ordering
         # simpler for the tests
         self._sm_pixel_array = np.zeros(
@@ -714,6 +730,16 @@ class TestSegmentation:
             ct_series,
             key=lambda x: x.ImagePositionPatient[2]
         )
+
+        # Hack around the fact that the images are too small to be encoded by
+        # openjpeg
+        for im in self._ct_series:
+            frame = im.pixel_array
+            frame = np.pad(frame, ((8, 8), (8, 8)))
+            im.Rows = frame.shape[0]
+            im.Columns = frame.shape[1]
+            im.PixelData = frame.flatten().tobytes()
+
         self._ct_series_mask_array = np.zeros(
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=bool
@@ -742,7 +768,13 @@ class TestSegmentation:
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
     @staticmethod
-    @pytest.fixture(params=[ExplicitVRLittleEndian, ImplicitVRLittleEndian])
+    @pytest.fixture(
+        params=[
+            ExplicitVRLittleEndian,
+            ImplicitVRLittleEndian,
+            JPEG2000Lossless,
+        ]
+    )
     def binary_transfer_syntax_uid(request):
         return request.param
 
@@ -760,7 +792,7 @@ class TestSegmentation:
         return request.param
 
     @staticmethod
-    @pytest.fixture(params=[np.bool_, np.uint8, np.uint16, np.float_])
+    @pytest.fixture(params=[np.bool_, np.uint8, np.uint16, np.float64])
     def pix_type(request):
         return request.param
 
@@ -1547,14 +1579,9 @@ class TestSegmentation:
 
     def test_construction_3d_singleframe(self):
         # The CT single frame series is a volume if you omit one of the images
-        ct_files = [
-            get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-            get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-            get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-        ]
-        ct_series = [dcmread(f) for f in ct_files]
+        ct_series = self._ct_series[:3]
 
-        # Segmentation instance from an enhanced (multi-frame) CT image
+        # Segmentation instance series of CT images
         instance = Segmentation(
             ct_series,
             self._ct_series_mask_array[:3],
@@ -1642,6 +1669,36 @@ class TestSegmentation:
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
+    def test_construction_further_source_images(self):
+        further_source_image = deepcopy(self._ct_image)
+        series_uid = UID()
+        sop_uid = UID()
+        further_source_image.SeriesInstanceUID = series_uid
+        further_source_image.SOPInstanceUID = sop_uid
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_pixel_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            further_source_images=[further_source_image],
+        )
+        assert len(instance.SourceImageSequence) == 2
+        further_item = instance.SourceImageSequence[1]
+        assert further_item.ReferencedSOPInstanceUID == sop_uid
+
+        assert len(instance.ReferencedSeriesSequence) == 2
+        further_item = instance.ReferencedSeriesSequence[1]
+        assert further_item.SeriesInstanceUID == series_uid
+
     @staticmethod
     @pytest.fixture(
         params=[
@@ -1664,10 +1721,8 @@ class TestSegmentation:
     @pytest.fixture(
         params=[
             None,
-            (10, 10),
-            (10, 25),
-            (25, 25),
-            (30, 30),
+            (32, 32),
+            (48, 48),
         ])
     def tile_size(request):
         return request.param
@@ -1724,7 +1779,17 @@ class TestSegmentation:
         else:
             omit_empty_frames_values = [False, True]
 
-        transfer_syntax_uids = [ExplicitVRLittleEndian]
+        transfer_syntax_uids = [
+            ExplicitVRLittleEndian,
+        ]
+        try:
+            import openjpeg  # noqa: F401
+        except ModuleNotFoundError:
+            pass
+        else:
+            transfer_syntax_uids += [
+                JPEG2000Lossless,
+            ]
         if segmentation_type.value == 'FRACTIONAL':
             try:
                 import libjpeg  # noqa: F401
@@ -1732,7 +1797,6 @@ class TestSegmentation:
                 pass
             else:
                 transfer_syntax_uids += [
-                    JPEG2000Lossless,
                     JPEGLSLossless,
                 ]
 
@@ -1832,6 +1896,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if fractional_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
         if fractional_transfer_syntax_uid == JPEGLSLossless:
             pytest.importorskip("libjpeg")
 
@@ -1933,7 +1999,7 @@ class TestSegmentation:
             max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
-        if pix_type == np.float_:
+        if pix_type == np.float64:
             assert (
                 instance.SegmentsOverlap ==
                 SegmentsOverlapValues.UNDEFINED.value
@@ -1967,7 +2033,7 @@ class TestSegmentation:
             max_fractional_value=max_fractional_value,
             transfer_syntax_uid=fractional_transfer_syntax_uid
         )
-        if pix_type == np.float_:
+        if pix_type == np.float64:
             assert (
                 instance.SegmentsOverlap ==
                 SegmentsOverlapValues.UNDEFINED.value
@@ -1990,6 +2056,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if binary_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
         sources, mask = self._tests[test_data]
 
         # Two segments, overlapping
@@ -2460,7 +2528,7 @@ class TestSegmentation:
         with pytest.raises(ValueError):
             Segmentation(
                 source_images=[self._ct_image],  # empty
-                pixel_array=self._ct_pixel_array.astype(np.float_) * 2,
+                pixel_array=self._ct_pixel_array.astype(np.float64) * 2,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
                 segment_descriptions=(
                     self._segment_descriptions
@@ -2480,7 +2548,7 @@ class TestSegmentation:
         with pytest.raises(ValueError):
             Segmentation(
                 source_images=[self._ct_image],
-                pixel_array=self._ct_pixel_array.astype(np.float_) * 0.5,
+                pixel_array=self._ct_pixel_array.astype(np.float64) * 0.5,
                 segmentation_type=SegmentationTypeValues.BINARY.value,
                 segment_descriptions=(
                     self._segment_descriptions
@@ -4242,9 +4310,31 @@ class TestPyramid(unittest.TestCase):
         )
         self._seg_pix[5:15, 3:8] = 1
 
+        self._seg_pix_multisegment = np.zeros(
+            (1, *tpm_size, 3),
+            dtype=np.uint8,
+        )
+        self._seg_pix_multisegment[0, 5:15, 3:8, 0] = 1
+        self._seg_pix_multisegment[0, 23:42, 13:18, 1] = 1
+        self._seg_pix_multisegment[0, 45:48, 25:30, 1] = 1
+
+        self._seg_pix_fractional = np.zeros(
+            tpm_size,
+            dtype=np.float32,
+        )
+        self._seg_pix_fractional[5:15, 3:8] = 0.5
+        self._seg_pix_fractional[3:5, 10:12] = 1.0
+
         self._n_downsamples = 3
         self._downsampled_pix_arrays = [self._seg_pix]
+        self._downsampled_pix_arrays_multisegment = [self._seg_pix_multisegment]
+        self._downsampled_pix_arrays_fractional = [self._seg_pix_fractional]
         seg_pil = Image.fromarray(self._seg_pix)
+        seg_pil_fractional = Image.fromarray(self._seg_pix_fractional)
+        seg_pil_multisegment = [
+            Image.fromarray(self._seg_pix_multisegment[0, :, :, i])
+            for i in range(self._seg_pix_multisegment.shape[3])
+        ]
         pyramid_uid = UID()
         self._source_pyramid = [deepcopy(self._sm_image)]
         self._source_pyramid[0].PyramidUID = pyramid_uid
@@ -4260,6 +4350,22 @@ class TestPyramid(unittest.TestCase):
                 seg_pil.resize(out_size, Image.Resampling.NEAREST)
             )
             self._downsampled_pix_arrays.append(resized)
+
+            resized_fractional = np.array(
+                seg_pil_fractional.resize(out_size, Image.Resampling.BILINEAR)
+            )
+            self._downsampled_pix_arrays_fractional.append(resized_fractional)
+
+            resized_multisegment = np.stack(
+                [
+                    im.resize(out_size, Image.Resampling.NEAREST)
+                    for im in seg_pil_multisegment
+                ],
+                axis=-1
+            )[None]
+            self._downsampled_pix_arrays_multisegment.append(
+                resized_multisegment
+            )
 
             # Mock lower-resolution source images. No need to have their pixel
             # data correctly set as it isn't used. Just update the relevant
@@ -4300,6 +4406,21 @@ class TestPyramid(unittest.TestCase):
                     version='v1'
                 )
             ),
+        ]
+        self._segment_descriptions_multi = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, 4)
         ]
 
     def test_pyramid_factors(self):
@@ -4406,6 +4527,81 @@ class TestPyramid(unittest.TestCase):
                 pix
             )
 
+    def test_multiple_source_single_pixel_array_multisegment(self):
+        # Test construction when given multiple source images and a single
+        # segmentation image
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=[self._seg_pix_multisegment],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            assert hasattr(seg, 'PyramidUID')
+            seg_pix = seg.get_total_pixel_matrix()
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(),
+                pix[0]
+            )
+
+    def test_multiple_source_single_pixel_array_float(self):
+        # Test construction when given multiple source images and a single
+        # segmentation image
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=[self._seg_pix.astype(np.float32)],
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                pix
+            )
+
+    def test_multiple_source_single_pixel_array_fractional(self):
+        # Test construction when given multiple source images and a single
+        # segmentation image
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=[self._seg_pix_fractional],
+            segmentation_type=SegmentationTypeValues.FRACTIONAL,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+            max_fractional_value=200,
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_fractional, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.allclose(
+                seg.get_total_pixel_matrix(combine_segments=False)[:, :, 0],
+                pix,
+                atol=0.005,  # 1/200
+            )
+
     def test_multiple_source_multiple_pixel_arrays(self):
         # Test construction when given multiple source images and multiple
         # segmentation images
@@ -4428,4 +4624,54 @@ class TestPyramid(unittest.TestCase):
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 pix
+            )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=self._downsampled_pix_arrays_multisegment,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(),
+                pix[0]
+            )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=mask,
+            segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            mask = np.argmax(pix, axis=3).astype(np.uint8)
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                mask[0]
             )

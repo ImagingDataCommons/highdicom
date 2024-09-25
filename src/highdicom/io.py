@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.dataset import Dataset
-from pydicom.encaps import get_frame_offsets
+from pydicom.encaps import parse_basic_offsets
 from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -16,7 +16,7 @@ from pydicom.filereader import (
     read_file_meta_info,
     read_partial
 )
-from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
+from pydicom.pixels.utils import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
 from pydicom.uid import UID
 
@@ -120,7 +120,7 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
         fp.is_implicit_VR, 'OB'
     )
     fp.seek(pixel_data_element_value_offset - 4, 1)
-    is_empty, offsets = get_frame_offsets(fp)
+    offsets = parse_basic_offsets(fp)
     return offsets
 
 
@@ -249,7 +249,7 @@ class ImageFileReader:
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, DicomFileLike):
+        if isinstance(filename, (DicomFileLike, DicomBytesIO)):
             fp = filename
             self._fp = fp
             if isinstance(filename, DicomBytesIO):
@@ -261,8 +261,8 @@ class ImageFileReader:
             self._fp = None
         else:
             raise TypeError(
-                'Argument "filename" must either an open DICOM file object or '
-                'the path to a DICOM file stored on disk.'
+                'Argument "filename" must be either an open DICOM file object '
+                'or the path to a DICOM file stored on disk.'
             )
         self._metadata = None
 

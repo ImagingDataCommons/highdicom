@@ -156,7 +156,7 @@ class MultiFrameImage(SOPClass):
 
         del state['db_data']
 
-        super().__setstate__(state)
+        self.__dict__.update(state)
 
     def _serialize_db(self) -> bytes:
         """Get a serialized copy of the internal database.

@@ -74,7 +74,7 @@ class TestBase(unittest.TestCase):
             )
 
     def test_explicit_vr(self):
-        sop_class = SOPClass(
+        _ = SOPClass(
             study_instance_uid=UID(),
             series_instance_uid=UID(),
             series_number=1,
@@ -85,11 +85,9 @@ class TestBase(unittest.TestCase):
             manufacturer='highdicom',
             transfer_syntax_uid=ExplicitVRLittleEndian,
         )
-        assert not sop_class.is_implicit_VR
-        assert sop_class.is_little_endian
 
     def test_implicit_vr(self):
-        sop_class = SOPClass(
+        _ = SOPClass(
             study_instance_uid=UID(),
             series_instance_uid=UID(),
             series_number=1,
@@ -100,8 +98,6 @@ class TestBase(unittest.TestCase):
             manufacturer='highdicom',
             transfer_syntax_uid=ImplicitVRLittleEndian,
         )
-        assert sop_class.is_implicit_VR
-        assert sop_class.is_little_endian
 
 
 class TestEndianCheck(unittest.TestCase):

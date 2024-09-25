@@ -11,7 +11,7 @@ from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DS, format_number_as_ds
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -479,7 +479,7 @@ class PlanePositionSequence(DataElementSequence):
                     'integers.'
                 )
 
-            # Use hard-coded tags to avoid the keywork dictionary lookup
+            # Use hard-coded tags to avoid the keyword dictionary lookup
             # (this constructor is called a large number of times in large
             # multiframe images, so some optimization makes sense)
             x_tag = 0x0040072a  # XOffsetInSlideCoordinateSystem
