@@ -1,6 +1,7 @@
 """Package for creation of Structured Report (SR) instances."""
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
+    CoordinatesForMeasurement,
     FindingSite,
     ImageRegion,
     ImageRegion3D,
@@ -104,6 +105,7 @@ __all__ = [
     'ContentItem',
     'ContentSequence',
     'ContentSequence',
+    'CoordinatesForMeasurement',
     'DateContentItem',
     'DateTimeContentItem',
     'DeviceObserverIdentifyingAttributes',

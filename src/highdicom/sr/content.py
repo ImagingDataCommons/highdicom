@@ -707,6 +707,30 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         return cast(SourceSeriesForSegmentation, item)
 
 
+class CoordinatesForMeasurement(ScoordContentItem):
+
+    """Content item representing spatial coordinates of a measurement"""
+
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypeValues, str],
+            graphic_data: np.ndarray,
+            source_image: SourceImageForRegion,
+    ) -> None:
+        graphic_type = GraphicTypeValues(graphic_type)
+        super().__init__(
+            name=CodedConcept(
+                value='121112',
+                meaning='Source of Measurement',
+                scheme_designator='DCM'
+            ),
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM,
+        )
+        self.ContentSequence = [source_image]
+
+
 class ImageRegion(ScoordContentItem):
 
     """Content item representing an image region of interest in the

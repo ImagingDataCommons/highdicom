@@ -10,7 +10,7 @@ from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
-    FindingSite,
+    CoordinatesForMeasurement, FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
     ImageRegion3D,
@@ -2386,7 +2386,7 @@ class Measurement(Template):
         finding_sites: Optional[Sequence[FindingSite]] = None,
         method: Optional[Union[CodedConcept, Code]] = None,
         properties: Optional[MeasurementProperties] = None,
-        referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
+        referenced_images: Optional[Sequence[Union[SourceImageForMeasurement, CoordinatesForMeasurement]]] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None
     ):
         """
@@ -2429,8 +2429,8 @@ class Measurement(Template):
             Measurement properties, including evaluations of its normality
             and/or significance, its relationship to a reference population,
             and an indication of its selection from a set of measurements
-        referenced_images: Union[Sequence[highdicom.sr.SourceImageForMeasurement], None], optional
-            Referenced images which were used as sources for the measurement
+        referenced_images: Union[Sequence[Union[highdicom.sr.SourceImageForMeasurement, highdicom.sr.CoordinatesForMeasurement]], None], optional
+            Referenced images or coordinates which were used as sources for the measurement
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for referenced source images
 
@@ -2495,10 +2495,10 @@ class Measurement(Template):
             content.extend(properties)
         if referenced_images is not None:
             for image in referenced_images:
-                if not isinstance(image, SourceImageForMeasurement):
+                if not isinstance(image, (SourceImageForMeasurement, CoordinatesForMeasurement)):
                     raise TypeError(
                         'Arguments "referenced_images" must have type '
-                        'SourceImageForMeasurement.'
+                        'SourceImageForMeasurement or CoordinatesForMeasurement.'
                     )
                 content.append(image)
         if referenced_real_world_value_map is not None:
