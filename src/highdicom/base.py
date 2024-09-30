@@ -139,8 +139,6 @@ class SOPClass(Dataset):
                 "Big Endian transfer syntaxes are retired and no longer "
                 "supported by highdicom."
             )
-        self.is_little_endian = True  # backwards compatibility
-        self.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
 
         # Include all File Meta Information required for writing SOP instance
         # to a file in PS3.10 format.
@@ -153,10 +151,7 @@ class SOPClass(Dataset):
         self.file_meta.ImplementationClassUID = UID(
             '1.2.826.0.1.3680043.9.7433.1.1'
         )
-        self.file_meta.ImplementationVersionName = 'highdicom{}'.format(
-            __version__
-        )
-        self.fix_meta_info(enforce_standard=True)
+        self.file_meta.ImplementationVersionName = f'highdicom{__version__}'
         with BytesIO() as fp:
             write_file_meta_info(fp, self.file_meta, enforce_standard=True)
             self.file_meta.FileMetaInformationGroupLength = len(fp.getvalue())
@@ -266,12 +261,12 @@ class SOPClass(Dataset):
         """
         tag = tag_for_keyword(keyword)
         if tag is None:
-            raise ValueError('No tag not found for keyword "{keyword}".')
+            raise ValueError(f'No tag not found for keyword "{keyword}".')
         try:
             data_element = dataset[tag]
-            logger.debug('copied attribute "{}"'.format(keyword))
+            logger.debug(f'copied attribute "{keyword}"')
         except KeyError:
-            logger.debug('skipped attribute "{}"'.format(keyword))
+            logger.debug(f'skipped attribute "{keyword}"')
             return
         self.add(data_element)
 
@@ -297,9 +292,8 @@ class SOPClass(Dataset):
         from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
         from highdicom._modules import MODULE_ATTRIBUTE_MAP
         logger.info(
-            'copy {}-related attributes from dataset "{}"'.format(
-                ie, dataset.SOPInstanceUID
-            )
+            f'copy {ie}-related attributes from '
+            f'dataset "{dataset.SOPInstanceUID}"'
         )
         iod_key = SOP_CLASS_UID_IOD_KEY_MAP[dataset.SOPClassUID]
         for module_item in IOD_MODULE_MAP[iod_key]:

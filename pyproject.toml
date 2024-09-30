@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "highdicom"
+version = "0.23.0"
+description = "High-level DICOM abstractions."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Markus D. Herrmann" },
+]
+maintainers = [
+    { name = "Markus D. Herrmann" },
+    { name = "Christopher P. Bridge" },
+]
+license = { text = "LICENSE" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=1.19",
+    "pillow>=8.3",
+    "pydicom>=3.0.1",
+    "pyjpegls>=1.0.0",
+]
+
+[project.optional-dependencies]
+libjpeg = [
+    "pylibjpeg-libjpeg>=2.1",
+    "pylibjpeg-openjpeg>=2.0.0",
+    "pylibjpeg>=2.0",
+]
+test = [
+    "mypy==0.971",
+    "pytest==7.4.4",
+    "pytest-cov==4.1.0",
+    "pytest-flake8==1.1.1",
+]
+docs = [
+    "sphinx-autodoc-typehints==1.17.0",
+    "sphinx-pyreverse==0.0.17",
+    "sphinx-rtd-theme==1.0.0",
+    "sphinxcontrib-autoprogram==0.1.7",
+    "sphinxcontrib-websupport==1.2.4",
+]
+
+[project.urls]
+homepage = "https://github.com/imagingdatacommons/highdicom"
+documentation = "https://highdicom.readthedocs.io/"
+repository = "https://github.com/ImagingDataCommons/highdicom.git"
+
+[tool.pytest.ini_options]
+minversion = "7"
+addopts = ["--doctest-modules", "-ra", "--strict-config", "--strict-markers"]
+testpaths = ["tests"]
+log_cli_level = "INFO"
+xfail_strict = true
+
+[tool.mypy]
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+
+[[tool.mypy.overrides]]
+module = "mypy-pydicom.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy-PIL.*"
+ignore_missing_imports = true

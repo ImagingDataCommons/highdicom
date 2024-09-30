@@ -16,8 +16,10 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     RLELossless,
     JPEGBaseline8Bit,
+    JPEG2000,
     JPEG2000Lossless,
     JPEGLSLossless,
+    JPEGLSNearLossless,
 )
 
 from highdicom.base import SOPClass
@@ -69,7 +71,7 @@ class SCImage(SOPClass):
             patient_birth_date: Optional[str] = None,
             patient_sex: Union[str, PatientSexValues, None] = None,
             accession_number: Optional[str] = None,
-            study_id: str = None,
+            study_id: Optional[str] = None,
             study_date: Optional[Union[str, datetime.date]] = None,
             study_time: Optional[Union[str, datetime.time]] = None,
             referring_physician_name: Optional[Union[str, PersonName]] = None,
@@ -108,9 +110,17 @@ class SCImage(SOPClass):
             image; either a 2D grayscale image or a 3D color image
             (RGB color space)
         photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
-            Interpretation of pixel data; either ``"MONOCHROME1"`` or
-            ``"MONOCHROME2"`` for 2D grayscale images or ``"RGB"`` or
-            ``"YBR_FULL"`` for 3D color images
+            Interpretation with which to store pixel data in the dataset;
+            either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for 2D grayscale
+            images or ``"RGB"`` or ``"YBR_FULL"`` for 3D color images. Note
+            that this should match the photometric interpretation of the input
+            pixel array, except in the following cases: if
+            ``transfer_syntax_uid`` is ``"JPEGBaseline8Bit"``,
+            ``photometric_interpretation must be ``"YBR_FULL_422"``, if
+            ``transfer_syntax_uid`` is ``"JPEG2000"``,
+            ``photometric_interpretation must be ``"YBR_ICT"``, if
+            ``transfer_syntax_uid`` is ``"JPEG2000Lossless"``,
+            ``photometric_interpretation must be ``"YBR_RCT"``.
         bits_allocated: int
             Number of bits that should be allocated per pixel value
         coordinate_system: Union[str, highdicom.CoordinateSystemNames]
@@ -188,8 +198,10 @@ class SCImage(SOPClass):
             ExplicitVRLittleEndian,
             RLELossless,
             JPEGBaseline8Bit,
+            JPEG2000,
             JPEG2000Lossless,
             JPEGLSLossless,
+            JPEGLSNearLossless,
         }
         if transfer_syntax_uid not in supported_transfer_syntaxes:
             raise ValueError(
@@ -326,12 +338,23 @@ class SCImage(SOPClass):
             photometric_interpretation
         )
         if pixel_array.ndim == 3:
-            accepted_interpretations = {
-                PhotometricInterpretationValues.RGB.value,
-                PhotometricInterpretationValues.YBR_FULL.value,
-                PhotometricInterpretationValues.YBR_FULL_422.value,
-                PhotometricInterpretationValues.YBR_PARTIAL_420.value,
-            }
+            if transfer_syntax_uid == JPEGBaseline8Bit:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_FULL_422.value,
+                }
+            elif transfer_syntax_uid == JPEG2000:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_ICT.value,
+                }
+            elif transfer_syntax_uid == JPEG2000Lossless:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_RCT.value,
+                }
+            else:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.RGB.value,
+                    PhotometricInterpretationValues.YBR_FULL.value,
+                }
             if photometric_interpretation.value not in accepted_interpretations:
                 raise ValueError(
                     'Pixel array has an unexpected photometric interpretation.'

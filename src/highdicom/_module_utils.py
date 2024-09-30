@@ -92,8 +92,8 @@ def check_required_attributes(
         for p in base_path:
             try:
                 tree = tree['attributes'][p]
-            except KeyError:
-                raise AttributeError(f"Invalid base path: {base_path}.")
+            except KeyError as e:
+                raise AttributeError(f"Invalid base path: {base_path}.") from e
 
     # Define recursive function
     def check(
@@ -280,4 +280,26 @@ def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
     ]
     return any(
         is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
+    )
+
+
+def is_multiframe_image(dataset: Dataset):
+    """Determine whether an image is a multiframe image.
+    The definition used is whether the IOD allows for multiple frames, not
+    whether this particular instance has more than one frame.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        A dataset to check.
+
+    Returns
+    -------
+    bool:
+        Whether the image belongs to a multiframe IOD.
+
+    """
+    return is_attribute_in_iod(
+        'PerFrameFunctionalGroupsSequence',
+        dataset.SOPClassUID,
     )

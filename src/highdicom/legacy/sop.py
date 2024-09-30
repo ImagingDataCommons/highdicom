@@ -62,8 +62,10 @@ def _convert_legacy_to_enhanced(
     from highdicom._modules import MODULE_ATTRIBUTE_MAP
     try:
         ref_ds = sf_datasets[0]
-    except IndexError:
-        raise ValueError('No data sets of single-frame legacy images provided.')
+    except IndexError as e:
+        raise ValueError(
+            'No data sets of single-frame legacy images provided.'
+        ) from e
 
     if mf_dataset is None:
         mf_dataset = Dataset()
@@ -166,7 +168,7 @@ def _convert_legacy_to_enhanced(
 
     # Per-Frame Functional Groups
     perframe_items = []
-    for i, ds in enumerate(sf_datasets):
+    for ds in sf_datasets:
         perframe_item = Dataset()
 
         # Frame Content (M)
@@ -334,7 +336,7 @@ def _convert_legacy_to_enhanced(
         Dataset()
         for _ in range(len(sf_datasets))
     ]
-    for tag, dataelements in unassigned_dataelements.items():
+    for _tag, dataelements in unassigned_dataelements.items():
         values = [str(da.value) for da in dataelements]
         unique_values = set(values)
         if len(unique_values) == 1:
@@ -455,8 +457,8 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
 
         try:
             ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+        except IndexError as e:
+            raise ValueError('No DICOM data sets of provided.') from e
 
         if ref_ds.Modality != 'MR':
             raise ValueError(
@@ -548,8 +550,8 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
 
         try:
             ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+        except IndexError as e:
+            raise ValueError('No DICOM data sets of provided.') from e
 
         if ref_ds.Modality != 'CT':
             raise ValueError(
@@ -627,8 +629,8 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
 
         try:
             ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+        except IndexError as e:
+            raise ValueError('No DICOM data sets of provided.') from e
 
         if ref_ds.Modality != 'PT':
             raise ValueError(

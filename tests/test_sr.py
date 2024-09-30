@@ -110,7 +110,7 @@ class TestImageRegion(unittest.TestCase):
         assert region.GraphicData[0] == graphic_data[0][0]
         assert region.GraphicData[1] == graphic_data[0][1]
         with pytest.raises(AttributeError):
-            region.PixelOriginInterpretation
+            region.PixelOriginInterpretation  # noqa: B018
 
     def test_construction_sm_image_without_pixel_origin_interpretation(self):
         source_image = SourceImageForRegion(
@@ -142,7 +142,10 @@ class TestImageRegion(unittest.TestCase):
             source_image=source_image,
             pixel_origin_interpretation=pixel_origin_interpretation
         )
-        region.PixelOriginInterpretation == pixel_origin_interpretation.value
+        assert (
+            region.PixelOriginInterpretation ==
+            pixel_origin_interpretation.value
+        )
 
     def test_construction_sm_image_with_wrong_pixel_origin_interpretation(self):
         source_image = SourceImageForRegion(
@@ -1017,9 +1020,9 @@ class TestContentItem(unittest.TestCase):
         assert i.referenced_sop_instance_uid == sop_instance_uid
         assert i.referenced_sop_class_uid == sop_class_uid
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedFrameNumber
+            ref_sop_item.ReferencedFrameNumber  # noqa: B018
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
         assert i.referenced_frame_numbers is None
         assert i.referenced_segment_numbers is None
 
@@ -1041,7 +1044,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedFrameNumber == frame_numbers
         assert i.referenced_frame_numbers == frame_numbers
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
 
     def test_image_item_construction_with_single_frame_number(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -1061,7 +1064,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedFrameNumber == frame_number
         assert i.referenced_frame_numbers == [frame_number]
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedSegmentNumber
+            ref_sop_item.ReferencedSegmentNumber  # noqa: B018
 
     def test_image_item_construction_single_segment_number(self):
         name = codes.DCM.SourceImageForSegmentation
@@ -1081,7 +1084,7 @@ class TestContentItem(unittest.TestCase):
         assert ref_sop_item.ReferencedSegmentNumber == segment_number
         assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
-            ref_sop_item.ReferencedFrameNumber
+            ref_sop_item.ReferencedFrameNumber  # noqa: B018
 
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1101,7 +1104,7 @@ class TestContentItem(unittest.TestCase):
         assert i.GraphicData == graphic_data.flatten().tolist()
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord_item_construction_circle(self):
         name = codes.DCM.ImageRegion
@@ -1122,7 +1125,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData[2:4] == graphic_data[1, :])
         assert i.PixelOriginInterpretation == pixel_origin_interpretation
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1142,7 +1145,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData == graphic_data[0, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_polygon(self):
         name = codes.DCM.ImageRegion
@@ -1166,7 +1169,7 @@ class TestContentItem(unittest.TestCase):
         assert np.all(i.GraphicData[6:9] == graphic_data[2, :])
         assert i.ReferencedFrameOfReferenceUID == frame_of_reference_uid
         with pytest.raises(AttributeError):
-            i.FiducialUID
+            i.FiducialUID  # noqa: B018
 
     def test_scoord3d_item_construction_non_closed_polygon(self):
         name = codes.DCM.ImageRegion
@@ -1393,6 +1396,114 @@ class TestSubjectContextDevice(unittest.TestCase):
         assert context[5].ConceptNameCodeSequence[0].CodeValue == \
             codes.DCM.DeviceSubjectPhysicalLocationDuringObservation.value
         assert context[5].TextValue == self._physical_location
+
+
+class TestSubjectContextSpecimen(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+
+    def test_from_image(self):
+        specimen_context = SubjectContextSpecimen.from_image(
+            self._sm_image
+        )
+
+        assert (
+            specimen_context.container_identifier ==
+            self._sm_image.ContainerIdentifier
+        )
+        description = self._sm_image.SpecimenDescriptionSequence[0]
+        assert (
+            specimen_context.specimen_identifier ==
+            description.SpecimenIdentifier
+        )
+        assert (
+            specimen_context.specimen_uid == description.SpecimenUID
+        )
+        assert specimen_context.specimen_type == codes.SCT.TissueSection
+
+    def test_from_image_no_specimen_type(self):
+        # Specimen type is optional, for_image method should cope correctly if
+        # it is missing
+        image = deepcopy(self._sm_image)
+        delattr(
+            image.SpecimenDescriptionSequence[0],
+            'SpecimenTypeCodeSequence'
+        )
+        specimen_context = SubjectContextSpecimen.from_image(image)
+
+        assert (
+            specimen_context.container_identifier ==
+            self._sm_image.ContainerIdentifier
+        )
+        description = self._sm_image.SpecimenDescriptionSequence[0]
+        assert (
+            specimen_context.specimen_identifier ==
+            description.SpecimenIdentifier
+        )
+        assert (
+            specimen_context.specimen_uid == description.SpecimenUID
+        )
+        assert specimen_context.specimen_type is None
+
+
+class TestSubjectContext(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        self._ct_image = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+    def test_from_image(self):
+        subject_context = SubjectContext.from_image(
+            self._sm_image
+        )
+
+        assert subject_context is not None
+
+        has_specimen_uid = False
+        has_specimen_id = False
+        has_container_id = False
+
+        for item in subject_context:
+
+            # SpecimenUID
+            specimen_uid = '2.25.281821656492584880365678271074145532563'
+            if item.ConceptNameCodeSequence[0].CodeValue == '121039':
+                assert item.UID == specimen_uid
+                has_specimen_uid = True
+
+            # Specimen Identifier
+            elif item.ConceptNameCodeSequence[0].CodeValue == '121041':
+                assert item.TextValue == 'S19-1_A_1_1'
+                has_specimen_id = True
+
+            # Specimen Container Identifier
+            elif item.ConceptNameCodeSequence[0].CodeValue == '111700':
+                assert item.TextValue == 'S19-1_A_1_1'
+                has_container_id = True
+
+        assert has_specimen_uid
+        assert has_specimen_id
+        assert has_container_id
+
+    def test_from_image_no_subject_info(self):
+        subject_context = SubjectContext.from_image(
+            self._ct_image
+        )
+
+        assert subject_context is None
 
 
 class TestObservationContext(unittest.TestCase):
@@ -2623,9 +2734,9 @@ class TestMeasurement(unittest.TestCase):
         unit_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_item == self._unit
         with pytest.raises(AttributeError):
-            item.NumericValueQualifierCodeSequence
+            item.NumericValueQualifierCodeSequence  # noqa: B018
         with pytest.raises(AttributeError):
-            item.ContentSequence
+            item.ContentSequence  # noqa: B018
 
         # Direct property access
         assert measurement.name == self._name
@@ -3769,6 +3880,20 @@ class TestEnhancedSR(unittest.TestCase):
             performed_procedure_codes=self._performed_procedures
         )
         assert report.SOPClassUID == '1.2.840.10008.5.1.4.1.1.88.22'
+        evidence = report.get_evidence()
+        assert len(evidence) == 1
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 1
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
 
     def test_construction_content_is_sequence(self):
         report = EnhancedSR(
@@ -3910,6 +4035,21 @@ class TestComprehensiveSR(unittest.TestCase):
         with pytest.raises(AttributeError):
             assert report.PertinentOtherEvidenceSequence
 
+        evidence = report.get_evidence()
+        assert len(evidence) == 1
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 1
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+
     def test_construction_content_is_sequence(self):
         report = ComprehensiveSR(
             evidence=[self._ref_dataset],
@@ -4025,6 +4165,96 @@ class TestComprehensiveSR(unittest.TestCase):
         assert len(ref_evd_items) == 2
         with pytest.raises(AttributeError):
             assert report.PertinentOtherEvidenceSequence
+
+        evidence = report.get_evidence()
+        assert len(evidence) == 2
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        assert evidence[1] == (
+            ref_dataset.StudyInstanceUID,
+            ref_dataset.SeriesInstanceUID,
+            ref_dataset.SOPInstanceUID,
+            ref_dataset.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 2
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+        assert evidence_series[1] == (
+            ref_dataset.StudyInstanceUID,
+            ref_dataset.SeriesInstanceUID,
+        )
+
+    def test_current_and_other_evidence(self):
+        ref_dataset2 = deepcopy(self._ref_dataset)
+        ref_dataset2.SeriesInstanceUID = '1.2.3'
+        ref_dataset2.SOPInstanceUID = '1.2.3'
+
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, ref_dataset2],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
+        unref_evd_items = report.PertinentOtherEvidenceSequence
+        assert len(unref_evd_items) == 1
+
+        evidence = report.get_evidence()
+        assert len(evidence) == 2
+        assert evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        assert evidence[1] == (
+            ref_dataset2.StudyInstanceUID,
+            ref_dataset2.SeriesInstanceUID,
+            ref_dataset2.SOPInstanceUID,
+            ref_dataset2.SOPClassUID,
+        )
+        evidence_series = report.get_evidence_series()
+        assert len(evidence_series) == 2
+        assert evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
+        assert evidence_series[1] == (
+            ref_dataset2.StudyInstanceUID,
+            ref_dataset2.SeriesInstanceUID,
+        )
+
+        current_evidence = report.get_evidence(
+            current_procedure_only=True
+        )
+        assert len(current_evidence) == 1
+        assert current_evidence[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+            self._ref_dataset.SOPInstanceUID,
+            self._ref_dataset.SOPClassUID,
+        )
+        current_evidence_series = report.get_evidence_series(
+            current_procedure_only=True
+        )
+        assert len(current_evidence_series) == 1
+        assert current_evidence_series[0] == (
+            self._ref_dataset.StudyInstanceUID,
+            self._ref_dataset.SeriesInstanceUID,
+        )
 
     def test_srread(self):
         report = ComprehensiveSR(
@@ -5175,7 +5405,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         value_item = group[4].MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
-        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
         assert isinstance(group[5], NumContentItem)
         assert group[5].name == codes.DCM.VerticalPixelSpacing
@@ -5186,7 +5416,7 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         value_item = group[6].MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
-        assert unit_code_item.CodeMeaning == 'millimeter'
+        assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
         assert isinstance(group[7], NumContentItem)
         assert group[7].name == codes.DCM.SliceThickness

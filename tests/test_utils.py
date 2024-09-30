@@ -14,7 +14,6 @@ from highdicom.enum import CoordinateSystemNames
 from highdicom.utils import (
     compute_plane_position_tiled_full,
     compute_plane_position_slide_per_frame,
-    is_tiled_image,
     are_plane_positions_tiled_full,
 )
 
@@ -144,36 +143,6 @@ def test_compute_plane_position_tiled_full_with_missing_parameters():
         )
 
 
-@pytest.mark.parametrize(
-    'filepath,expected_output',
-    [
-        (
-            Path(__file__).parents[1].joinpath('data/test_files/ct_image.dcm'),
-            False
-        ),
-        (
-            Path(__file__).parents[1].joinpath('data/test_files/sm_image.dcm'),
-            True
-        ),
-        (
-            Path(__file__).parents[1].joinpath(
-                'data/test_files/seg_image_ct_binary.dcm'
-            ),
-            False
-        ),
-        (
-            Path(__file__).parents[1].joinpath(
-                'data/test_files/seg_image_sm_control.dcm'
-            ),
-            True
-        ),
-    ]
-)
-def test_is_tiled_image(filepath, expected_output):
-    dcm = dcmread(filepath)
-    assert is_tiled_image(dcm) == expected_output
-
-
 def test_compute_plane_position_slide_per_frame():
     iterator = itertools.product(range(1, 4), range(1, 3))
     for num_optical_paths, num_focal_planes in iterator:
@@ -228,7 +197,7 @@ def test_are_plane_positions_tiled_full():
     )
     sm_image = dcmread(sm_path)
 
-    # The plane positions from a TILED_FULL image should satsify the
+    # The plane positions from a TILED_FULL image should satisfy the
     # requirements
     plane_positions = compute_plane_position_slide_per_frame(sm_image)
     assert are_plane_positions_tiled_full(

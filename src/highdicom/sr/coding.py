@@ -1,6 +1,6 @@
 from copy import deepcopy
 import logging
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -32,7 +32,7 @@ class CodedConcept(Dataset):
             version of coding scheme
 
         """
-        super(CodedConcept, self).__init__()
+        super().__init__()
         if len(value) > 16:
             if value.startswith('urn') or '://' in value:
                 self.URNCodeValue = str(value)
@@ -51,7 +51,7 @@ class CodedConcept(Dataset):
     def __hash__(self) -> int:
         return hash(self.scheme_designator + self.value)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares `self` and `other` for equality.
 
         Parameters
@@ -75,7 +75,7 @@ class CodedConcept(Dataset):
             return Code.__eq__(this, other)
         return super().__eq__(other)
 
-    def __ne__(self, other: Any) -> bool:
+    def __ne__(self, other: object) -> bool:
         """Compares `self` and `other` for inequality.
 
         Parameters

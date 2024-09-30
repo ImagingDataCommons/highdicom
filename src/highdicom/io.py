@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.dataset import Dataset
-from pydicom.encaps import get_frame_offsets
+from pydicom.encaps import parse_basic_offsets
 from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -16,7 +16,7 @@ from pydicom.filereader import (
     read_file_meta_info,
     read_partial
 )
-from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
+from pydicom.pixels.utils import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
 from pydicom.uid import UID
 
@@ -120,7 +120,7 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
         fp.is_implicit_VR, 'OB'
     )
     fp.seek(pixel_data_element_value_offset - 4, 1)
-    is_empty, offsets = get_frame_offsets(fp)
+    offsets = parse_basic_offsets(fp)
     return offsets
 
 
@@ -249,7 +249,7 @@ class ImageFileReader:
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, DicomFileLike):
+        if isinstance(filename, (DicomFileLike, DicomBytesIO)):
             fp = filename
             self._fp = fp
             if isinstance(filename, DicomBytesIO):
@@ -261,8 +261,8 @@ class ImageFileReader:
             self._fp = None
         else:
             raise TypeError(
-                'Argument "filename" must either an open DICOM file object or '
-                'the path to a DICOM file stored on disk.'
+                'Argument "filename" must be either an open DICOM file object '
+                'or the path to a DICOM file stored on disk.'
             )
         self._metadata = None
 
@@ -282,9 +282,8 @@ class ImageFileReader:
             pass
         if except_value:
             sys.stderr.write(
-                'Error while accessing file "{}":\n{}'.format(
-                    self._filename, str(except_value)
-                )
+                f'Error while accessing file "{self._filename}":\n'
+                f'{except_value}'
             )
             for tb in traceback.format_tb(except_trace):
                 sys.stderr.write(tb)
@@ -313,12 +312,14 @@ class ImageFileReader:
         if self._fp is None:
             try:
                 self._fp = DicomFile(str(self._filename), mode='rb')
-            except FileNotFoundError:
-                raise FileNotFoundError(f'File not found: "{self._filename}"')
-            except Exception:
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f'File not found: "{self._filename}"'
+                ) from e
+            except Exception as e:
                 raise OSError(
                     f'Could not open file for reading: "{self._filename}"'
-                )
+                ) from e
         is_little_endian, is_implicit_VR = self._check_file_format(self._fp)
         self._fp.is_little_endian = is_little_endian
         self._fp.is_implicit_VR = is_implicit_VR
@@ -378,7 +379,9 @@ class ImageFileReader:
         try:
             metadata = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
-            raise OSError(f'DICOM metadata cannot be read from file: "{err}"')
+            raise OSError(
+                f'DICOM metadata cannot be read from file: "{err}"'
+            ) from err
 
         # Cache Transfer Syntax UID, since we need it to decode frame items
         self._transfer_syntax_uid = UID(metadata.file_meta.TransferSyntaxUID)
@@ -392,10 +395,10 @@ class ImageFileReader:
         # Determine whether dataset contains a Pixel Data element
         try:
             tag = TupleTag(self._fp.read_tag())
-        except EOFError:
+        except EOFError as e:
             raise ValueError(
                 'Dataset does not represent an image information entity.'
-            )
+            ) from e
         if int(tag) not in _PIXEL_DATA_TAGS:
             raise ValueError(
                 'Dataset does not represent an image information entity.'
@@ -413,7 +416,9 @@ class ImageFileReader:
             try:
                 self._basic_offset_table = _get_bot(self._fp, number_of_frames)
             except Exception as err:
-                raise OSError(f'Failed to build Basic Offset Table: "{err}"')
+                raise OSError(
+                    f'Failed to build Basic Offset Table: "{err}"'
+                ) from err
             self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:

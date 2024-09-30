@@ -20,14 +20,14 @@ SOP_CLASS_UIDS = {
 
 __all__ = [
     'DimensionIndexSequence',
-    'Segmentation',
-    'segread',
     'SegmentAlgorithmTypeValues',
+    'SegmentDescription',
+    'Segmentation',
     'SegmentationFractionalTypeValues',
     'SegmentationTypeValues',
-    'SegmentDescription',
     'SegmentsOverlapValues',
     'SpatialLocationsPreservedValues',
     'create_segmentation_pyramid',
+    'segread',
     'utils',
 ]

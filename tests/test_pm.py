@@ -6,7 +6,7 @@ from typing import Sequence
 import numpy as np
 import pytest
 from pydicom import dcmread
-from pydicom.data import get_testdata_files
+from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import (
@@ -117,11 +117,11 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.RealWorldValueLastValueMapped, int)
         assert m.RealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueFirstValueMapped
+            m.DoubleFloatRealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueLastValueMapped
+            m.DoubleFloatRealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLUTData
+            m.RealWorldValueLUTData  # noqa: B018
         assert len(m.QuantityDefinitionSequence) == 1
         quantity_item = m.QuantityDefinitionSequence[0]
         assert quantity_item.name == codes.SCT.Quantity
@@ -150,13 +150,13 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.RealWorldValueLastValueMapped, int)
         assert m.RealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueFirstValueMapped
+            m.DoubleFloatRealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.DoubleFloatRealWorldValueLastValueMapped
+            m.DoubleFloatRealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueSlope
+            m.RealWorldValueSlope  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueIntercept
+            m.RealWorldValueIntercept  # noqa: B018
 
     def test_construction_floating_point_linear_relationship(self):
         lut_label = '1'
@@ -185,11 +185,11 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert isinstance(m.DoubleFloatRealWorldValueLastValueMapped, float)
         assert m.DoubleFloatRealWorldValueLastValueMapped == value_range[1]
         with pytest.raises(AttributeError):
-            m.RealWorldValueFirstValueMapped
+            m.RealWorldValueFirstValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLastValueMapped
+            m.RealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
-            m.RealWorldValueLUTData
+            m.RealWorldValueLUTData  # noqa: B018
 
     def test_failed_construction_floating_point_nonlinear_relationship(self):
         lut_label = '1'
@@ -230,6 +230,10 @@ class TestParametricMap(unittest.TestCase):
 
         self._ct_image = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+        self._ct_multiframe_image = dcmread(
+            get_testdata_file('eCT_Supplemental.dcm')
         )
 
         self._sm_image = dcmread(
@@ -337,6 +341,11 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
             content_label=content_label
         )
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
+
         assert pmap.SOPClassUID == '1.2.840.10008.5.1.4.1.1.30'
         assert pmap.SOPInstanceUID == self._sop_instance_uid
         assert pmap.SeriesInstanceUID == self._series_instance_uid
@@ -546,10 +555,11 @@ class TestParametricMap(unittest.TestCase):
         assert instance.PixelPresentation == 'MONOCHROME'
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
+        pytest.importorskip("openjpeg")
         pixel_array = np.random.randint(
             low=0,
             high=2**8,
-            size=self._sm_image.pixel_array.shape[:3],
+            size=self._ct_multiframe_image.pixel_array.shape[:3],
             dtype=np.uint8
         )
         window_center = 128
@@ -564,7 +574,7 @@ class TestParametricMap(unittest.TestCase):
             slope=1
         )
         pmap = ParametricMap(
-            [self._sm_image],
+            [self._ct_multiframe_image],
             pixel_array,
             self._series_instance_uid,
             self._series_number,
@@ -651,6 +661,11 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
         )
         assert pmap.BitsAllocated == 64
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
+
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_ushort_native(self):
@@ -765,6 +780,10 @@ class TestParametricMap(unittest.TestCase):
             window_center=window_center,
             window_width=window_width,
         )
+
+        # Work around pydicom 3 decoding issue (should be able to remove this
+        # soon)
+        pmap.pixel_array_options(use_v2_backend=True)
 
         assert np.array_equal(pmap.pixel_array, pixel_array)
 

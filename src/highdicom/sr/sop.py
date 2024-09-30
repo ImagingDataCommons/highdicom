@@ -1,11 +1,13 @@
 """Module for SOP Classes of Structured Report (SR) IODs."""
 import datetime
+from itertools import chain
 import logging
 from collections import defaultdict
 from copy import deepcopy
 from os import PathLike
 from typing import (
     Any,
+    Generator,
     cast,
     Mapping,
     List,
@@ -350,6 +352,116 @@ class _SR(SOPClass):
     def content(self) -> ContentSequence:
         """highdicom.sr.value_types.ContentSequence: SR document content"""
         return self._content
+
+    def get_evidence(
+        self,
+        current_procedure_only: bool = False,
+    ) -> List[Tuple[UID, UID, UID, UID]]:
+        """Get a list of all SOP Instances listed as evidence in this SR.
+
+        Parameters
+        ----------
+        current_procedure_only: bool, optional
+            If True, return only evidence created in order to satisfy the
+            current requested procedure (found in the
+            *CurrentRequestedProcedureEvidenceSequence*). If False, also
+            include other evidence (found in the
+            *PertinentOtherEvidenceSequence*).
+
+        Returns
+        -------
+        List[Tuple[highdicom.UID, highdicom.UID, highdicom.UID, highdicom.UID]]:
+            List of tuples of UIDs, each representing a single instance. Each
+            tuple consists of (StudyInstanceUID, SeriesInstanceUID,
+            SOPInstanceUID, SOPClassUID).
+
+        """
+        def extract_evidence(
+            sequence: DataElementSequence,
+        ) -> Generator[Tuple[UID, UID, UID, UID], None, None]:
+            for item in sequence:
+                for series_ds in item.ReferencedSeriesSequence:
+                    for instance_ds in series_ds.ReferencedSOPSequence:
+                        yield (
+                            UID(item.StudyInstanceUID),
+                            UID(series_ds.SeriesInstanceUID),
+                            UID(instance_ds.ReferencedSOPInstanceUID),
+                            UID(instance_ds.ReferencedSOPClassUID),
+                        )
+
+        current_evidence_seq = self.get(
+            'CurrentRequestedProcedureEvidenceSequence'
+        )
+        if current_evidence_seq is not None:
+            current_evidence = extract_evidence(current_evidence_seq)
+        else:
+            current_evidence = []
+
+        other_evidence_seq = self.get('PertinentOtherEvidenceSequence')
+        if other_evidence_seq is not None and not current_procedure_only:
+            other_evidence = extract_evidence(other_evidence_seq)
+        else:
+            other_evidence = []
+
+        evidence = list(chain(current_evidence, other_evidence))
+
+        # Deduplicate the list while preserving order
+        evidence = list(dict.fromkeys(evidence))
+
+        return evidence
+
+    def get_evidence_series(
+        self,
+        current_procedure_only: bool = False,
+    ) -> List[Tuple[UID, UID]]:
+        """Get a list of all series listed as evidence in this SR.
+
+        Parameters
+        ----------
+        current_procedure_only: bool, optional
+            If True, return only evidence created in order to satisfy the
+            current requested procedure (found in the
+            *CurrentRequestedProcedureEvidenceSequence*). If False, also
+            include other evidence (found in the
+            *PertinentOtherEvidenceSequence*).
+
+        Returns
+        -------
+        List[Tuple[highdicom.UID, highdicom.UID]]:
+            List of tuples of UIDs, each representing a single series. Each
+            tuple consists of (StudyInstanceUID, SeriesInstanceUID).
+
+        """
+        def extract_evidence_series(
+            sequence: DataElementSequence,
+        ) -> Generator[Tuple[UID, UID], None, None]:
+            for item in sequence:
+                for series_ds in item.ReferencedSeriesSequence:
+                    yield (
+                        UID(item.StudyInstanceUID),
+                        UID(series_ds.SeriesInstanceUID),
+                    )
+
+        current_evidence_seq = self.get(
+            'CurrentRequestedProcedureEvidenceSequence'
+        )
+        if current_evidence_seq is not None:
+            current_evidence = extract_evidence_series(current_evidence_seq)
+        else:
+            current_evidence = []
+
+        other_evidence_seq = self.get('PertinentOtherEvidenceSequence')
+        if other_evidence_seq is not None and not current_procedure_only:
+            other_evidence = extract_evidence_series(other_evidence_seq)
+        else:
+            other_evidence = []
+
+        evidence = list(chain(current_evidence, other_evidence))
+
+        # Deduplicate the list while preserving order
+        evidence = list(dict.fromkeys(evidence))
+
+        return evidence
 
 
 class EnhancedSR(_SR):

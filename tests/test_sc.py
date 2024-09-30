@@ -4,13 +4,15 @@ import unittest
 
 import numpy as np
 import pytest
-from pydicom.encaps import generate_pixel_data_frame
+from pydicom.encaps import generate_fragmented_frames
 from pydicom.filereader import dcmread
 from pydicom.uid import (
     RLELossless,
     JPEGBaseline8Bit,
+    JPEG2000,
     JPEG2000Lossless,
     JPEGLSLossless,
+    JPEGLSNearLossless,
 )
 from pydicom.valuerep import DA, TM
 
@@ -65,7 +67,7 @@ class TestSCImage(unittest.TestCase):
                 pixel_representation=ds.PixelRepresentation,
                 planar_configuration=getattr(ds, 'PlanarConfiguration', None)
             )
-            for value in generate_pixel_data_frame(instance.PixelData)
+            for (value, ) in generate_fragmented_frames(instance.PixelData)
         ]
         if len(decoded_frame_arrays) > 1:
             return np.stack(decoded_frame_arrays)
@@ -110,10 +112,10 @@ class TestSCImage(unittest.TestCase):
         assert instance.PixelSpacing == [0.5, 0.5]
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.ContainerIdentifier
-            instance.SpecimenDescriptionSequence
-            instance.ContainerTypeCodeSequence
-            instance.IssuerOfTheContainerIdentifierSequence
+            instance.ContainerIdentifier  # noqa: B018
+            instance.SpecimenDescriptionSequence  # noqa: B018
+            instance.ContainerTypeCodeSequence  # noqa: B018
+            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
     def test_construct_rgb_patient_missing_parameter(self):
         with pytest.raises(TypeError):
@@ -179,8 +181,8 @@ class TestSCImage(unittest.TestCase):
         assert instance.StudyTime is None
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.Laterality
-            instance.PatientOrientation
+            instance.Laterality  # noqa: B018
+            instance.PatientOrientation  # noqa: B018
 
     def test_construct_rgb_slide_single_specimen_missing_parameter(self):
         bits_allocated = 8
@@ -258,10 +260,10 @@ class TestSCImage(unittest.TestCase):
         assert instance.StudyDate is None
         assert instance.PixelData == self._monochrome_pixel_array.tobytes()
         with pytest.raises(AttributeError):
-            instance.ContainerIdentifier
-            instance.SpecimenDescriptionSequence
-            instance.ContainerTypeCodeSequence
-            instance.IssuerOfTheContainerIdentifierSequence
+            instance.ContainerIdentifier  # noqa: B018
+            instance.SpecimenDescriptionSequence  # noqa: B018
+            instance.ContainerTypeCodeSequence  # noqa: B018
+            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
     def test_monochrome_rle(self):
         bits_allocated = 8  # RLE requires multiple of 8 bits
@@ -318,6 +320,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_monochrome_jpeg_baseline(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -347,6 +350,7 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_jpeg_baseline(self):
+        pytest.importorskip("libjpeg")
         bits_allocated = 8
         photometric_interpretation = 'YBR_FULL_422'
         coordinate_system = 'PATIENT'
@@ -373,7 +377,8 @@ class TestSCImage(unittest.TestCase):
         reread_frame = self.get_array_after_writing(instance)
         np.testing.assert_allclose(frame, reread_frame, rtol=1.2)
 
-    def test_monochrome_jpeg2000(self):
+    def test_monochrome_jpeg2000lossless(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
@@ -400,9 +405,39 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
-    def test_rgb_jpeg2000(self):
+    def test_monochrome_jpeg2000(self):
+        pytest.importorskip("openjpeg")
         bits_allocated = 8
-        photometric_interpretation = 'YBR_FULL'
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
+    def test_rgb_jpeg2000(self):
+        pytest.importorskip("openjpeg")
+        bits_allocated = 8
+        photometric_interpretation = 'YBR_RCT'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(
@@ -455,10 +490,39 @@ class TestSCImage(unittest.TestCase):
             frame
         )
 
+    def test_monochrome_jpegls_near_lossless(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 16
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSNearLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSNearLossless
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
     def test_rgb_jpegls(self):
         pytest.importorskip("libjpeg")
         bits_allocated = 8
-        photometric_interpretation = 'YBR_FULL'
+        photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(

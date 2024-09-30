@@ -177,11 +177,11 @@ class KeyObjectSelectionDocument(SOPClass):
         """
         try:
             return self._reference_lut[sop_instance_uid]
-        except KeyError:
+        except KeyError as e:
             raise ValueError(
                 'Could not find any evidence for SOP Instance UID '
                 f'"{sop_instance_uid}" in KOS document.'
-            )
+            ) from e
 
     @classmethod
     def from_dataset(cls, dataset: Dataset) -> 'KeyObjectSelectionDocument':

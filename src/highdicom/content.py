@@ -2,15 +2,16 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
-from typing import Any, cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
 
 import numpy as np
 from pydicom.dataset import Dataset
+from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import DS, format_number_as_ds
-from pydicom._storage_sopclass_uids import SegmentationStorage
+from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -86,7 +87,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             item.AlgorithmSource = source
         if parameters is not None:
             item.AlgorithmParameters = ','.join([
-                '='.join([key, value])
+                f"{key}={value}"
                 for key, value in parameters.items()
             ])
         self.append(item)
@@ -469,18 +470,27 @@ class PlanePositionSequence(DataElementSequence):
                     'Position in Pixel Matrix must be specified for '
                     'slide coordinate system.'
                 )
-            col_position, row_position = pixel_matrix_position
             x, y, z = image_position
-            item.XOffsetInSlideCoordinateSystem = DS(x, auto_format=True)
-            item.YOffsetInSlideCoordinateSystem = DS(y, auto_format=True)
-            item.ZOffsetInSlideCoordinateSystem = DS(z, auto_format=True)
+            col_position, row_position = pixel_matrix_position
             if row_position < 0 or col_position < 0:
                 raise ValueError(
                     'Both items in "pixel_matrix_position" must be positive '
                     'integers.'
                 )
-            item.RowPositionInTotalImagePixelMatrix = row_position
-            item.ColumnPositionInTotalImagePixelMatrix = col_position
+
+            # Use hard-coded tags to avoid the keyword dictionary lookup
+            # (this constructor is called a large number of times in large
+            # multiframe images, so some optimization makes sense)
+            x_tag = 0x0040072a  # XOffsetInSlideCoordinateSystem
+            y_tag = 0x0040073a  # YOffsetInSlideCoordinateSystem
+            z_tag = 0x0040074a  # ZOffsetInSlideCoordinateSystem
+            row_tag = 0x0048021f  # RowPositionInTotalImagePixelMatrix
+            column_tag = 0x0048021e  # ColumnPositionInTotalImagePixelMatrix
+            item.add(DataElement(x_tag, 'DS', DS(x, auto_format=True)))
+            item.add(DataElement(y_tag, 'DS', DS(y, auto_format=True)))
+            item.add(DataElement(z_tag, 'DS', DS(z, auto_format=True)))
+            item.add(DataElement(row_tag, 'SL', int(row_position)))
+            item.add(DataElement(column_tag, 'SL', int(col_position)))
         elif coordinate_system == CoordinateSystemNames.PATIENT:
             item.ImagePositionPatient = [
                 DS(ip, auto_format=True) for ip in image_position
@@ -491,7 +501,7 @@ class PlanePositionSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same position.
 
         Parameters
@@ -508,7 +518,7 @@ class PlanePositionSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare image position between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImagePositionPatient'):
             return np.array_equal(
@@ -631,7 +641,7 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         self.append(item)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same orientation.
 
         Parameters
@@ -648,7 +658,7 @@ class PlaneOrientationSequence(DataElementSequence):
         if not isinstance(other, self.__class__):
             raise TypeError(
                 'Can only compare orientation between instances of '
-                'class "{}".'.format(self.__class__.__name__)
+                f'class "{self.__class__.__name__}".'
             )
         if hasattr(self[0], 'ImageOrientationPatient'):
             if not hasattr(other[0], 'ImageOrientationPatient'):
@@ -1352,7 +1362,7 @@ class SpecimenPreparationStep(Dataset):
             )
         processing_type = processing_type_items[0].value
 
-        instance._processing_procedure: Union[
+        instance._processing_procedure: Union[  # noqa: B032
             SpecimenCollection,
             SpecimenSampling,
             SpecimenStaining,
