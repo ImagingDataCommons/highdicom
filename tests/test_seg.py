@@ -2367,6 +2367,8 @@ class TestSegmentation:
         pix_type,
         test_data,
     ):
+        if fractional_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
         if fractional_transfer_syntax_uid == JPEGLSLossless:
             pytest.importorskip("libjpeg")
         sources, mask = self._tests[test_data]
