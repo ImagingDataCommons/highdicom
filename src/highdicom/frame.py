@@ -249,9 +249,10 @@ def encode_frame(
                         'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either "MONOCHROME1", '
-                        '"MONOCHROME2", or "PALETTE COLOR" for encoding of '
-                        f'monochrome image frames with {name} codec.'
+                        'Photometric intpretation must be either '
+                        '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" '
+                        'for encoding of monochrome image frames with '
+                        f'{name} codec.'
                     )
                 if transfer_syntax_uid == JPEG2000Lossless:
                     if bits_allocated not in (1, 8, 16):

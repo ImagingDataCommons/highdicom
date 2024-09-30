@@ -2421,9 +2421,9 @@ class Segmentation(SOPClass):
                             ) from error
                     else:
                         if segmentation_type == SegmentationTypeValues.LABELMAP:
-                            # Here we have to use the "Frame Label" dimension value
-                            # (which is used just to have one index since Referenced
-                            # Segment cannot be used)
+                            # Here we have to use the "Frame Label" dimension
+                            # value (which is used just to have one index since
+                            # Referenced Segment cannot be used)
                             dimension_index_values = [1]
                         else:
                             dimension_index_values = []
@@ -3489,7 +3489,7 @@ class Segmentation(SOPClass):
                     'SQ',
                     [identification]
                 )
-        )
+            )
 
         return pffg_item
 
