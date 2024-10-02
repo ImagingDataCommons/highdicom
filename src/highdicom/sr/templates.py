@@ -448,7 +448,7 @@ def _contains_uidref_items(
 
 def _contains_image_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
+    name: Union[Code, CodedConcept, None],
     referenced_sop_class_uid: Union[str, None] = None,
     referenced_sop_instance_uid: Union[str, None] = None,
     relationship_type: Optional[RelationshipTypeValues] = None
@@ -459,7 +459,7 @@ def _contains_image_items(
     ----------
     parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None]
         Name of the child SR Content Item
     referenced_sop_class_uid: Union[str, None], optional
         SOP Class UID referenced by the content item
@@ -2095,8 +2095,10 @@ class SubjectContextDevice(Template):
             ('manufacturer_name', codes.DCM.DeviceSubjectManufacturer),
             ('model_name', codes.DCM.DeviceSubjectModelName),
             ('serial_number', codes.DCM.DeviceSubjectSerialNumber),
-            ('physical_location',
-             codes.DCM.DeviceSubjectPhysicalLocationDuringObservation),
+            (
+                'physical_location',
+                codes.DCM.DeviceSubjectPhysicalLocationDuringObservation
+            ),
         ]
         kwargs = {}
         for dataset in sequence:
@@ -3288,7 +3290,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
-        _ROIMeasurementsAndQualitativeEvaluations):
+    _ROIMeasurementsAndQualitativeEvaluations
+):
 
     """:dcm:`TID 1410 <part16/chapter_A.html#sect_TID_1410>`
      Planar ROI Measurements and Qualitative Evaluations"""
@@ -3302,9 +3305,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_region: Optional[
-            Union[ImageRegion, ImageRegion3D]
-        ] = None,
+        referenced_region: Union[ImageRegion, ImageRegion3D, None],
         referenced_segment: Optional[ReferencedSegmentationFrame] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
         time_point_context: Optional[TimePointContext] = None,
@@ -3570,7 +3571,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
-        _ROIMeasurementsAndQualitativeEvaluations):
+    _ROIMeasurementsAndQualitativeEvaluations
+):
 
     """:dcm:`TID 1411 <part16/chapter_A.html#sect_TID_1411>`
      Volumetric ROI Measurements and Qualitative Evaluations"""
@@ -3585,9 +3587,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_regions: Optional[
-            Union[Sequence[ImageRegion]]
-        ] = None,
+        referenced_regions: Optional[Sequence[ImageRegion]] = None,
         referenced_volume_surface: Optional[VolumeSurface] = None,
         referenced_segment: Optional[ReferencedSegment] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
