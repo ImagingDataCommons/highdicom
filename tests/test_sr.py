@@ -3093,6 +3093,24 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 referenced_segment=self._segment
             )
 
+    def test_constructed_with_measurements_coordinates(self):
+        measurement = Measurement(
+            name=codes.SCT.Diameter,
+            value=5,
+            unit=codes.UCUM.Millimeter,
+            referenced_coordinates=[CoordinatesForMeasurement(
+                graphic_type=GraphicTypeValues.POLYLINE,
+                graphic_data=np.array([[1, 1], [2, 2]]),
+                source_image=self._image_for_region
+            )]
+        )
+        with pytest.raises(ValueError) as exc:
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_region=self._region,
+                measurements=[measurement],
+            )
+
 
 class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 

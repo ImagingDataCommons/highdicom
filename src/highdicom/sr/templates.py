@@ -3308,6 +3308,13 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
+        if measurements is not None:
+            for measurement in measurements:
+                if measurement.referenced_coordinates:
+                    raise ValueError(
+                        'Referenced coordinates in measurements are not allowed in '
+                        f'{self.__class__.__name__}.'
+                    )
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
