@@ -730,6 +730,36 @@ class CoordinatesForMeasurement(ScoordContentItem):
         )
         self.ContentSequence = [source_image]
 
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            copy: bool = True,
+    ) -> 'CoordinatesForMeasurement':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.sr.CoordinatesForMeasurement
+            Constructed object
+
+        """
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
+        return cast(CoordinatesForMeasurement, item)
+
 
 class ImageRegion(ScoordContentItem):
 
