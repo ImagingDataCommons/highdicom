@@ -10,7 +10,8 @@ from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
-    CoordinatesForMeasurement, FindingSite,
+    CoordinatesForMeasurement,
+    FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
     ImageRegion3D,
