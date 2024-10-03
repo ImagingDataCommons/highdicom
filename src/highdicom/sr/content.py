@@ -443,11 +443,7 @@ class SourceImageForRegion(ImageContentItem):
                     '1-based.'
                 )
         super().__init__(
-            name=CodedConcept(
-                value='111040',
-                meaning='Original Source',
-                scheme_designator='DCM'
-            ),
+            name=codes.SCT.Source,
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
