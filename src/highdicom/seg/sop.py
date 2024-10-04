@@ -4002,13 +4002,24 @@ class Segmentation(SOPClass):
 
     @property
     def number_of_segments(self) -> int:
-        """int: The number of segments in this SEG image."""
+        """int: The number of non-background segments in this SEG image."""
+        if hasattr(self, 'PixelPaddingValue'):
+            return len(self.segment_numbers) - 1
         return len(self.SegmentSequence)
 
     @property
-    def segment_numbers(self) -> range:
-        """range: The segment numbers present in the SEG image as a range."""
-        return range(1, self.number_of_segments + 1)
+    def segment_numbers(self) -> List[int]:
+        """range: The segment numbers of non-background segments present
+        in the SEG image."""
+        if hasattr(self, 'PixelPaddingValue'):
+            return [
+                desc.SegmentNumber for desc in self.SegmentSequence
+                if desc.SegmentNumber != self.PixelPaddingValue
+            ]
+        else:
+            return [
+                desc.SegmentNumber for desc in self.SegmentSequence
+            ]
 
     def get_segment_description(
         self,

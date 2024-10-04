@@ -3431,7 +3431,7 @@ class TestSegmentationParsing:
         assert seg_type == SegmentationTypeValues.BINARY
         assert self._sm_control_seg.segmentation_fractional_type is None
         assert self._sm_control_seg.number_of_segments == 20
-        assert self._sm_control_seg.segment_numbers == range(1, 21)
+        assert self._sm_control_seg.segment_numbers == list(range(1, 21))
 
         assert len(self._sm_control_seg.segmented_property_categories) == 1
         seg_category = self._sm_control_seg.segmented_property_categories[0]
@@ -3443,7 +3443,7 @@ class TestSegmentationParsing:
         for seg in self._ct_segs:
             seg_type = seg.segmentation_type
             assert seg.number_of_segments == 1
-            assert seg.segment_numbers == range(1, 2)
+            assert seg.segment_numbers == list(range(1, 2))
 
             assert len(seg.segmented_property_categories) == 1
             seg_category = seg.segmented_property_categories[0]
