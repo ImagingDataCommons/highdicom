@@ -1,5 +1,13 @@
 import itertools
-from typing import Generator, Iterator, List, Optional, Sequence, Tuple
+from typing import (
+    Generator,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from pydicom import Dataset
 import numpy as np
@@ -234,7 +242,11 @@ def compute_tile_positions_per_frame(
 
 def iter_tiled_full_frame_data(
     dataset: Dataset,
-) -> Generator[Tuple[int, int, int, int, float, float, float], None, None]:
+) -> Generator[
+    Tuple[Union[int, None], int, int, int, float, float, float],
+    None,
+    None,
+]:
     """Get data on the position of each tile in a TILED_FULL image.
 
     This works only with images with Dimension Organization Type of
@@ -252,10 +264,12 @@ def iter_tiled_full_frame_data(
 
     Returns
     -------
-    channel: int
+    channel: Union[int, None]
         1-based integer index of the "channel". The meaning of "channel"
         depends on the image type. For segmentation images, the channel is the
-        segment number. For other images, it is the optical path number.
+        segment number. For other images, it is the optical path number. For
+        Segmentations of SegmentationType "LABELMAP", the returned value will
+        be None for all frames.
     focal_plane_index: int
         1-based integer index of the focal plane.
     column_position: int
@@ -278,6 +292,7 @@ def iter_tiled_full_frame_data(
     allowed_sop_class_uids = {
         '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
         '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
+        '1.2.840.10008.5.1.4.1.1.66.7',  # Label Map Segmentation Image
     }
     if dataset.SOPClassUID not in allowed_sop_class_uids:
         raise ValueError(
@@ -306,18 +321,26 @@ def iter_tiled_full_frame_data(
         1
     )
 
-    is_segmentation = dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
+    is_segmentation = dataset.SOPClassUID in (
+        '1.2.840.10008.5.1.4.1.1.66.4',
+        '1.2.840.10008.5.1.4.1.1.66.7',
+    )
 
     # The "channels" output is either segment for segmentations, or optical
     # path for other images
     if is_segmentation:
-        num_channels = len(dataset.SegmentSequence)
+        if dataset.SegmentationType == "LABELMAP":
+            # No "channel" in this case -> return None
+            channels = [None]
+        else:
+            channels = range(1, len(dataset.SegmentSequence) + 1)
     else:
-        num_channels = getattr(
+        num_optical_paths = getattr(
             dataset,
             'NumberOfOpticalPaths',
             len(dataset.OpticalPathSequence)
         )
+        channels = range(1, num_optical_paths + 1)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -335,7 +358,7 @@ def iter_tiled_full_frame_data(
     x_offset = image_origin.XOffsetInSlideCoordinateSystem
     y_offset = image_origin.YOffsetInSlideCoordinateSystem
 
-    for channel in range(1, num_channels + 1):
+    for channel in channels:
         for slice_index in range(1, num_focal_planes + 1):
             z_offset = float(slice_index - 1) * spacing_between_slices
 
