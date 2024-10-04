@@ -52,6 +52,7 @@ from highdicom._module_utils import (
     does_iod_have_pixel_data,
 )
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.color import CIELabColor
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     PaletteColorLUTTransformation,
@@ -1303,6 +1304,8 @@ class Segmentation(SOPClass):
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
             with the corresponding segment number is used to describe each segment.
+            No description should be provided for pixels with value 0, which
+            are considered background pixels.
         series_instance_uid: str
             UID of the series
         series_number: int
@@ -1923,7 +1926,41 @@ class Segmentation(SOPClass):
         ])
         self._check_segment_numbers(described_segment_numbers)
         number_of_segments = len(described_segment_numbers)
-        self.SegmentSequence = segment_descriptions
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            # Need to add a background description in the case of labelmap
+
+            # Set the display color if other segments do
+            if any(
+                hasattr(desc, 'RecommendedDisplayCIELabValue')
+                for desc in segment_descriptions
+            ):
+                bg_color = CIELabColor(0.0, 0.0, 0.0)  # black
+            else:
+                bg_color = None
+
+            bg_algo_id = segment_descriptions[0].get(
+                'SegmentationAlgorithmIdentificationSequence'
+            )
+
+            bg_description = SegmentDescription(
+                segment_number=1,
+                segment_label='Background',
+                segmented_property_category=codes.DCM.Background,
+                segmented_property_type=codes.DCM.Background,
+                algorithm_type=segment_descriptions[0].SegmentAlgorithmType,
+                algorithm_identification=bg_algo_id,
+                display_color=bg_color,
+            )
+            # Override this such that the check on user-constructed segment
+            # descriptions having a positive value can remain in place.
+            bg_description.SegmentNumber = 0
+
+            self.SegmentSequence = [
+                bg_description,
+                *segment_descriptions
+            ]
+        else:
+            self.SegmentSequence = segment_descriptions
 
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
