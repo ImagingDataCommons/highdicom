@@ -1014,6 +1014,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_2(self):
         instance = Segmentation(
@@ -1093,6 +1094,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_3(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1186,6 +1188,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_4(self):
         # Segmentation instance from an enhanced (multi-frame) CT image
@@ -1273,6 +1276,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_5(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1365,6 +1369,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_6(self):
         # A chest X-ray with no frame of reference
@@ -1458,6 +1463,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1556,6 +1562,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_8(self):
         # A chest X-ray with no frame of reference, LABELMAP
@@ -1594,6 +1601,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
 
     def test_construction_9(self):
         # A label with a palette color LUT
@@ -1621,6 +1629,7 @@ class TestSegmentation:
         assert hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
 
     def test_construction_10(self):
         # A labelmap with a palette color LUT and ICC Profile
@@ -1649,6 +1658,7 @@ class TestSegmentation:
         assert hasattr(instance, 'GreenPaletteColorLookupTableData')
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
 
     def test_construction_large_labelmap_monochrome(self):
         n_classes = 300  # force 16 bit

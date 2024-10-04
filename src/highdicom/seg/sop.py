@@ -1739,6 +1739,7 @@ class Segmentation(SOPClass):
             self.BitsAllocated = labelmap_bitdepth
             self.HighBit = self.BitsAllocated - 1
             self.BitsStored = self.BitsAllocated
+            self.PixelPaddingValue = 0
 
         else:
             raise ValueError(
