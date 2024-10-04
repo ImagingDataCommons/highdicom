@@ -8,6 +8,7 @@ from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 
+from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
@@ -42,7 +43,8 @@ class SegmentDescription(Dataset):
         ] = None,
         primary_anatomic_structures: Optional[
             Sequence[Union[Code, CodedConcept]]
-        ] = None
+        ] = None,
+        display_color: Optional[CIELabColor] = None,
     ) -> None:
         """
         Parameters
@@ -80,6 +82,8 @@ class SegmentDescription(Dataset):
         primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the segment represents
             (see CIDs for domain-specific primary anatomic structures)
+        display_color: Union[highdicom.color.CIELabColor, None], optional
+            A recommended color to render this segment.
 
         Notes
         -----
@@ -136,6 +140,15 @@ class SegmentDescription(Dataset):
                 CodedConcept.from_code(structure)
                 for structure in primary_anatomic_structures
             ]
+        if display_color is not None:
+            if not isinstance(display_color, CIELabColor):
+                raise TypeError(
+                    '"display_color" must be of type '
+                    'highdicom.color.CIELabColor.'
+                )
+            self.RecommendedDisplayCIELabValue = list(
+                display_color.value
+            )
 
     @classmethod
     def from_dataset(

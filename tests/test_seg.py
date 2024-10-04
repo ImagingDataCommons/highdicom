@@ -26,6 +26,7 @@ from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
 )
+from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
@@ -173,6 +174,7 @@ class TestSegmentDescription(unittest.TestCase):
         self._tracking_uid = UID()
         self._anatomic_region = codes.SCT.Thorax
         self._anatomic_structure = codes.SCT.Lung
+        self._display_color = CIELabColor(50.0, 15.0, 20.0)
 
     def test_construction(self):
         item = SegmentDescription(
@@ -181,7 +183,8 @@ class TestSegmentDescription(unittest.TestCase):
             self._segmented_property_category,
             self._segmented_property_type,
             self._segment_algorithm_type,
-            self._algorithm_identification
+            self._algorithm_identification,
+            display_color=self._display_color,
         )
         assert item.SegmentNumber == self._segment_number
         assert item.SegmentLabel == self._segment_label
@@ -218,6 +221,9 @@ class TestSegmentDescription(unittest.TestCase):
         assert item.tracking_uid is None
         assert len(item.anatomic_regions) == 0
         assert len(item.primary_anatomic_structures) == 0
+        assert item.RecommendedDisplayCIELabValue == list(
+            self._display_color.value
+        )
 
     def test_construction_invalid_segment_number(self):
         with pytest.raises(ValueError):
