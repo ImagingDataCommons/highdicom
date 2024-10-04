@@ -10,6 +10,7 @@ from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
+    CoordinatesForMeasurement,
     FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
@@ -2390,6 +2391,7 @@ class Measurement(Template):
         method: Optional[Union[CodedConcept, Code]] = None,
         properties: Optional[MeasurementProperties] = None,
         referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
+        referenced_coordinates: Optional[Sequence[CoordinatesForMeasurement]] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None
     ):
         """
@@ -2434,6 +2436,8 @@ class Measurement(Template):
             and an indication of its selection from a set of measurements
         referenced_images: Union[Sequence[highdicom.sr.SourceImageForMeasurement], None], optional
             Referenced images which were used as sources for the measurement
+        referenced_coordinates: Union[Sequence[highdicom.sr.CoordinatesForMeasurement], None], optional
+            Referenced coordinates for the measurement
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for referenced source images
 
@@ -2504,6 +2508,14 @@ class Measurement(Template):
                         'SourceImageForMeasurement.'
                     )
                 content.append(image)
+        if referenced_coordinates is not None:
+            for scoord in referenced_coordinates:
+                if not isinstance(scoord, CoordinatesForMeasurement):
+                    raise TypeError(
+                        'Arguments "referenced_coordinates" must have type '
+                        'CoordinatesForMeasurement.'
+                    )
+                content.append(scoord)
         if referenced_real_world_value_map is not None:
             if not isinstance(referenced_real_world_value_map,
                               RealWorldValueMap):
@@ -2622,6 +2634,17 @@ class Measurement(Template):
             value_type=ValueTypeValues.IMAGE
         )
         return [SourceImageForMeasurement.from_dataset(m) for m in matches]
+
+    @property
+    def referenced_coordinates(self) -> List[CoordinatesForMeasurement]:
+        """List[highdicom.sr.CoordinatesForMeasurement]: referenced coordinates"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+        matches = find_content_items(
+            self[0],
+            value_type=ValueTypeValues.SCOORD
+        )
+        return [CoordinatesForMeasurement.from_dataset(m) for m in matches]
 
     @property
     def finding_sites(self) -> List[FindingSite]:
@@ -3288,6 +3311,13 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
+        if measurements is not None:
+            for measurement in measurements:
+                if measurement.referenced_coordinates:
+                    raise ValueError(
+                        'Referenced coordinates in measurements are not allowed in '
+                        f'{self.__class__.__name__}.'
+                    )
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(

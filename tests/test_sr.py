@@ -75,6 +75,7 @@ from highdicom.sr import (
     VolumetricROIMeasurementsAndQualitativeEvaluations,
     srread,
 )
+from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
 
@@ -2141,6 +2142,30 @@ class TestSourceImageForMeasurement(unittest.TestCase):
             )
 
 
+class TestCoordinatesForMeasurement(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2',
+            referenced_sop_instance_uid='1.2.3.4.5.6.7.8.9.10'
+        )
+
+    def test_construction(self):
+        item = CoordinatesForMeasurement(
+            graphic_type=GraphicTypeValues.MULTIPOINT,
+            graphic_data=np.array([[10, 20], [20, 30]]),
+            source_image=self.source_image
+        )
+
+        assert item.graphic_type == GraphicTypeValues.MULTIPOINT
+        assert item.GraphicData == [10, 20, 20, 30]
+        assert item.relationship_type == RelationshipTypeValues.INFERRED_FROM
+
+        assert len(item.ContentSequence) == 1
+        assert item.ContentSequence[0] == self.source_image
+        assert item.ContentSequence[0].relationship_type == RelationshipTypeValues.SELECTED_FROM
+
 class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
@@ -3066,6 +3091,24 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
                 referenced_segment=self._segment
+            )
+
+    def test_constructed_with_measurements_coordinates(self):
+        measurement = Measurement(
+            name=codes.SCT.Diameter,
+            value=5,
+            unit=codes.UCUM.Millimeter,
+            referenced_coordinates=[CoordinatesForMeasurement(
+                graphic_type=GraphicTypeValues.POLYLINE,
+                graphic_data=np.array([[1, 1], [2, 2]]),
+                source_image=self._image_for_region
+            )]
+        )
+        with pytest.raises(ValueError) as exc:
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_region=self._region,
+                measurements=[measurement],
             )
 
 
