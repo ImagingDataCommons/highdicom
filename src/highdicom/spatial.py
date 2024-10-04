@@ -292,6 +292,7 @@ def iter_tiled_full_frame_data(
     allowed_sop_class_uids = {
         '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
         '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
+        '1.2.840.10008.5.1.4.1.1.66.7',  # Label Map Segmentation Image
     }
     if dataset.SOPClassUID not in allowed_sop_class_uids:
         raise ValueError(
@@ -320,7 +321,10 @@ def iter_tiled_full_frame_data(
         1
     )
 
-    is_segmentation = dataset.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
+    is_segmentation = dataset.SOPClassUID in (
+        '1.2.840.10008.5.1.4.1.1.66.4',
+        '1.2.840.10008.5.1.4.1.1.66.7',
+    )
 
     # The "channels" output is either segment for segmentations, or optical
     # path for other images

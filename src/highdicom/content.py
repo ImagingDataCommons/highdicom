@@ -1785,7 +1785,10 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_segment_number" is not '
                     'supported with multiple referenced images.'
                 )
-            if referenced_images[0].SOPClassUID != SegmentationStorage:
+            if referenced_images[0].SOPClassUID not in (
+                SegmentationStorage,
+                "1.2.840.10008.5.1.4.1.1.66.7", # Label Map Segmentation Storage
+            ):
                 raise TypeError(
                     '"referenced_segment_number" is only valid when the '
                     'referenced image is a segmentation image.'

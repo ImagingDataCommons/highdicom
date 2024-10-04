@@ -924,6 +924,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1029,6 +1030,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._sm_image.PatientID
         assert instance.AccessionNumber == self._sm_image.AccessionNumber
         assert instance.ContainerIdentifier == \
@@ -1108,6 +1110,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series_nonempty[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1200,6 +1203,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._ct_multiframe.PatientID
         assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
         assert len(instance.SegmentSequence) == 1
@@ -1288,6 +1292,7 @@ class TestSegmentation:
             self._device_serial_number,
             omit_empty_frames=False
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1378,6 +1383,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1470,6 +1476,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1567,6 +1574,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert (
             instance.DimensionIndexSequence[0].DimensionIndexPointer ==
             tag_for_keyword('FrameLabel')
@@ -1604,6 +1612,7 @@ class TestSegmentation:
             self._device_serial_number,
             palette_color_lut_transformation=self._lut_transformation,
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
         assert hasattr(instance, 'ICCProfile')
         assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1631,6 +1640,7 @@ class TestSegmentation:
             palette_color_lut_transformation=self._lut_transformation,
             icc_profile=self._icc_profile,
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
         assert hasattr(instance, 'ICCProfile')
         assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1673,6 +1683,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number,
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'MONOCHROME2'
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')

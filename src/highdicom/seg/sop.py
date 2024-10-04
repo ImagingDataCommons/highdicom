@@ -1297,7 +1297,8 @@ class Segmentation(SOPClass):
             (if `fractional_type` is ``"OCCUPANCY"``).
 
         segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
-            Type of segmentation, either ``"BINARY"`` or ``"FRACTIONAL"``
+            Type of segmentation, either ``"BINARY"``, ``"FRACTIONAL"``, or
+            ``"LABELMAP"``.
         segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
             Description of each segment encoded in `pixel_array`. In the case of
             pixel arrays with multiple integer values, the segment description
@@ -1516,13 +1517,19 @@ class Segmentation(SOPClass):
                 'entire pixel matrix.'
             )
 
+        segmentation_type = SegmentationTypeValues(segmentation_type)
+        sop_class_uid = (
+            '1.2.840.10008.5.1.4.1.1.66.7'
+            if segmentation_type == SegmentationTypeValues.LABELMAP
+            else '1.2.840.10008.5.1.4.1.1.66.4'
+        )
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
-            sop_class_uid='1.2.840.10008.5.1.4.1.1.66.4',
+            sop_class_uid=sop_class_uid,
             manufacturer=manufacturer,
             modality='SEG',
             transfer_syntax_uid=transfer_syntax_uid,
@@ -1663,7 +1670,6 @@ class Segmentation(SOPClass):
         self.ImageType = ['DERIVED', 'PRIMARY']
         self.SamplesPerPixel = 1
         self.PixelRepresentation = 0
-        segmentation_type = SegmentationTypeValues(segmentation_type)
         self.SegmentationType = segmentation_type.value
 
         if content_label is not None:
@@ -3544,7 +3550,10 @@ class Segmentation(SOPClass):
             )
         _check_little_endian(dataset)
         # Checks on integrity of input dataset
-        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.66.4':
+        if dataset.SOPClassUID not in (
+            '1.2.840.10008.5.1.4.1.1.66.4',
+            '1.2.840.10008.5.1.4.1.1.66.7',
+        ):
             raise ValueError('Dataset is not a Segmentation.')
         if copy:
             seg = deepcopy(dataset)
