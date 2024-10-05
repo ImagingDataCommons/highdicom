@@ -1789,7 +1789,11 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_segment_number" is not '
                     'supported with multiple referenced images.'
                 )
-            if referenced_images[0].SOPClassUID != SegmentationStorage:
+            if referenced_images[0].SOPClassUID not in (
+                SegmentationStorage,
+                # Label Map Segmentation Storage
+                "1.2.840.10008.5.1.4.1.1.66.7",
+            ):
                 raise TypeError(
                     '"referenced_segment_number" is only valid when the '
                     'referenced image is a segmentation image.'
@@ -2365,7 +2369,7 @@ class PaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint16.
+            Lookup table data. Must be of type uint8 or uint16.
         color: str
             Text representing the color (``red``, ``green``, or
             ``blue``).
@@ -2379,15 +2383,26 @@ class PaletteColorLUT(Dataset):
 
         """
         super().__init__()
+        # Note 8 bit LUT data is unsupported for presentation states pending
+        # clarification on the standard, but is valid for segmentations
+        if lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+        elif lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
             raise ValueError(
                 'Argument "first_mapped_value" must be non-negative.'
             )
-        if first_mapped_value >= 2 ** 16:
+        if first_mapped_value >= 2 ** bits_per_entry:
             raise ValueError(
-                'Argument "first_mapped_value" must be less than 2^16.'
+                'Argument "first_mapped_value" must be less than '
+                '2^(bits per entry).'
             )
 
         if not isinstance(lut_data, np.ndarray):
@@ -2399,24 +2414,16 @@ class PaletteColorLUT(Dataset):
         len_data = lut_data.shape[0]
         if len_data == 0:
             raise ValueError('Argument "lut_data" must not be empty.')
-        if len_data > 2**16:
+        if len_data > 2 ** bits_per_entry:
             raise ValueError(
                 'Length of argument "lut_data" must be no greater than '
-                '2^16 elements.'
+                '2^(bits per entry) elements.'
             )
-        elif len_data == 2**16:
+        elif len_data == 2 ** 16:
             # Per the standard, this is recorded as 0
             number_of_entries = 0
         else:
             number_of_entries = len_data
-        # Note 8 bit LUT data is unsupported pending clarification on the
-        # standard
-        if lut_data.dtype.type == np.uint16:
-            bits_per_entry = 16
-        else:
-            raise ValueError(
-                "Numpy array must have dtype uint16."
-            )
 
         if color.lower() not in ('red', 'green', 'blue'):
             raise ValueError(
@@ -2424,12 +2431,18 @@ class PaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
+        if bits_per_entry == 8 and len(lut_data) % 2 != 0:
+            # Need to pad so that the resulting value has even length
+            lut_data = np.concatenate(
+                [lut_data, np.array([0], lut_data.dtype)]
+            )
+
         # The Palette Color Lookup Table Data attributes have VR OW
         # (16-bit other words)
         setattr(
             self,
             f'{self._attr_name_prefix}Data',
-            lut_data.astype(np.uint16).tobytes()
+            lut_data.tobytes()
         )
         setattr(
             self,
@@ -2441,7 +2454,7 @@ class PaletteColorLUT(Dataset):
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: lookup table data"""
         if self.bits_per_entry == 8:
-            raise RuntimeError("8 bit LUTs are currently unsupported.")
+            dtype = np.uint8
         elif self.bits_per_entry == 16:
             dtype = np.uint16
         else:
@@ -2449,7 +2462,7 @@ class PaletteColorLUT(Dataset):
         length = self.number_of_entries
         data = getattr(self, f'{self._attr_name_prefix}Data')
         # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
+        array = np.frombuffer(data, dtype=dtype)
         # Needs to be casted according to third descriptor value.
         array = array.astype(dtype)
         if len(array) != length:
@@ -2466,7 +2479,7 @@ class PaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         value = int(descriptor[0])
         if value == 0:
-            return 2**16
+            return 2 ** self.bits_per_entry
         return value
 
     @property
@@ -2502,7 +2515,7 @@ class SegmentedPaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         segmented_lut_data: numpy.ndarray
-            Segmented lookup table data. Must be of type uint16.
+            Segmented lookup table data. Must be of type uint8 or uint16.
         color: str
             Free-form text explanation of the color (``red``, ``green``, or
             ``blue``).
@@ -2520,13 +2533,24 @@ class SegmentedPaletteColorLUT(Dataset):
 
         """
         super().__init__()
+        # Note 8 bit LUT data is unsupported for presentation states pending
+        # clarification on the standard, but is valid for segmentations
+        if segmented_lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+        elif segmented_lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
+
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
             raise ValueError(
                 'Argument "first_mapped_value" must be non-negative.'
             )
-        if first_mapped_value >= 2 ** 16:
+        if first_mapped_value >= 2 ** bits_per_entry:
             raise ValueError(
                 'Argument "first_mapped_value" must be less than 2^16.'
             )
@@ -2543,23 +2567,14 @@ class SegmentedPaletteColorLUT(Dataset):
         len_data = segmented_lut_data.size
         if len_data == 0:
             raise ValueError('Argument "segmented_lut_data" must not be empty.')
-        if len_data > 2**16:
+        if len_data > 2 ** bits_per_entry:
             raise ValueError(
                 'Length of argument "segmented_lut_data" must be no greater '
                 'than 2^16 elements.'
             )
-        elif len_data == 2**16:
+        elif len_data == 2 ** bits_per_entry:
             # Per the standard, this is recorded as 0
             len_data = 0
-        # Note 8 bit LUT data is currently unsupported pending clarification on
-        # the standard
-        if segmented_lut_data.dtype.type == np.uint16:
-            bits_per_entry = 16
-            self._dtype = np.uint16
-        else:
-            raise ValueError(
-                "Numpy array must have dtype uint16."
-            )
 
         if color.lower() not in ('red', 'green', 'blue'):
             raise ValueError(
@@ -2572,7 +2587,7 @@ class SegmentedPaletteColorLUT(Dataset):
         setattr(
             self,
             f'Segmented{self._attr_name_prefix}Data',
-            segmented_lut_data.astype(np.uint16).tobytes()
+            segmented_lut_data.tobytes()
         )
 
         expanded_lut_values = []
@@ -2619,11 +2634,11 @@ class SegmentedPaletteColorLUT(Dataset):
 
         self._lut_data = np.array(
             expanded_lut_values,
-            dtype=self._dtype
+            dtype=segmented_lut_data.dtype,
         )
 
         len_data = len(expanded_lut_values)
-        if len_data == 2**16:
+        if len_data == 2 ** 16:
             number_of_entries = 0
         else:
             number_of_entries = len_data
@@ -2638,10 +2653,14 @@ class SegmentedPaletteColorLUT(Dataset):
         """numpy.ndarray: segmented lookup table data"""
         length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
+        if self.bits_per_entry == 8:
+            dtype = np.uint8
+        elif self.bits_per_entry == 16:
+            dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
         # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(self._dtype)
+        array = np.frombuffer(data, dtype=dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -2665,7 +2684,7 @@ class SegmentedPaletteColorLUT(Dataset):
         # That's because the descriptor attributes have VR US, which cannot
         # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
         if value == 0:
-            return 2**16
+            return 2 ** self.bits_per_entry
         else:
             return value
 

@@ -4,6 +4,7 @@ from copy import deepcopy
 import itertools
 import unittest
 from pathlib import Path
+import pkgutil
 import warnings
 
 import numpy as np
@@ -22,6 +23,11 @@ from pydicom.uid import (
     JPEGLSLossless,
 )
 
+from highdicom import (
+    PaletteColorLUT,
+    PaletteColorLUTTransformation,
+)
+from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
@@ -171,6 +177,7 @@ class TestSegmentDescription(unittest.TestCase):
         self._tracking_uid = UID()
         self._anatomic_region = codes.SCT.Thorax
         self._anatomic_structure = codes.SCT.Lung
+        self._display_color = CIELabColor(50.0, 15.0, 20.0)
 
     def test_construction(self):
         item = SegmentDescription(
@@ -179,7 +186,8 @@ class TestSegmentDescription(unittest.TestCase):
             self._segmented_property_category,
             self._segmented_property_type,
             self._segment_algorithm_type,
-            self._algorithm_identification
+            self._algorithm_identification,
+            display_color=self._display_color,
         )
         assert item.SegmentNumber == self._segment_number
         assert item.SegmentLabel == self._segment_label
@@ -216,6 +224,9 @@ class TestSegmentDescription(unittest.TestCase):
         assert item.tracking_uid is None
         assert len(item.anatomic_regions) == 0
         assert len(item.primary_anatomic_structures) == 0
+        assert item.RecommendedDisplayCIELabValue == list(
+            self._display_color.value
+        )
 
     def test_construction_invalid_segment_number(self):
         with pytest.raises(ValueError):
@@ -765,6 +776,26 @@ class TestSegmentation:
             ),
         }
 
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+        self._icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
+
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
     @staticmethod
@@ -843,7 +874,15 @@ class TestSegmentation:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
             for f in seg.PerFrameFunctionalGroupsSequence:
-                posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
+                if seg.SegmentationType == "LABELMAP":
+                    # DimensionIndexValues has VM=1 in this case so returns int
+                    posn_index = f.FrameContentSequence[0].DimensionIndexValues
+                else:
+                    # DimensionIndexValues has VM>1 in this case so returns
+                    # list
+                    posn_index = (
+                        f.FrameContentSequence[0].DimensionIndexValues[1]
+                    )
                 # This is not general, but all the tests run here use axial
                 # images so just check the z coordinate
                 posn_val = f.PlanePositionSequence[0].ImagePositionPatient[2]
@@ -864,16 +903,17 @@ class TestSegmentation:
                 old_v = index_mapping[k][0]
         else:
             # Build up the mapping from index to value
-            for dim_kw, dim_ind in zip([
-                'RowPositionInTotalImagePixelMatrix',
-                'ColumnPositionInTotalImagePixelMatrix',
-            ], [1, 2]):
+            for dim_kw, dim_ind in zip(
+                [
+                    'RowPositionInTotalImagePixelMatrix',
+                    'ColumnPositionInTotalImagePixelMatrix',
+                ],
+                [0, 1] if seg.SegmentationType == "LABELMAP" else [1, 2]
+            ):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
                     posn_index = content_item.DimensionIndexValues[dim_ind]
-                    # This is not general, but all the tests run here use axial
-                    # images so just check the z coordinate
                     posn_item = f.PlanePositionSlideSequence[0]
                     posn_val = getattr(posn_item, dim_kw)
                     index_mapping[posn_index].append(posn_val)
@@ -908,6 +948,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -991,6 +1032,14 @@ class TestSegmentation:
             frame_item.PlanePositionSlideSequence  # noqa: B018
         assert not hasattr(instance, "DimensionOrganizationType")
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_2(self):
         instance = Segmentation(
@@ -1007,6 +1056,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._sm_image.PatientID
         assert instance.AccessionNumber == self._sm_image.AccessionNumber
         assert instance.ContainerIdentifier == \
@@ -1063,6 +1113,14 @@ class TestSegmentation:
             frame_item.PlanePositionSequence  # noqa: B018
         assert instance.DimensionOrganizationType == "TILED_SPARSE"
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_3(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1080,6 +1138,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series_nonempty[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1149,6 +1208,14 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_4(self):
         # Segmentation instance from an enhanced (multi-frame) CT image
@@ -1166,6 +1233,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._ct_multiframe.PatientID
         assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
         assert len(instance.SegmentSequence) == 1
@@ -1230,6 +1298,14 @@ class TestSegmentation:
 
         assert hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_5(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1249,6 +1325,7 @@ class TestSegmentation:
             self._device_serial_number,
             omit_empty_frames=False
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1315,6 +1392,14 @@ class TestSegmentation:
             frame_item.PlanePositionSlideSequence  # noqa: B018
         assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_6(self):
         # A chest X-ray with no frame of reference
@@ -1333,6 +1418,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1401,6 +1487,14 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         assert not hasattr(instance, 'DimensionOrganizationType')
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1419,6 +1513,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1492,6 +1587,219 @@ class TestSegmentation:
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
         assert not hasattr(instance, 'DimensionOrganizationType')
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
+
+    def test_construction_8(self):
+        # A chest X-ray with no frame of reference, LABELMAP
+        instance = Segmentation(
+            [self._cr_image],
+            self._cr_pixel_array,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert (
+            instance.DimensionIndexSequence[0].DimensionIndexPointer ==
+            tag_for_keyword('FrameLabel')
+        )
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        dim_ind_vals = (
+            instance
+            .PerFrameFunctionalGroupsSequence[0]
+            .FrameContentSequence[0]
+            .DimensionIndexValues
+        )
+        assert dim_ind_vals == 1
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+
+    def test_construction_9(self):
+        # A label with a palette color LUT
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+
+    def test_construction_10(self):
+        # A labelmap with a palette color LUT and ICC Profile
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+
+    def test_construction_large_labelmap_monochrome(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
+
+    def test_construction_large_labelmap_palettecolor(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        r_lut_data = np.arange(10, 10 + n_classes, dtype=np.uint16)
+        g_lut_data = np.arange(20, 20 + n_classes, dtype=np.uint16)
+        b_lut_data = np.arange(30, 30 + n_classes, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
 
     def test_construction_volume(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1669,6 +1977,26 @@ class TestSegmentation:
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
+    def test_construction_tiled_full_labelmap(self):
+        instance = Segmentation(
+            [self._sm_image],
+            pixel_array=self._sm_pixel_array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            dimension_organization_type="TILED_FULL",
+            omit_empty_frames=False,
+        )
+        assert instance.DimensionOrganizationType == "TILED_FULL"
+        assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+
     def test_construction_further_source_images(self):
         further_source_image = deepcopy(self._ct_image)
         series_uid = UID()
@@ -1713,6 +2041,7 @@ class TestSegmentation:
         params=[
             SegmentationTypeValues.FRACTIONAL,
             SegmentationTypeValues.BINARY,
+            SegmentationTypeValues.LABELMAP,
         ])
     def segmentation_type(request):
         return request.param
@@ -1839,6 +2168,11 @@ class TestSegmentation:
             with warnings.catch_warnings(record=True) as w:
                 self.get_array_after_writing(instance)
                 assert len(w) == 0
+
+            # TODO remove this after implementing full "reconstruction"
+            # of LABELMAP segmentation arrays
+            if segmentation_type == SegmentationTypeValues.LABELMAP:
+                continue
 
             # Check that full reconstructed array matches the input
             reconstructed_array = instance.get_total_pixel_matrix(
@@ -2194,6 +2528,96 @@ class TestSegmentation:
             self.get_array_after_writing(instance),
             expected_enc_overlap
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
+    def test_pixel_types_labelmap(
+        self,
+        fractional_transfer_syntax_uid,
+        pix_type,
+        test_data,
+    ):
+        if fractional_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
+        if fractional_transfer_syntax_uid == JPEGLSLossless:
+            pytest.importorskip("libjpeg")
+        sources, mask = self._tests[test_data]
+
+        # Two segments non-overlapping
+        multi_segment_exc = np.stack([mask, 1 - mask], axis=-1)
+
+        if multi_segment_exc.ndim == 3:
+            multi_segment_exc = multi_segment_exc[np.newaxis, ...]
+
+        # Find the expected encodings for the masks
+        if mask.ndim > 2:
+            sorted_mask = self.sort_frames(
+                sources,
+                mask
+            )
+
+            # Expected encoding of the mask
+            expected_encoding = self.remove_empty_frames(
+                sorted_mask
+            ).astype(np.uint8)
+        else:
+            sorted_mask = mask
+            expected_encoding = mask.astype(np.uint8)
+
+        expected_enc_exc = np.zeros(sorted_mask.shape, np.uint8)
+        expected_enc_exc[sorted_mask > 0] = 1
+        expected_enc_exc[sorted_mask == 0] = 2
+        expected_encoding = expected_encoding.squeeze()
+
+        instance = Segmentation(
+            sources,
+            mask.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+
+        # Ensure the recovered pixel array matches what is expected
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
+        # Multi-segment (exclusive)
+        instance = Segmentation(
+            sources,
+            multi_segment_exc.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+        assert (
+            instance.SegmentsOverlap ==
+            SegmentsOverlapValues.NO.value
+        )
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_enc_exc
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
     def test_odd_number_pixels(self):
@@ -3149,7 +3573,7 @@ class TestSegmentationParsing:
         assert seg_type == SegmentationTypeValues.BINARY
         assert self._sm_control_seg.segmentation_fractional_type is None
         assert self._sm_control_seg.number_of_segments == 20
-        assert self._sm_control_seg.segment_numbers == range(1, 21)
+        assert self._sm_control_seg.segment_numbers == list(range(1, 21))
 
         assert len(self._sm_control_seg.segmented_property_categories) == 1
         seg_category = self._sm_control_seg.segmented_property_categories[0]
@@ -3161,7 +3585,7 @@ class TestSegmentationParsing:
         for seg in self._ct_segs:
             seg_type = seg.segmentation_type
             assert seg.number_of_segments == 1
-            assert seg.segment_numbers == range(1, 2)
+            assert seg.segment_numbers == list(range(1, 2))
 
             assert len(seg.segmented_property_categories) == 1
             seg_category = seg.segmented_property_categories[0]

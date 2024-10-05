@@ -71,7 +71,7 @@ class GraphicLayer(Dataset):
             Lower values are rendered first.
         description: Union[str, None], optional
             A description of the contents of this graphic layer.
-        display_color: Union[CIELabColor, None], optional
+        display_color: Union[highdicom.color.CIELabColor, None], optional
             A default color value for rendering this layer.
 
         """
@@ -87,7 +87,7 @@ class GraphicLayer(Dataset):
         if display_color is not None:
             if not isinstance(display_color, CIELabColor):
                 raise TypeError(
-                    '"recommended_display_color" must be of type '
+                    '"display_color" must be of type '
                     'highdicom.color.CIELabColor.'
                 )
             self.GraphicLayerRecommendedDisplayCIELabValue = list(

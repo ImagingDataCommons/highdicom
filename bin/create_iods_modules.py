@@ -83,10 +83,15 @@ def _create_modules(directory):
         except KeyError:
             logger.error(f'keyword not found for attribute "{tag}"')
             continue
+        try:
+            kw_path = [dictionary_keyword(t) for t in path]
+        except KeyError:
+            logger.error(f'keyword in path of attribute "{tag}" not found')
+            continue
         mapping = {
             'keyword': keyword,
             'type': item['type'],
-            'path': [dictionary_keyword(t) for t in path],
+            'path': kw_path,
         }
         modules[item['moduleId']].append(mapping)
     return modules

@@ -310,7 +310,10 @@ class MultiFrameImage(SOPClass):
                 dim_values[z_tag],
             ) = zip(*iter_tiled_full_frame_data(self))
 
-            if hasattr(self, 'SegmentSequence'):
+            if (
+                hasattr(self, 'SegmentSequence') and
+                self.SegmentationType != 'LABELMAP'
+            ):
                 segment_tag = tag_for_keyword('ReferencedSegmentNumber')
                 dim_values[segment_tag] = channel_numbers
             elif hasattr(self, 'OpticalPathSequence'):

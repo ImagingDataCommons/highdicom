@@ -172,12 +172,12 @@ def encode_frame(
                     'monochrome image frames with JPEG Baseline codec.'
                 )
             if photometric_interpretation not in (
-                    'MONOCHROME1', 'MONOCHROME2'
+                    'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                 ):
                 raise ValueError(
-                    'Photometric intpretation must be either "MONOCHROME1" '
-                    'or "MONOCHROME2" for encoding of monochrome image '
-                    'frames with JPEG Baseline codec.'
+                    'Photometric intpretation must be either "MONOCHROME1", '
+                    '"MONOCHROME2", or "PALETTE COLOR" for encoding of '
+                    'monochrome image frames with JPEG Baseline codec.'
                 )
         elif samples_per_pixel == 3:
             if photometric_interpretation != 'YBR_FULL_422':
@@ -246,12 +246,13 @@ def encode_frame(
                         f'monochrome image frames with {name} codec.'
                     )
                 if photometric_interpretation not in (
-                        'MONOCHROME1', 'MONOCHROME2'
+                        'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either "MONOCHROME1" '
-                        'or "MONOCHROME2" for encoding of monochrome image '
-                        f'frames with with {name} codec.'
+                        'Photometric intpretation must be either '
+                        '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" '
+                        'for encoding of monochrome image frames with '
+                        f'{name} codec.'
                     )
                 if transfer_syntax_uid == JPEG2000Lossless:
                     if bits_allocated not in (1, 8, 16):
