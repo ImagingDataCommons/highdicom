@@ -228,4 +228,4 @@ class KeyObjectSelectionDocument(SOPClass):
                         sop_instance_uid
                     )
 
-        return cast(KeyObjectSelectionDocument, sop_instance)
+        return cast(cls, sop_instance)

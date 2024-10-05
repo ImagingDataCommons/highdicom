@@ -8,7 +8,7 @@ Installation guide
 Requirements
 ------------
 
-* `Python <https://www.python.org/>`_ (version 3.6 or higher)
+* `Python <https://www.python.org/>`_ (version 3.10 or higher)
 * Python package manager `pip <https://pip.pypa.io/en/stable/>`_
 
 .. _installation:
@@ -16,7 +16,7 @@ Requirements
 Installation
 ------------
 
-Pre-build package available at PyPi:
+Pre-built package available at PyPi:
 
 .. code-block:: none
 
@@ -35,7 +35,7 @@ a copyleft GPL v3 license, it is not installed by default when you install
 
 .. code-block:: none
 
-    pip install highdicom[libjpeg]
+    pip install 'highdicom[libjpeg]'
 
 Install directly from source code (available on Github):
 
