@@ -1843,6 +1843,92 @@ class TestSegmentation:
                 pp[0].ImagePositionPatient
             )
 
+    def test_construction_volume_fractional(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_labelmap(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
     def test_construction_3d_multiframe(self):
         # The CT multiframe image is already a volume, but the frames are
         # ordered the wrong way
