@@ -129,7 +129,7 @@ class MultiFrameImage(SOPClass):
             State of the object.
 
         """
-        state = super().__getstate__().copy()
+        state = super().__dict__.copy()
 
         db_data = self._serialize_db()
 
