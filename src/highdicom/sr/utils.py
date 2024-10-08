@@ -96,7 +96,7 @@ def find_content_items(
                 code_value = name_code.LongCodeValue
             else:
                 code_value = name_code.URNCodeValue
-            
+
             item = ContentItem(
                 value_type=content_item.ValueType,
                 name=CodedConcept(
