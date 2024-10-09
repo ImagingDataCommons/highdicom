@@ -4476,6 +4476,38 @@ class TestSRUtilities(unittest.TestCase):
         items = find_content_items(self._sr_document)
         assert len(items) == 8
 
+    def test_find_content_items_with_URN_code_value(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        my_sr_document = dcmread(
+            str(data_dir.joinpath('test_files', 'sr_document.dcm'))
+        )
+        content_sequence = my_sr_document.ContentSequence[0]
+        concept_name_code_sequence = content_sequence.ConceptNameCodeSequence[0]
+        # remove existing code value
+        del concept_name_code_sequence.CodeValue
+        # add URN Code Value
+        URN_code_value = "http://example.com/my_urn_value"
+        concept_name_code_sequence.URNCodeValue = URN_code_value
+        items = find_content_items(my_sr_document)
+        assert len(items) == 8
+
+    def test_find_content_items_with_long_code_value(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        my_sr_document = dcmread(
+            str(data_dir.joinpath('test_files', 'sr_document.dcm'))
+        )
+        content_sequence = my_sr_document.ContentSequence[0]
+        concept_name_code_sequence = content_sequence.ConceptNameCodeSequence[0]
+        # remove existing code value
+        del concept_name_code_sequence.CodeValue
+        # add Long Code Value
+        long_code_value = "Test_A_Long_Code_Value"
+        concept_name_code_sequence.LongCodeValue = long_code_value
+        items = find_content_items(my_sr_document)
+        assert len(items) == 8
+
     def test_find_content_items_filtered_by_name(self):
         items = find_content_items(
             self._sr_document,
