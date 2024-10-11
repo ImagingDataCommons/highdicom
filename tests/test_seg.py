@@ -2255,11 +2255,6 @@ class TestSegmentation:
                 self.get_array_after_writing(instance)
                 assert len(w) == 0
 
-            # TODO remove this after implementing full "reconstruction"
-            # of LABELMAP segmentation arrays
-            if segmentation_type == SegmentationTypeValues.LABELMAP:
-                continue
-
             # Check that full reconstructed array matches the input
             reconstructed_array = instance.get_total_pixel_matrix(
                 combine_segments=True,
@@ -5160,7 +5155,7 @@ class TestPyramid(unittest.TestCase):
                 pix[0]
             )
 
-    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+    def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(self):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
@@ -5185,3 +5180,20 @@ class TestPyramid(unittest.TestCase):
                 seg.get_total_pixel_matrix(combine_segments=True),
                 mask[0]
             )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=mask,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )

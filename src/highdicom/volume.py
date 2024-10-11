@@ -57,6 +57,10 @@ from pydicom.pixel_data_handlers.util import (
 # TODO get volume from legacy series
 # TODO make multiframe public
 # TODO figure out type hinting for _VolumeBase
+# TODO inheritance of are_dimension_indices_unique
+# TODO tests for labelmap segmentation with combine_segments False
+# TODO include labelmap test case
+# TODO test filter
 
 
 class _VolumeBase(ABC):

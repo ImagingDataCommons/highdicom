@@ -7,6 +7,7 @@ import sqlite3
 from typing import (
     Any,
     Iterable,
+    Iterator,
     Dict,
     Generator,
     List,
@@ -20,7 +21,10 @@ from typing import (
 import numpy as np
 from pydicom import Dataset
 from pydicom.tag import BaseTag
-from pydicom.datadict import get_entry, tag_for_keyword
+from pydicom.datadict import (
+    get_entry,
+    tag_for_keyword,
+)
 from pydicom.multival import MultiValue
 
 from highdicom._module_utils import is_multiframe_image
@@ -42,25 +46,45 @@ from highdicom.volume import VolumeGeometry
 
 # Dictionary mapping DCM VRs to appropriate SQLite types
 _DCM_SQL_TYPE_MAP = {
-        'CS': 'VARCHAR',
-        'DS': 'REAL',
-        'FD': 'REAL',
-        'FL': 'REAL',
-        'IS': 'INTEGER',
-        'LO': 'TEXT',
-        'LT': 'TEXT',
-        'PN': 'TEXT',
-        'SH': 'TEXT',
-        'SL': 'INTEGER',
-        'SS': 'INTEGER',
-        'ST': 'TEXT',
-        'UI': 'TEXT',
-        'UL': 'INTEGER',
-        'UR': 'TEXT',
-        'US or SS': 'INTEGER',
-        'US': 'INTEGER',
-        'UT': 'TEXT',
-    }
+    'CS': 'VARCHAR',
+    'DS': 'REAL',
+    'FD': 'REAL',
+    'FL': 'REAL',
+    'IS': 'INTEGER',
+    'LO': 'TEXT',
+    'LT': 'TEXT',
+    'PN': 'TEXT',
+    'SH': 'TEXT',
+    'SL': 'INTEGER',
+    'SS': 'INTEGER',
+    'ST': 'TEXT',
+    'UI': 'TEXT',
+    'UL': 'INTEGER',
+    'UR': 'TEXT',
+    'US or SS': 'INTEGER',
+    'US': 'INTEGER',
+    'UT': 'TEXT',
+}
+_DCM_PYTHON_TYPE_MAP = {
+    'CS': str,
+    'DS': float,
+    'FD': float,
+    'FL': float,
+    'IS': int,
+    'LO': str,
+    'LT': str,
+    'PN': str,
+    'SH': str,
+    'SL': int,
+    'SS': int,
+    'ST': str,
+    'UI': str,
+    'UL': int,
+    'UR': str,
+    'US or SS': int,
+    'US': int,
+    'UT': str,
+}
 _NO_FRAME_REF_VALUE = -1
 
 
@@ -75,7 +99,8 @@ class MultiFrameImage(SOPClass):
     _is_tiled_full: bool
     _single_source_frame_per_frame: bool
     _dim_ind_pointers: List[BaseTag]
-    _dim_ind_col_names: Dict[int, str]
+    # Mapping of tag value to (index column name, val column name(s))
+    _dim_ind_col_names: Dict[int, Tuple[str, Union[str, Tuple[str, ...], None]]]
     _locations_preserved: Optional[SpatialLocationsPreservedValues]
     _db_con: sqlite3.Connection
     _volume_geometry: Optional[VolumeGeometry]
@@ -210,7 +235,7 @@ class MultiFrameImage(SOPClass):
                 grp_ptr = getattr(dim_ind, "FunctionalGroupPointer", None)
                 func_grp_pointers[ptr] = grp_ptr
 
-        # We mav want to gather additional information that is not one of the
+        # We may want to gather additional information that is not one of the
         # indices
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
@@ -475,9 +500,11 @@ class MultiFrameImage(SOPClass):
         # image
         col_defs = []  # SQL column definitions
         col_data = []  # lists of column data
+        self._col_types = {}  # dictionary from column name to SQL type
 
         # Frame number column
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
+        self._col_types['FrameNumber'] = 'INTEGER'
         col_data.append(list(range(1, self.NumberOfFrames + 1)))
 
         self._dim_ind_col_names = {}
@@ -486,10 +513,10 @@ class MultiFrameImage(SOPClass):
             if kw == '':
                 kw = f'UnknownDimensionIndex{i}'
             ind_col_name = kw + '_DimensionIndexValues'
-            self._dim_ind_col_names[t] = ind_col_name
 
             # Add column for dimension index
             col_defs.append(f'{ind_col_name} INTEGER NOT NULL')
+            self._col_types[ind_col_name] = 'INTEGER'
             col_data.append(dim_indices[t])
 
             # Add column for dimension value
@@ -503,21 +530,31 @@ class MultiFrameImage(SOPClass):
                 try:
                     vm = int(vm_str)
                 except ValueError:
+                    self._dim_ind_col_names[t] = (ind_col_name, None)
                     continue
             try:
                 sql_type = _DCM_SQL_TYPE_MAP[vr]
             except KeyError:
+                self._dim_ind_col_names[t] = (ind_col_name, None)
                 continue
 
             if vm > 1:
+                val_col_names = []
                 for d in range(vm):
                     data = [el[d] for el in dim_values[t]]
-                    col_defs.append(f'{kw}_{d} {sql_type} NOT NULL')
+                    col_name = f'{kw}_{d}'
+                    col_defs.append(f'{col_name} {sql_type} NOT NULL')
+                    self._col_types[col_name] = sql_type
                     col_data.append(data)
+                    val_col_names.append(col_name)
+
+                self._dim_ind_col_names[t] = (ind_col_name, tuple(val_col_names))
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
+                self._col_types[kw] = sql_type
                 col_data.append(dim_values[t])
+                self._dim_ind_col_names[t] = (ind_col_name, kw)
 
         for i, t in enumerate(extra_collection_pointers):
             vr, vm_str, _, _, kw = get_entry(t)
@@ -532,11 +569,14 @@ class MultiFrameImage(SOPClass):
             if vm > 1:
                 for d in range(vm):
                     data = [el[d] for el in extra_collection_values[t]]
-                    col_defs.append(f'{kw}_{d} {sql_type} NOT NULL')
+                    col_name = f'{kw}_{d}'
+                    col_defs.append(f'{col_name} {sql_type} NOT NULL')
+                    self._col_types[col_name] = sql_type
                     col_data.append(data)
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
+                self._col_types[kw] = sql_type
                 col_data.append(dim_values[t])
 
         # Volume related information
@@ -572,6 +612,7 @@ class MultiFrameImage(SOPClass):
                         spacing_between_slices=volume_spacing,
                     )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
+                    self._col_types['VolumePosition'] = 'INTEGER'
                     col_data.append(volume_positions)
 
         # Columns related to source frames, if they are usable for indexing
@@ -582,7 +623,9 @@ class MultiFrameImage(SOPClass):
             )
         if referenced_instances is not None:
             col_defs.append('ReferencedFrameNumber INTEGER')
+            self._col_types['ReferencedFrameNumber'] = 'INTEGER'
             col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
+            self._col_types['ReferencedSOPInstanceUID'] = 'VARCHAR'
             col_defs.append(
                 'FOREIGN KEY(ReferencedSOPInstanceUID) '
                 'REFERENCES InstanceUIDs(SOPInstanceUID)'
@@ -739,13 +782,11 @@ class MultiFrameImage(SOPClass):
         """
         with self._db_con:
             self._db_con.execute(
-                """
-                    CREATE TABLE InstanceUIDs(
-                        StudyInstanceUID VARCHAR NOT NULL,
-                        SeriesInstanceUID VARCHAR NOT NULL,
-                        SOPInstanceUID VARCHAR PRIMARY KEY
-                    )
-                """
+                "CREATE TABLE InstanceUIDs("
+                "StudyInstanceUID VARCHAR NOT NULL, "
+                "SeriesInstanceUID VARCHAR NOT NULL, "
+                "SOPInstanceUID VARCHAR PRIMARY KEY"
+                ")"
             )
             self._db_con.executemany(
                 "INSERT INTO InstanceUIDs "
@@ -753,6 +794,35 @@ class MultiFrameImage(SOPClass):
                 "VALUES(?, ?, ?)",
                 referenced_uids,
             )
+
+    def _are_columns_unique(
+        self,
+        column_names: Sequence[str],
+    ) -> bool:
+        """Check if a list of columns uniquely identifies frames.
+
+        For a given list of columns, check whether every combination of values
+        for these column identifies a unique image frame. This is a
+        pre-requisite for indexing frames using this list of columns.
+
+        Parameters
+        ----------
+        column_names: Sequence[str]
+            Column names.
+
+        Returns
+        -------
+        bool
+            True if combination of columns is sufficient to identify unique
+            frames.
+
+        """
+        col_str = ", ".join(column_names)
+        cur = self._db_con.cursor()
+        n_unique_combos = cur.execute(
+            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
+        ).fetchone()[0]
+        return n_unique_combos == self.NumberOfFrames
 
     def are_dimension_indices_unique(
         self,
@@ -778,13 +848,8 @@ class MultiFrameImage(SOPClass):
         """
         column_names = []
         for ptr in dimension_index_pointers:
-            column_names.append(self._dim_ind_col_names[ptr])
-        col_str = ", ".join(column_names)
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
-        ).fetchone()[0]
-        return n_unique_combos == self.NumberOfFrames
+            column_names.append(self._dim_ind_col_names[ptr][0])
+        return self._are_columns_unique(column_names)
 
     def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
         """Get UIDs of source image instances referenced in the image.
@@ -851,11 +916,11 @@ class MultiFrameImage(SOPClass):
             positions in the total pixel matrix. False otherwise.
 
         """
-        row_pos_kw = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
-        col_pos_kw = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
+        row_pos_tag = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
+        col_pos_tag = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
         return (
-            row_pos_kw in self._dim_ind_col_names and
-            col_pos_kw in self._dim_ind_col_names
+            row_pos_tag in self._dim_ind_col_names and
+            col_pos_tag in self._dim_ind_col_names
         )
 
     def _get_unique_dim_index_values(
@@ -877,7 +942,7 @@ class MultiFrameImage(SOPClass):
             input dimension index pointers.
 
         """
-        cols = [self._dim_ind_col_names[p] for p in dimension_index_pointers]
+        cols = [self._dim_ind_col_names[p][0] for p in dimension_index_pointers]
         cols_str = ', '.join(cols)
         cur = self._db_con.cursor()
         return {
@@ -944,3 +1009,747 @@ class MultiFrameImage(SOPClass):
         cmd = (f'DROP TABLE {table_name}')
         with self._db_con:
             self._db_con.execute(cmd)
+
+    def _get_pixels_by_frame(
+        self,
+        output_shape: Union[int, Tuple[int, int]],
+        indices_iterator: Iterator[
+            Tuple[
+                Tuple[Union[slice, int], ...],
+                Tuple[Union[slice, int], ...],
+                int
+            ]
+        ],
+        num_channels: int = 0,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ) -> np.ndarray:
+        """Construct a pixel array given an array of frame numbers.
+
+        The output array is either 4D (``num_channels=0``) or 3D
+        (``num_channels>0``), where dimensions are frames x rows x columns x
+        channels.
+
+        Parameters
+        ----------
+        output_shape: Union[int, Tuple[int, int]]
+            Shape of the output array. If an integer, this is the number of
+            frames in the output array and the number of rows and columns are
+            taken to match those of each frame. If a tuple of integers, it
+            contains the number of (rows, columns) in the output array and
+            there is no frame dimension (this is the tiled case). Note in
+            either case, the channels dimension (if relevant) is omitted.
+        indices_iterator: Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int ]]
+            An iterable object that yields tuples of (output_indexer,
+            frame_indexer, channel_number) that describes how to construct the
+            desired output pixel array from the multiframe image's pixel array.
+            'output_indexer' is a tuple that may be used directly to index the
+            output array to place a single frame's pixels into the output
+            array. Similarly 'frame_indexer' is a tuple that may be used
+            directly to index the image's pixel array to retrieve the pixels to
+            place into the output array. with channel number 'channel_number'.
+            The channel indexer may be ``None`` if the output array has no
+            channels. Note that in both cases the indexers access the frame,
+            row and column dimensions of the relevant array, but not the
+            channel dimension (if relevant).
+        num_channels: int
+            Number of channels in the output array. The use of channels depends
+            on image type, for example it may be segments in a segmentation,
+            optical paths in a microscopy image, or B-values in an MRI.
+        dtype: Union[type, str, np.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+
+        Returns
+        -------
+        pixel_array: np.ndarray
+            Segmentation pixel array
+
+        """  # noqa: E501
+        # TODO multiple samples per pixel
+        if dtype is None:
+            if self.BitsAllocated == 1:
+                dtype = np.uint8
+            else:
+                if hasattr(self, 'FloatPixelData'):
+                    dtype = np.float32
+                elif hasattr(self, 'DoubleFloatPixelData'):
+                    dtype = np.float64
+                else:
+                    dtype = np.dtype(f"uint{self.BitsAllocated}")
+        dtype = np.dtype(dtype)
+
+        # Check dtype is suitable
+        if dtype.kind not in ('u', 'i', 'f'):
+            raise ValueError(
+                f'Data type "{dtype}" is not suitable.'
+            )
+
+        if self.pixel_array.ndim == 2:
+            h, w = self.pixel_array.shape
+        else:
+            _, h, w = self.pixel_array.shape
+
+        # Initialize empty pixel array
+        spatial_shape = (
+            output_shape
+            if isinstance(output_shape, tuple)
+            else (output_shape, h, w)
+        )
+        if num_channels > 0:
+            full_output_shape = (*spatial_shape, num_channels)
+        else:
+            full_output_shape = spatial_shape
+
+        out_array = np.zeros(
+            full_output_shape,
+            dtype=dtype
+        )
+
+        # loop through output frames
+        for (output_indexer, input_indexer, channel) in indices_iterator:
+
+            # Output indexer needs segment index
+            if channel is not None:
+                output_indexer = (*output_indexer, channel)
+
+            # Copy data to to output array
+            if self.pixel_array.ndim == 2:
+                # Special case vith a single frame
+                out_array[output_indexer] = self.pixel_array[input_indexer[1:]]
+            else:
+                out_array[output_indexer] = self.pixel_array[input_indexer]
+
+        return out_array
+
+    def _normalize_dimension_queries(
+        self,
+        queries: Dict[Union[int, str], Any],
+        use_indices: bool,
+        multiple_values: bool,
+    ) -> Dict[str, Any]:
+        normalized_queries: Dict[str, Any] = {}
+        tag: BaseTag | None = None
+
+        if len(queries) == 0:
+            raise ValueError("Query definitions must not be empty.")
+
+        if multiple_values:
+            n_values = len(list(queries.values())[0])
+
+        for p, value in queries.items():
+            if isinstance(p, int):  # also covers BaseTag
+                tag = BaseTag(p)
+
+            elif isinstance(p, str):
+                # Special cases
+                if p == 'VolumePosition':
+                    col_name = 'VolumePosition'
+                    python_type = int
+                elif p == 'ReferencedSOPInstanceUID':
+                    col_name = 'ReferencedSOPInstanceUID'
+                    python_type = str
+                elif p == 'ReferencedFrameNumber':
+                    col_name = 'ReferencedFrameNumber'
+                    python_type = int
+                else:
+                    t = tag_for_keyword(p)
+
+                    if t is None:
+                        raise ValueError(
+                            f'No attribute found with name {p}.'
+                        )
+
+                    tag = BaseTag(t)
+
+            else:
+                raise TypeError(
+                    "Every item in 'stack_dimension_pointers' must be an "
+                    'int, str, or pydicom.tag.BaseTag.'
+                )
+
+            if tag is None:
+                if use_indices:
+                    raise ValueError(
+                        f'Cannot query by index value for column {p}.'
+                    )
+            else:
+                vr, _, _, _, kw = get_entry(tag)
+                if kw == '':
+                    kw = '<unknown attribute>'
+
+                try:
+                    ind_col_name, val_col_name = self._dim_ind_col_names[tag]
+                except KeyError as e:
+                    msg = (
+                        f'The tag {BaseTag(tag)} ({kw}) is not used as '
+                        'a dimension index for this image.'
+                    )
+                    raise KeyError(msg) from e
+
+                if use_indices:
+                    col_name = ind_col_name
+                    python_type = int
+                else:
+                    col_name = val_col_name
+                    python_type = _DCM_PYTHON_TYPE_MAP[vr]
+                    if col_name is None:
+                        raise RuntimeError(
+                            f'Cannot query attribute with tag {BaseTag(p)} '
+                            'by value. Try querying by index value instead. '
+                            'If you think this should be possible, please '
+                            'report an issue to the highdicom maintainers.'
+                        )
+                    elif isinstance(col_name, tuple):
+                        raise ValueError(
+                            f'Cannot query attribute with tag {BaseTag(p)} '
+                            'by value because it is a multi-valued attribute. '
+                            'Try querying by index value instead. '
+                        )
+
+            if multiple_values:
+                if len(value) != n_values:
+                    raise ValueError(
+                        f'Number of values along all dimensions must match.'
+                    )
+                for v in value:
+                    if not isinstance(v, python_type):
+                        raise TypeError(
+                            f'For dimension {p}, expected all values to be of type '
+                            f'{python_type}.'
+                        )
+            else:
+                if not isinstance(value, python_type):
+                    raise TypeError(
+                        f'For dimension {p}, expected value to be of type '
+                        f'{python_type}.'
+                    )
+
+            if col_name in normalized_queries:
+                raise ValueError(
+                    'All dimensions must be unique.'
+                )
+            normalized_queries[col_name] = value
+
+        return normalized_queries
+
+
+    @contextmanager
+    def _iterate_indices_for_stack(
+        self,
+        stack_indices: Dict[Union[int, str], Sequence[Any]],
+        stack_dimension_use_indices: bool = False,
+        channel_indices: Optional[Dict[Union[int, str], Sequence[Any]]] = None,
+        channel_dimension_use_indices: bool = False,
+        remap_channel_indices: Optional[Sequence[int]] = None,
+        filters: Optional[Dict[Union[int, str], Any]] = None,
+        filters_use_indices: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    Optional[int],
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Get indices required to reconstruct pixels into a stack of frames.
+
+        The frames will be stacked down dimension 0 of the returned array.
+        There may optionally be a channel dimension at dimension 3.
+
+        Parameters
+        ----------
+        stack_indices: Dict[Union[int, str], Sequence[Any]]
+            Dictionary defining the stack dimension (axis 0 of the output
+            array). The keys define the dimensions used. They may be either the
+            tags or keywords of attributes in the image's dimension index, or
+            the special values 'VolumePosition', 'ReferencedSOPInstanceUID',
+            and 'ReferencedFrameNumber'. The values of the dictionary give
+            sequences of values of corresponding dimension that define each
+            slice of the output array. Note that multiple dimensions may be
+            used, in which case a frame must match the values of all provided
+            dimensions to be placed in the output array.
+        stack_dimension_use_indices: bool, optional
+            If True, the values in ``stack_indices`` are integer-valued
+            dimension *index* values. If False the dimension values themselves
+            are used, whose type depends on the choice of dimension.
+        channel_indices: Union[Dict[Union[int, str], Sequence[Any]], None], optional
+            Dictionary defining the channel dimension at axis 3 of the output
+            array, if any. Definition is identical to that of
+            ``stack_indices``, however the dimensions used must be distinct.
+        channel_dimension_use_indices: bool, optional
+            As ``stack_dimension_use_indices`` but for the channel axis.
+        remap_channel_indices: Union[Sequence[int], None], optional
+            Use these values to remap the channel indices returned in the
+            output iterator. Index ``i`` is mapped to
+            ``remap_channel_indices[i]``. Ignored if ``channel_indices`` is
+            ``None``. If ``None`` no mapping is performed.
+        filters: Union[Dict[Union[int, str], Any], None], optional
+            Additional filters to use to limit frames. Definition is similar to
+            ``stack_indices`` except that the dictionary's values are single
+            values rather than lists.
+        filters_use_indices: bool, optional
+            As ``stack_dimension_use_indices`` but for the filters.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each triplet
+            denotes the (output indexer, input indexer, output channel number)
+            representing a list of "instructions" to create the requested
+            output array by copying frames from the image dataset and inserting
+            them into the output array. Output indexer and input indexer are
+            tuples that can be used to index the output array and image numpy
+            arrays directly. Output channel number will be `None`` if
+            ``channel_indices`` is ``None``.
+
+        """
+        norm_stack_indices = self._normalize_dimension_queries(
+            stack_indices,
+            stack_dimension_use_indices,
+            True,
+        )
+        all_columns = list(norm_stack_indices.keys())
+
+        if channel_indices is not None:
+            norm_channel_indices = self._normalize_dimension_queries(
+                channel_indices,
+                channel_dimension_use_indices,
+                True,
+            )
+            all_columns.extend(list(norm_channel_indices.keys()))
+        else:
+            norm_channel_indices = None
+
+        if filters is not None:
+            norm_filters = self._normalize_dimension_queries(
+                filters,
+                filters_use_indices,
+                False,
+            )
+            all_columns.extend(list(norm_filters.keys()))
+        else:
+            norm_filters = None
+
+        all_dimensions = [
+            c.replace('_DimensionIndexValues', '')
+            for c in all_columns
+        ]
+        if len(set(all_dimensions)) != len(all_dimensions):
+            raise ValueError(
+                'Dimensions used for stack, channel and filter must all be '
+                'distinct.'
+            )
+
+        # Check for uniqueness
+        if not self._are_columns_unique(all_columns):
+            raise RuntimeError(
+                'The chosen dimensions do not uniquely identify frames of '
+                'the image. You may need to provide further dimensions or '
+                'a filter to disambiguate.'
+            )
+
+        # Create temporary table of desired dimension indices
+        stack_table_name = 'TemporaryStackTable'
+
+        stack_column_defs = (
+            ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
+            [
+                f'{c} {self._col_types[c]} NOT NULL'
+                for c in norm_stack_indices.keys()
+            ]
+        )
+        stack_column_data = (
+            (i, *row)
+            for i, row in enumerate(zip(*norm_stack_indices.values()))
+        )
+        stack_join_str = ' AND '.join(
+            f'F.{col} = L.{col}' for col in norm_stack_indices.keys()
+        )
+
+        # Filters
+        if norm_filters is not None:
+            filter_comparisons = []
+            for c, v in norm_filters:
+                if isinstance(v, str):
+                    v = f"'{v}'"
+                filter_comparisons.append(f'L.{c} = {v}')
+            filter_str = 'WHERE ' + ' AND '.join(filter_comparisons)
+        else:
+            filter_str = ''
+
+        if norm_channel_indices is None:
+
+            # Construct the query. The ORDER BY is not logically necessary but
+            # seems to improve performance of the downstream numpy operations,
+            # presumably as it is more cache efficient
+            query = (
+                'SELECT '
+                '    F.OutputFrameIndex,'  # frame index of the output array
+                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+                f'FROM {stack_table_name} F '
+                'INNER JOIN FrameLUT L'
+                f'   ON {stack_join_str} '
+                f'{filter_str} '
+                'ORDER BY F.OutputFrameIndex'
+            )
+
+            with self._generate_temp_table(
+                table_name=stack_table_name,
+                column_defs=stack_column_defs,
+                column_data=stack_column_data,
+            ):
+                yield (
+                    (
+                        (fo, slice(None), slice(None)),
+                        (fi, slice(None), slice(None)),
+                        None
+                    )
+                    for (fo, fi) in self._db_con.execute(query)
+                )
+        else:
+            # Create temporary table of channel indices
+            channel_table_name = 'TemporaryChannelTable'
+
+            channel_column_defs = (
+                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                [
+                    f'{c} {self._col_types[c]} NOT NULL'
+                    for c in norm_channel_indices.keys()
+                ]
+            )
+
+            num_channels = len(list(norm_channel_indices.values())[0])
+            if remap_channel_indices is not None:
+                output_channel_indices = remap_channel_indices
+            else:
+                output_channel_indices = range(num_channels)
+
+            channel_column_data = zip(
+                output_channel_indices,
+                *norm_channel_indices.values()
+            )
+            channel_join_str = ' AND '.join(
+                f'L.{col} = C.{col}' for col in norm_channel_indices.keys()
+            )
+
+            # Construct the query. The ORDER BY is not logically necessary but
+            # seems to improve performance of the downstream numpy operations,
+            # presumably as it is more cache efficient
+            query = (
+                'SELECT '
+                '    F.OutputFrameIndex,'  # frame index of the output array
+                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+                '    C.OutputChannelIndex '  # frame index of the output array
+                f'FROM {stack_table_name} F '
+                'INNER JOIN FrameLUT L'
+                f'   ON {stack_join_str} '
+                f'INNER JOIN {channel_table_name} C'
+                f'   ON {channel_join_str} '
+                f'{filter_str} '
+                'ORDER BY F.OutputFrameIndex'
+            )
+
+            with self._generate_temp_table(
+                table_name=stack_table_name,
+                column_defs=stack_column_defs,
+                column_data=stack_column_data,
+            ):
+                with self._generate_temp_table(
+                    table_name=channel_table_name,
+                    column_defs=channel_column_defs,
+                    column_data=channel_column_data,
+                ):
+                    yield (
+                        (
+                            (fo, slice(None), slice(None)),
+                            (fi, slice(None), slice(None)),
+                            channel
+                        )
+                        for (fo, fi, channel) in self._db_con.execute(query)
+                    )
+
+    @contextmanager
+    def _iterate_indices_for_tiled_region(
+        self,
+        row_start: int,
+        row_end: int,
+        column_start: int,
+        column_end: int,
+        tile_shape: Tuple[int, int],
+        channel_indices: Optional[Dict[Union[int, str], Sequence[Any]]] = None,
+        channel_dimension_use_indices: bool = False,
+        remap_channel_indices: Optional[Sequence[int]] = None,
+        filters: Optional[Dict[Union[int, str], Any]] = None,
+        filters_use_indices: bool = False,
+    ) -> Generator[
+            Iterator[
+                Tuple[
+                    Tuple[Union[slice, int], ...],
+                    Tuple[Union[slice, int], ...],
+                    Optional[int],
+                ]
+            ],
+            None,
+            None,
+        ]:
+        """Iterate over segmentation frame indices for a given region of the
+        image's total pixel matrix.
+
+        This is intended for the case of an image that is stored as a tiled
+        representation of total pixel matrix.
+
+        This yields an iterator to the underlying database result that iterates
+        over information on the steps required to construct the requested
+        image from the stored frame.
+
+        This method is intended to be used as a context manager that yields the
+        requested iterator. The iterator is only valid while the context
+        manager is active.
+
+        Parameters
+        ----------
+        row_start: int
+            Row index (1-based) in the total pixel matrix of the first row of
+            the output array. May be negative (last row is -1).
+        row_end: int
+            Row index (1-based) in the total pixel matrix one beyond the last
+            row of the output array. May be negative (last row is -1).
+        column_start: int
+            Column index (1-based) in the total pixel matrix of the first
+            column of the output array. May be negative (last column is -1).
+        column_end: int
+            Column index (1-based) in the total pixel matrix one beyond the last
+            column of the output array. May be negative (last column is -1).
+        tile_shape: Tuple[int, int]
+            Shape of each tile (rows, columns).
+        channel_indices: Union[Dict[Union[int, str], Sequence[Any]], None], optional
+            Dictionary defining the channel dimension at axis 2 of the output
+            array, if any. Definition is identical to that of
+            ``stack_indices``, however the dimensions used must be distinct.
+        channel_dimension_use_indices: bool, optional
+            As ``stack_dimension_use_indices`` but for the channel axis.
+        remap_channel_indices: Union[Sequence[int], None], optional
+            Use these values to remap the channel indices returned in the
+            output iterator. Index ``i`` is mapped to
+            ``remap_channel_indices[i]``. Ignored if ``channel_indices`` is
+            ``None``. If ``None`` no mapping is performed.
+        filters: Union[Dict[Union[int, str], Any], None], optional
+            Additional filters to use to limit frames. Definition is similar to
+            ``stack_indices`` except that the dictionary's values are single
+            values rather than lists.
+        filters_use_indices: bool, optional
+            As ``stack_dimension_use_indices`` but for the filters.
+
+        Yields
+        ------
+        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+            Indices required to construct the requested mask. Each triplet
+            denotes the (output indexer, input indexer, output channel number)
+            representing a list of "instructions" to create the requested
+            output array by copying frames from the image dataset and inserting
+            them into the output array. Output indexer and input indexer are
+            tuples that can be used to index the output array and image numpy
+            arrays directly. Output channel number will be `None`` if
+            ``channel_indices`` is ``None``.
+
+        """  # noqa: E501
+        all_columns = [
+            'RowPositionInTotalImagePixelMatrix',
+            'ColumnPositionInTotalImagePixelMatrix',
+        ]
+        if channel_indices is not None:
+            norm_channel_indices = self._normalize_dimension_queries(
+                channel_indices,
+                channel_dimension_use_indices,
+                True,
+            )
+            all_columns.extend(list(norm_channel_indices.keys()))
+        else:
+            norm_channel_indices = None
+
+        if filters is not None:
+            norm_filters = self._normalize_dimension_queries(
+                filters,
+                filters_use_indices,
+                False,
+            )
+            all_columns.extend(list(norm_filters.keys()))
+        else:
+            norm_filters = None
+
+        all_dimensions = [
+            c.replace('_DimensionIndexValues', '')
+            for c in all_columns
+        ]
+        if len(all_dimensions) != len(all_dimensions):
+            raise ValueError(
+                'Dimensions used for stack, channel and filter must all be '
+                'distinct.'
+            )
+
+        # Check for uniqueness
+        if not self._are_columns_unique(all_columns):
+            raise RuntimeError(
+                'The chosen dimensions do not uniquely identify frames of'
+                'the image. You may need to provide further dimensions or '
+                'a filter to disambiguate.'
+            )
+
+        # Filters
+        if norm_filters is not None:
+            filter_comparisons = []
+            for c, v in norm_filters:
+                if isinstance(v, str):
+                    v = f"'{v}'"
+                filter_comparisons.append(f'L.{c} = {v}')
+            filter_str = ' AND ' + ' AND '.join(filter_comparisons)
+        else:
+            filter_str = ''
+
+        th, tw = tile_shape
+
+        oh = row_end - row_start
+        ow = column_end - column_start
+
+        row_offset_start = row_start - th + 1
+        column_offset_start = column_start - tw + 1
+
+        # Construct the query The ORDER BY is not logically necessary
+        # but seems to improve performance of the downstream numpy
+        # operations, presumably as it is more cache efficient
+        if norm_channel_indices is None:
+            query = (
+                'SELECT '
+                '    L.RowPositionInTotalImagePixelMatrix,'
+                '    L.ColumnPositionInTotalImagePixelMatrix,'
+                '    L.FrameNumber - 1 '
+                'FROM FrameLUT L '
+                'WHERE ('
+                '    L.RowPositionInTotalImagePixelMatrix >= '
+                f'        {row_offset_start}'
+                f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
+                '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
+                f'        {column_offset_start}'
+                f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+                f'    {filter_str} '
+                ')'
+                'ORDER BY '
+                '     L.RowPositionInTotalImagePixelMatrix,'
+                '     L.ColumnPositionInTotalImagePixelMatrix'
+            )
+
+            yield (
+                (
+                    (
+                        slice(
+                            max(rp - row_start, 0),
+                            min(rp + th - row_start, oh)
+                        ),
+                        slice(
+                            max(cp - column_start, 0),
+                            min(cp + tw - column_start, ow)
+                        ),
+                    ),
+                    (
+                        fi,
+                        slice(
+                            max(row_start - rp, 0),
+                            min(row_end - rp, th)
+                        ),
+                        slice(
+                            max(column_start - cp, 0),
+                            min(column_end - cp, tw)
+                        ),
+                    ),
+                    None,
+                )
+                for (rp, cp, fi) in self._db_con.execute(query)
+            )
+
+        else:
+            # Create temporary table of channel indices
+            channel_table_name = 'TemporaryChannelTable'
+
+            channel_column_defs = (
+                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                [
+                    f'{c} {self._col_types[c]} NOT NULL'
+                    for c in norm_channel_indices.keys()
+                ]
+            )
+
+            num_channels = len(list(norm_channel_indices.values())[0])
+            if remap_channel_indices is not None:
+                output_channel_indices = remap_channel_indices
+            else:
+                output_channel_indices = range(num_channels)
+
+            channel_column_data = zip(
+                output_channel_indices,
+                *norm_channel_indices.values()
+            )
+            channel_join_str = ' AND '.join(
+                f'L.{col} = C.{col}' for col in norm_channel_indices.keys()
+            )
+
+            query = (
+                'SELECT '
+                '    L.RowPositionInTotalImagePixelMatrix,'
+                '    L.ColumnPositionInTotalImagePixelMatrix,'
+                '    L.FrameNumber - 1,'
+                '    C.OutputChannelIndex '
+                'FROM FrameLUT L '
+                f'INNER JOIN {channel_table_name} C'
+                f'   ON {channel_join_str} '
+                'WHERE ('
+                '    L.RowPositionInTotalImagePixelMatrix >= '
+                f'        {row_offset_start}'
+                f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
+                '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
+                f'        {column_offset_start}'
+                f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+                f'    {filter_str} '
+                ')'
+                'ORDER BY '
+                '     L.RowPositionInTotalImagePixelMatrix,'
+                '     L.ColumnPositionInTotalImagePixelMatrix'
+            )
+
+            with self._generate_temp_table(
+                table_name=channel_table_name,
+                column_defs=channel_column_defs,
+                column_data=channel_column_data,
+            ):
+                yield (
+                    (
+                        (
+                            slice(
+                                max(rp - row_start, 0),
+                                min(rp + th - row_start, oh)
+                            ),
+                            slice(
+                                max(cp - column_start, 0),
+                                min(cp + tw - column_start, ow)
+                            ),
+                        ),
+                        (
+                            fi,
+                            slice(
+                                max(row_start - rp, 0),
+                                min(row_end - rp, th)
+                            ),
+                            slice(
+                                max(column_start - cp, 0),
+                                min(column_end - cp, tw)
+                            ),
+                        ),
+                        channel
+                    )
+                    for (rp, cp, fi, channel) in self._db_con.execute(query)
+                )
