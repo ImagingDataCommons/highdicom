@@ -1391,7 +1391,7 @@ class MultiFrameImage(SOPClass):
             query = (
                 'SELECT '
                 '    F.OutputFrameIndex,'  # frame index of the output array
-                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
+                '    L.FrameNumber - 1 '  # frame *index* of segmentation image
                 f'FROM {stack_table_name} F '
                 'INNER JOIN FrameLUT L'
                 f'   ON {stack_join_str} '

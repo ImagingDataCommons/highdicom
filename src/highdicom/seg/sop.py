@@ -3191,9 +3191,9 @@ class Segmentation(MultiFrameImage):
                 output_shape=output_shape,
                 indices_iterator=indices_iterator,
             )
-            max_segment = segment_numbers.max()
+            max_segment = max(self.segment_numbers)
             segment_numbers_list = segment_numbers.tolist()
-            remapping = np.zeros( max_segment + 1, np.uint16)
+            remapping = np.zeros(max_segment + 1, np.uint16)
             bg_val = self.get('PixelPaddingValue', 0)
             if relabel and not combine_segments:
                 for s in range(max_segment + 1):
