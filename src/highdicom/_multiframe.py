@@ -1342,7 +1342,7 @@ class MultiFrameImage(SOPClass):
         ]
         if len(set(all_dimensions)) != len(all_dimensions):
             raise ValueError(
-                'Dimensions used for stack, channel and filter must all be '
+                'Dimensions used for stack, channel, and filter must all be '
                 'distinct.'
             )
 
@@ -1375,7 +1375,7 @@ class MultiFrameImage(SOPClass):
         # Filters
         if norm_filters is not None:
             filter_comparisons = []
-            for c, v in norm_filters:
+            for c, v in norm_filters.items():
                 if isinstance(v, str):
                     v = f"'{v}'"
                 filter_comparisons.append(f'L.{c} = {v}')
@@ -1445,7 +1445,7 @@ class MultiFrameImage(SOPClass):
                 'SELECT '
                 '    F.OutputFrameIndex,'  # frame index of the output array
                 '    L.FrameNumber - 1,'  # frame *index* of segmentation image
-                '    C.OutputChannelIndex '  # frame index of the output array
+                '    C.OutputChannelIndex '  # channel index of the output array
                 f'FROM {stack_table_name} F '
                 'INNER JOIN FrameLUT L'
                 f'   ON {stack_join_str} '
@@ -1589,8 +1589,8 @@ class MultiFrameImage(SOPClass):
         ]
         if len(all_dimensions) != len(all_dimensions):
             raise ValueError(
-                'Dimensions used for stack, channel and filter must all be '
-                'distinct.'
+                'Dimensions used for tile position, channel, and filter '
+                'must all be distinct.'
             )
 
         # Check for uniqueness

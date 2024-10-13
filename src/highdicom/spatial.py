@@ -774,10 +774,10 @@ def get_closest_patient_orientation(affine: np.ndarray) -> Tuple[
         three axes of the volume represented by the affine matrix, the closest
         direction in the patient frame of reference coordinate system.
 
-    """
+    """  # noqa: E501
     if (
-        affine.ndim != 2
-        or (
+        affine.ndim != 2 or
+        (
             affine.shape != (3, 3) and
             affine.shape != (4, 4)
         )
@@ -805,10 +805,13 @@ def get_closest_patient_orientation(affine: np.ndarray) -> Tuple[
     ]
     for d, sortind in enumerate(sort_indices.T):
         # Check that this axis has not already been used. This can happen if
-        # one or more array axis is at 45% to some FoR axis. In this case take
-        # the next index in the sort list.
+        # one or more array axis is at 45 deg to some FoR axis. In this case
+        # take the next index in the sort list.
         for i in sortind:
-            if pos_directions[i] not in result and neg_directions[i] not in result:
+            if (
+                pos_directions[i] not in result and
+                neg_directions[i] not in result
+            ):
                 break
 
         if alignments[i, d] > 0:
@@ -911,7 +914,7 @@ def get_normal_vector(
     np.ndarray:
         Unit normal vector as a NumPy array with shape (3, ).
 
-    """
+    """  # noqa: E501
     image_orientation_arr = np.array(image_orientation, dtype=np.float64)
     if image_orientation_arr.ndim != 1 or image_orientation_arr.shape[0] != 6:
         raise ValueError(
@@ -994,11 +997,11 @@ def create_rotation_matrix(
     Returns
     -------
     numpy.ndarray
-        3 x 3 rotation matrix. Pre-multiplying an image coordinate in the format (column
-        index, row index, slice index) by this matrix gives the x, y, z
-        position in the frame-of-reference coordinate system.
+        3 x 3 rotation matrix. Pre-multiplying an image coordinate in the
+        format (column index, row index, slice index) by this matrix gives the
+        x, y, z position in the frame-of-reference coordinate system.
 
-    """
+    """  # noqa: E501
     if len(image_orientation) != 6:
         raise ValueError('Argument "image_orientation" must have length 6.')
     index_convention_ = _normalize_pixel_index_convention(index_convention)
@@ -1008,7 +1011,7 @@ def create_rotation_matrix(
     column_cosines = np.array(image_orientation[3:], dtype=float)
     if isinstance(pixel_spacing, Sequence):
         if len(pixel_spacing) != 2:
-            raise Value.LEF(
+            raise ValueError(
                 "A sequence passed to argument 'pixel_spacing' must have "
                 "length 2."
             )
@@ -1159,7 +1162,7 @@ def _create_affine_transformation_matrix(
         format (column index, row index, slice index, 1) by this matrix gives
         the (x, y, z, 1) position in the frame-of-reference coordinate system.
 
-    """
+    """  # noqa: E501
     if not isinstance(image_position, Sequence):
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
@@ -1175,12 +1178,11 @@ def _create_affine_transformation_matrix(
 
     index_convention_ = _normalize_pixel_index_convention(index_convention)
     if (
-        PixelIndexDirections.L in index_convention_ or 
+        PixelIndexDirections.L in index_convention_ or
         PixelIndexDirections.U in index_convention_
     ):
         raise ValueError(
-            f"Index convention cannot include 'L' or 'U'."
-
+            "Index convention cannot include 'L' or 'U'."
         )
     translation = np.array([float(x) for x in image_position], dtype=float)
 
@@ -1313,12 +1315,12 @@ def rotation_for_patient_orientation(
     norm_orientation = _normalize_patient_orientation(patient_orientation)
 
     direction_to_vector_mapping = {
-        PatientOrientationValuesBiped.L: np.array([ 1.,  0.,  0.]),
-        PatientOrientationValuesBiped.R: np.array([-1.,  0.,  0.]),
-        PatientOrientationValuesBiped.P: np.array([ 0.,  1.,  0.]),
-        PatientOrientationValuesBiped.A: np.array([ 0., -1.,  0.]),
-        PatientOrientationValuesBiped.H: np.array([ 0.,  0.,  1.]),
-        PatientOrientationValuesBiped.F: np.array([ 0.,  0., -1.]),
+        PatientOrientationValuesBiped.L: np.array([1., 0., 0.]),
+        PatientOrientationValuesBiped.R: np.array([-1., 0., 0.]),
+        PatientOrientationValuesBiped.P: np.array([0., 1., 0.]),
+        PatientOrientationValuesBiped.A: np.array([0., -1., 0.]),
+        PatientOrientationValuesBiped.H: np.array([0., 0., 1.]),
+        PatientOrientationValuesBiped.F: np.array([0., 0., -1.]),
     }
 
     if isinstance(spacing, float):
@@ -1445,7 +1447,7 @@ def _translate_affine_matrix(
     """
     if len(pixel_offset) != 3:
         raise ValueError(
-            f"Argument 'pixel_spacing' must have three elements."
+            "Argument 'pixel_spacing' must have three elements."
         )
     offset_arr = np.array(pixel_offset)
     origin = affine[:3, 3]
@@ -3115,7 +3117,7 @@ def get_series_volume_positions(
         in the volume. If the image positions do not represent a volume,
         returns None.
 
-    """
+    """  # noqa: E501
     if len(datasets) == 0:
         raise ValueError("List must not be empty.")
     # We stipluate that a single image does represent a volume with spacing 0.0
@@ -3258,7 +3260,7 @@ def get_volume_positions(
         in the volume. If the image positions do not represent a volume,
         returns None.
 
-    """
+    """  # noqa: E501
     if not sort:
         if allow_duplicates:
             raise ValueError(
@@ -3449,7 +3451,7 @@ def get_plane_sort_index(
         is sorted along the positive direction of the normal vector of the
         imaging plane.
 
-    """
+    """  # noqa: E501
     pos_arr = np.array(image_positions)
     if pos_arr.ndim != 2 or pos_arr.shape[1] != 3:
         raise ValueError("Argument 'image_positions' must have shape (N, 3)")
@@ -3516,7 +3518,7 @@ def get_dataset_sort_index(
         sorted along the positive direction of the normal vector of the imaging
         plane.
 
-    """
+    """  # noqa: E501
     if is_multiframe_image(datasets[0]):
         raise ValueError('Datasets should be single frame images.')
     if 'ImageOrientationPatient' not in datasets[0]:
@@ -3583,7 +3585,7 @@ def sort_datasets(
         sorted along the positive direction of the normal vector of the imaging
         plane.
 
-    """
+    """  # noqa: E501
     sort_index = get_dataset_sort_index(
         datasets,
         index_convention=index_convention,
@@ -3598,14 +3600,14 @@ def _get_slice_distances(
 ) -> np.ndarray:
     """Get distances of a set of planes from the origin.
 
-    For each plane position, find (signed) distance from origin along the vector normal
-    to the imaging plane.
+    For each plane position, find (signed) distance from origin along the
+    vector normal to the imaging plane.
 
     Parameters
     ----------
     image_positions: np.ndarray
-        Image positions array. 2D array of shape (N, 3) where N is the number of
-        planes and each row gives the (x, y, z) image position of a plane.
+        Image positions array. 2D array of shape (N, 3) where N is the number
+        of planes and each row gives the (x, y, z) image position of a plane.
     normal_vector: np.ndarray
         Unit normal vector (perpendicular to the imaging plane).
 

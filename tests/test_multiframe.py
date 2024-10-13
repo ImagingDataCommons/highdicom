@@ -2,7 +2,7 @@
 import pickle
 import numpy as np
 from pydicom import dcmread
-from pydicom.data import get_testdata_file, get_testdata_files
+from pydicom.data import get_testdata_file
 
 from highdicom._multiframe import MultiFrameImage
 
@@ -15,8 +15,8 @@ def test_slice_spacing():
 
     expected_affine = np.array(
         [
-            [0.0,   0.0, -0.388672, 99.5],
-            [0.0,   0.388672, 0.0, -301.5],
+            [0.0, 0.0, -0.388672, 99.5],
+            [0.0, 0.388672, 0.0, -301.5],
             [10.0, 0.0, 0.0, -159],
             [0.0, 0.0, 0.0, 1.0],
         ]

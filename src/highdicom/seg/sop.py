@@ -1313,7 +1313,7 @@ class Segmentation(MultiFrameImage):
             unique_dimension_values = [None]
 
         # Dimension Organization Type
-        dimension_organization_type = self._check_tiled_dimension_organization_type(
+        dimension_organization_type = self._check_tiled_dimension_organization(
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
             omit_empty_frames=omit_empty_frames,
@@ -1529,7 +1529,7 @@ class Segmentation(MultiFrameImage):
                         )
                         continue
 
-               # Log a debug message
+                # Log a debug message
                 if segment_number is None:
                     msg = f'add plane #{plane_index}'
                 else:
@@ -1902,7 +1902,7 @@ class Segmentation(MultiFrameImage):
                 self.ImageCenterPointCoordinatesSequence = [center_item]
 
     @staticmethod
-    def _check_tiled_dimension_organization_type(
+    def _check_tiled_dimension_organization(
         dimension_organization_type: Union[
             DimensionOrganizationTypeValues,
             str,
@@ -1980,11 +1980,11 @@ class Segmentation(MultiFrameImage):
                 ):
                     raise ValueError(
                         'A value of "TILED_FULL" for parameter '
-                        '"dimension_organization_type" is not permitted because '
-                        'the "plane_positions" of the segmentation '
+                        '"dimension_organization_type" is not permitted '
+                        'because the "plane_positions" of the segmentation '
                         'do not follow the relevant requirements. See '
                         'https://dicom.nema.org/medical/dicom/current/output/'
-                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
                     )
                 if omit_empty_frames:
                     raise ValueError(
@@ -3702,7 +3702,9 @@ class Segmentation(MultiFrameImage):
             channel_indices = {'ReferencedSegmentNumber': segment_numbers}
 
         with self._iterate_indices_for_stack(
-            stack_indices={'ReferencedSOPInstanceUID': source_sop_instance_uids},
+            stack_indices={
+                'ReferencedSOPInstanceUID': source_sop_instance_uids
+            },
             channel_indices=channel_indices,
             remap_channel_indices=remap_channel_indices,
         ) as indices:
@@ -4097,6 +4099,17 @@ class Segmentation(MultiFrameImage):
             )
         n_vol_positions = self.volume_geometry.spatial_shape[0]
 
+        # Check that the combination of frame numbers and segment numbers
+        # uniquely identify segmentation frames
+        columns = ['VolumePosition']
+        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
+            columns.append('ReferencedSegmentNumber')
+        if not self._are_columns_unique(columns):
+            raise RuntimeError(
+                'Volume positions and segment numbers do not '
+                'uniquely identify frames of the segmentation image.'
+            )
+
         if slice_start < 0:
             slice_start = n_vol_positions + slice_start
 
@@ -4122,7 +4135,6 @@ class Segmentation(MultiFrameImage):
                 "The combination of 'slice_start' and 'slice_end' gives an "
                 "empty volume."
             )
-
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4395,7 +4407,6 @@ class Segmentation(MultiFrameImage):
                     'parameter.'
                 )
                 raise ValueError(msg)
-
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None

@@ -1934,8 +1934,8 @@ class TestSegmentation:
         # ordered the wrong way
         volume_multiframe = deepcopy(self._ct_multiframe)
         positions = [
-             fm.PlanePositionSequence[0].ImagePositionPatient
-             for fm in volume_multiframe.PerFrameFunctionalGroupsSequence
+            fm.PlanePositionSequence[0].ImagePositionPatient
+            for fm in volume_multiframe.PerFrameFunctionalGroupsSequence
         ]
         positions = positions[::-1]
         for pos, fm in zip(
@@ -3972,16 +3972,16 @@ class TestSegmentationParsing:
             with pytest.raises(ValueError, match=msg):
                 seg.get_total_pixel_matrix(
                     segment_numbers=[1, 4, 9],
-                    row_end=1+subregion_rows,
-                    column_end=1+subregion_columns,
+                    row_end=1 + subregion_rows,
+                    column_end=1 + subregion_columns,
                     combine_segments=combine_segments,
                     relabel=relabel,
                     dtype=numpy_dtype,
                 )
         else:
             pixels = seg.get_total_pixel_matrix(
-                row_end=1+subregion_rows,
-                column_end=1+subregion_columns,
+                row_end=1 + subregion_rows,
+                column_end=1 + subregion_columns,
                 segment_numbers=[1, 4, 9],
                 combine_segments=combine_segments,
                 relabel=relabel,
@@ -5151,7 +5151,7 @@ class TestPyramid(unittest.TestCase):
             assert hasattr(seg, 'PyramidUID')
             seg_pix = seg.get_total_pixel_matrix()
             assert np.array_equal(
-                seg.get_total_pixel_matrix(),
+                seg_pix,
                 pix[0]
             )
 
@@ -5253,7 +5253,9 @@ class TestPyramid(unittest.TestCase):
                 pix[0]
             )
 
-    def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(self):
+    def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
+        self
+    ):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
@@ -5295,3 +5297,12 @@ class TestPyramid(unittest.TestCase):
             software_versions='1',
             device_serial_number='123',
         )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            mask = np.argmax(pix, axis=3).astype(np.uint8)
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                mask[0]
+            )

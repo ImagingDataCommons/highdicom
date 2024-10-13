@@ -729,11 +729,21 @@ def test_map_coordinates_between_images(params, inputs, expected_outputs):
 @pytest.mark.parametrize(
     'image_orientation,orientation_str',
     [
-        ([ 1,  0,  0,  0,  1,  0], 'LPH'),
-        ([ 0,  1,  0,  1,  0,  0], 'PLF'),
-        ([-1,  0,  0,  0,  1,  0], 'RPF'),
-        ([ 0,  0, -1,  1,  0,  0], 'FLA'),
-        ([np.cos(np.pi / 4),  -np.sin(np.pi / 4), 0,  np.sin(np.pi / 4),  np.cos(np.pi / 4),  0], 'LPH'),
+        ([1, 0, 0, 0, 1, 0], 'LPH'),
+        ([0, 1, 0, 1, 0, 0], 'PLF'),
+        ([-1, 0, 0, 0, 1, 0], 'RPF'),
+        ([0, 0, -1, 1, 0, 0], 'FLA'),
+        (
+            [
+                np.cos(np.pi / 4),
+                -np.sin(np.pi / 4),
+                0,
+                np.sin(np.pi / 4),
+                np.cos(np.pi / 4),
+                0
+            ],
+            'LPH'
+        ),
     ]
 )
 def test_get_closest_patient_orientation(
@@ -770,8 +780,8 @@ def test_rotation_from_patient_orientation_spacing():
     )
     expected = np.array(
         [
-            [ 0.0, 0.0, 2.5],
-            [ 0.0, 2.0, 0.0],
+            [0.0, 0.0, 2.5],
+            [0.0, 2.0, 0.0],
             [-1.0, 0.0, 0.0],
         ]
     )
@@ -1112,8 +1122,18 @@ def test_transform_affine_matrix():
     )
     expected = np.array(
         [
-            [-np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -26.20577137],
-            [-np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 40.7],
+            [
+                -np.cos(np.radians(30)),
+                -np.sin(np.radians(30)),
+                0.0,
+                -26.20577137,
+            ],
+            [
+                -np.sin(np.radians(30)),
+                np.cos(np.radians(30)),
+                0.0,
+                40.7,
+            ],
             [0.0, 0.0, -1.0, 7.8],
             [0.0, 0.0, 0.0, 1.0],
         ]

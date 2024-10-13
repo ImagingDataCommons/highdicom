@@ -33,7 +33,6 @@ from highdicom._module_utils import (
 )
 
 
-
 class SegmentDescription(Dataset):
 
     """Dataset describing a segment based on the Segment Description macro."""
@@ -617,7 +616,10 @@ class DimensionIndexSequence(DataElementSequence):
         self,
         plane_positions: Sequence[PlanePositionSequence],
         image_orientation: Optional[Sequence[float]] = None,
-        index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+        index_convention: Union[
+            str,
+            Sequence[Union[PixelIndexDirections, str]]
+        ] = (
             PixelIndexDirections.R,
             PixelIndexDirections.D,
         ),
@@ -681,7 +683,7 @@ class DimensionIndexSequence(DataElementSequence):
         reference, and excludes values of the Referenced Segment Number
         attribute.
 
-        """
+        """  # noqa: E501
         if self._coordinate_system is None:
             raise RuntimeError(
                 'Cannot calculate index values for multiple plane '

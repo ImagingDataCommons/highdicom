@@ -58,9 +58,6 @@ from pydicom.pixel_data_handlers.util import (
 # TODO make multiframe public
 # TODO figure out type hinting for _VolumeBase
 # TODO inheritance of are_dimension_indices_unique
-# TODO tests for labelmap segmentation with combine_segments False
-# TODO include labelmap test case
-# TODO test filter
 
 
 class _VolumeBase(ABC):
@@ -100,7 +97,6 @@ class _VolumeBase(ABC):
 
         self._affine = affine
         self._frame_of_reference_uid = frame_of_reference_uid
-
 
     @property
     @abstractmethod
@@ -337,7 +333,7 @@ class _VolumeBase(ABC):
         Returns
         -------
         highdicom.PlaneOrientationSequence:
-            Plane orientation sequence 
+            Plane orientation sequence.
 
         """
         return PlaneOrientationSequence(
@@ -389,7 +385,9 @@ class _VolumeBase(ABC):
         return np.linalg.inv(self._affine)
 
     @property
-    def direction_cosines(self) -> Tuple[float, float, float, float, float, float]:
+    def direction_cosines(self) -> Tuple[
+        float, float, float, float, float, float
+    ]:
         """Tuple[float, float, float, float, float float]:
 
         Tuple of 6 floats giving the direction cosines of the
@@ -532,8 +530,8 @@ class _VolumeBase(ABC):
 
         def _check_int(val: int, dim: int) -> None:
             if (
-                val < -self.spatial_shape[dim]
-                or val >= self.spatial_shape[dim]
+                val < -self.spatial_shape[dim] or
+                val >= self.spatial_shape[dim]
             ):
                 raise IndexError(
                     f'Index {val} is out of bounds for axis {dim} with size '
@@ -683,7 +681,7 @@ class _VolumeBase(ABC):
         if isinstance(pad_width, int):
             if pad_width < 0:
                 raise ValueError(
-                    f"Argument 'pad_width' cannot contain negative values."
+                    "Argument 'pad_width' cannot contain negative values."
                 )
             full_pad_width: List[List[int]] = [[pad_width, pad_width]] * 3
         elif isinstance(pad_width, Sequence):
@@ -692,7 +690,7 @@ class _VolumeBase(ABC):
                     raise ValueError("Invalid arrangement in 'pad_width'.")
                 if pad_width[0] < 0 or pad_width[1] < 0:
                     raise ValueError(
-                        f"Argument 'pad_width' cannot contain negative values."
+                        "Argument 'pad_width' cannot contain negative values."
                     )
                 full_pad_width = [list(pad_width)] * 3
             elif isinstance(pad_width[0], Sequence):
@@ -716,7 +714,6 @@ class _VolumeBase(ABC):
 
         return new_affine, full_pad_width
 
-
     def _permute_affine(self, indices: Sequence[int]) -> np.ndarray:
         """Get affine after permuting spatial axes.
 
@@ -735,7 +732,7 @@ class _VolumeBase(ABC):
         """
         if len(indices) != 3 or set(indices) != {0, 1, 2}:
             raise ValueError(
-                f'Argument "indices" must consist of the values 0, 1, and 2 '
+                'Argument "indices" must consist of the values 0, 1, and 2 '
                 'in some order.'
             )
 
@@ -1319,7 +1316,7 @@ class _VolumeBase(ABC):
             return np.array_equal(self._affine, other._affine)
         else:
             return np.allclose(
-                self._affine, 
+                self._affine,
                 other._affine,
                 atol=tol,
             )
@@ -1560,9 +1557,9 @@ class VolumeGeometry(_VolumeBase):
         spacing_between_slices: float
             Spacing between slices in millimeter units in the frame of
             reference coordinate system space. Corresponds to the DICOM
-            attribute "SpacingBetweenSlices" (however, this may not be present in
-            many images and may need to be inferred from "ImagePositionPatient"
-            attributes of consecutive slices).
+            attribute "SpacingBetweenSlices" (however, this may not be present
+            in many images and may need to be inferred from
+            "ImagePositionPatient" attributes of consecutive slices).
         number_of_frames: int
             Number of frames in the volume.
         frame_of_reference_uid: Union[str, None], optional
@@ -1926,7 +1923,7 @@ class Volume(_VolumeBase):
             if apply_voi_transform:
                 frame = apply_voi_lut(frame, ds, voi_transform_index)
             if (
-                apply_palette_color_lut and 
+                apply_palette_color_lut and
                 ds.PhotometricInterpretation == 'PALETTE_COLOR'
             ):
                 frame = apply_color_lut(frame, ds)
@@ -2078,9 +2075,9 @@ class Volume(_VolumeBase):
         spacing_between_slices: float
             Spacing between slices in millimeter units in the frame of
             reference coordinate system space. Corresponds to the DICOM
-            attribute "SpacingBetweenSlices" (however, this may not be present in
-            many images and may need to be inferred from "ImagePositionPatient"
-            attributes of consecutive slices).
+            attribute "SpacingBetweenSlices" (however, this may not be present
+            in many images and may need to be inferred from
+            "ImagePositionPatient" attributes of consecutive slices).
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
@@ -2420,8 +2417,8 @@ class Volume(_VolumeBase):
         else:
             new_array = (
                 (self.array - self.array.mean()) /
-                (self.array.std() / output_std)
-                + output_mean
+                (self.array.std() / output_std) +
+                output_mean
             )
 
         return self.with_array(new_array)
@@ -2465,7 +2462,7 @@ class Volume(_VolumeBase):
         ):
             new_array = self.array.astype(np.float64)
             for c in range(self.number_of_channels):
-                channel = new_array[:,:, :, c]
+                channel = new_array[:, :, :, c]
                 imin = channel.min()
                 imax = channel.max()
                 scale_factor = output_range / (imax - imin)
@@ -2510,7 +2507,7 @@ class Volume(_VolumeBase):
         self,
         *,
         window_min: Optional[float] = None,
-        window_max: Optional[float]= None,
+        window_max: Optional[float] = None,
         window_center: Optional[float] = None,
         window_width: Optional[float] = None,
         output_min: float = 0.0,
@@ -2547,11 +2544,11 @@ class Volume(_VolumeBase):
             Volume with windowed intensities.
 
         """
-        if window_min is None != window_max is None:
+        if (window_min is None) != (window_max is None):
             raise TypeError("Invalid combination of inputs specified.")
-        if window_center is None != window_width is None:
+        if (window_center is None) != (window_width is None):
             raise TypeError("Invalid combination of inputs specified.")
-        if window_center is None == window_min is None:
+        if (window_center is None) == (window_min is None):
             raise TypeError("Invalid combination of inputs specified.")
 
         if window_min is None:
