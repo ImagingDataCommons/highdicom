@@ -2731,6 +2731,29 @@ class PaletteColorLUTTransformation(Dataset):
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` from a built-in colormap
+        from the ``matplotlib`` python package.
+
+        >>> from matplotlib import colormaps
+        >>> import highdicom as hd
+        >>>
+        >>> # Use the built-in 'gist_rainbow_r' colormap
+        >>> cmap = colormaps['gist_rainbow_r']
+        >>> # Create an 8-bit RGBA LUT array from the colormap
+        >>> num_entries = 10  # e.g. number of classes in a segmentation
+        >>> lut_data = cmap(np.arange(num_entries) / (num_entries + 1), bytes=True)
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation(
+        >>>     red_lut=hd.PaletteColorLUT(0, lut_data[:, 0], 'red'),
+        >>>     green_lut=hd.PaletteColorLUT(0, lut_data[:, 1], 'green'),
+        >>>     blue_lut=hd.PaletteColorLUT(0, lut_data[:, 2], 'blue'),
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
+
         """  # noqa: E501
         super().__init__()
 

@@ -1,8 +1,7 @@
 """Module for SOP classes of the SEG modality."""
 import logging
-from collections import Counter, defaultdict
+from collections import defaultdict
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
-from contextlib import contextmanager
 from copy import deepcopy
 from itertools import chain
 from os import PathLike
@@ -11,9 +10,7 @@ from typing import (
     Any,
     BinaryIO,
     Dict,
-    Generator,
     Iterator,
-    Iterable,
     List,
     Optional,
     Sequence,
@@ -96,8 +93,7 @@ from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
 )
-from highdicom.uid import UID as hd_UID
-from highdicom.volume import Volume, VolumeGeometry
+from highdicom.volume import Volume
 
 
 logger = logging.getLogger(__name__)
@@ -161,6 +157,9 @@ def _check_numpy_value_representation(
             raise_error = True
     elif dtype.kind in ('i', 'u'):
         if max_val > np.iinfo(dtype).max:
+            raise_error = True
+    elif dtype.kind == 'b':
+        if max_val > 1:
             raise_error = True
     if raise_error:
         raise ValueError(
@@ -3186,44 +3185,6 @@ class Segmentation(MultiFrameImage):
                 'Segment numbers array contains invalid values.'
             )
 
-        if self.segmentation_type == SegmentationTypeValues.LABELMAP:
-            out_array = self._get_pixels_by_frame(
-                output_shape=output_shape,
-                indices_iterator=indices_iterator,
-            )
-            max_segment = max(self.segment_numbers)
-            segment_numbers_list = segment_numbers.tolist()
-            remapping = np.zeros(max_segment + 1, np.uint16)
-            bg_val = self.get('PixelPaddingValue', 0)
-            if relabel and not combine_segments:
-                for s in range(max_segment + 1):
-                    remapping[s] = (
-                        s if s in segment_numbers_list
-                        else bg_val
-                    )
-            else:
-                for s in range(max_segment + 1):
-                    remapping[s] = (
-                        segment_numbers_list.index(s) + 1
-                        if s in segment_numbers_list
-                        else bg_val
-                    )
-
-            if not np.array_equal(
-                remapping,
-                np.arange(max_segment + 1),
-            ):
-                out_array = remapping[out_array]
-
-            if not combine_segments:
-                # Obscure trick to calculate one-hot
-                shape = out_array.shape
-                flat_array = out_array.flatten()
-                out_array = np.eye(max_segment + 1)[flat_array]
-                out_array = out_array.reshape(shape)
-
-            return out_array
-
         # Determine output type
         if combine_segments:
             max_output_val = (
@@ -3245,10 +3206,72 @@ class Segmentation(MultiFrameImage):
         dtype = np.dtype(dtype)
 
         # Check dtype is suitable
-        if dtype.kind not in ('u', 'i', 'f'):
+        if dtype.kind not in ('u', 'i', 'f', 'b'):
             raise ValueError(
                 f'Data type "{dtype}" is not suitable.'
             )
+
+        _check_numpy_value_representation(max_output_val, dtype)
+        num_output_segments = len(segment_numbers)
+
+        if self.segmentation_type == SegmentationTypeValues.LABELMAP:
+
+            need_remap = not np.array_equal(
+                segment_numbers,
+                self.segment_numbers
+            )
+
+            intermediate_dtype = (
+                _get_unsigned_dtype(self.BitsStored)
+                if need_remap else dtype
+            )
+
+            out_array = self._get_pixels_by_frame(
+                output_shape=output_shape,
+                indices_iterator=indices_iterator,
+                dtype=intermediate_dtype,
+            )
+            num_input_segments = max(self.segment_numbers) + 1
+
+            if need_remap:
+                remap_dtype = (
+                    dtype if combine_segments else intermediate_dtype
+                )
+                remapping = np.zeros(num_input_segments + 1, dtype=remap_dtype)
+                bg_val = self.get('PixelPaddingValue', 0)
+                if combine_segments and not relabel:
+                    # A remapping that just zeroes out unused segments
+                    for s in range(num_input_segments):
+                        remapping[s] = (
+                            s if s in segment_numbers
+                            else bg_val
+                        )
+                else:
+                    # A remapping that applies relabelling logic
+                    for s in range(num_input_segments + 1):
+                        remapping[s] = (
+                            np.nonzero(segment_numbers == s)[0][0] + 1
+                            if s in segment_numbers
+                            else bg_val
+                        )
+
+                out_array = remapping[out_array]
+
+            if not combine_segments:
+                # Obscure trick to calculate one-hot
+                shape = out_array.shape
+                flat_array = out_array.flatten()
+                out_array = np.eye(
+                    num_output_segments + 1,
+                    dtype=dtype,
+                )[flat_array]
+
+                out_shape = (*shape, num_output_segments)
+
+                # Remove the background segment (channel 0)
+                out_array = out_array[:, 1:].reshape(out_shape)
+
+            return out_array
 
         if will_be_rescaled:
             intermediate_dtype = np.uint8
@@ -3259,9 +3282,6 @@ class Segmentation(MultiFrameImage):
                 )
         else:
             intermediate_dtype = dtype
-        _check_numpy_value_representation(max_output_val, dtype)
-
-        num_segments = len(segment_numbers)
 
         if combine_segments:
             if self.pixel_array.ndim == 2:
@@ -3335,7 +3355,7 @@ class Segmentation(MultiFrameImage):
             out_array = self._get_pixels_by_frame(
                 output_shape=output_shape,
                 indices_iterator=indices_iterator,
-                num_channels=num_segments,
+                num_channels=num_output_segments,
                 dtype=intermediate_dtype,
             )
 
@@ -3422,54 +3442,13 @@ class Segmentation(MultiFrameImage):
                     'in this image.'
                 )
 
-        dimension_index_pointers.append(
-            tag_for_keyword('ReferencedSegmentNumber')
-        )
+        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
+            dimension_index_pointers.append(
+                tag_for_keyword('ReferencedSegmentNumber')
+            )
         return super().are_dimension_indices_unique(
             dimension_index_pointers
         )
-
-    def _are_referenced_sop_instances_unique(self) -> bool:
-        """Check if Referenced SOP Instance UIDs uniquely identify frames.
-
-        This is a pre-requisite for requesting segmentation masks defined by
-        the SOP Instance UIDs of their source frames, such as using the
-        Segmentation.get_pixels_by_source_instance() method.
-
-        Returns
-        -------
-        bool
-            True if the ReferencedSOPInstanceUID (in combination with the
-            segment number) uniquely identifies frames of the segmentation
-            image.
-
-        """
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedSOPInstanceUID, '
-            'ReferencedSegmentNumber)'
-        ).fetchone()[0]
-        return n_unique_combos == self.NumberOfFrames
-
-    def _are_referenced_frames_unique(self) -> bool:
-        """Check if Referenced Frame Numbers uniquely identify frames.
-
-        Returns
-        -------
-        bool
-            True if the ReferencedFrameNumber (in combination with the
-            segment number) uniquely identifies frames of the segmentation
-            image.
-
-        """
-        cur = self._db_con.cursor()
-        n_unique_combos = cur.execute(
-            'SELECT COUNT(*) FROM '
-            '(SELECT 1 FROM FrameLUT GROUP BY ReferencedFrameNumber, '
-            'ReferencedSegmentNumber)'
-        ).fetchone()[0]
-        return n_unique_combos == self.NumberOfFrames
 
     def _get_segment_remap_values(
         self,
@@ -3687,7 +3666,10 @@ class Segmentation(MultiFrameImage):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        if not self._are_referenced_sop_instances_unique():
+        columns = ['ReferencedSOPInstanceUID']
+        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
+            columns.append('ReferencedSegmentNumber')
+        if not self._are_columns_unique(columns):
             raise RuntimeError(
                 'Source SOP instance UIDs and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -3953,7 +3935,10 @@ class Segmentation(MultiFrameImage):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        if not self._are_referenced_frames_unique():
+        columns = ['ReferencedFrameNumber']
+        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
+            columns.append('ReferencedSegmentNumber')
+        if not self._are_columns_unique(columns):
             raise RuntimeError(
                 'Source frame numbers and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'

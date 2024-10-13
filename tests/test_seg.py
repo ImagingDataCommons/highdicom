@@ -3557,6 +3557,13 @@ class TestSegmentationParsing:
             self._sm_control_seg_ds
         )
 
+        self._sm_control_labelmap_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control_labelmap.dcm'
+        )
+        self._sm_control_labelmap_seg = Segmentation.from_dataset(
+            self._sm_control_labelmap_seg_ds
+        )
+
         self._ct_binary_seg_ds = dcmread(
             'data/test_files/seg_image_ct_binary.dcm'
         )
@@ -3602,6 +3609,7 @@ class TestSegmentationParsing:
     @staticmethod
     @pytest.fixture(
         params=[
+            bool,
             np.int8,
             np.uint8,
             np.int16,
@@ -3628,6 +3636,11 @@ class TestSegmentationParsing:
     def relabel(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=['_sm_control_seg', '_sm_control_labelmap_seg'])
+    def seg_attr_name(request):
+        return request.param
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
@@ -3646,6 +3659,12 @@ class TestSegmentationParsing:
         seg = segread('data/test_files/seg_image_sm_numbers.dcm')
         assert isinstance(seg, Segmentation)
         seg = segread('data/test_files/seg_image_sm_dots_tiled_full.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_control_labelmap.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread(
+            'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+        )
         assert isinstance(seg, Segmentation)
 
     def test_properties(self):
@@ -3878,6 +3897,7 @@ class TestSegmentationParsing:
 
     def test_get_pixels_with_dtype(
         self,
+        seg_attr_name,
         numpy_dtype,
         combine_segments,
         relabel,
@@ -3885,28 +3905,106 @@ class TestSegmentationParsing:
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
         source_frames_valid = [1, 2, 4, 5]
-        seg = self._sm_control_seg
-        pixels = seg.get_pixels_by_source_frame(
-            source_sop_instance_uid=source_sop_uid,
-            source_frame_numbers=source_frames_valid,
-            segment_numbers=[1, 4, 9],
-            combine_segments=combine_segments,
-            relabel=relabel,
-            dtype=numpy_dtype,
-        )
-        assert pixels.dtype == numpy_dtype
-        if combine_segments:
-            expected_shape = (len(source_frames_valid), seg.Rows, seg.Columns)
-            if relabel:
-                expected_vals = np.array([0, 3])  # only seg 9 in these frames
-            else:
-                expected_vals = np.array([0, 9])  # only seg 9 in these frames
-            assert np.array_equal(np.unique(pixels), expected_vals)
-        else:
-            expected_shape = (
-                len(source_frames_valid), seg.Rows, seg.Columns, 3
+        seg = getattr(self, seg_attr_name)
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
             )
-        assert pixels.shape == expected_shape
+            with pytest.raises(ValueError, match=msg):
+                seg.get_pixels_by_source_frame(
+                    source_sop_instance_uid=source_sop_uid,
+                    source_frame_numbers=source_frames_valid,
+                    segment_numbers=[1, 4, 9],
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames_valid,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
+
+    def test_get_total_pixel_matrix_with_dtype(
+        self,
+        seg_attr_name,
+        numpy_dtype,
+        combine_segments,
+        relabel,
+     ):
+        seg = getattr(self, seg_attr_name)
+        subregion_rows = 30
+        subregion_columns = 30
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
+            )
+            with pytest.raises(ValueError, match=msg):
+                seg.get_total_pixel_matrix(
+                    segment_numbers=[1, 4, 9],
+                    row_end=1+subregion_rows,
+                    column_end=1+subregion_columns,
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_total_pixel_matrix(
+                row_end=1+subregion_rows,
+                column_end=1+subregion_columns,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    subregion_rows, subregion_columns,
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    subregion_rows, subregion_columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()

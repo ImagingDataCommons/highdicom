@@ -1082,7 +1082,7 @@ class MultiFrameImage(SOPClass):
         dtype = np.dtype(dtype)
 
         # Check dtype is suitable
-        if dtype.kind not in ('u', 'i', 'f'):
+        if dtype.kind not in ('u', 'i', 'f', 'b'):
             raise ValueError(
                 f'Data type "{dtype}" is not suitable.'
             )
