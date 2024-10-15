@@ -2,6 +2,7 @@
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
     CoordinatesForMeasurement,
+    CoordinatesForMeasurement3D,
     FindingSite,
     ImageRegion,
     ImageRegion3D,
@@ -106,6 +107,7 @@ __all__ = [
     'ContentSequence',
     'ContentSequence',
     'CoordinatesForMeasurement',
+    'CoordinatesForMeasurement3D',
     'DateContentItem',
     'DateTimeContentItem',
     'DeviceObserverIdentifyingAttributes',

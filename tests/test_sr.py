@@ -16,15 +16,16 @@ from pydicom.uid import generate_uid
 from pydicom.valuerep import DA, DS, DT, TM, PersonName
 from pydicom.uid import SegmentationStorage
 
-from highdicom.sr import CodedConcept
 from highdicom.sr import (
     AlgorithmIdentification,
     CodeContentItem,
+    CodedConcept,
     CompositeContentItem,
     Comprehensive3DSR,
     ComprehensiveSR,
     ContainerContentItem,
     ContentSequence,
+    CoordinatesForMeasurement3D,
     DateContentItem,
     DateTimeContentItem,
     DeviceObserverIdentifyingAttributes,
@@ -2166,6 +2167,7 @@ class TestCoordinatesForMeasurement(unittest.TestCase):
         assert item.ContentSequence[0] == self.source_image
         assert item.ContentSequence[0].relationship_type == RelationshipTypeValues.SELECTED_FROM
 
+
 class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
@@ -2831,6 +2833,28 @@ class TestMeasurement(unittest.TestCase):
         for retrieved, original in zip(ref_images, self._ref_images):
             assert isinstance(retrieved, SourceImageForMeasurement)
             assert retrieved == original
+
+    def test_referenced_coordinates(self):
+        scoord = CoordinatesForMeasurement(
+            graphic_type="POINT",
+            graphic_data=np.array([[50.0, 50.0]]),
+            source_image=self._image
+        )
+        scoord_3d = CoordinatesForMeasurement3D(
+            graphic_type="POINT",
+            graphic_data=np.array([[50.0, 50.0, 30.0]]),
+            frame_of_reference_uid="1.2.3.4.5.6.7.8.9"
+        )
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            referenced_coordinates=[scoord, scoord_3d],
+        )
+
+        assert len(measurement.referenced_coordinates) == 2
+        assert scoord in measurement.referenced_coordinates
+        assert scoord_3d in measurement.referenced_coordinates
 
 
 class TestQualitativeEvaluation(unittest.TestCase):
