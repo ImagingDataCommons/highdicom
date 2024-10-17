@@ -355,7 +355,7 @@ class _VolumeBase(ABC):
         """
         return PixelMeasuresSequence(
             pixel_spacing=self.pixel_spacing,
-            slice_thickness=None,
+            slice_thickness=self.spacing_between_slices,
             spacing_between_slices=self.spacing_between_slices,
         )
 

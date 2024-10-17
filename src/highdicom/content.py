@@ -411,6 +411,11 @@ class PixelMeasuresSequence(DataElementSequence):
         if len(other) != 1:
             raise ValueError('Second item must have length 1.')
 
+        if (
+            hasattr(other[0], 'SliceThickness') !=
+            hasattr(self[0], 'SliceThickness')
+        ):
+            return False
         if other[0].SliceThickness != self[0].SliceThickness:
             return False
         if other[0].PixelSpacing != self[0].PixelSpacing:
