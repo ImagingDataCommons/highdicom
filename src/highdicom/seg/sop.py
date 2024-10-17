@@ -1014,7 +1014,6 @@ class Segmentation(MultiFrameImage):
             ]
         else:
             self.SegmentSequence = segment_descriptions
-        self.SegmentSequence = segment_descriptions
 
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
