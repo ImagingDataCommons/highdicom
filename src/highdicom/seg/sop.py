@@ -1102,7 +1102,10 @@ class Segmentation(MultiFrameImage):
                     ) and
                     (
                         not user_provided_measures or
-                        pixel_measures == source_pixel_measures
+                        (
+                            pixel_measures[0].PixelSpacing ==
+                            source_pixel_measures[0].PixelSpacing
+                        )
                     )
                 )
 
@@ -1182,7 +1185,10 @@ class Segmentation(MultiFrameImage):
                     ) and
                     (
                         not user_provided_measures or
-                        pixel_measures == source_pixel_measures
+                        (
+                            pixel_measures[0].PixelSpacing ==
+                            source_pixel_measures[0].PixelSpacing
+                        )
                     )
                 )
 
@@ -2712,19 +2718,13 @@ class Segmentation(MultiFrameImage):
         else:
             seg._coordinate_system = None
 
-        for i, segment in enumerate(seg.SegmentSequence, 1):
-            if segment.SegmentNumber != i:
-                raise AttributeError(
-                    'Segments are expected to start at 1 and be consecutive '
-                    'integers.'
-                )
-
-        for i, s in enumerate(seg.SegmentSequence, 1):
-            if s.SegmentNumber != i:
-                raise ValueError(
-                    'Segment numbers in the segmentation image must start at '
-                    '1 and increase by 1 with the segments sequence.'
-                )
+        if seg.SegmentationType != 'LABELMAP':
+            for i, segment in enumerate(seg.SegmentSequence, 1):
+                if segment.SegmentNumber != i:
+                    raise AttributeError(
+                        'Segments are expected to start at 1 and be '
+                        'consecutive integers.'
+                    )
 
         # Convert contained items to highdicom types
         # Segment descriptions

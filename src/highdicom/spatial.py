@@ -3093,7 +3093,7 @@ def get_series_volume_positions(
         This is used in combination with the ``handedness`` to determine
         the positive direction used to order frames.
     handedness: Union[highdicom.enum.AxisHandedness, str], optional
-        Choose the frame order in order such that the frame axis creates a
+        Choose the frame order such that the frame axis creates a
         coordinate system with this handedness in the when combined with
         the within-frame convention given by ``index_convention``.
     enforce_handedness: bool, optional

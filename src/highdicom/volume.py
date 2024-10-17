@@ -58,6 +58,8 @@ from pydicom.pixel_data_handlers.util import (
 # TODO make multiframe public
 # TODO figure out type hinting for _VolumeBase
 # TODO inheritance of are_dimension_indices_unique
+# TODO allow non-consecutive segments when reading (confirm with standard)?
+# TODO check logic around slice thickness and spacing for seg creation
 
 
 class _VolumeBase(ABC):
