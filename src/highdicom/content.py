@@ -37,7 +37,8 @@ from highdicom.valuerep import (
 )
 from highdicom._module_utils import (
     check_required_attributes,
-    does_iod_have_pixel_data
+    does_iod_have_pixel_data,
+    is_multiframe_image,
 )
 
 
@@ -134,8 +135,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             algo_id_sequence = deepcopy(sequence)
         else:
             algo_id_sequence = sequence
-        algo_id_sequence.__class__ = AlgorithmIdentificationSequence
-        return cast(AlgorithmIdentificationSequence, algo_id_sequence)
+        algo_id_sequence.__class__ = cls
+        return cast(cls, algo_id_sequence)
 
     @property
     def name(self) -> str:
@@ -388,8 +389,8 @@ class PixelMeasuresSequence(DataElementSequence):
             pixel_measures = deepcopy(sequence)
         else:
             pixel_measures = sequence
-        pixel_measures.__class__ = PixelMeasuresSequence
-        return cast(PixelMeasuresSequence, pixel_measures)
+        pixel_measures.__class__ = cls
+        return cast(cls, pixel_measures)
 
     def __eq__(self, other: DataElementSequence) -> bool:
         """Determine whether two sets of pixel measures are the same.
@@ -410,6 +411,11 @@ class PixelMeasuresSequence(DataElementSequence):
         if len(other) != 1:
             raise ValueError('Second item must have length 1.')
 
+        if (
+            hasattr(other[0], 'SliceThickness') !=
+            hasattr(self[0], 'SliceThickness')
+        ):
+            return False
         if other[0].SliceThickness != self[0].SliceThickness:
             return False
         if other[0].PixelSpacing != self[0].PixelSpacing:
@@ -598,8 +604,8 @@ class PlanePositionSequence(DataElementSequence):
             plane_position = deepcopy(sequence)
         else:
             plane_position = sequence
-        plane_position.__class__ = PlanePositionSequence
-        return cast(PlanePositionSequence, plane_position)
+        plane_position.__class__ = cls
+        return cast(cls, plane_position)
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -735,8 +741,8 @@ class PlaneOrientationSequence(DataElementSequence):
             plane_orientation = deepcopy(sequence)
         else:
             plane_orientation = sequence
-        plane_orientation.__class__ = PlaneOrientationSequence
-        return cast(PlaneOrientationSequence, plane_orientation)
+        plane_orientation.__class__ = cls
+        return cast(cls, plane_orientation)
 
 
 class IssuerOfIdentifier(Dataset):
@@ -834,7 +840,7 @@ class IssuerOfIdentifier(Dataset):
         issuer_of_identifier._issuer_of_identifier = issuer_id
         issuer_of_identifier._issuer_of_identifier_type = issuer_type
 
-        return cast(IssuerOfIdentifier, issuer_of_identifier)
+        return cast(cls, issuer_of_identifier)
 
 
 class SpecimenCollection(ContentSequence):
@@ -1764,7 +1770,10 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_frame_number" is not supported '
                     'with multiple referenced images.'
                 )
-            if not hasattr(referenced_images[0], 'NumberOfFrames'):
+            # note cannot use the highdicom.utils function here due to
+            # circular import issues
+            is_multiframe = is_multiframe_image(referenced_images[0])
+            if not is_multiframe:
                 raise TypeError(
                     'Specifying "referenced_frame_number" is not valid '
                     'when the referenced image is not a multi-frame image.'
@@ -2726,6 +2735,29 @@ class PaletteColorLUTTransformation(Dataset):
             Lookup table for the blue output color channel.
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
+
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` from a built-in colormap
+        from the ``matplotlib`` python package.
+
+        >>> from matplotlib import colormaps
+        >>> import highdicom as hd
+        >>>
+        >>> # Use the built-in 'gist_rainbow_r' colormap
+        >>> cmap = colormaps['gist_rainbow_r']
+        >>> # Create an 8-bit RGBA LUT array from the colormap
+        >>> num_entries = 10  # e.g. number of classes in a segmentation
+        >>> lut_data = cmap(np.arange(num_entries) / (num_entries + 1), bytes=True)
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation(
+        >>>     red_lut=hd.PaletteColorLUT(0, lut_data[:, 0], 'red'),
+        >>>     green_lut=hd.PaletteColorLUT(0, lut_data[:, 1], 'green'),
+        >>>     blue_lut=hd.PaletteColorLUT(0, lut_data[:, 2], 'blue'),
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
 
         """  # noqa: E501
         super().__init__()

@@ -34,11 +34,13 @@ from highdicom.content import (
     VOILUTTransformation,
 )
 from highdicom.enum import (
+    AxisHandedness,
     AnatomicalOrientationTypeValues,
     CoordinateSystemNames,
     ContentQualificationValues,
     DimensionOrganizationTypeValues,
     LateralityValues,
+    PadModes,
     PatientSexValues,
     PhotometricInterpretationValues,
     PixelRepresentationValues,
@@ -56,6 +58,8 @@ from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
 from highdicom.version import __version__
+from highdicom import volume
+
 
 __all__ = [
     'LUT',
@@ -63,6 +67,7 @@ __all__ = [
     'VOILUT',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
+    'AxisHandedness',
     'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
     'CoordinateSystemNames',
@@ -71,6 +76,7 @@ __all__ = [
     'LateralityValues',
     'ModalityLUT',
     'ModalityLUTTransformation',
+    'PadModes',
     'PaletteColorLUT',
     'PaletteColorLUTTransformation',
     'PatientOrientationValuesBiped',
@@ -112,4 +118,5 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
+    'volume',
 ]

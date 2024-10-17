@@ -5,6 +5,7 @@ from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
+from highdicom._module_utils import is_multiframe_image
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
@@ -281,7 +282,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = hasattr(image, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(image)
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
@@ -322,7 +323,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        is_multiframe = any([is_multiframe_image(img) for img in images])
         if is_multiframe:
             raise ValueError(
                 'Argument "images" must be a series of single-frame images.'

@@ -22,6 +22,7 @@ from pydicom.uid import (
     JPEG2000Lossless,
     JPEGLSLossless,
 )
+
 from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
@@ -36,6 +37,7 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    PatientOrientationValuesBiped,
 )
 from highdicom.seg import (
     create_segmentation_pyramid,
@@ -51,6 +53,7 @@ from highdicom.seg import (
 from highdicom.seg.utils import iter_segments
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import Volume
 
 from .utils import write_and_read_dataset
 
@@ -649,6 +652,21 @@ class TestSegmentation:
         )
         self._ct_pixel_array[1:5, 10:15] = True
 
+        self._ct_volume_position = [4.3, 1.4, 8.7]
+        self._ct_volume_orientation = [1., 0., 0, 0., -1., 0.]
+        self._ct_volume_pixel_spacing = [1., 1.5]
+        self._ct_volume_slice_spacing = 3.0
+        self._ct_volume_array = np.zeros((4, 12, 12))
+        self._ct_volume_array[0, 1:4, 8:9] = True
+        self._ct_volume_array[1, 5:7, 1:4] = True
+        self._ct_seg_volume = Volume.from_attributes(
+            array=self._ct_volume_array,
+            image_position=self._ct_volume_position,
+            image_orientation=self._ct_volume_orientation,
+            pixel_spacing=self._ct_volume_pixel_spacing,
+            spacing_between_slices=self._ct_volume_slice_spacing,
+            frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
+        )
         # A single CR image
         self._cr_image = dcmread(
             get_testdata_file('dicomdirtests/77654033/CR1/6154')
@@ -1012,6 +1030,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, "DimensionOrganizationType")
         self.check_dimension_index_vals(instance)
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1092,6 +1111,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence  # noqa: B018
+        assert instance.DimensionOrganizationType == "TILED_SPARSE"
         self.check_dimension_index_vals(instance)
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1171,6 +1191,8 @@ class TestSegmentation:
                     source_image_item,
                     'PurposeOfReferenceCodeSequence'
                 )
+            with pytest.raises(AttributeError):
+                frame_item.PlanePositionSlideSequence  # noqa: B018
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -1184,8 +1206,7 @@ class TestSegmentation:
         assert source_uid_to_plane_position == uid_to_plane_position
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
-        with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1274,6 +1295,8 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+
+        assert hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1367,6 +1390,7 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
@@ -1462,6 +1486,7 @@ class TestSegmentation:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'RedPaletteColorLookupTableData')
@@ -1561,6 +1586,7 @@ class TestSegmentation:
                 assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
         assert not hasattr(instance, 'ICCProfile')
         assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'RedPaletteColorLookupTableData')
@@ -1774,6 +1800,207 @@ class TestSegmentation:
         assert instance.pixel_array.dtype == np.uint16
         arr = self.get_array_after_writing(instance)
         assert arr.dtype == np.uint16
+
+    def test_construction_volume(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_fractional(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_labelmap(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_3d_multiframe(self):
+        # The CT multiframe image is already a volume, but the frames are
+        # ordered the wrong way
+        volume_multiframe = deepcopy(self._ct_multiframe)
+        positions = [
+            fm.PlanePositionSequence[0].ImagePositionPatient
+            for fm in volume_multiframe.PerFrameFunctionalGroupsSequence
+        ]
+        positions = positions[::-1]
+        for pos, fm in zip(
+            positions,
+            volume_multiframe.PerFrameFunctionalGroupsSequence
+        ):
+            fm.PlanePositionSequence[0].ImagePositionPatient = pos
+
+        # Segmentation instance from an enhanced (multi-frame) CT image
+        instance = Segmentation(
+            [volume_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 10.0
+
+    def test_construction_3d_singleframe(self):
+        # The CT single frame series is a volume if you omit one of the images
+        ct_series = self._ct_series[:3]
+
+        # Segmentation instance series of CT images
+        instance = Segmentation(
+            ct_series,
+            self._ct_series_mask_array[:3],
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 1.25
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
@@ -2028,11 +2255,6 @@ class TestSegmentation:
                 self.get_array_after_writing(instance)
                 assert len(w) == 0
 
-            # TODO remove this after implementing full "reconstruction"
-            # of LABELMAP segmentation arrays
-            if segmentation_type == SegmentationTypeValues.LABELMAP:
-                continue
-
             # Check that full reconstructed array matches the input
             reconstructed_array = instance.get_total_pixel_matrix(
                 combine_segments=True,
@@ -2265,6 +2487,7 @@ class TestSegmentation:
             multi_segment_exc = multi_segment_exc[np.newaxis, ...]
         additional_mask = 1 - mask
 
+        additional_mask = (1 - mask)
         # Find the expected encodings for the masks
         if mask.ndim > 2:
             # Expected encoding of the mask
@@ -3334,6 +3557,13 @@ class TestSegmentationParsing:
             self._sm_control_seg_ds
         )
 
+        self._sm_control_labelmap_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control_labelmap.dcm'
+        )
+        self._sm_control_labelmap_seg = Segmentation.from_dataset(
+            self._sm_control_labelmap_seg_ds
+        )
+
         self._ct_binary_seg_ds = dcmread(
             'data/test_files/seg_image_ct_binary.dcm'
         )
@@ -3379,6 +3609,7 @@ class TestSegmentationParsing:
     @staticmethod
     @pytest.fixture(
         params=[
+            bool,
             np.int8,
             np.uint8,
             np.int16,
@@ -3405,6 +3636,11 @@ class TestSegmentationParsing:
     def relabel(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=['_sm_control_seg', '_sm_control_labelmap_seg'])
+    def seg_attr_name(request):
+        return request.param
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
@@ -3423,6 +3659,12 @@ class TestSegmentationParsing:
         seg = segread('data/test_files/seg_image_sm_numbers.dcm')
         assert isinstance(seg, Segmentation)
         seg = segread('data/test_files/seg_image_sm_dots_tiled_full.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_control_labelmap.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread(
+            'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+        )
         assert isinstance(seg, Segmentation)
 
     def test_properties(self):
@@ -3655,6 +3897,7 @@ class TestSegmentationParsing:
 
     def test_get_pixels_with_dtype(
         self,
+        seg_attr_name,
         numpy_dtype,
         combine_segments,
         relabel,
@@ -3662,28 +3905,106 @@ class TestSegmentationParsing:
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
         source_frames_valid = [1, 2, 4, 5]
-        seg = self._sm_control_seg
-        pixels = seg.get_pixels_by_source_frame(
-            source_sop_instance_uid=source_sop_uid,
-            source_frame_numbers=source_frames_valid,
-            segment_numbers=[1, 4, 9],
-            combine_segments=combine_segments,
-            relabel=relabel,
-            dtype=numpy_dtype,
-        )
-        assert pixels.dtype == numpy_dtype
-        if combine_segments:
-            expected_shape = (len(source_frames_valid), seg.Rows, seg.Columns)
-            if relabel:
-                expected_vals = np.array([0, 3])  # only seg 9 in these frames
-            else:
-                expected_vals = np.array([0, 9])  # only seg 9 in these frames
-            assert np.array_equal(np.unique(pixels), expected_vals)
-        else:
-            expected_shape = (
-                len(source_frames_valid), seg.Rows, seg.Columns, 3
+        seg = getattr(self, seg_attr_name)
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
             )
-        assert pixels.shape == expected_shape
+            with pytest.raises(ValueError, match=msg):
+                seg.get_pixels_by_source_frame(
+                    source_sop_instance_uid=source_sop_uid,
+                    source_frame_numbers=source_frames_valid,
+                    segment_numbers=[1, 4, 9],
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames_valid,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
+
+    def test_get_total_pixel_matrix_with_dtype(
+        self,
+        seg_attr_name,
+        numpy_dtype,
+        combine_segments,
+        relabel,
+     ):
+        seg = getattr(self, seg_attr_name)
+        subregion_rows = 30
+        subregion_columns = 30
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
+            )
+            with pytest.raises(ValueError, match=msg):
+                seg.get_total_pixel_matrix(
+                    segment_numbers=[1, 4, 9],
+                    row_end=1 + subregion_rows,
+                    column_end=1 + subregion_columns,
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_total_pixel_matrix(
+                row_end=1 + subregion_rows,
+                column_end=1 + subregion_columns,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    subregion_rows, subregion_columns,
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    subregion_rows, subregion_columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
@@ -4144,6 +4465,342 @@ class TestSegmentationParsing:
         )
         assert np.array_equal(expected_array, out)
 
+    def test_get_volume_binary(self):
+        vol = self._ct_binary_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegments(self):
+        vol = self._ct_binary_overlap_seg.get_volume()
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment2(self):
+        vol = self._ct_binary_overlap_seg.get_volume(segment_numbers=[2])
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_combine(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            combine_segments=True,
+            skip_overlap_checks=True,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=160,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (5, 16, 16)
+        assert vol.shape == (5, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=-6,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (6, 16, 16)
+        assert vol.shape == (6, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=17,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (17, 16, 16)
+        assert vol.shape == (17, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=-10,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (155, 16, 16)
+        assert vol.shape == (155, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_center(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=50,
+            slice_end=57,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (7, 16, 16)
+        assert vol.shape == (7, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_combine(self):
+        vol = self._ct_binary_seg.get_volume(combine_segments=True)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_fractional(self):
+        vol = self._ct_true_fractional_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.float32
+
+    def test_get_volume_fractional_noscale(self):
+        vol = self._ct_true_fractional_seg.get_volume(rescale_fractional=False)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.uint8
+
 
 class TestSegUtilities(unittest.TestCase):
 
@@ -4493,10 +5150,8 @@ class TestPyramid(unittest.TestCase):
         for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
             assert hasattr(seg, 'PyramidUID')
             seg_pix = seg.get_total_pixel_matrix()
-            print("pixel array", pix.shape, seg_pix.shape)
-            print("pixel array", pix.max(), seg_pix.max())
             assert np.array_equal(
-                seg.get_total_pixel_matrix(),
+                seg_pix,
                 pix[0]
             )
 
@@ -4598,7 +5253,9 @@ class TestPyramid(unittest.TestCase):
                 pix[0]
             )
 
-    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+    def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
+        self
+    ):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
@@ -4606,6 +5263,32 @@ class TestPyramid(unittest.TestCase):
             source_images=self._source_pyramid,
             pixel_arrays=mask,
             segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            mask = np.argmax(pix, axis=3).astype(np.uint8)
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                mask[0]
+            )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=mask,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
             segment_descriptions=self._segment_descriptions_multi,
             series_instance_uid=UID(),
             series_number=1,
