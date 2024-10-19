@@ -2165,7 +2165,10 @@ class TestCoordinatesForMeasurement(unittest.TestCase):
 
         assert len(item.ContentSequence) == 1
         assert item.ContentSequence[0] == self.source_image
-        assert item.ContentSequence[0].relationship_type == RelationshipTypeValues.SELECTED_FROM
+        assert (
+            item.ContentSequence[0].relationship_type ==
+            RelationshipTypeValues.SELECTED_FROM
+        )
 
 
 class TestReferencedSegment(unittest.TestCase):
@@ -2855,8 +2858,14 @@ class TestMeasurement(unittest.TestCase):
         assert len(measurement.referenced_coordinates) == 2
         assert scoord in measurement.referenced_coordinates
         assert scoord_3d in measurement.referenced_coordinates
-        assert isinstance(measurement.referenced_coordinates[0], CoordinatesForMeasurement)
-        assert isinstance(measurement.referenced_coordinates[1], CoordinatesForMeasurement3D)
+        assert isinstance(
+            measurement.referenced_coordinates[0],
+            CoordinatesForMeasurement
+        )
+        assert isinstance(
+            measurement.referenced_coordinates[1],
+            CoordinatesForMeasurement3D
+        )
 
 
 class TestQualitativeEvaluation(unittest.TestCase):
@@ -3124,13 +3133,19 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             name=codes.SCT.Diameter,
             value=5,
             unit=codes.UCUM.Millimeter,
-            referenced_coordinates=[CoordinatesForMeasurement(
-                graphic_type=GraphicTypeValues.POLYLINE,
-                graphic_data=np.array([[1, 1], [2, 2]]),
-                source_image=self._image_for_region
-            )]
+            referenced_coordinates=[
+                CoordinatesForMeasurement(
+                    graphic_type=GraphicTypeValues.POLYLINE,
+                    graphic_data=np.array([[1, 1], [2, 2]]),
+                    source_image=self._image_for_region
+                )
+            ]
         )
-        with pytest.raises(ValueError) as exc:
+        msg = (
+            'Referenced coordinates in measurements are not '
+            'allowed in PlanarROIMeasurementsAndQualitativeEvaluations.'
+        )
+        with pytest.raises(ValueError, match=msg):
             PlanarROIMeasurementsAndQualitativeEvaluations(
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,

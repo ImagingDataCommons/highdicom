@@ -2393,7 +2393,11 @@ class Measurement(Template):
         method: Optional[Union[CodedConcept, Code]] = None,
         properties: Optional[MeasurementProperties] = None,
         referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
-        referenced_coordinates: Optional[Sequence[Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]]] = None,
+        referenced_coordinates: Optional[
+            Sequence[
+                Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+            ]
+        ] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None
     ):
         """
@@ -2515,7 +2519,10 @@ class Measurement(Template):
                 content.append(image)
         if referenced_coordinates is not None:
             for scoord in referenced_coordinates:
-                if not isinstance(scoord, (CoordinatesForMeasurement, Scoord3DContentItem)):
+                if not isinstance(
+                    scoord,
+                    (CoordinatesForMeasurement, Scoord3DContentItem)
+                ):
                     raise TypeError(
                         'Arguments "referenced_coordinates" must have type '
                         'CoordinatesForMeasurement or Scoord3DContentItem.'
@@ -2641,21 +2648,33 @@ class Measurement(Template):
         return [SourceImageForMeasurement.from_dataset(m) for m in matches]
 
     @property
-    def referenced_coordinates(self) -> List[Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]]:
+    def referenced_coordinates(self) -> List[
+        Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+    ]:
         """List[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]]:
-        referenced coordinates"""
+        referenced coordinates"""  # noqa: E501
         if not hasattr(self[0], 'ContentSequence'):
             return []
         scoord_matches = find_content_items(
             self[0],
             value_type=ValueTypeValues.SCOORD
         )
-        coord = [CoordinatesForMeasurement.from_dataset(m) for m in scoord_matches]
+        coord: List[
+            Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+        ] = [
+            CoordinatesForMeasurement.from_dataset(m)
+            for m in scoord_matches
+        ]
         scoord3d_matches = find_content_items(
             self[0],
             value_type=ValueTypeValues.SCOORD3D
         )
-        coord.extend([CoordinatesForMeasurement3D.from_dataset(m) for m in scoord3d_matches])
+        coord.extend(
+            [
+                CoordinatesForMeasurement3D.from_dataset(m)
+                for m in scoord3d_matches
+            ]
+        )
         return coord
 
     @property
@@ -3327,8 +3346,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             for measurement in measurements:
                 if measurement.referenced_coordinates:
                     raise ValueError(
-                        'Referenced coordinates in measurements are not allowed in '
-                        f'{self.__class__.__name__}.'
+                        'Referenced coordinates in measurements are not '
+                        f'allowed in {self.__class__.__name__}.'
                     )
 
 
@@ -3348,7 +3367,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_region: Union[ImageRegion, ImageRegion3D, None],
+        referenced_region: Union[ImageRegion, ImageRegion3D, None] = None,
         referenced_segment: Optional[ReferencedSegmentationFrame] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
         time_point_context: Optional[TimePointContext] = None,
