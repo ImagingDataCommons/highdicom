@@ -2855,6 +2855,8 @@ class TestMeasurement(unittest.TestCase):
         assert len(measurement.referenced_coordinates) == 2
         assert scoord in measurement.referenced_coordinates
         assert scoord_3d in measurement.referenced_coordinates
+        assert isinstance(measurement.referenced_coordinates[0], CoordinatesForMeasurement)
+        assert isinstance(measurement.referenced_coordinates[1], CoordinatesForMeasurement3D)
 
 
 class TestQualitativeEvaluation(unittest.TestCase):

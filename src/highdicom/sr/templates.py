@@ -11,6 +11,7 @@ from pydicom.sr.codedict import codes
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
     CoordinatesForMeasurement,
+    CoordinatesForMeasurement3D,
     FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
@@ -2389,7 +2390,7 @@ class Measurement(Template):
         method: Optional[Union[CodedConcept, Code]] = None,
         properties: Optional[MeasurementProperties] = None,
         referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
-        referenced_coordinates: Optional[Sequence[Union[CoordinatesForMeasurement, Scoord3DContentItem]]] = None,
+        referenced_coordinates: Optional[Sequence[Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]]] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None
     ):
         """
@@ -2434,7 +2435,7 @@ class Measurement(Template):
             and an indication of its selection from a set of measurements
         referenced_images: Union[Sequence[highdicom.sr.SourceImageForMeasurement], None], optional
             Referenced images which were used as sources for the measurement
-        referenced_coordinates: Union[Sequence[Union[highdicom.sr.CoordinatesForMeasurement, Scoord3DContentItem]], None], optional
+        referenced_coordinates: Union[Sequence[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]], None], optional
             Referenced coordinates for the measurement.
             Measurements with referenced coordinates are not valid to be used with
             `PlanarROIMeasurementsAndQualitativeEvaluations` or
@@ -2637,8 +2638,8 @@ class Measurement(Template):
         return [SourceImageForMeasurement.from_dataset(m) for m in matches]
 
     @property
-    def referenced_coordinates(self) -> List[Union[CoordinatesForMeasurement, Scoord3DContentItem]]:
-        """List[Union[highdicom.sr.CoordinatesForMeasurement, Scoord3DContentItem]]:
+    def referenced_coordinates(self) -> List[Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]]:
+        """List[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]]:
         referenced coordinates"""
         if not hasattr(self[0], 'ContentSequence'):
             return []
@@ -2651,7 +2652,7 @@ class Measurement(Template):
             self[0],
             value_type=ValueTypeValues.SCOORD3D
         )
-        coord.extend([Scoord3DContentItem.from_dataset(m) for m in scoord3d_matches])
+        coord.extend([CoordinatesForMeasurement3D.from_dataset(m) for m in scoord3d_matches])
         return coord
 
     @property
