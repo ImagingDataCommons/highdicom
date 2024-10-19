@@ -764,7 +764,7 @@ class CoordinatesForMeasurement(ScoordContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(CoordinatesForMeasurement, item)
+        return cast(cls, item)
 
 
 class CoordinatesForMeasurement3D(Scoord3DContentItem):
