@@ -10,6 +10,8 @@ from pydicom.sr.codedict import codes
 
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.content import (
+    CoordinatesForMeasurement,
+    CoordinatesForMeasurement3D,
     FindingSite,
     LongitudinalTemporalOffsetFromEvent,
     ImageRegion,
@@ -43,6 +45,7 @@ from highdicom.sr.value_types import (
     ImageContentItem,
     NumContentItem,
     PnameContentItem,
+    Scoord3DContentItem,
     TextContentItem,
     UIDRefContentItem,
 )
@@ -448,7 +451,7 @@ def _contains_uidref_items(
 
 def _contains_image_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
+    name: Union[Code, CodedConcept, None],
     referenced_sop_class_uid: Union[str, None] = None,
     referenced_sop_instance_uid: Union[str, None] = None,
     relationship_type: Optional[RelationshipTypeValues] = None
@@ -459,7 +462,7 @@ def _contains_image_items(
     ----------
     parent_item: highdicom.sr.ContentItem
         Parent SR Content Item
-    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+    name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None]
         Name of the child SR Content Item
     referenced_sop_class_uid: Union[str, None], optional
         SOP Class UID referenced by the content item
@@ -565,6 +568,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
         '1.2.840.10008.5.1.4.1.1.66.2': codes.cid32.SpatialFiducialsProducer,
         '1.2.840.10008.5.1.4.1.1.66.3': codes.cid32.Registration,
         '1.2.840.10008.5.1.4.1.1.66.4': codes.cid32.Segmentation,
+        '1.2.840.10008.5.1.4.1.1.66.7': codes.cid32.Segmentation,
         '1.2.840.10008.5.1.4.1.1.67': codes.cid32.RealWorldValueMap,
         '1.2.840.10008.5.1.4.1.1.68.1': codes.cid29.OpticalSurfaceScanner,
         '1.2.840.10008.5.1.4.1.1.68.2': codes.cid29.OpticalSurfaceScanner,
@@ -2095,8 +2099,10 @@ class SubjectContextDevice(Template):
             ('manufacturer_name', codes.DCM.DeviceSubjectManufacturer),
             ('model_name', codes.DCM.DeviceSubjectModelName),
             ('serial_number', codes.DCM.DeviceSubjectSerialNumber),
-            ('physical_location',
-             codes.DCM.DeviceSubjectPhysicalLocationDuringObservation),
+            (
+                'physical_location',
+                codes.DCM.DeviceSubjectPhysicalLocationDuringObservation
+            ),
         ]
         kwargs = {}
         for dataset in sequence:
@@ -2387,6 +2393,11 @@ class Measurement(Template):
         method: Optional[Union[CodedConcept, Code]] = None,
         properties: Optional[MeasurementProperties] = None,
         referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
+        referenced_coordinates: Optional[
+            Sequence[
+                Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+            ]
+        ] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None
     ):
         """
@@ -2431,6 +2442,11 @@ class Measurement(Template):
             and an indication of its selection from a set of measurements
         referenced_images: Union[Sequence[highdicom.sr.SourceImageForMeasurement], None], optional
             Referenced images which were used as sources for the measurement
+        referenced_coordinates: Union[Sequence[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]], None], optional
+            Referenced coordinates for the measurement.
+            Measurements with referenced coordinates are not valid to be used with
+            `PlanarROIMeasurementsAndQualitativeEvaluations` or
+            `VolumetricROIMeasurementsAndQualitativeEvaluations`
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for referenced source images
 
@@ -2501,6 +2517,17 @@ class Measurement(Template):
                         'SourceImageForMeasurement.'
                     )
                 content.append(image)
+        if referenced_coordinates is not None:
+            for scoord in referenced_coordinates:
+                if not isinstance(
+                    scoord,
+                    (CoordinatesForMeasurement, Scoord3DContentItem)
+                ):
+                    raise TypeError(
+                        'Arguments "referenced_coordinates" must have type '
+                        'CoordinatesForMeasurement or Scoord3DContentItem.'
+                    )
+                content.append(scoord)
         if referenced_real_world_value_map is not None:
             if not isinstance(referenced_real_world_value_map,
                               RealWorldValueMap):
@@ -2619,6 +2646,36 @@ class Measurement(Template):
             value_type=ValueTypeValues.IMAGE
         )
         return [SourceImageForMeasurement.from_dataset(m) for m in matches]
+
+    @property
+    def referenced_coordinates(self) -> List[
+        Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+    ]:
+        """List[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]]:
+        referenced coordinates"""  # noqa: E501
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+        scoord_matches = find_content_items(
+            self[0],
+            value_type=ValueTypeValues.SCOORD
+        )
+        coord: List[
+            Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+        ] = [
+            CoordinatesForMeasurement.from_dataset(m)
+            for m in scoord_matches
+        ]
+        scoord3d_matches = find_content_items(
+            self[0],
+            value_type=ValueTypeValues.SCOORD3D
+        )
+        coord.extend(
+            [
+                CoordinatesForMeasurement3D.from_dataset(m)
+                for m in scoord3d_matches
+            ]
+        )
+        return coord
 
     @property
     def finding_sites(self) -> List[FindingSite]:
@@ -3285,10 +3342,18 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     'ReferencedSegmentationFrame.'
                 )
             group_item.ContentSequence.extend(referenced_segment)
+        if measurements is not None:
+            for measurement in measurements:
+                if measurement.referenced_coordinates:
+                    raise ValueError(
+                        'Referenced coordinates in measurements are not '
+                        f'allowed in {self.__class__.__name__}.'
+                    )
 
 
 class PlanarROIMeasurementsAndQualitativeEvaluations(
-        _ROIMeasurementsAndQualitativeEvaluations):
+    _ROIMeasurementsAndQualitativeEvaluations
+):
 
     """:dcm:`TID 1410 <part16/chapter_A.html#sect_TID_1410>`
      Planar ROI Measurements and Qualitative Evaluations"""
@@ -3302,9 +3367,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_region: Optional[
-            Union[ImageRegion, ImageRegion3D]
-        ] = None,
+        referenced_region: Union[ImageRegion, ImageRegion3D, None] = None,
         referenced_segment: Optional[ReferencedSegmentationFrame] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
         time_point_context: Optional[TimePointContext] = None,
@@ -3570,7 +3633,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
-        _ROIMeasurementsAndQualitativeEvaluations):
+    _ROIMeasurementsAndQualitativeEvaluations
+):
 
     """:dcm:`TID 1411 <part16/chapter_A.html#sect_TID_1411>`
      Volumetric ROI Measurements and Qualitative Evaluations"""
@@ -3585,9 +3649,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_regions: Optional[
-            Union[Sequence[ImageRegion]]
-        ] = None,
+        referenced_regions: Optional[Sequence[ImageRegion]] = None,
         referenced_volume_surface: Optional[VolumeSurface] = None,
         referenced_segment: Optional[ReferencedSegment] = None,
         referenced_real_world_value_map: Optional[RealWorldValueMap] = None,

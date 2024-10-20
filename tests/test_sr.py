@@ -16,15 +16,16 @@ from pydicom.uid import generate_uid
 from pydicom.valuerep import DA, DS, DT, TM, PersonName
 from pydicom.uid import SegmentationStorage
 
-from highdicom.sr import CodedConcept
 from highdicom.sr import (
     AlgorithmIdentification,
     CodeContentItem,
+    CodedConcept,
     CompositeContentItem,
     Comprehensive3DSR,
     ComprehensiveSR,
     ContainerContentItem,
     ContentSequence,
+    CoordinatesForMeasurement3D,
     DateContentItem,
     DateTimeContentItem,
     DeviceObserverIdentifyingAttributes,
@@ -75,6 +76,7 @@ from highdicom.sr import (
     VolumetricROIMeasurementsAndQualitativeEvaluations,
     srread,
 )
+from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
 
@@ -2141,6 +2143,34 @@ class TestSourceImageForMeasurement(unittest.TestCase):
             )
 
 
+class TestCoordinatesForMeasurement(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.source_image = SourceImageForRegion(
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.2',
+            referenced_sop_instance_uid='1.2.3.4.5.6.7.8.9.10'
+        )
+
+    def test_construction(self):
+        item = CoordinatesForMeasurement(
+            graphic_type=GraphicTypeValues.MULTIPOINT,
+            graphic_data=np.array([[10, 20], [20, 30]]),
+            source_image=self.source_image
+        )
+
+        assert item.graphic_type == GraphicTypeValues.MULTIPOINT
+        assert item.GraphicData == [10, 20, 20, 30]
+        assert item.relationship_type == RelationshipTypeValues.INFERRED_FROM
+
+        assert len(item.ContentSequence) == 1
+        assert item.ContentSequence[0] == self.source_image
+        assert (
+            item.ContentSequence[0].relationship_type ==
+            RelationshipTypeValues.SELECTED_FROM
+        )
+
+
 class TestReferencedSegment(unittest.TestCase):
 
     def setUp(self):
@@ -2807,6 +2837,36 @@ class TestMeasurement(unittest.TestCase):
             assert isinstance(retrieved, SourceImageForMeasurement)
             assert retrieved == original
 
+    def test_referenced_coordinates(self):
+        scoord = CoordinatesForMeasurement(
+            graphic_type="POINT",
+            graphic_data=np.array([[50.0, 50.0]]),
+            source_image=self._image
+        )
+        scoord_3d = CoordinatesForMeasurement3D(
+            graphic_type="POINT",
+            graphic_data=np.array([[50.0, 50.0, 30.0]]),
+            frame_of_reference_uid="1.2.3.4.5.6.7.8.9"
+        )
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            referenced_coordinates=[scoord, scoord_3d],
+        )
+
+        assert len(measurement.referenced_coordinates) == 2
+        assert scoord in measurement.referenced_coordinates
+        assert scoord_3d in measurement.referenced_coordinates
+        assert isinstance(
+            measurement.referenced_coordinates[0],
+            CoordinatesForMeasurement
+        )
+        assert isinstance(
+            measurement.referenced_coordinates[1],
+            CoordinatesForMeasurement3D
+        )
+
 
 class TestQualitativeEvaluation(unittest.TestCase):
 
@@ -3066,6 +3126,30 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 tracking_identifier=self._tracking_identifier,
                 referenced_region=self._region,
                 referenced_segment=self._segment
+            )
+
+    def test_constructed_with_measurements_coordinates(self):
+        measurement = Measurement(
+            name=codes.SCT.Diameter,
+            value=5,
+            unit=codes.UCUM.Millimeter,
+            referenced_coordinates=[
+                CoordinatesForMeasurement(
+                    graphic_type=GraphicTypeValues.POLYLINE,
+                    graphic_data=np.array([[1, 1], [2, 2]]),
+                    source_image=self._image_for_region
+                )
+            ]
+        )
+        msg = (
+            'Referenced coordinates in measurements are not '
+            'allowed in PlanarROIMeasurementsAndQualitativeEvaluations.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            PlanarROIMeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                referenced_region=self._region,
+                measurements=[measurement],
             )
 
 
