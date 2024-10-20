@@ -63,6 +63,12 @@ homepage = "https://github.com/imagingdatacommons/highdicom"
 documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
+[tool.setuptools.packages.find]
+where = ["src/highdicom"]
+
+[tool.setuptools.package-data]
+highdicom = ["*.icc"]
+
 [tool.pytest.ini_options]
 minversion = "7"
 addopts = ["--doctest-modules", "-ra", "--strict-config", "--strict-markers"]
