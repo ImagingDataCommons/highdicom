@@ -64,7 +64,7 @@ documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
 [tool.setuptools.packages.find]
-where = ["src/highdicom"]
+where = ["src"]
 
 [tool.setuptools.package-data]
 highdicom = ["*.icc"]
