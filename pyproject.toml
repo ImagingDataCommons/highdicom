@@ -64,10 +64,10 @@ documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = [ "src" ]
 
 [tool.setuptools.package-data]
-highdicom = ["*.icc"]
+highdicom = [ "**/*.icc" ]
 
 [tool.pytest.ini_options]
 minversion = "7"

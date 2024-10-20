@@ -7,7 +7,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ 'v*dev' ]
+    branches: [ "master", "v*dev" ]
 
 jobs:
   build:
