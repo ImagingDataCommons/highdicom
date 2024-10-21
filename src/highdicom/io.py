@@ -185,7 +185,7 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
                 f'Length of Frame item #{i} is zero.'
             )
 
-        first_two_bytes = fp.read(2, True)
+        first_two_bytes = fp.read(2)
         if not fp.is_little_endian:
             first_two_bytes = first_two_bytes[::-1]
         # In case of fragmentation, we only want to get the offsets to the
