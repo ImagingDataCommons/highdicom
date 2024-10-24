@@ -5419,79 +5419,101 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
             image=self._ref_ct_dataset,
         )
         assert len(group) == 17
-        assert isinstance(group[0], CodeContentItem)
-        assert group[0].name == codes.DCM.Modality
-        assert group[0].value == codes.cid29.ComputedTomography
-        assert isinstance(group[1], UIDRefContentItem)
-        assert group[1].name == codes.DCM.FrameOfReferenceUID
-        assert group[1].value == self._ref_ct_dataset.FrameOfReferenceUID
-        assert isinstance(group[2], NumContentItem)
-        assert group[2].name == codes.DCM.PixelDataRows
-        assert group[2].value == self._ref_ct_dataset.Rows
-        assert isinstance(group[3], NumContentItem)
-        assert group[3].name == codes.DCM.PixelDataColumns
-        assert group[3].value == self._ref_ct_dataset.Columns
-        assert isinstance(group[4], NumContentItem)
-        assert group[4].name == codes.DCM.HorizontalPixelSpacing
-        assert group[4].value == self._ref_ct_dataset.PixelSpacing[0]
-        value_item = group[4].MeasuredValueSequence[0]
+
+        # Check Modality
+        modality = group.find(name=codes.DCM.Modality)[0]
+        assert isinstance(modality, CodeContentItem)
+        assert modality.value == codes.cid29.ComputedTomography
+
+        # Check Frame of Reference UID
+        frame_ref = group.find(name=codes.DCM.FrameOfReferenceUID)[0]
+        assert isinstance(frame_ref, UIDRefContentItem)
+        assert frame_ref.value == self._ref_ct_dataset.FrameOfReferenceUID
+
+        # Check Pixel Data Rows
+        rows = group.find(name=codes.DCM.PixelDataRows)[0]
+        assert isinstance(rows, NumContentItem)
+        assert rows.value == self._ref_ct_dataset.Rows
+
+        # Check Pixel Data Columns
+        columns = group.find(name=codes.DCM.PixelDataColumns)[0]
+        assert isinstance(columns, NumContentItem)
+        assert columns.value == self._ref_ct_dataset.Columns
+
+        # Check Horizontal Pixel Spacing
+        h_spacing = group.find(name=codes.DCM.HorizontalPixelSpacing)[0]
+        assert isinstance(h_spacing, NumContentItem)
+        assert h_spacing.value == self._ref_ct_dataset.PixelSpacing[0]
+        value_item = h_spacing.MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
         assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
-        assert isinstance(group[5], NumContentItem)
-        assert group[5].name == codes.DCM.VerticalPixelSpacing
-        assert group[5].value == self._ref_ct_dataset.PixelSpacing[1]
-        assert isinstance(group[6], NumContentItem)
-        assert group[6].name == codes.DCM.SpacingBetweenSlices
-        assert group[6].value == self._ref_ct_dataset.SpacingBetweenSlices
-        value_item = group[6].MeasuredValueSequence[0]
+
+        # Check Vertical Pixel Spacing
+        v_spacing = group.find(name=codes.DCM.VerticalPixelSpacing)[0]
+        assert isinstance(v_spacing, NumContentItem)
+        assert v_spacing.value == self._ref_ct_dataset.PixelSpacing[1]
+
+        # Check Spacing Between Slices
+        slice_spacing = group.find(name=codes.DCM.SpacingBetweenSlices)[0]
+        assert isinstance(slice_spacing, NumContentItem)
+        assert slice_spacing.value == self._ref_ct_dataset.SpacingBetweenSlices
+        value_item = slice_spacing.MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == 'mm'
         assert unit_code_item.CodeMeaning == 'mm'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
-        assert isinstance(group[7], NumContentItem)
-        assert group[7].name == codes.DCM.SliceThickness
-        assert group[7].value == self._ref_ct_dataset.SliceThickness
-        assert isinstance(group[8], NumContentItem)
-        assert group[8].name == codes.DCM.ImagePositionPatientX
-        assert group[8].value == self._ref_ct_dataset.ImagePositionPatient[0]
-        assert isinstance(group[9], NumContentItem)
-        assert group[9].name == codes.DCM.ImagePositionPatientY
-        assert group[9].value == self._ref_ct_dataset.ImagePositionPatient[1]
-        assert isinstance(group[10], NumContentItem)
-        assert group[10].name == codes.DCM.ImagePositionPatientZ
-        assert group[10].value == self._ref_ct_dataset.ImagePositionPatient[2]
-        assert isinstance(group[11], NumContentItem)
-        assert group[11].name == codes.DCM.ImageOrientationPatientRowX
-        assert group[11].value == \
-               self._ref_ct_dataset.ImageOrientationPatient[0]
-        value_item = group[11].MeasuredValueSequence[0]
+
+        # Check Slice Thickness
+        thickness = group.find(name=codes.DCM.SliceThickness)[0]
+        assert isinstance(thickness, NumContentItem)
+        assert thickness.value == self._ref_ct_dataset.SliceThickness
+
+        # Check Image Position Patient
+        pos_x = group.find(name=codes.DCM.ImagePositionPatientX)[0]
+        assert isinstance(pos_x, NumContentItem)
+        assert pos_x.value == self._ref_ct_dataset.ImagePositionPatient[0]
+
+        pos_y = group.find(name=codes.DCM.ImagePositionPatientY)[0]
+        assert isinstance(pos_y, NumContentItem)
+        assert pos_y.value == self._ref_ct_dataset.ImagePositionPatient[1]
+
+        pos_z = group.find(name=codes.DCM.ImagePositionPatientZ)[0]
+        assert isinstance(pos_z, NumContentItem)
+        assert pos_z.value == self._ref_ct_dataset.ImagePositionPatient[2]
+
+        # Check Image Orientation Patient Row
+        row_x = group.find(name=codes.DCM.ImageOrientationPatientRowX)[0]
+        assert isinstance(row_x, NumContentItem)
+        assert row_x.value == self._ref_ct_dataset.ImageOrientationPatient[0]
+        value_item = row_x.MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == '{-1:1}'
         assert unit_code_item.CodeMeaning == '{-1:1}'
         assert unit_code_item.CodingSchemeDesignator == 'UCUM'
-        assert isinstance(group[12], NumContentItem)
-        assert group[12].name == codes.DCM.ImageOrientationPatientRowY
-        assert group[12].value == \
-            self._ref_ct_dataset.ImageOrientationPatient[1]
-        assert isinstance(group[13], NumContentItem)
-        assert group[13].name == codes.DCM.ImageOrientationPatientRowZ
-        assert group[13].value == \
-               self._ref_ct_dataset.ImageOrientationPatient[2]
-        assert isinstance(group[14], NumContentItem)
-        assert group[14].name == codes.DCM.ImageOrientationPatientColumnX
-        assert group[14].value == \
-               self._ref_ct_dataset.ImageOrientationPatient[3]
-        assert isinstance(group[15], NumContentItem)
-        assert group[15].name == codes.DCM.ImageOrientationPatientColumnY
-        assert group[15].value == \
-               self._ref_ct_dataset.ImageOrientationPatient[4]
-        assert isinstance(group[16], NumContentItem)
-        assert group[16].name == codes.DCM.ImageOrientationPatientColumnZ
-        assert group[16].value == \
-               self._ref_ct_dataset.ImageOrientationPatient[5]
-        value_item = group[16].MeasuredValueSequence[0]
+
+        row_y = group.find(name=codes.DCM.ImageOrientationPatientRowY)[0]
+        assert isinstance(row_y, NumContentItem)
+        assert row_y.value == self._ref_ct_dataset.ImageOrientationPatient[1]
+
+        row_z = group.find(name=codes.DCM.ImageOrientationPatientRowZ)[0]
+        assert isinstance(row_z, NumContentItem)
+        assert row_z.value == self._ref_ct_dataset.ImageOrientationPatient[2]
+
+        # Check Image Orientation Patient Column
+        col_x = group.find(name=codes.DCM.ImageOrientationPatientColumnX)[0]
+        assert isinstance(col_x, NumContentItem)
+        assert col_x.value == self._ref_ct_dataset.ImageOrientationPatient[3]
+
+        col_y = group.find(name=codes.DCM.ImageOrientationPatientColumnY)[0]
+        assert isinstance(col_y, NumContentItem)
+        assert col_y.value == self._ref_ct_dataset.ImageOrientationPatient[4]
+
+        col_z = group.find(name=codes.DCM.ImageOrientationPatientColumnZ)[0]
+        assert isinstance(col_z, NumContentItem)
+        assert col_z.value == self._ref_ct_dataset.ImageOrientationPatient[5]
+        value_item = col_z.MeasuredValueSequence[0]
         unit_code_item = value_item.MeasurementUnitsCodeSequence[0]
         assert unit_code_item.CodeValue == '{-1:1}'
         assert unit_code_item.CodeMeaning == '{-1:1}'
@@ -5590,6 +5612,11 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert isinstance(group[8], TimeContentItem)
         assert group[8].name == codes.DCM.ContentTime
         assert group[8].value == content_time
+
+    def test_optional_spacing_between_slices(self):
+        del self._ref_ct_dataset.SpacingBetweenSlices
+        group = ImageLibraryEntryDescriptors(image=self._ref_ct_dataset)
+        assert not group.find(name=codes.DCM.SpacingBetweenSlices)
 
 
 class TestImageLibrary(unittest.TestCase):
