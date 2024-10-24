@@ -5591,6 +5591,11 @@ class TestImageLibraryEntryDescriptors(unittest.TestCase):
         assert group[8].name == codes.DCM.ContentTime
         assert group[8].value == content_time
 
+    def test_optional_spacing_between_slices(self):
+        del self._ref_ct_dataset.SpacingBetweenSlices
+        group = ImageLibraryEntryDescriptors(image=self._ref_ct_dataset)
+        assert not group.find(name=codes.DCM.SpacingBetweenSlices)
+
 
 class TestImageLibrary(unittest.TestCase):
 
