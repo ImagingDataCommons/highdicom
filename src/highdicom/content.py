@@ -3,6 +3,7 @@ from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -98,7 +99,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'AlgorithmIdentificationSequence':
+    ) -> Self:
         """Construct instance from an existing data element sequence.
 
         Parameters
@@ -344,7 +345,7 @@ class PixelMeasuresSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PixelMeasuresSequence':
+    ) -> Self:
         """Create a PixelMeasuresSequence from an existing Sequence.
 
         Parameters
@@ -554,7 +555,7 @@ class PlanePositionSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PlanePositionSequence':
+    ) -> Self:
         """Create a PlanePositionSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
@@ -694,7 +695,7 @@ class PlaneOrientationSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PlaneOrientationSequence':
+    ) -> Self:
         """Create a PlaneOrientationSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
@@ -796,7 +797,7 @@ class IssuerOfIdentifier(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'IssuerOfIdentifier':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1331,7 +1332,7 @@ class SpecimenPreparationStep(Dataset):
     def from_dataset(
         cls,
         dataset: Dataset,
-    ) -> 'SpecimenPreparationStep':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1653,7 +1654,7 @@ class SpecimenDescription(Dataset):
         return self.get("PrimaryAnatomicStructureSequence")
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SpecimenDescription':
+    def from_dataset(cls, dataset: Dataset) -> Self:
         """Construct object from an existing dataset.
 
         Parameters

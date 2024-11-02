@@ -8,6 +8,7 @@ from typing import (
     Tuple,
     Union,
 )
+from typing_extensions import Self
 
 from pydicom import Dataset
 import numpy as np
@@ -1662,7 +1663,7 @@ class PixelToReferenceTransformer:
         dataset: Dataset,
         frame_number: Optional[int] = None,
         for_total_pixel_matrix: bool = False,
-    ) -> 'PixelToReferenceTransformer':
+    ) -> Self:
         """Construct a transformer for a given image or image frame.
 
         Parameters
@@ -1879,7 +1880,7 @@ class ReferenceToPixelTransformer:
         for_total_pixel_matrix: bool = False,
         round_output: bool = True,
         drop_slice_index: bool = False,
-    ) -> 'ReferenceToPixelTransformer':
+    ) -> Self:
         """Construct a transformer for a given image or image frame.
 
         Parameters
@@ -2124,7 +2125,7 @@ class PixelToPixelTransformer:
         for_total_pixel_matrix_from: bool = False,
         for_total_pixel_matrix_to: bool = False,
         round_output: bool = True,
-    ) -> 'PixelToPixelTransformer':
+    ) -> Self:
         """Construct a transformer for two given images or image frames.
 
         Parameters
@@ -2329,7 +2330,7 @@ class ImageToReferenceTransformer:
         dataset: Dataset,
         frame_number: Optional[int] = None,
         for_total_pixel_matrix: bool = False,
-    ) -> 'ImageToReferenceTransformer':
+    ) -> Self:
         """Construct a transformer for a given image or image frame.
 
         Parameters
@@ -2543,7 +2544,7 @@ class ReferenceToImageTransformer:
         frame_number: Optional[int] = None,
         for_total_pixel_matrix: bool = False,
         drop_slice_coord: bool = False,
-    ) -> 'ReferenceToImageTransformer':
+    ) -> Self:
         """Construct a transformer for a given image or image frame.
 
         Parameters
@@ -2781,7 +2782,7 @@ class ImageToImageTransformer:
         frame_number_to: Optional[int] = None,
         for_total_pixel_matrix_from: bool = False,
         for_total_pixel_matrix_to: bool = False,
-    ) -> 'ImageToImageTransformer':
+    ) -> Self:
         """Construct a transformer for two given images or image frames.
 
         Parameters

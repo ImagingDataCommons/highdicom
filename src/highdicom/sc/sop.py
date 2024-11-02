@@ -3,6 +3,7 @@
 import logging
 import datetime
 from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.uid import SecondaryCaptureImageStorage
@@ -452,7 +453,7 @@ class SCImage(SOPClass):
         ] = None,
         transfer_syntax_uid: str = ImplicitVRLittleEndian,
         **kwargs: Any
-    ) -> 'SCImage':
+    ) -> Self:
         """Constructor that copies patient and study from an existing dataset.
 
         This provides a more concise way to construct an SCImage when an

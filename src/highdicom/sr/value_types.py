@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     Union,
 )
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.dataelem import DataElement
@@ -158,7 +159,7 @@ class ContentItem(Dataset):
             super().__setattr__(name, value)
 
     @classmethod
-    def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_derived(cls, dataset: Dataset) -> Self:
         """Construct object of derived type from an existing dataset.
 
         Parameters
@@ -184,7 +185,7 @@ class ContentItem(Dataset):
         )  # type: ignore
 
     @classmethod
-    def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_base(cls, dataset: Dataset) -> Self:
         if not hasattr(dataset, 'ValueType'):
             raise AttributeError(
                 'Dataset is not an SR Content Item because it lacks '
@@ -430,7 +431,7 @@ class ContentSequence(DataElementSequence):
             raise ValueError(error_message) from e
         return index
 
-    def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
+    def find(self, name: Union[Code, CodedConcept]) -> Self:
         """Find contained content items given their name.
 
         Parameters
@@ -450,7 +451,7 @@ class ContentSequence(DataElementSequence):
             is_sr=self._is_sr
         )
 
-    def get_nodes(self) -> 'ContentSequence':
+    def get_nodes(self) -> Self:
         """Get content items that represent nodes in the content tree.
 
         A node is hereby defined as a content item that has a `ContentSequence`
@@ -556,7 +557,7 @@ class ContentSequence(DataElementSequence):
         is_root: bool = False,
         is_sr: bool = True,
         copy: bool = True,
-    ) -> 'ContentSequence':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -688,7 +689,7 @@ class CodeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CodeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -755,7 +756,7 @@ class PnameContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'PnameContentItem':
+    ) -> Self:
         """Construct object from existing dataset.
 
         Parameters
@@ -818,7 +819,7 @@ class TextContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TextContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -890,7 +891,7 @@ class TimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -962,7 +963,7 @@ class DateContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1034,7 +1035,7 @@ class DateTimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateTimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1097,7 +1098,7 @@ class UIDRefContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'UIDRefContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1216,7 +1217,7 @@ class NumContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'NumContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1308,7 +1309,7 @@ class ContainerContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ContainerContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1393,7 +1394,7 @@ class CompositeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CompositeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1524,7 +1525,7 @@ class ImageContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1654,7 +1655,7 @@ class ScoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ScoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1799,7 +1800,7 @@ class Scoord3DContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'Scoord3DContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1904,7 +1905,7 @@ class TcoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TcoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -2023,7 +2024,7 @@ class WaveformContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'WaveformContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters

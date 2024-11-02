@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from os import PathLike
 from pathlib import Path
 from typing import List, Optional, Sequence, Union, Tuple, cast
+from typing_extensions import Self
 
 import numpy as np
 
@@ -56,8 +57,6 @@ from pydicom.pixel_data_handlers.util import (
 # TODO lazy loading for multiframe
 # TODO get volume from legacy series
 # TODO make multiframe public
-# TODO figure out type hinting for _VolumeBase
-# TODO inheritance of are_dimension_indices_unique
 # TODO allow non-consecutive segments when reading (confirm with standard)?
 # TODO check logic around slice thickness and spacing for seg creation
 
@@ -522,7 +521,7 @@ class _VolumeBase(ABC):
     def __getitem__(
         self,
         index: Union[int, slice, Tuple[Union[int, slice]]],
-    ) -> '_VolumeBase':
+    ) -> Self:
         pass
 
     def _prepare_getitem_index(
@@ -638,7 +637,7 @@ class _VolumeBase(ABC):
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-    ) -> '_VolumeBase':
+    ) -> Self:
         pass
 
     def _prepare_pad_width(
@@ -745,7 +744,7 @@ class _VolumeBase(ABC):
         )
 
     @abstractmethod
-    def copy(self) -> '_VolumeBase':
+    def copy(self) -> Self:
         """Create a copy of the object.
 
         Returns
@@ -757,7 +756,7 @@ class _VolumeBase(ABC):
         pass
 
     @abstractmethod
-    def permute_axes(self, indices: Sequence[int]) -> '_VolumeBase':
+    def permute_axes(self, indices: Sequence[int]) -> Self:
         """Create a new volume by permuting the spatial axes.
 
         Parameters
@@ -778,7 +777,7 @@ class _VolumeBase(ABC):
     def random_permute_axes(
         self,
         axes: Sequence[int] = (0, 1, 2)
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Create a new geometry by randomly permuting the spatial axes.
 
         Parameters
@@ -839,7 +838,7 @@ class _VolumeBase(ABC):
             str,
             Sequence[Union[str, PatientOrientationValuesBiped]],
         ],
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Rearrange the array to a given orientation.
 
         The resulting volume is formed from this volume through a combination
@@ -885,7 +884,7 @@ class _VolumeBase(ABC):
 
         return result.permute_axes(permute_indices)
 
-    def swap_axes(self, axis_1: int, axis_2: int) -> '_VolumeBase':
+    def swap_axes(self, axis_1: int, axis_2: int) -> Self:
         """Swap the spatial axes of the array.
 
         Parameters
@@ -918,7 +917,7 @@ class _VolumeBase(ABC):
 
         return self.permute_axes(permutation)
 
-    def flip(self, axes: Union[int, Sequence[int]]) -> '_VolumeBase':
+    def flip(self, axes: Union[int, Sequence[int]]) -> Self:
         """Flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -955,7 +954,7 @@ class _VolumeBase(ABC):
 
         return self[tuple(index)]
 
-    def random_flip(self, axes: Sequence[int] = (0, 1, 2)) -> '_VolumeBase':
+    def random_flip(self, axes: Sequence[int] = (0, 1, 2)) -> Self:
         """Randomly flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -1015,7 +1014,7 @@ class _VolumeBase(ABC):
         *,
         flip_axis: Optional[int] = None,
         swap_axes: Optional[Sequence[int]] = None,
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Manipulate the volume if necessary to ensure a given handedness.
 
         If the volume already has the specified handedness, it is returned
@@ -1071,7 +1070,7 @@ class _VolumeBase(ABC):
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Pad volume to given spatial shape.
 
         The volume is padded symmetrically, placing the original array at the
@@ -1133,7 +1132,7 @@ class _VolumeBase(ABC):
             per_channel=per_channel,
         )
 
-    def crop_to_shape(self, spatial_shape: Sequence[int]) -> '_VolumeBase':
+    def crop_to_shape(self, spatial_shape: Sequence[int]) -> Self:
         """Center-crop volume to a given spatial shape.
 
         Parameters
@@ -1179,7 +1178,7 @@ class _VolumeBase(ABC):
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Pad and/or crop volume to given spatial shape.
 
         For each dimension where padding is required, the volume is padded
@@ -1254,7 +1253,7 @@ class _VolumeBase(ABC):
         )
         return padded
 
-    def random_crop(self, spatial_shape: Sequence[int]) -> '_VolumeBase':
+    def random_crop(self, spatial_shape: Sequence[int]) -> Self:
         """Create a random crop of a certain shape from the volume.
 
         Parameters
@@ -1331,7 +1330,7 @@ class _VolumeBase(ABC):
         constant_value: float = 0.0,
         per_channel: bool = False,
         tol: float = _DEFAULT_EQUALITY_TOLERANCE,
-    ) -> '_VolumeBase':
+    ) -> Self:
         """Match the geometry of this volume to another.
 
         This performs a combination of permuting, padding and cropping, and
@@ -1530,7 +1529,7 @@ class VolumeGeometry(_VolumeBase):
         spacing_between_slices: float,
         number_of_frames: int,
         frame_of_reference_uid: Optional[str] = None,
-    ) -> "VolumeGeometry":
+    ) -> Self:
         """Create a volume from DICOM attributes.
 
         Parameters
@@ -1590,7 +1589,7 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid,
         )
 
-    def copy(self) -> 'VolumeGeometry':
+    def copy(self) -> Self:
         """Get an unaltered copy of the geometry.
 
         Returns
@@ -1627,7 +1626,7 @@ class VolumeGeometry(_VolumeBase):
     def __getitem__(
         self,
         index: Union[int, slice, Tuple[Union[int, slice]]],
-    ) -> "VolumeGeometry":
+    ) -> Self:
         """Get a sub-volume of this volume as a new volume.
 
         Parameters
@@ -1659,7 +1658,7 @@ class VolumeGeometry(_VolumeBase):
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-    ) -> 'VolumeGeometry':
+    ) -> Self:
         """Pad volume along the three spatial dimensions.
 
         Parameters
@@ -1710,7 +1709,7 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def permute_axes(self, indices: Sequence[int]) -> 'VolumeGeometry':
+    def permute_axes(self, indices: Sequence[int]) -> Self:
         """Create a new geometry by permuting the spatial axes.
 
         Parameters
@@ -1736,7 +1735,7 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def with_array(self, array: np.ndarray) -> 'Volume':
+    def with_array(self, array: np.ndarray) -> Self:
         """Create a volume using this geometry and an array.
 
         Parameters
@@ -1830,7 +1829,7 @@ class Volume(_VolumeBase):
         apply_palette_color_lut: bool = True,
         apply_icc_transform: bool = True,
         standardize_color_space: bool = True,
-    ) -> "Volume":
+    ) -> Self:
         """Create volume from a series of single frame images.
 
         Parameters
@@ -1959,7 +1958,7 @@ class Volume(_VolumeBase):
     def from_image(
         cls,
         dataset: Dataset,
-    ) -> "Volume":
+    ) -> Self:
         """Create volume from a multiframe image.
 
         Parameters
@@ -2048,7 +2047,7 @@ class Volume(_VolumeBase):
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
         frame_of_reference_uid: Optional[str] = None,
-    ) -> "Volume":
+    ) -> Self:
         """Create a volume from DICOM attributes.
 
         Parameters
@@ -2112,7 +2111,7 @@ class Volume(_VolumeBase):
         direction: Sequence[float],
         spacing: Sequence[float],
         frame_of_reference_uid: Optional[str] = None,
-    ) -> "Volume":
+    ) -> Self:
         """Construct a Volume from components.
 
         Parameters
@@ -2250,7 +2249,7 @@ class Volume(_VolumeBase):
             )
         self._array = value
 
-    def astype(self, dtype: type) -> 'Volume':
+    def astype(self, dtype: type) -> Self:
         """Get new volume with a new datatype.
 
         Parameters
@@ -2269,7 +2268,7 @@ class Volume(_VolumeBase):
 
         return self.with_array(new_array)
 
-    def copy(self) -> 'Volume':
+    def copy(self) -> Self:
         """Get an unaltered copy of the volume.
 
         Returns
@@ -2284,7 +2283,7 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def with_array(self, array: np.ndarray) -> 'Volume':
+    def with_array(self, array: np.ndarray) -> Self:
         """Get a new volume using a different array.
 
         The spatial and other metadata will be copied from this volume.
@@ -2320,7 +2319,7 @@ class Volume(_VolumeBase):
     def __getitem__(
         self,
         index: Union[int, slice, Tuple[Union[int, slice]]],
-    ) -> "Volume":
+    ) -> Self:
         """Get a sub-volume of this volume as a new volume.
 
         Parameters
@@ -2346,7 +2345,7 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def permute_axes(self, indices: Sequence[int]) -> 'Volume':
+    def permute_axes(self, indices: Sequence[int]) -> Self:
         """Create a new volume by permuting the spatial axes.
 
         Parameters
@@ -2380,7 +2379,7 @@ class Volume(_VolumeBase):
         per_channel: bool = True,
         output_mean: float = 0.0,
         output_std: float = 1.0,
-    ) -> 'Volume':
+    ) -> Self:
         """Normalize the intensities using the mean and variance.
 
         The resulting volume has zero mean and unit variance.
@@ -2430,7 +2429,7 @@ class Volume(_VolumeBase):
         output_min: float = 0.0,
         output_max: float = 1.0,
         per_channel: bool = False,
-    ) -> 'Volume':
+    ) -> Self:
         """Normalize by mapping its full intensity range to a fixed range.
 
         Other pixel values are scaled linearly within this range.
@@ -2483,7 +2482,7 @@ class Volume(_VolumeBase):
         self,
         a_min: Optional[float],
         a_max: Optional[float],
-    ) -> 'Volume':
+    ) -> Self:
         """Clip voxel intensities to lie within a given range.
 
         Parameters
@@ -2515,7 +2514,7 @@ class Volume(_VolumeBase):
         output_min: float = 0.0,
         output_max: float = 1.0,
         clip: bool = True,
-    ) -> 'Volume':
+    ) -> Self:
         """Apply a window (similar to VOI transform) to the volume.
 
         Parameters
@@ -2567,7 +2566,7 @@ class Volume(_VolumeBase):
 
         return self.with_array(new_array)
 
-    def squeeze_channel(self) -> 'Volume':
+    def squeeze_channel(self) -> Self:
         """Remove a singleton channel axis.
 
         If the volume has no channels, returns an unaltered copy.
@@ -2587,7 +2586,7 @@ class Volume(_VolumeBase):
                 'Volume with multiple channels cannot be squeezed.'
             )
 
-    def ensure_channel(self) -> 'Volume':
+    def ensure_channel(self) -> Self:
         """Add a singleton channel axis, if needed.
 
         If the volume has channels already, returns an unaltered copy.
@@ -2609,7 +2608,7 @@ class Volume(_VolumeBase):
         mode: Union[PadModes, str] = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-    ) -> 'Volume':
+    ) -> Self:
         """Pad volume along the three spatial dimensions.
 
         Parameters

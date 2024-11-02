@@ -1,6 +1,7 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
 from typing import Any, cast, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 from copy import deepcopy
 
 from pydicom.dataset import Dataset
@@ -184,7 +185,7 @@ class KeyObjectSelectionDocument(SOPClass):
             ) from e
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'KeyObjectSelectionDocument':
+    def from_dataset(cls, dataset: Dataset) -> Self:
         """Construct object from an existing dataset.
 
         Parameters

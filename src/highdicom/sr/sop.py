@@ -17,6 +17,7 @@ from typing import (
     Union,
     BinaryIO,
 )
+from typing_extensions import Self
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
@@ -734,7 +735,7 @@ class ComprehensiveSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ComprehensiveSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -885,7 +886,7 @@ class Comprehensive3DSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'Comprehensive3DSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters

@@ -1,5 +1,6 @@
 """Content that is specific to Key Object Selection IODs."""
 from typing import cast, List, Optional, Sequence, Union
+from typing_extensions import Self
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -137,7 +138,7 @@ class KeyObjectSelection(ContentSequence):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = True
-    ) -> 'KeyObjectSelection':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters

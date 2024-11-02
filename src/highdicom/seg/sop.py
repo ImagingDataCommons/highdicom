@@ -18,6 +18,7 @@ from typing import (
     Union,
     cast,
 )
+from typing_extensions import Self
 import warnings
 
 import numpy as np
@@ -2670,7 +2671,7 @@ class Segmentation(MultiFrameImage):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'Segmentation':
+    ) -> Self:
         """Create instance from an existing dataset.
 
         Parameters

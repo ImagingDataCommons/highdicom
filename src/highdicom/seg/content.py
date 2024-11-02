@@ -1,6 +1,7 @@
 """Content that is specific to Segmentation IODs."""
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
@@ -166,7 +167,7 @@ class SegmentDescription(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'SegmentDescription':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters

@@ -3,6 +3,7 @@ import logging
 import sys
 import traceback
 from typing import List, Tuple, Union
+from typing_extensions import Self
 from pathlib import Path
 
 import numpy as np
@@ -271,7 +272,7 @@ class ImageFileReader:
         """str: Path to the image file"""
         return str(self._filename)
 
-    def __enter__(self) -> 'ImageFileReader':
+    def __enter__(self) -> Self:
         self.open()
         return self
 

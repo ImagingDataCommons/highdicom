@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID
 from typing import Optional, Type, TypeVar
+from typing_extensions import Self
 
 import pydicom
 
@@ -25,7 +26,7 @@ class UID(pydicom.uid.UID):
         return super().__new__(cls, value)
 
     @classmethod
-    def from_uuid(cls, uuid: str) -> 'UID':
+    def from_uuid(cls, uuid: str) -> Self:
         """Create a DICOM UID from a UUID using the 2.25 root.
 
         Parameters

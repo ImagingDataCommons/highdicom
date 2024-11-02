@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     Union,
 )
+from typing_extensions import Self
 
 import numpy as np
 from pydicom import dcmread
@@ -418,7 +419,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'MicroscopyBulkSimpleAnnotations':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters

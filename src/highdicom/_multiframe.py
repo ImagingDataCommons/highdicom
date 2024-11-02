@@ -18,6 +18,8 @@ from typing import (
     Union,
     cast,
 )
+from typing_extensions import Self
+
 import numpy as np
 from pydicom import Dataset
 from pydicom.tag import BaseTag
@@ -110,7 +112,7 @@ class MultiFrameImage(SOPClass):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'MultiFrameImage':
+    ) -> Self:
         """Create a MultiFrameImage from an existing pydicom Dataset.
 
         Parameters
