@@ -443,11 +443,7 @@ class SourceImageForRegion(ImageContentItem):
                     '1-based.'
                 )
         super().__init__(
-            name=CodedConcept(
-                value='111040',
-                meaning='Original Source',
-                scheme_designator='DCM'
-            ),
+            name=codes.SCT.Source,
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
@@ -705,6 +701,137 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
         return cast(SourceSeriesForSegmentation, item)
+
+
+class CoordinatesForMeasurement(ScoordContentItem):
+
+    """Content item representing spatial coordinates of a measurement"""
+
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypeValues, str],
+            graphic_data: np.ndarray,
+            source_image: SourceImageForRegion,
+            purpose: Union[CodedConcept, Code] = codes.SCT.Source,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
+            Name of the graphic type
+        graphic_data: numpy.ndarray
+            Array of ordered spatial coordinates, where each row of the array
+            represents a (Column,Row) pair
+        source_image: highdicom.sr.SourceImageForRegion
+            Source image to which `graphic_data` relates
+        """
+        graphic_type = GraphicTypeValues(graphic_type)
+        super().__init__(
+            name=purpose,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM,
+        )
+        self.ContentSequence = [source_image]
+
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            copy: bool = True,
+    ) -> 'CoordinatesForMeasurement':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.sr.CoordinatesForMeasurement
+            Constructed object
+
+        """
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
+        return cast(cls, item)
+
+
+class CoordinatesForMeasurement3D(Scoord3DContentItem):
+    """Content item representing spatial 3D coordinates of a measurement"""
+
+    def __init__(
+            self,
+            graphic_type: Union[GraphicTypeValues3D, str],
+            graphic_data: np.ndarray,
+            frame_of_reference_uid: Union[str, UID],
+            fiducial_uid: Optional[Union[str, UID]] = None,
+            purpose: Union[CodedConcept, Code] = codes.SCT.Source,
+    ):
+        """
+        Parameters
+        ----------
+        purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
+            Name of the graphic type
+        graphic_data: numpy.ndarray[numpy.float]
+            Array of spatial coordinates, where each row of the array
+            represents a (x, y, z) coordinate triplet
+        frame_of_reference_uid: Union[highdicom.UID, str]
+            Unique identifier of the frame of reference within which the
+            coordinates are defined
+        fiducial_uid: Union[str, None], optional
+            Unique identifier for the content item
+        """
+        super().__init__(
+            name=purpose,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            frame_of_reference_uid=frame_of_reference_uid,
+            fiducial_uid=fiducial_uid,
+        )
+
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            copy: bool = True,
+    ) -> 'CoordinatesForMeasurement3D':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD3D
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.sr.CoordinatesForMeasurement3D
+            Constructed object
+
+        """
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
+        return cast(cls, item)
 
 
 class ImageRegion(ScoordContentItem):
