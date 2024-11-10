@@ -145,7 +145,7 @@ def encode_frame(
                     'with native encoding.'
                 )
         allowable_pis = {
-            1: ['MONOCHROME1', 'MONOCHROME2', 'PALETTE_COLOR'],
+            1: ['MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'],
             3: ['RGB', 'YBR_FULL'],
         }[samples_per_pixel]
         if photometric_interpretation not in allowable_pis:

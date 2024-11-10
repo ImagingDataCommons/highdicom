@@ -1851,7 +1851,7 @@ class Volume(_VolumeBase):
             transform is included in the datasets.
         apply_palette_color_lut: bool, optional
             Whether to apply the palette color LUT if a dataset has photometric
-            interpretation ``'PALETTE_COLOR'``.
+            interpretation ``'PALETTE COLOR'``.
         apply_icc_transform: bool, optional
             Whether to apply an ICC color profile, if present in the datasets.
         convert_color_space: bool, optional
@@ -1925,7 +1925,7 @@ class Volume(_VolumeBase):
                 frame = apply_voi_lut(frame, ds, voi_transform_index)
             if (
                 apply_palette_color_lut and
-                ds.PhotometricInterpretation == 'PALETTE_COLOR'
+                ds.PhotometricInterpretation == 'PALETTE COLOR'
             ):
                 frame = apply_color_lut(frame, ds)
             if apply_icc_transform and 'ICCProfile' in ds:

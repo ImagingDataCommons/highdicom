@@ -152,6 +152,11 @@ class TestLUT(TestCase):
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
 
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([510, 511, 510, 599, 511])
+        output = lut.apply(arr)
+        assert np.array_equal(output, expected)
+
     def test_construction_explanation(self):
         first_value = 0
         lut = LUT(
@@ -202,6 +207,11 @@ class TestModalityLUT(TestCase):
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
+
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([510, 511, 510, 599, 511])
+        output = lut.apply(arr)
+        assert np.array_equal(output, expected)
 
     def test_construction_string_type(self):
         first_value = 0
@@ -1186,6 +1196,11 @@ class TestPaletteColorLUT(TestCase):
         assert lut.lut_data.dtype == np.uint16
         np.array_equal(lut.lut_data, lut_data)
 
+        arr = np.array([32, 33, 32, 132])
+        expected = np.array([10, 11, 10, 110])
+        output = lut.apply(arr)
+        assert np.array_equal(output, expected)
+
     # Commented out until 8 bit LUTs are reimplemented
     def test_construction_8bit(self):
         lut_data = np.arange(0, 256, dtype=np.uint8)
@@ -1208,6 +1223,11 @@ class TestPaletteColorLUT(TestCase):
         assert lut.bits_per_entry == 8
         assert lut.lut_data.dtype == np.uint8
         np.array_equal(lut.lut_data, lut_data)
+
+        arr = np.array([0, 1, 0, 255])
+        expected = np.array([0, 1, 0, 255])
+        output = lut.apply(arr)
+        assert np.array_equal(output, expected)
 
 
 class TestPaletteColorLUTTransformation(TestCase):
@@ -1257,6 +1277,17 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
         assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
         assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
+
+        arr = np.array([32, 33, 32, 132])
+        expected = np.array(
+            [
+                [10, 11, 10, 110],
+                [20, 21, 20, 120],
+                [30, 31, 30, 130],
+            ]
+        ).T
+        output = instance.apply(arr)
+        assert np.array_equal(output, expected)
 
     def test_construction_no_uid(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)

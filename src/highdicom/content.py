@@ -1975,6 +1975,78 @@ class LUT(Dataset):
         """int: Bits allocated for the lookup table data. 8 or 16."""
         return int(self.LUTDescriptor[2])
 
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> Self:
+        """Create a LUT from an existing Dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing a LUT.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.LUT
+            Constructed object
+
+        """
+        attrs = [
+            'LUTDescriptor',
+            'LUTData'
+        ]
+        for attr in attrs:
+            if attr not in dataset:
+                raise AttributeError(
+                    f"Required attribute '{attr}' is not present in dataset."
+                )
+
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+
+        dataset_copy = dataset
+        dataset_copy.__class__ = cls
+        return cast(cls, dataset_copy)
+
+    def apply(self, array: np.ndarray) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: np.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+
+        Returns
+        -------
+        np.ndarray
+            Array with LUT applied.
+
+        """
+        if array.dtype.kind not in ('i', 'u'):
+            raise ValueError(
+                "Array must have an integer datatype."
+            )
+        last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
+        if (
+            array.min() < self.first_mapped_value or
+            array.max() > last_mapped_value
+        ):
+            raise RuntimeError(
+                "Array contains values not in the LUT."
+            )
+
+        return self.lut_data[array - self.first_mapped_value]
+
 
 class ModalityLUT(LUT):
 
@@ -2502,6 +2574,72 @@ class PaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
 
+    def apply(self, array: np.ndarray) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: np.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+
+        Returns
+        -------
+        np.ndarray
+            Array with LUT applied.
+
+        """
+        if array.dtype.kind not in ('i', 'u'):
+            raise ValueError(
+                "Array must have an integer datatype."
+            )
+        last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
+        if (
+            array.min() < self.first_mapped_value or
+            array.max() > last_mapped_value
+        ):
+            raise RuntimeError(
+                "Array contains values not in the LUT."
+            )
+
+        return self.lut_data[array - self.first_mapped_value]
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset, color: str) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other from_dataset() methods, this method
+        extracts only the atrributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing the attributes of the Palette Color Lookup Table
+            Transformation.
+        color: str
+            Text representing the color (``red``, ``green``, or
+            ``blue``).
+
+        Returns
+        -------
+        highdicom.PaletteColorLUT
+            New object containing attributes found in ``dataset``.
+
+        """
+        kw_prefix = f'{color.title()}PaletteColorLookupTable'
+        descriptor_kw = kw_prefix + 'Descriptor'
+        data_kw = kw_prefix + 'Data'
+
+        new_ds = Dataset()
+        new_ds._attr_name_prefix = kw_prefix
+
+        for kw in [descriptor_kw, data_kw]:
+            setattr(new_ds, kw, getattr(dataset, kw))
+
+        new_ds.__class__ = cls
+        return cast(cls, new_ds)
+
 
 class SegmentedPaletteColorLUT(Dataset):
 
@@ -2708,6 +2846,42 @@ class SegmentedPaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
 
+    @classmethod
+    def from_dataset(cls, dataset: Dataset, color: str) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other from_dataset() methods, this method
+        extracts only the atrributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing the attributes of the Palette Color Lookup Table
+            Transformation.
+        color: str
+            Text representing the color (``red``, ``green``, or
+            ``blue``).
+
+        Returns
+        -------
+        highdicom.SegmentedPaletteColorLUT
+            New object containing attributes found in ``dataset``.
+
+        """
+        kw_prefix = f'{color.title()}PaletteColorLookupTable'
+        descriptor_kw = kw_prefix + 'Descriptor'
+        data_kw = 'Segmented' + kw_prefix + 'Data'
+
+        new_ds = Dataset()
+        new_ds._attr_name_prefix = kw_prefix
+
+        for kw in [descriptor_kw, data_kw]:
+            setattr(new_ds, kw, getattr(dataset, kw))
+
+        new_ds.__class__ = cls
+        return cast(cls, new_ds)
+
 
 class PaletteColorLUTTransformation(Dataset):
 
@@ -2859,3 +3033,107 @@ class PaletteColorLUTTransformation(Dataset):
 
         """
         return self._color_luts['Blue']
+
+    def apply(self, array: np.ndarray) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: np.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+
+        Returns
+        -------
+        np.ndarray
+            Array with LUT applied. The RGB channels will be stacked along a
+            new final dimension.
+
+        """
+        if isinstance(self.red_lut, SegmentedPaletteColorLUT):
+            raise RuntimeError(
+                "The 'apply' method is not implemented for segmented LUTs."
+            )
+
+        red_plane = self.red_lut.apply(array)
+        green_plane = self.green_lut.apply(array)
+        blue_plane = self.blue_lut.apply(array)
+
+        return np.stack([red_plane, green_plane, blue_plane], -1)
+
+    @classmethod
+    def from_dataset(cls, dataset: Dataset) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other from_dataset() methods, this method
+        extracts only the atrributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing the attributes of the Palette Color Lookup Table
+            Transformation.
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation
+            New object containing attributes found in ``dataset``.
+
+        """
+        new_dataset = Dataset()
+
+        is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
+
+        new_dataset._color_luts = {}
+
+        for color in ['Red', 'Green', 'Blue']:
+            desc_attr = f'{color}PaletteColorLookupTableDescriptor'
+
+            if desc_attr not in dataset:
+                raise AttributeError(
+                    f"Dataset has no attribute '{desc_attr}'."
+                )
+            setattr(
+                new_dataset,
+                desc_attr,
+                getattr(dataset, desc_attr)
+            )
+
+            if is_segmented:
+                data_attr = f'Segmented{color}PaletteColorLookupTableData'
+                wrong_attr = f'{color}PaletteColorLookupTableData'
+            else:
+                data_attr = f'{color}PaletteColorLookupTableData'
+                wrong_attr = f'Segmented{color}PaletteColorLookupTableData'
+
+            if data_attr not in dataset:
+                raise AttributeError(
+                    f"Dataset has no attribute '{desc_attr}'."
+                )
+            if wrong_attr in dataset:
+                raise AttributeError(
+                    "Mismatch of segmented LUT and standard LUT found."
+                )
+
+            setattr(
+                new_dataset,
+                data_attr,
+                getattr(dataset, data_attr)
+            )
+
+            if is_segmented:
+                new_dataset._color_luts[color] = (
+                    SegmentedPaletteColorLUT.from_dataset(
+                        new_dataset,
+                        color=color.lower(),
+                    )
+                )
+            else:
+                new_dataset._color_luts[color] = PaletteColorLUT.from_dataset(
+                    new_dataset,
+                    color=color.lower(),
+                )
+
+        new_dataset.__class__ = cls
+        return cast(cls, new_dataset)
