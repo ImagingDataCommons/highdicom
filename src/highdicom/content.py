@@ -3,11 +3,14 @@ from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
+from pydicom.multival import MultiValue
 from typing_extensions import Self
 
 import numpy as np
+from PIL import ImageColor
 from pydicom.dataset import Dataset
 from pydicom import DataElement
+from pydicom.multival import MultiValue
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
@@ -1865,7 +1868,7 @@ class LUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint16.
+            Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -1906,16 +1909,16 @@ class LUT(Dataset):
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
             len_data = 0
-        # Note 8 bit LUT data is unsupported pending clarification on the
-        # standard
         if lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
+        elif lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
         else:
             raise ValueError(
-                "Numpy array must have dtype uint16."
+                "Numpy array must have dtype uint8 or uint16."
             )
         # The LUT data attribute has VR OW (16-bit other words)
-        self.LUTData = lut_data.astype(np.uint16).tobytes()
+        self.LUTData = lut_data.tobytes()
 
         self.LUTDescriptor = [
             len_data,
@@ -1930,18 +1933,22 @@ class LUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: LUT data"""
-        if self.bits_per_entry == 8:
-            raise RuntimeError("8 bit LUTs are currently unsupported.")
-        elif self.bits_per_entry == 16:
+        bits_per_entry = self.bits_per_entry
+        if bits_per_entry == 8:
+            dtype = np.uint8
+        elif bits_per_entry == 16:
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.LUTDescriptor[0]
         data = self.LUTData
+
+        # Account for a zero-padding byte in the case of an 8 bit LUT
+        if bits_per_entry == 8 and length % 2 == 1 and len(data) == length + 1:
+            data = data[:-1]
+
         # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(dtype)
+        array = np.frombuffer(data, dtype=dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -2017,18 +2024,94 @@ class LUT(Dataset):
         dataset_copy.__class__ = cls
         return cast(cls, dataset_copy)
 
-    def apply(self, array: np.ndarray) -> np.ndarray:
+    def get_scaled_lut_data(
+        self,
+        output_range: Tuple[float, float] = (0.0, 1.0),
+        dtype: Union[type, str, np.dtype, None] = np.float64,
+        invert: bool = False,
+    ) -> np.ndarray:
+        """Get LUT data array with output values scaled to a given range.
+
+        Parameters
+        ----------
+        output_range: Tuple[float, float], optional
+            Tuple containing (lower, upper) value of the range into which to
+            scale the output values. The lowest value in the LUT data will be
+            mapped to the lower limit, and the highest value will be mapped to
+            the upper limit, with a linear scaling used elsewhere.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Data type of the returned array (must be a floating point NumPy
+            data type).
+        invert: bool, optional
+            Invert the returned array such that the lowest original value in
+            the LUT is mapped to the upper limit and the highest original value
+            is mapped to the lower limit. This may be used to efficiently
+            combined a LUT with a Resentation transform that inverts the range.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Rescaled LUT data array.
+
+        """
+        dtype = np.dtype(dtype)
+
+        # Check dtype is suitable
+        if dtype.kind != 'f':
+            raise ValueError(
+                f'Data type "{dtype}" is not suitable.'
+            )
+
+        lut_data = self.lut_data
+        min = lut_data.min()
+        max = lut_data.max()
+        output_min, output_max = output_range
+        output_scale = output_max - output_min
+        if output_scale <= 0.0:
+            raise ValueError('Invalid output range.')
+
+        input_scale = max - min
+        scale_factor = output_scale / input_scale
+
+        scale_factor = dtype.type(scale_factor)
+        output_min = dtype.type(output_min)
+
+        lut_data = lut_data.astype(dtype)
+        if invert:
+            lut_data = -lut_data
+            min = -max.astype(dtype)
+
+        if min != 0:
+            lut_data = lut_data - min
+
+        lut_data = lut_data.astype(dtype) * scale_factor
+
+        if output_min != 0.0:
+            lut_data = lut_data + output_min
+
+        return lut_data
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 
         Parameters
         ----------
-        apply: np.ndarray
+        apply: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Array with LUT applied.
 
         """
@@ -2036,6 +2119,21 @@ class LUT(Dataset):
             raise ValueError(
                 "Array must have an integer datatype."
             )
+
+        lut_data = self.lut_data
+        if dtype is None:
+            dtype = lut_data.dtype
+        dtype = np.dtype(dtype)
+
+        # Check dtype is suitable
+        if dtype.kind not in ('u', 'i', 'f'):
+            raise ValueError(
+                f'Data type "{dtype}" is not suitable.'
+            )
+
+        if dtype != np.dtype:
+            lut_data = lut_data.astype(dtype, casting='safe')
+
         last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
         if (
             array.min() < self.first_mapped_value or
@@ -2045,7 +2143,7 @@ class LUT(Dataset):
                 "Array contains values not in the LUT."
             )
 
-        return self.lut_data[array - self.first_mapped_value]
+        return lut_data[array - self.first_mapped_value]
 
 
 class ModalityLUT(LUT):
@@ -2259,6 +2357,188 @@ class VOILUTTransformation(Dataset):
                     'provided.'
                 )
 
+    def apply(
+        self,
+        array: np.ndarray,
+        output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_transform_index: int = 0,
+        dtype: Union[type, str, np.dtype, None] = None,
+        invert: bool = False,
+    ) -> np.ndarray:
+        """Apply the transformation to an array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transformation should be applied. Can be
+            of any shape but must have an integer datatype if the
+            transformation uses a LUT.
+        output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped.
+        voi_transform_index: int, optional
+            Index (zero-based) of the VOI transform to apply if multiple are
+            included in the dataset. May be a negative integer, following
+            standard Python indexing convention.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Data type the output array. Should be a floating point data type.
+            If not specified, ``numpy.float64`` is used.
+        invert: bool, optional
+            Invert the returned array such that the lowest original value in
+            the LUT or input window is mapped to the upper limit and the
+            highest original value is mapped to the lower limit. This may be
+            used to efficiently combined a VOI LUT transformation with a
+            presentation transform that inverts the range.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with transformation applied.
+
+        """
+        # TODO what if both window and LUT are present (explicitky possible
+        # within the standard)?
+        if dtype is None:
+            dtype = np.dtype(np.float64)
+        else:
+            dtype = np.dtype(dtype)
+
+            # Check dtype is suitable
+            if dtype.kind != 'f':
+                raise ValueError(
+                    f'Data type "{dtype}" is not suitable.'
+                )
+
+        output_min, output_max = output_range
+        if output_min >= output_max:
+            raise ValueError(
+                "Second value of 'output_range' must be higher than the first."
+            )
+
+        if 'VOILUTSequence' in self:
+            if array.dtype.kind not in ('i', 'u'):
+                raise ValueError(
+                    "Array must have an integer data type if a LUT is used."
+                )
+
+            try:
+                voi_lut = self.VOILUTSequence[voi_transform_index]
+            except IndexError as e:
+                raise IndexError(
+                    "Requested 'voi_transform_index' is "
+                    "not present."
+                ) from e
+            scaled_lut_data = voi_lut.get_scaled_lut_data(
+                output_range=output_range,
+                dtype=dtype,
+                invert=invert,
+            )
+            array = scaled_lut_data[array - voi_lut.first_mapped_value]
+        else:
+            window_center = None
+            window_width = None
+            voi_function = 'LINEAR'
+
+            if (
+                'WindowCenter' in self or
+                'WindowWidth' in self
+            ):
+                window_center = self.WindowCenter
+                window_width = self.WindowWidth
+
+                if 'VOILUTFunction' in self:
+                    voi_function = self.VOILUTFunction
+
+                if isinstance(window_width, (list, MultiValue)):
+                    try:
+                        window_width = window_width[
+                            voi_transform_index
+                        ]
+                    except IndexError as e:
+                        raise IndexError(
+                            "Requested 'voi_transform_index' is "
+                            "not present."
+                        ) from e
+                elif voi_transform_index not in (0, -1):
+                    raise IndexError(
+                        "Requested 'voi_transform_index' is "
+                        "not present."
+                    )
+
+                if isinstance(window_center, (list, MultiValue)):
+                    try:
+                        window_center = window_center[
+                            voi_transform_index
+                        ]
+                    except IndexError as e:
+                        raise IndexError(
+                            "Requested 'voi_transform_index' is "
+                            "not present."
+                        ) from e
+                elif voi_transform_index not in (0, -1):
+                    raise IndexError(
+                        "Requested 'voi_transform_index' is "
+                        "not present."
+                    )
+
+            if (
+                window_center is not None and
+                window_width is not None
+            ):
+                window_width = dtype.type(window_width)
+                window_center = dtype.type(window_center)
+                if array.dtype != dtype:
+                    array = array.astype(dtype)
+
+                if voi_function in ('LINEAR', 'LINEAR_EXACT'):
+                    output_scale = (
+                        output_max - output_min
+                    )
+                    if voi_function == 'LINEAR':
+                        # LINEAR uses the range
+                        # from c - 0.5w to c + 0.5w - 1
+                        scale_factor = (
+                            output_scale / (window_width - 1)
+                        )
+                    else:
+                        # LINEAR_EXACT uses the full range
+                        # from c - 0.5w to c + 0.5w
+                        scale_factor = output_scale / window_width
+
+                    window_min = window_center - window_width / 2.0
+                    if invert:
+                        array = (
+                            (window_min - array) * scale_factor +
+                            output_max
+                        )
+                    else:
+                        array = (
+                            (array - window_min) * scale_factor +
+                            output_min
+                        )
+
+                    array = np.clip(array, output_min, output_max)
+
+                elif voi_function == 'SIGMOID':
+                    if invert:
+                        offset_array = window_center - array
+                    else:
+                        offset_array = array - window_center
+                    exp_term = np.exp(
+                        -4.0 * offset_array /
+                        window_width
+                    )
+                    array = (
+                        (output_max - output_min) /
+                        (1.0 + exp_term)
+                    ) + output_min
+                else:
+                    raise ValueError(
+                        'Unrecognized value for VOILUTFunction: '
+                        f"'{voi_function}'"
+                    )
+
+        return array
+
 
 class ModalityLUTTransformation(Dataset):
 
@@ -2344,6 +2624,95 @@ class ModalityLUTTransformation(Dataset):
             else:
                 _check_long_string(rescale_type)
                 self.RescaleType = rescale_type
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ) -> np.ndarray:
+        """Apply the transformation to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transformation should be applied. Can be
+            of any shape but must have an integer datatype if the
+            transformation uses a LUT.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Ensure the output type has this value. By default, this will have
+            type ``numpy.float64`` if the transformation uses a rescale
+            operation, or the datatype of the Modality LUT (``numpy.uint8`` or
+            ``numpy.uint16``) if it uses a LUT. An integer datatype may be
+            specified if a rescale operation is used, however if Rescale Slope
+            or Rescale Intecept are non-integer values an error will be raised.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with transformation applied.
+
+        """
+        if 'ModalityLUTSequence' in self:
+            return self.ModalityLUTSequence[0].apply(array, dtype=dtype)
+        else:
+            slope = np.float64(self.get('RescaleSlope', 1.0))
+            intercept = np.float64(
+                self.get('RescaleIntercept', 0.0)
+            )
+
+            if dtype is None:
+                dtype = np.dtype(np.float64)
+            dtype = np.dtype(dtype)
+
+            # Check dtype is suitable
+            if dtype.kind not in ('u', 'i', 'f'):
+                raise ValueError(
+                    f'Data type "{dtype}" is not suitable.'
+                )
+            if dtype.kind in ('u', 'i'):
+                if not (slope.is_integer() and intercept.is_integer()):
+                    raise ValueError(
+                        'An integer data type cannot be used if the slope '
+                        'or intercept is a non-integer value.'
+                    )
+                if array.dtype.kind not in ('u', 'i'):
+                    raise ValueError(
+                        'An integer data type cannot be used if the input '
+                        'array is floating point.'
+                    )
+
+                if dtype.kind == 'u' and intercept < 0.0:
+                    raise ValueError(
+                        'An unsigned integer data type cannot be used if the '
+                        'intercept is negative.'
+                    )
+
+                output_max = np.iinfo(array.dtype).max * slope + intercept
+                output_type_max = np.iinfo(dtype).max
+                output_min = np.iinfo(array.dtype).min * slope + intercept
+                output_type_min = np.iinfo(dtype).min
+
+                if output_max > output_type_max or output_min < output_type_min:
+                    raise ValueError(
+                        f'Datatype {dtype} does not have capacity for values '
+                        f'with slope {slope:.2f} and intercept {intercept:.2f}.'
+                    )
+
+            if dtype != np.float64:
+                slope = slope.astype(dtype)
+                intercept = intercept.astype(dtype)
+
+            # Avoid unnecessary array operations for efficiency
+            if slope != 1.0 or intercept != 0.0:
+                if slope != 1.0:
+                    array = array * slope
+                if intercept != 0.0:
+                    array = array + intercept
+            else:
+                if array.dtype != dtype:
+                    array = array.astype(dtype)
+
+            return array
 
 
 class PresentationLUT(LUT):
@@ -2531,14 +2900,20 @@ class PaletteColorLUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: lookup table data"""
-        if self.bits_per_entry == 8:
+        bits_per_entry = self.bits_per_entry
+        if bits_per_entry == 8:
             dtype = np.uint8
-        elif self.bits_per_entry == 16:
+        elif bits_per_entry == 16:
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'{self._attr_name_prefix}Data')
+
+        # Account for a zero-padding byte in the case of an 8 bit LUT
+        if bits_per_entry == 8 and length % 2 == 1 and len(data) == length + 1:
+            data = data[:-1]
+
         # The LUT data attributes have VR OW (16-bit other words)
         array = np.frombuffer(data, dtype=dtype)
         # Needs to be casted according to third descriptor value.
@@ -2574,18 +2949,27 @@ class PaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
 
-    def apply(self, array: np.ndarray) -> np.ndarray:
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 
         Parameters
         ----------
-        apply: np.ndarray
+        apply: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Array with LUT applied.
 
         """
@@ -2593,6 +2977,21 @@ class PaletteColorLUT(Dataset):
             raise ValueError(
                 "Array must have an integer datatype."
             )
+
+        lut_data = self.lut_data
+        if dtype is None:
+            dtype = lut_data.dtype
+        dtype = np.dtype(dtype)
+
+        # Check dtype is suitable
+        if dtype.kind not in ('u', 'i', 'f'):
+            raise ValueError(
+                f'Data type "{dtype}" is not suitable.'
+            )
+
+        if dtype != np.dtype:
+            lut_data = lut_data.astype(dtype, casting='safe')
+
         last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
         if (
             array.min() < self.first_mapped_value or
@@ -2602,7 +3001,7 @@ class PaletteColorLUT(Dataset):
                 "Array contains values not in the LUT."
             )
 
-        return self.lut_data[array - self.first_mapped_value]
+        return lut_data[array - self.first_mapped_value]
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, color: str) -> Self:
@@ -2911,7 +3310,6 @@ class PaletteColorLUTTransformation(Dataset):
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
-
         Examples
         --------
 
@@ -3010,6 +3408,85 @@ class PaletteColorLUTTransformation(Dataset):
         # To cache the array
         self._lut_data = None
 
+    @classmethod
+    def from_colors(
+        cls,
+        colors: Sequence[str],
+        first_mapped_value: int = 0,
+        palette_color_lut_uid: Union[UID, str, None] = None
+    ) -> Self:
+        """Create a palette color lookup table from a list of colors.
+
+        Parameters
+        ----------
+        colors: Sequence[str]
+            List of colors. Item ``i`` of the list will be used as the color
+            for input value ``first_mapped_value + i``. Each color should be a
+            string understood by PIL's ``getrgb()`` function (see `here
+            <https://pillow.readthedocs.io/en/stable/reference/ImageColor.html#color-names>`_
+            for the documentation of that function or `here
+            <https://drafts.csswg.org/css-color-4/#named-colors>`_) for the
+            original list).
+            This includes many case-insensitive color names (e.g. ``"red"``,
+            ``"Blue"``, or ``"YELLOW"``), hex codes (e.g. ``"#ff7733"``) or
+            decimal integers in the format of this example: ``"RGB(255, 255,
+            0)"``.
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup table.
+        palette_color_lut_uid: Union[highdicom.UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` for a small number of values
+        (4 in this case). This would be typical for a labelmap segmentation.
+
+        >>> import highdicom as hd
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation.from_colors(
+        >>>     colors=['black', 'red', 'orange', 'yellow'],
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation:
+            Palette Color Lookup table created from the given colors. This will
+            always be an 8 bit LUT.
+
+        """  # noqa: E501
+        if len(colors) == 0:
+            raise ValueError("List 'colors' may not be empty.")
+
+        r_list, g_list, b_list = zip(
+            *[ImageColor.getrgb(c) for c in colors]
+        )
+
+        red_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(r_list, dtype=np.uint8),
+            color='red'
+        )
+        green_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(g_list, dtype=np.uint8),
+            color='green'
+        )
+        blue_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(b_list, dtype=np.uint8),
+            color='blue'
+        )
+
+        return cls(
+            red_lut=red_lut,
+            green_lut=green_lut,
+            blue_lut=blue_lut,
+            palette_color_lut_uid=palette_color_lut_uid,
+        )
+
     @property
     def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
@@ -3039,13 +3516,13 @@ class PaletteColorLUTTransformation(Dataset):
 
         Parameters
         ----------
-        apply: np.ndarray
+        apply: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Array with LUT applied. The RGB channels will be stacked along a
             new final dimension.
 

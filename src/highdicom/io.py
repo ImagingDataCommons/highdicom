@@ -722,8 +722,7 @@ class ImageFileReader:
         voi_transform_index: int = 0,
         apply_palette_color_lut: bool = True,
         ensure_monochrome_2: bool = True,
-        window_output_min: float = 0.0,
-        window_output_max: float = 1.0,
+        output_range: Tuple[float, float] = (0.0, 1.0),
         correct_color: bool = True,
     ) -> np.ndarray:
         """Apply pixel transformation to a frame.
@@ -758,10 +757,10 @@ class ImageFileReader:
             of the output pixels corresponds to MONOCHROME2 (in which high
             values are represent white and low values represent black). Ignored
             if PhotometricInterpretation is not MONOCHROME1.
-        window_output_min: float, optional
-            Value to which the lower edge of the window is mapped.
-        window_output_max: float, optional
-            Value to which the upper edge of the window is mapped.
+        output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
         correct_color: bool, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
@@ -777,12 +776,19 @@ class ImageFileReader:
         """
         # TODO: real world value map
         # TODO: what if modality LUT outputs non-integer and there a VOI LUT?
+        # TODO: specify that code should error if no transform found?
         # TODO: output range for VOI LUT and monochrome1
         # TODO: how to combine with multiframe?
         if apply_voi_transform and not apply_modality_transform:
             raise ValueError(
                 "Parameter 'apply_voi_transform' requires "
                 "'apply_modality_transform'."
+            )
+
+        output_min, output_max = output_range
+        if output_min >= output_max:
+            raise ValueError(
+                "Second value of 'output_range' must be higher than the first."
             )
 
         # Crrate a list of all datasets to check for transforms for this frame
@@ -884,9 +890,7 @@ class ImageFileReader:
                         ):
                             if voi_function in ('LINEAR', 'LINEAR_EXACT'):
                                 window_min = window_center - window_width / 2.0
-                                output_range = (
-                                    window_output_max - window_output_min
-                                )
+                                output_range = output_max - output_min
                                 if voi_function == 'LINEAR':
                                     # LINEAR uses the range
                                     # from c - 0.5w to c + 0.5w - 1
@@ -900,7 +904,7 @@ class ImageFileReader:
 
                                 frame = (
                                     (frame - window_min) * scale_factor +
-                                    window_output_min
+                                    output_min
                                 )
                             elif voi_function == 'SIGMOID':
                                 exp_term = np.exp(
@@ -908,7 +912,7 @@ class ImageFileReader:
                                     window_width
                                 )
                                 frame = (
-                                    (window_output_max - window_output_min) /
+                                    (output_max - output_min) /
                                     (1.0 + exp_term)
                                 )
                             else:
@@ -917,11 +921,7 @@ class ImageFileReader:
                                     f"'{voi_function}'"
                                 )
 
-                            frame = np.clip(
-                                frame,
-                                window_output_min,
-                                window_output_max,
-                            )
+                            frame = np.clip(frame, output_min, output_max)
 
                 if ensure_monochrome_2:
                     if self.metadata.PhotometricInterpretation == 'MONOCHROME1':
