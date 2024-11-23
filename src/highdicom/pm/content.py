@@ -152,6 +152,74 @@ class RealWorldValueMapping(Dataset):
             )
             self.QuantityDefinitionSequence = [quantity_item]
 
+    def has_lut(self) -> bool:
+        """Determine whether the mapping contains a non-linear lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the mapping contains a look-up table. False otherwise, when
+            the mapping is represented by a slope and intercept defining a
+            linear relationship.
+
+        """
+        return 'RealWorldValueLUTData' in self
+
+    @property
+    def lut_data(self) -> Optional[np.ndarray]:
+        """Union[numpy.ndarray, None] LUT data, if present."""
+        if self.has_lut():
+            return np.array(self.RealWorldValueLUTData)
+        return None
+
+    def apply(
+        self,
+        array: np.ndarray,
+    ) -> np.ndarray:
+        """Apply the mapping to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transform should be applied. Can be of any
+            shape but must have an integer datatype if the mapping uses a LUT.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied, will have data type ``numpy.float64``.
+
+        """
+        lut_data = self.lut_data
+        if lut_data is not None:
+            if array.dtype.kind not in ('u', 'i'):
+                raise ValueError(
+                    'Array must have an integer data type if the mapping '
+                    'contains a LUT.'
+                )
+            first = self.RealWorldValueFirstValueMapped
+            last = self.RealWorldValueLastValueMapped
+            if len(lut_data) != last + 1 - first:
+                raise RuntimeError(
+                    "LUT data is stored with the incorrect number of elements."
+                )
+
+            if array.min() < first or array.max() > last:
+                raise RuntimeError(
+                    "Array contains values not in the LUT."
+                )
+
+            if first != 0:
+                array = array - first
+
+            return lut_data[array]
+        else:
+            slope = self.RealWorldValueSlope
+            intercept = self.RealWorldValueIntercept
+
+            # TODO should we check values are within range here?
+            return array * slope + intercept
+
 
 class DimensionIndexSequence(DataElementSequence):
 

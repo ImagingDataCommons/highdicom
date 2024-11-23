@@ -440,6 +440,7 @@ class TestModalityLUTTransformation(TestCase):
 
     def test_with_lut(self):
         transf = ModalityLUTTransformation(modality_lut=self._lut)
+        assert transf.has_lut()
 
         out = transf.apply(self._input_array)
 
@@ -460,6 +461,7 @@ class TestModalityLUTTransformation(TestCase):
             rescale_slope=1.0,
             rescale_intercept=0.0,
         )
+        assert not transf.has_lut()
 
         out = transf.apply(self._input_array)
 
@@ -505,6 +507,7 @@ class TestModalityLUTTransformation(TestCase):
             rescale_slope=10.0,
             rescale_intercept=0.0,
         )
+        assert not transf.has_lut()
 
         out = transf.apply(self._input_array)
 
@@ -544,6 +547,7 @@ class TestModalityLUTTransformation(TestCase):
             rescale_slope=2.0,
             rescale_intercept=-1000.0,
         )
+        assert not transf.has_lut()
 
         out = transf.apply(self._input_array)
 
@@ -593,6 +597,7 @@ class TestModalityLUTTransformation(TestCase):
             rescale_slope=3.14159,
             rescale_intercept=0.0,
         )
+        assert not transf.has_lut()
 
         out = transf.apply(self._input_array)
 
@@ -1306,6 +1311,7 @@ class TestVOILUTTransformation(TestCase):
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
         assert not hasattr(lut, 'VOILUTSequence')
+        assert not lut.has_lut()
 
         input_array = np.array(
             [
@@ -1372,6 +1378,7 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert not lut.has_lut()
 
     def test_construction_multiple(self):
         lut = VOILUTTransformation(
@@ -1381,6 +1388,7 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == [600.0, 40.0]
         assert lut.WindowWidth == [1500.0, 400.0]
+        assert not lut.has_lut()
 
         input_array_lung = np.array(
             [
@@ -1473,6 +1481,7 @@ class TestVOILUTTransformation(TestCase):
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
         assert lut.VOILUTFunction == voi_lut_function.value
+        assert not lut.has_lut()
 
         input_array = np.array(
             [
@@ -1537,6 +1546,7 @@ class TestVOILUTTransformation(TestCase):
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
         assert lut.VOILUTFunction == voi_lut_function.value
+        assert not lut.has_lut()
 
         input_array = np.array(
             [
@@ -1604,6 +1614,7 @@ class TestVOILUTTransformation(TestCase):
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
+        assert lut.has_lut()
 
         input_array = np.array(
             [
@@ -1663,6 +1674,7 @@ class TestVOILUTTransformation(TestCase):
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.has_lut()
 
     def test_construction_neither(self):
         with pytest.raises(TypeError):

@@ -2143,7 +2143,9 @@ class LUT(Dataset):
                 "Array contains values not in the LUT."
             )
 
-        return lut_data[array - self.first_mapped_value]
+        if self.first_mapped_value != 0:
+            array = array - self.first_mapped_value
+        return lut_data[array]
 
 
 class ModalityLUT(LUT):
@@ -2356,6 +2358,19 @@ class VOILUTTransformation(Dataset):
                     'At least one of "window_center" or "luts" should be '
                     'provided.'
                 )
+
+    def has_lut(self) -> bool:
+        """Determine whether the transformation contains a lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains a look-up table. False
+            otherwise, when the mapping is represented by window center and
+            width defining a linear relationship.
+
+        """
+        return 'VOILUTSequence' in self
 
     def apply(
         self,
@@ -2624,6 +2639,19 @@ class ModalityLUTTransformation(Dataset):
             else:
                 _check_long_string(rescale_type)
                 self.RescaleType = rescale_type
+
+    def has_lut(self) -> bool:
+        """Determine whether the transformation contains a lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains a look-up table. False
+            otherwise, when the mapping is represented by slope and intercept
+            defining a linear relationship.
+
+        """
+        return 'ModalityLUTSequence' in self
 
     def apply(
         self,

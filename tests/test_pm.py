@@ -40,7 +40,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = [0, 255]
+        value_range = (0, 255)
         lut_data = [v**2 for v in range(256)]
         intercept = 0
         slope = 1
@@ -92,9 +92,9 @@ class TestRealWorldValueMapping(unittest.TestCase):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = [0, 255]
-        intercept = 0
-        slope = 1
+        value_range = (0, 255)
+        intercept = 200
+        slope = 10
         quantity_definition = Code('130402', 'DCM', 'Class activation')
         m = RealWorldValueMapping(
             lut_label=lut_label,
@@ -126,12 +126,32 @@ class TestRealWorldValueMapping(unittest.TestCase):
         quantity_item = m.QuantityDefinitionSequence[0]
         assert quantity_item.name == codes.SCT.Quantity
         assert quantity_item.value == quantity_definition
+        assert not m.has_lut()
+
+        array = np.array(
+            [
+                [0, 0, 0],
+                [5, 5, 5],
+                [10, 10, 10],
+            ],
+        )
+        expected = np.array(
+            [
+                [200, 200, 200],
+                [250, 250, 250],
+                [300, 300, 300],
+            ],
+        )
+
+        out = m.apply(array)
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
 
     def test_construction_integer_nonlinear_relationship(self):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = [0, 255]
+        value_range = (0, 255)
         lut_data = [v**2 for v in range(256)]
         m = RealWorldValueMapping(
             lut_label=lut_label,
@@ -157,14 +177,34 @@ class TestRealWorldValueMapping(unittest.TestCase):
             m.RealWorldValueSlope  # noqa: B018
         with pytest.raises(AttributeError):
             m.RealWorldValueIntercept  # noqa: B018
+        assert m.has_lut()
+
+        array = np.array(
+            [
+                [0, 0, 0],
+                [5, 5, 5],
+                [10, 10, 10],
+            ],
+        )
+        expected = np.array(
+            [
+                [0, 0, 0],
+                [25, 25, 25],
+                [100, 100, 100],
+            ],
+        )
+
+        out = m.apply(array)
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
 
     def test_construction_floating_point_linear_relationship(self):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = [0.0, 1.0]
-        intercept = 0
-        slope = 1
+        value_range = (0.0, 1.0)
+        intercept = -23.13
+        slope = 5.0
         m = RealWorldValueMapping(
             lut_label=lut_label,
             lut_explanation=lut_explanation,
@@ -190,12 +230,32 @@ class TestRealWorldValueMapping(unittest.TestCase):
             m.RealWorldValueLastValueMapped  # noqa: B018
         with pytest.raises(AttributeError):
             m.RealWorldValueLUTData  # noqa: B018
+        assert not m.has_lut()
+
+        array = np.array(
+            [
+                [0, 0, 0],
+                [5, 5, 5],
+                [10, 10, 10],
+            ],
+        )
+        expected = np.array(
+            [
+                [-23.13, -23.13, -23.13],
+                [1.87, 1.87, 1.87],
+                [26.87, 26.87, 26.87],
+            ],
+        )
+
+        out = m.apply(array)
+        assert np.allclose(out, expected)
+        assert out.dtype == np.float64
 
     def test_failed_construction_floating_point_nonlinear_relationship(self):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = [0.0, 1.0]
+        value_range = (0.0, 1.0)
         lut_data = [
             v**2
             for v in np.arange(value_range[0], value_range[1], 0.1)
