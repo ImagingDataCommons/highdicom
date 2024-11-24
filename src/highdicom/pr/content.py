@@ -1203,7 +1203,7 @@ def _get_modality_lut_transformation(
             if intercept is None:
                 rescale_type = None
             else:
-                rescale_type = RescaleTypeValues.HU.value
+                rescale_type = RescaleTypeValues.US.value
 
     if intercept is None:
         return None
@@ -1332,7 +1332,7 @@ def _add_softcopy_voi_lut_attributes(
     dataset.SoftcopyVOILUTSequence = voi_lut_transformations
 
 
-def _get_softcopy_voi_lut_transformations(
+def _get_voi_lut_transformations(
     referenced_images: Sequence[Dataset]
 ) -> Sequence[SoftcopyVOILUTTransformation]:
     """Get Softcopy VOI LUT Transformation from referenced images.
@@ -1828,7 +1828,7 @@ class AdvancedBlending(Dataset):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+            voi_lut_transformations = _get_voi_lut_transformations(
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:

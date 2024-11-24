@@ -35,7 +35,7 @@ from highdicom.pr.content import (
     _add_softcopy_presentation_lut_attributes,
     _add_softcopy_voi_lut_attributes,
     _get_modality_lut_transformation,
-    _get_softcopy_voi_lut_transformations,
+    _get_voi_lut_transformations,
     _get_icc_profile,
     AdvancedBlending,
     BlendingDisplay,
@@ -292,7 +292,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+            voi_lut_transformations = _get_voi_lut_transformations(
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:
@@ -564,7 +564,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+            voi_lut_transformations = _get_voi_lut_transformations(
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:

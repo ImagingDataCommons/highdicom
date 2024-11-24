@@ -127,6 +127,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         assert quantity_item.name == codes.SCT.Quantity
         assert quantity_item.value == quantity_definition
         assert not m.has_lut()
+        assert m.value_range == value_range
 
         array = np.array(
             [
@@ -178,6 +179,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         with pytest.raises(AttributeError):
             m.RealWorldValueIntercept  # noqa: B018
         assert m.has_lut()
+        assert m.value_range == value_range
 
         array = np.array(
             [
@@ -202,7 +204,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         lut_label = '1'
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
-        value_range = (0.0, 1.0)
+        value_range = (-1000.0, 1000.0)
         intercept = -23.13
         slope = 5.0
         m = RealWorldValueMapping(
@@ -231,6 +233,7 @@ class TestRealWorldValueMapping(unittest.TestCase):
         with pytest.raises(AttributeError):
             m.RealWorldValueLUTData  # noqa: B018
         assert not m.has_lut()
+        assert m.value_range == value_range
 
         array = np.array(
             [
@@ -250,6 +253,17 @@ class TestRealWorldValueMapping(unittest.TestCase):
         out = m.apply(array)
         assert np.allclose(out, expected)
         assert out.dtype == np.float64
+
+        invalid_array = np.array(
+            [
+                [1200, 0, 0],
+                [5, 5, 5],
+                [10, 10, 10],
+            ],
+        )
+        msg = 'Array contains value outside the valid range.'
+        with pytest.raises(ValueError, match=msg):
+            m.apply(invalid_array)
 
     def test_failed_construction_floating_point_nonlinear_relationship(self):
         lut_label = '1'

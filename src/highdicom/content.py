@@ -2135,13 +2135,9 @@ class LUT(Dataset):
             lut_data = lut_data.astype(dtype, casting='safe')
 
         last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
-        if (
-            array.min() < self.first_mapped_value or
-            array.max() > last_mapped_value
-        ):
-            raise RuntimeError(
-                "Array contains values not in the LUT."
-            )
+        # Clip because values outside the range should be mapped to the
+        # first/last value
+        array = np.clip(array, self.first_mapped_value, last_mapped_value)
 
         if self.first_mapped_value != 0:
             array = array - self.first_mapped_value
@@ -2367,10 +2363,135 @@ class VOILUTTransformation(Dataset):
         bool:
             True if the transformation contains a look-up table. False
             otherwise, when the mapping is represented by window center and
-            width defining a linear relationship.
+            width defining a linear relationship. Note that it is possible for
+            a transformation to contain both a LUT and window parameters.
 
         """
         return 'VOILUTSequence' in self
+
+    def has_window(self) -> bool:
+        """Determine whether the transformation contains window parameters.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains one or more sets of window
+            parameters defining a linear relationship. False otherwise, when
+            the mapping is represented by a lookup table. Note that it is
+            possible for a transformation to contain both a LUT and window
+            parameters.
+
+        """
+        return 'WindowCenter' in self
+
+    @staticmethod
+    def voi_window_function(
+        array: np.ndarray,
+        window_center: float,
+        window_width: float,
+        voi_lut_function: Union[
+            str,
+            VOILUTFunctionValues
+        ] = VOILUTFunctionValues.LINEAR,
+        output_range: Tuple[float, float] = (0.0, 1.0),
+        dtype: Union[type, str, np.dtype, None] = np.float64,
+        invert: bool = False,
+    ) -> np.ndarray:
+        """Functional implementation of the DICOM VOI windowing function.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transformation should be applied. Can be
+            of any shape but must have an integer datatype if the
+            transformation uses a LUT.
+        window_center: float
+            Center of the window.
+        window_width: float
+            Width of the window.
+        voi_lut_function: Union[str, highdicom.VOILUTFunctionValues], optional
+            Type of VOI LUT function.
+        output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Data type the output array. Should be a floating point data type.
+        invert: bool, optional
+            Invert the returned array such that the lowest original value in
+            the LUT or input window is mapped to the upper limit and the
+            highest original value is mapped to the lower limit. This may be
+            used to efficiently combined a VOI LUT transformation with a
+            presentation transform that inverts the range.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Array with the VOI window function applied.
+
+        """
+        voi_lut_function = VOILUTFunctionValues(voi_lut_function)
+        output_min, output_max = output_range
+        if output_min >= output_max:
+            raise ValueError(
+                "Second value of 'output_range' must be higher than the first."
+            )
+
+        if dtype is None:
+            dtype = np.dtype(np.float64)
+        else:
+            dtype = np.dtype(dtype)
+
+        window_width = dtype.type(window_width)
+        window_center = dtype.type(window_center)
+        if array.dtype != dtype:
+            array = array.astype(dtype)
+
+        if voi_lut_function in (
+            VOILUTFunctionValues.LINEAR,
+            VOILUTFunctionValues.LINEAR_EXACT,
+        ):
+            output_scale = (
+                output_max - output_min
+            )
+            if voi_lut_function == VOILUTFunctionValues.LINEAR:
+                # LINEAR uses the range
+                # from c - 0.5w to c + 0.5w - 1
+                scale_factor = (
+                    output_scale / (window_width - 1)
+                )
+            else:
+                # LINEAR_EXACT uses the full range
+                # from c - 0.5w to c + 0.5w
+                scale_factor = output_scale / window_width
+
+            window_min = window_center - window_width / 2.0
+            if invert:
+                array = (
+                    (window_min - array) * scale_factor +
+                    output_max
+                )
+            else:
+                array = (
+                    (array - window_min) * scale_factor +
+                    output_min
+                )
+
+            array = np.clip(array, output_min, output_max)
+
+        elif voi_lut_function == VOILUTFunctionValues.SIGMOID:
+            if invert:
+                offset_array = window_center - array
+            else:
+                offset_array = array - window_center
+            exp_term = np.exp(
+                -4.0 * offset_array /
+                window_width
+            )
+            array = (
+                (output_max - output_min) /
+                (1.0 + exp_term)
+            ) + output_min
+
+        return array
 
     def apply(
         self,
@@ -2379,6 +2500,7 @@ class VOILUTTransformation(Dataset):
         voi_transform_index: int = 0,
         dtype: Union[type, str, np.dtype, None] = None,
         invert: bool = False,
+        prefer_lut: bool = False,
     ) -> np.ndarray:
         """Apply the transformation to an array.
 
@@ -2403,6 +2525,10 @@ class VOILUTTransformation(Dataset):
             highest original value is mapped to the lower limit. This may be
             used to efficiently combined a VOI LUT transformation with a
             presentation transform that inverts the range.
+        prefer_lut: bool, optional
+            If True and the transformation contains both a LUT and a window
+            parameters, apply the LUT. If False and both a LUT and window
+            parameters are present, apply the window.
 
         Returns
         -------
@@ -2410,8 +2536,6 @@ class VOILUTTransformation(Dataset):
             Array with transformation applied.
 
         """
-        # TODO what if both window and LUT are present (explicitky possible
-        # within the standard)?
         if dtype is None:
             dtype = np.dtype(np.float64)
         else:
@@ -2423,13 +2547,7 @@ class VOILUTTransformation(Dataset):
                     f'Data type "{dtype}" is not suitable.'
                 )
 
-        output_min, output_max = output_range
-        if output_min >= output_max:
-            raise ValueError(
-                "Second value of 'output_range' must be higher than the first."
-            )
-
-        if 'VOILUTSequence' in self:
+        if not self.has_window() or (self.has_lut() and prefer_lut):
             if array.dtype.kind not in ('i', 'u'):
                 raise ValueError(
                     "Array must have an integer data type if a LUT is used."
@@ -2449,108 +2567,55 @@ class VOILUTTransformation(Dataset):
             )
             array = scaled_lut_data[array - voi_lut.first_mapped_value]
         else:
-            window_center = None
-            window_width = None
-            voi_function = 'LINEAR'
+            voi_lut_function = 'LINEAR'
 
-            if (
-                'WindowCenter' in self or
-                'WindowWidth' in self
-            ):
-                window_center = self.WindowCenter
-                window_width = self.WindowWidth
+            window_center = self.WindowCenter
+            window_width = self.WindowWidth
 
-                if 'VOILUTFunction' in self:
-                    voi_function = self.VOILUTFunction
+            if 'VOILUTFunction' in self:
+                voi_lut_function = self.VOILUTFunction
 
-                if isinstance(window_width, (list, MultiValue)):
-                    try:
-                        window_width = window_width[
-                            voi_transform_index
-                        ]
-                    except IndexError as e:
-                        raise IndexError(
-                            "Requested 'voi_transform_index' is "
-                            "not present."
-                        ) from e
-                elif voi_transform_index not in (0, -1):
+            if isinstance(window_width, (list, MultiValue)):
+                try:
+                    window_width = window_width[
+                        voi_transform_index
+                    ]
+                except IndexError as e:
                     raise IndexError(
                         "Requested 'voi_transform_index' is "
                         "not present."
-                    )
+                    ) from e
+            elif voi_transform_index not in (0, -1):
+                raise IndexError(
+                    "Requested 'voi_transform_index' is "
+                    "not present."
+                )
 
-                if isinstance(window_center, (list, MultiValue)):
-                    try:
-                        window_center = window_center[
-                            voi_transform_index
-                        ]
-                    except IndexError as e:
-                        raise IndexError(
-                            "Requested 'voi_transform_index' is "
-                            "not present."
-                        ) from e
-                elif voi_transform_index not in (0, -1):
+            if isinstance(window_center, (list, MultiValue)):
+                try:
+                    window_center = window_center[
+                        voi_transform_index
+                    ]
+                except IndexError as e:
                     raise IndexError(
                         "Requested 'voi_transform_index' is "
                         "not present."
-                    )
+                    ) from e
+            elif voi_transform_index not in (0, -1):
+                raise IndexError(
+                    "Requested 'voi_transform_index' is "
+                    "not present."
+                )
 
-            if (
-                window_center is not None and
-                window_width is not None
-            ):
-                window_width = dtype.type(window_width)
-                window_center = dtype.type(window_center)
-                if array.dtype != dtype:
-                    array = array.astype(dtype)
-
-                if voi_function in ('LINEAR', 'LINEAR_EXACT'):
-                    output_scale = (
-                        output_max - output_min
-                    )
-                    if voi_function == 'LINEAR':
-                        # LINEAR uses the range
-                        # from c - 0.5w to c + 0.5w - 1
-                        scale_factor = (
-                            output_scale / (window_width - 1)
-                        )
-                    else:
-                        # LINEAR_EXACT uses the full range
-                        # from c - 0.5w to c + 0.5w
-                        scale_factor = output_scale / window_width
-
-                    window_min = window_center - window_width / 2.0
-                    if invert:
-                        array = (
-                            (window_min - array) * scale_factor +
-                            output_max
-                        )
-                    else:
-                        array = (
-                            (array - window_min) * scale_factor +
-                            output_min
-                        )
-
-                    array = np.clip(array, output_min, output_max)
-
-                elif voi_function == 'SIGMOID':
-                    if invert:
-                        offset_array = window_center - array
-                    else:
-                        offset_array = array - window_center
-                    exp_term = np.exp(
-                        -4.0 * offset_array /
-                        window_width
-                    )
-                    array = (
-                        (output_max - output_min) /
-                        (1.0 + exp_term)
-                    ) + output_min
-                else:
-                    raise ValueError(
-                        'Unrecognized value for VOILUTFunction: '
-                        f"'{voi_function}'"
-                    )
+            array = self.voi_window_function(
+                array,
+                window_center=cast(float, window_center),
+                window_width=cast(float, window_width),
+                voi_lut_function=voi_lut_function,
+                output_range=output_range,
+                dtype=dtype,
+                invert=invert,
+            )
 
         return array
 
@@ -2960,7 +3025,7 @@ class PaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         value = int(descriptor[0])
         if value == 0:
-            return 2 ** self.bits_per_entry
+            return 2 ** 16
         return value
 
     @property
@@ -3021,21 +3086,17 @@ class PaletteColorLUT(Dataset):
             lut_data = lut_data.astype(dtype, casting='safe')
 
         last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
-        if (
-            array.min() < self.first_mapped_value or
-            array.max() > last_mapped_value
-        ):
-            raise RuntimeError(
-                "Array contains values not in the LUT."
-            )
+        # Clip because values outside the range should be mapped to the
+        # first/last value
+        array = np.clip(array, self.first_mapped_value, last_mapped_value)
 
         return lut_data[array - self.first_mapped_value]
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, color: str) -> Self:
+    def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
         """Construct from an existing dataset.
 
-        Note that unlike many other from_dataset() methods, this method
+        Note that unlike many other ``from_dataset()`` methods, this method
         extracts only the atrributes it needs from the original dataset, and
         always returns a new object.
 
@@ -3255,7 +3316,7 @@ class SegmentedPaletteColorLUT(Dataset):
         # That's because the descriptor attributes have VR US, which cannot
         # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
         if value == 0:
-            return 2 ** self.bits_per_entry
+            return 2 ** 16
         else:
             return value
 
@@ -3274,10 +3335,10 @@ class SegmentedPaletteColorLUT(Dataset):
         return int(descriptor[2])
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, color: str) -> Self:
+    def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
         """Construct from an existing dataset.
 
-        Note that unlike many other from_dataset() methods, this method
+        Note that unlike many other ``from_dataset()`` methods, this method
         extracts only the atrributes it needs from the original dataset, and
         always returns a new object.
 
@@ -3364,12 +3425,12 @@ class PaletteColorLUTTransformation(Dataset):
         super().__init__()
 
         # Checks on inputs
-        self._color_luts = {
+        _color_luts = {
             'Red': red_lut,
             'Green': green_lut,
             'Blue': blue_lut
         }
-        for lut in self._color_luts.values():
+        for lut in _color_luts.values():
             if not isinstance(lut, (PaletteColorLUT, SegmentedPaletteColorLUT)):
                 raise TypeError(
                     'Arguments "red_lut", "green_lut", and "blue_lut" must be '
@@ -3413,7 +3474,7 @@ class PaletteColorLUTTransformation(Dataset):
                 'first mapped value.'
             )
 
-        for name, lut in self._color_luts.items():
+        for name, lut in _color_luts.items():
             desc_attr = f'{name}PaletteColorLookupTableDescriptor'
             setattr(
                 self,
@@ -3454,11 +3515,10 @@ class PaletteColorLUTTransformation(Dataset):
             <https://pillow.readthedocs.io/en/stable/reference/ImageColor.html#color-names>`_
             for the documentation of that function or `here
             <https://drafts.csswg.org/css-color-4/#named-colors>`_) for the
-            original list).
-            This includes many case-insensitive color names (e.g. ``"red"``,
-            ``"Blue"``, or ``"YELLOW"``), hex codes (e.g. ``"#ff7733"``) or
-            decimal integers in the format of this example: ``"RGB(255, 255,
-            0)"``.
+            original list of colors). This includes many case-insensitive color
+            names (e.g. ``"red"``, ``"Crimson"``, or ``"INDIGO"``), hex codes
+            (e.g. ``"#ff7733"``) or decimal integers in the format of this
+            example: ``"RGB(255, 255, 0)"``.
         first_mapped_value: int
             Pixel value that will be mapped to the first value in the
             lookup table.
@@ -3515,13 +3575,179 @@ class PaletteColorLUTTransformation(Dataset):
             palette_color_lut_uid=palette_color_lut_uid,
         )
 
+    @staticmethod
+    def _parse_attributes(dataset: Dataset) -> Tuple[
+        bool,
+        Tuple[int, int, int],
+        Tuple[bytes, bytes, bytes],
+    ]:
+        """Extract information about palette color lookup table from a dataset.
+
+        Performs various checks that the information retrieved is valid.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing Palette Color LUT information. Note that any
+            number of other attributes may be included and will be ignored (for
+            example allowing an entire image with Palette Color LUT information
+            at the top level to be passed).
+
+        Returns
+        -------
+        is_segmented: bool
+            True if the LUT is segmented. False otherwise.
+        descriptor: Tuple[int, int, int]
+            Lookup table descriptor containing in this order the number of
+            entries, first mapped value, and bits per entry. These values are
+            shared between the three color LUTs.
+        lut_data: Tuple[bytes, bytes, bytes]
+            Raw bytes data for the red, green and blue LUTs.
+
+        """
+        is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
+
+        if not is_segmented:
+            if 'RedPaletteColorLookupTableData' not in dataset:
+                raise AttributeError(
+                    'Dataset does not contain palette color lookup table '
+                    'attributes.'
+                )
+
+        descriptor = dataset.RedPaletteColorLookupTableDescriptor
+        if len(descriptor) != 3:
+            raise RuntimeError(
+                'Invalid Palette Color LUT Descriptor'
+            )
+        number_of_entries, _, bits_per_entry = descriptor
+
+        if number_of_entries == 0:
+            number_of_entries = 2 ** 16
+
+        if bits_per_entry == 8:
+            expected_num_bytes = number_of_entries
+            if number_of_entries % 2 == 1:
+                # Account for padding byte
+                number_of_entries += 1
+        elif bits_per_entry == 16:
+            expected_num_bytes = number_of_entries * 2
+        else:
+            raise RuntimeError(
+                'Invalid number of bits per entry found in Palette Color '
+                'LUT Descriptor.'
+            )
+
+        lut_data = []
+        for color in ['Red', 'Green', 'Blue']:
+            desc_kw = f'{color}PaletteColorLookupTableDescriptor'
+            if desc_kw not in dataset:
+                raise AttributeError(
+                    f"Dataset has no attribute '{desc_kw}'."
+                )
+
+            color_descriptor = getattr(dataset, desc_kw)
+            if color_descriptor != descriptor:
+                # Descriptors must match between all three colors
+                raise RuntimeError(
+                    'Dataset has no mismatched palette color LUT '
+                    'descriptors.'
+                )
+
+            segmented_kw = f'Segmented{color}PaletteColorLookupTableData'
+            standard_kw = f'{color}PaletteColorLookupTableData'
+            if is_segmented:
+                data_kw = segmented_kw
+                wrong_data_kw = standard_kw
+            else:
+                data_kw = standard_kw
+                wrong_data_kw = segmented_kw
+
+            if data_kw not in dataset:
+                raise AttributeError(
+                    f"Dataset has no attribute '{desc_kw}'."
+                )
+            if wrong_data_kw in dataset:
+                raise AttributeError(
+                    "Mismatch of segmented LUT and standard LUT found."
+                )
+
+            lut_bytes = getattr(dataset, data_kw)
+            if len(lut_bytes) != expected_num_bytes:
+                raise RuntimeError(
+                    "LUT data has incorrect length"
+                )
+            lut_data.append(lut_bytes)
+
+        return (
+            is_segmented,
+            tuple(descriptor),
+            tuple(lut_data)
+        )
+
+    @property
+    def is_segmented(self) -> bool:
+        """bool: True if the transformation is a segmented LUT.
+        False otherwise."""
+        return 'SegmentedRedPaletteColorLookupTableData' in self
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        value = int(self.RedPaletteColorLookupTableDescriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        lookup table.
+        """
+        return int(self.RedPaletteColorLookupTableDescriptor[1])
+
+    @property
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
+        return int(self.RedPaletteColorLookupTableDescriptor[2])
+
+    def _get_lut(self, color: str):
+        """Get a LUT for a single given color channel.
+
+        Parameters
+        ----------
+        color: str
+            Name of the color, either ``'red'``, ``'green'``, or ``'blue'``.
+
+        Returns
+        -------
+        Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the given output color channel
+
+        """
+        if self.is_segmented:
+            return SegmentedPaletteColorLUT.extract_from_dataset(
+                self,
+                color=color.lower(),
+            )
+        else:
+            return PaletteColorLUT.extract_from_dataset(
+                self,
+                color=color.lower(),
+            )
+
     @property
     def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the red output color channel
 
         """
-        return self._color_luts['Red']
+        return self._get_lut('red')
 
     @property
     def green_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
@@ -3529,7 +3755,7 @@ class PaletteColorLUTTransformation(Dataset):
             Lookup table for the green output color channel
 
         """
-        return self._color_luts['Green']
+        return self._get_lut('green')
 
     @property
     def blue_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
@@ -3537,7 +3763,117 @@ class PaletteColorLUTTransformation(Dataset):
             Lookup table for the blue output color channel
 
         """
-        return self._color_luts['Blue']
+        return self._get_lut('blue')
+
+    @property
+    def combined_lut_data(self) -> np.ndarray:
+        """numpy.ndarray:
+
+        An NumPy array of shape (number_of_entries, 3) containing the red,
+        green and blue lut data stacked along the final dimension of the
+        array. Data type with be 8 or 16 bit unsigned integer depending on
+        the number of bits per entry in the LUT.
+
+        """
+        if self._lut_data is None:
+            _, self._lut_data = self._get_combined_lut_data(self)
+        return cast(np.ndarray, self._lut_data)
+
+    @classmethod
+    def _get_combined_lut_data(
+        cls,
+        dataset: Dataset,
+    ) -> Tuple[int, np.ndarray]:
+        """Get a LUT array with three color channels from a dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing Palette Color LUT information. Note that any
+            number of other attributes may be included and will be ignored (for
+            example allowing an entire image with Palette Color LUT information
+            at the top level to be passed).
+
+        Returns
+        -------
+        first_mapped_value: int
+            The first input value included in the LUT.
+        lut_data: numpy.ndarray
+            An NumPy array of shape (number_of_entries, 3) containing the red,
+            green and blue lut data stacked along the final dimension of the
+            array. Data type with be 8 or 16 bit unsigned integer depending on
+            the number of bits per entry in the LUT.
+
+        """
+        (
+            is_segmented,
+            (number_of_entries, first_mapped_value, bits_per_entry),
+            lut_data,
+        ) = cls._parse_attributes(dataset)
+
+        if is_segmented:
+            raise RuntimeError(
+                'Combined LUT data is not supported for segmented LUTs'
+            )
+
+        if bits_per_entry == 8:
+            dtype = np.uint8
+        else:
+            dtype = np.uint16
+
+        combined_array = np.stack(
+            [np.frombuffer(buf, dtype=dtype) for buf in lut_data],
+            axis=-1
+        )
+
+        # Account for padding byte
+        if combined_array.shape[0] == number_of_entries + 1:
+            combined_array = combined_array[:-1]
+
+        return first_mapped_value, combined_array
+
+    @classmethod
+    def extract_from_dataset(cls, dataset: Dataset) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other ``from_dataset()`` methods, this method
+        extracts only the atrributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing Palette Color LUT information. Note that any
+            number of other attributes may be included and will be ignored (for
+            example allowing an entire image with Palette Color LUT information
+            at the top level to be passed).
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation
+            New object containing attributes found in ``dataset``.
+
+        """
+        new_dataset = Dataset()
+
+        (
+            is_segmented,
+            descriptor,
+            lut_data,
+        ) = cls._parse_attributes(dataset)
+
+        for color, data in zip(['Red', 'Green', 'Blue'], lut_data):
+            desc_kw = f'{color}PaletteColorLookupTableDescriptor'
+            setattr(new_dataset, desc_kw, list(descriptor))
+
+            if is_segmented:
+                data_kw = f'Segmented{color}PaletteColorLookupTableData'
+            else:
+                data_kw = f'{color}PaletteColorLookupTableData'
+            setattr(new_dataset, data_kw, data)
+
+        new_dataset.__class__ = cls
+        return cast(cls, new_dataset)
 
     def apply(self, array: np.ndarray) -> np.ndarray:
         """Apply the LUT to a pixel array.
@@ -3560,85 +3896,15 @@ class PaletteColorLUTTransformation(Dataset):
                 "The 'apply' method is not implemented for segmented LUTs."
             )
 
-        red_plane = self.red_lut.apply(array)
-        green_plane = self.green_lut.apply(array)
-        blue_plane = self.blue_lut.apply(array)
+        last_mapped_value = (
+            self.first_mapped_value + self.number_of_entries - 1
+        )
 
-        return np.stack([red_plane, green_plane, blue_plane], -1)
+        # Clip because values outside the region are mapped to the first/last
+        # values in the LUT
+        array = np.clip(array, self.first_mapped_value, last_mapped_value)
 
-    @classmethod
-    def from_dataset(cls, dataset: Dataset) -> Self:
-        """Construct from an existing dataset.
+        if self.first_mapped_value != 0:
+            array = array - self.first_mapped_value
 
-        Note that unlike many other from_dataset() methods, this method
-        extracts only the atrributes it needs from the original dataset, and
-        always returns a new object.
-
-        Parameters
-        ----------
-        dataset: pydicom.Dataset
-            Dataset containing the attributes of the Palette Color Lookup Table
-            Transformation.
-
-        Returns
-        -------
-        highdicom.PaletteColorLUTTransformation
-            New object containing attributes found in ``dataset``.
-
-        """
-        new_dataset = Dataset()
-
-        is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
-
-        new_dataset._color_luts = {}
-
-        for color in ['Red', 'Green', 'Blue']:
-            desc_attr = f'{color}PaletteColorLookupTableDescriptor'
-
-            if desc_attr not in dataset:
-                raise AttributeError(
-                    f"Dataset has no attribute '{desc_attr}'."
-                )
-            setattr(
-                new_dataset,
-                desc_attr,
-                getattr(dataset, desc_attr)
-            )
-
-            if is_segmented:
-                data_attr = f'Segmented{color}PaletteColorLookupTableData'
-                wrong_attr = f'{color}PaletteColorLookupTableData'
-            else:
-                data_attr = f'{color}PaletteColorLookupTableData'
-                wrong_attr = f'Segmented{color}PaletteColorLookupTableData'
-
-            if data_attr not in dataset:
-                raise AttributeError(
-                    f"Dataset has no attribute '{desc_attr}'."
-                )
-            if wrong_attr in dataset:
-                raise AttributeError(
-                    "Mismatch of segmented LUT and standard LUT found."
-                )
-
-            setattr(
-                new_dataset,
-                data_attr,
-                getattr(dataset, data_attr)
-            )
-
-            if is_segmented:
-                new_dataset._color_luts[color] = (
-                    SegmentedPaletteColorLUT.from_dataset(
-                        new_dataset,
-                        color=color.lower(),
-                    )
-                )
-            else:
-                new_dataset._color_luts[color] = PaletteColorLUT.from_dataset(
-                    new_dataset,
-                    color=color.lower(),
-                )
-
-        new_dataset.__class__ = cls
-        return cast(cls, new_dataset)
+        return self.combined_lut_data[array, :]

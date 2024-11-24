@@ -1222,7 +1222,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         )
         assert gsps.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert gsps.RescaleSlope == self._ct_series[0].RescaleSlope
-        assert gsps.RescaleType == 'HU'
+        assert gsps.RescaleType == 'US'
 
     def test_construction_with_copy_modality_lut_multiframe(self):
         gsps = GrayscaleSoftcopyPresentationState(

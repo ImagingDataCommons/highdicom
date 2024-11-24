@@ -1925,58 +1925,80 @@ class TestPaletteColorLUTTransformation(TestCase):
         super().setUp()
 
     def test_construction(self):
-        dtype = np.uint16
-        r_lut_data = np.arange(10, 120, dtype=dtype)
-        g_lut_data = np.arange(20, 130, dtype=dtype)
-        b_lut_data = np.arange(30, 140, dtype=dtype)
-        first_mapped_value = 32
-        lut_uid = UID()
-        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
-        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
-        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
-        instance = PaletteColorLUTTransformation(
-            red_lut=r_lut,
-            green_lut=g_lut,
-            blue_lut=b_lut,
-            palette_color_lut_uid=lut_uid,
-        )
-        assert instance.PaletteColorLookupTableUID == lut_uid
-        red_desc = [len(r_lut_data), first_mapped_value, 16]
-        r_lut_data_retrieved = np.frombuffer(
-            instance.RedPaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(r_lut_data, r_lut_data_retrieved)
-        assert instance.RedPaletteColorLookupTableDescriptor == red_desc
-        green_desc = [len(g_lut_data), first_mapped_value, 16]
-        g_lut_data_retrieved = np.frombuffer(
-            instance.GreenPaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(g_lut_data, g_lut_data_retrieved)
-        assert instance.GreenPaletteColorLookupTableDescriptor == green_desc
-        blue_desc = [len(b_lut_data), first_mapped_value, 16]
-        b_lut_data_retrieved = np.frombuffer(
-            instance.BluePaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(b_lut_data, b_lut_data_retrieved)
-        assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
+        for bits, dtype in [(8, np.uint8), (16, np.uint16)]:
+            r_lut_data = np.arange(10, 120, dtype=dtype)
+            g_lut_data = np.arange(20, 130, dtype=dtype)
+            b_lut_data = np.arange(30, 140, dtype=dtype)
+            first_mapped_value = 32
+            lut_uid = UID()
+            r_lut = PaletteColorLUT(
+                first_mapped_value,
+                r_lut_data,
+                color='red',
+            )
+            g_lut = PaletteColorLUT(
+                first_mapped_value,
+                g_lut_data,
+                color='green',
+            )
+            b_lut = PaletteColorLUT(
+                first_mapped_value,
+                b_lut_data,
+                color='blue',
+            )
+            instance = PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+                palette_color_lut_uid=lut_uid,
+            )
+            assert instance.PaletteColorLookupTableUID == lut_uid
+            red_desc = [len(r_lut_data), first_mapped_value, bits]
+            r_lut_data_retrieved = np.frombuffer(
+                instance.RedPaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(r_lut_data, r_lut_data_retrieved)
+            assert (
+                instance.RedPaletteColorLookupTableDescriptor == red_desc
+            )
+            green_desc = [len(g_lut_data), first_mapped_value, bits]
+            g_lut_data_retrieved = np.frombuffer(
+                instance.GreenPaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(g_lut_data, g_lut_data_retrieved)
+            assert (
+                instance.GreenPaletteColorLookupTableDescriptor == green_desc
+            )
+            blue_desc = [len(b_lut_data), first_mapped_value, bits]
+            b_lut_data_retrieved = np.frombuffer(
+                instance.BluePaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(b_lut_data, b_lut_data_retrieved)
+            assert (
+                instance.BluePaletteColorLookupTableDescriptor == blue_desc
+            )
 
-        assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
-        assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
-        assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
+            assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
+            assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
+            assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
 
-        arr = np.array([32, 33, 32, 132])
-        expected = np.array(
-            [
-                [10, 11, 10, 110],
-                [20, 21, 20, 120],
-                [30, 31, 30, 130],
-            ]
-        ).T
-        output = instance.apply(arr)
-        assert np.array_equal(output, expected)
+            assert instance.first_mapped_value == first_mapped_value
+            assert instance.number_of_entries == len(r_lut_data)
+            assert instance.bits_per_entry == bits
+
+            arr = np.array([32, 33, 32, 132])
+            expected = np.array(
+                [
+                    [10, 11, 10, 110],
+                    [20, 21, 20, 120],
+                    [30, 31, 30, 130],
+                ]
+            ).T
+            output = instance.apply(arr)
+            assert np.array_equal(output, expected)
 
     def test_construction_no_uid(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)

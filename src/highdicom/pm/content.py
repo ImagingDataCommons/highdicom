@@ -172,6 +172,19 @@ class RealWorldValueMapping(Dataset):
             return np.array(self.RealWorldValueLUTData)
         return None
 
+    @property
+    def value_range(self) -> Tuple[float, float]:
+        """Tuple[float, float]: Range of valid input values."""
+        if 'DoubleFloatRealWorldValueFirstValueMapped' in self:
+            return (
+                self.DoubleFloatRealWorldValueFirstValueMapped,
+                self.DoubleFloatRealWorldValueLastValueMapped,
+            )
+        return (
+            float(self.RealWorldValueFirstValueMapped),
+            float(self.RealWorldValueLastValueMapped),
+        )
+
     def apply(
         self,
         array: np.ndarray,
@@ -217,7 +230,13 @@ class RealWorldValueMapping(Dataset):
             slope = self.RealWorldValueSlope
             intercept = self.RealWorldValueIntercept
 
-            # TODO should we check values are within range here?
+            first, last = self.value_range
+
+            if array.min() < first or array.max() > last:
+                raise ValueError(
+                    'Array contains value outside the valid range.'
+                )
+
             return array * slope + intercept
 
 

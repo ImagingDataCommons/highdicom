@@ -843,6 +843,12 @@ class Segmentation(MultiFrameImage):
                         'of type highdicom.PaletteColorLUTTransformation.'
                     )
 
+                if palette_color_lut_transformation.is_segmented:
+                    raise ValueError(
+                        'Palette Color LUT Transformations must not be '
+                        'segmented when included in a Segmentation.'
+                    )
+
                 lut = palette_color_lut_transformation.red_lut
                 lut_entries = lut.number_of_entries
                 lut_start = lut.first_mapped_value
