@@ -2424,11 +2424,6 @@ class VOILUTTransformation(Dataset):
                 )
 
         if not self.has_window() or (self.has_lut() and prefer_lut):
-            if array.dtype.kind not in ('i', 'u'):
-                raise ValueError(
-                    "Array must have an integer data type if a LUT is used."
-                )
-
             try:
                 voi_lut = self.VOILUTSequence[voi_transform_index]
             except IndexError as e:
@@ -3026,8 +3021,6 @@ class SegmentedPaletteColorLUT(Dataset):
 
         """
         super().__init__()
-        # Note 8 bit LUT data is unsupported for presentation states pending
-        # clarification on the standard, but is valid for segmentations
         if segmented_lut_data.dtype.type == np.uint8:
             bits_per_entry = 8
         elif segmented_lut_data.dtype.type == np.uint16:
@@ -3260,28 +3253,6 @@ class PaletteColorLUTTransformation(Dataset):
         palette_color_lut_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the palette color lookup table.
 
-        Examples
-        --------
-
-        Create a ``PaletteColorLUTTransformation`` from a built-in colormap
-        from the ``matplotlib`` python package.
-
-        >>> from matplotlib import colormaps
-        >>> import highdicom as hd
-        >>>
-        >>> # Use the built-in 'gist_rainbow_r' colormap
-        >>> cmap = colormaps['gist_rainbow_r']
-        >>> # Create an 8-bit RGBA LUT array from the colormap
-        >>> num_entries = 10  # e.g. number of classes in a segmentation
-        >>> lut_data = cmap(np.arange(num_entries) / (num_entries + 1), bytes=True)
-        >>>
-        >>> lut = hd.PaletteColorLUTTransformation(
-        >>>     red_lut=hd.PaletteColorLUT(0, lut_data[:, 0], 'red'),
-        >>>     green_lut=hd.PaletteColorLUT(0, lut_data[:, 1], 'green'),
-        >>>     blue_lut=hd.PaletteColorLUT(0, lut_data[:, 2], 'blue'),
-        >>>     palette_color_lut_uid=hd.UID(),
-        >>> )
-
         """  # noqa: E501
         super().__init__()
 
@@ -3426,6 +3397,97 @@ class PaletteColorLUTTransformation(Dataset):
         blue_lut = PaletteColorLUT(
             first_mapped_value=first_mapped_value,
             lut_data=np.array(b_list, dtype=np.uint8),
+            color='blue'
+        )
+
+        return cls(
+            red_lut=red_lut,
+            green_lut=green_lut,
+            blue_lut=blue_lut,
+            palette_color_lut_uid=palette_color_lut_uid,
+        )
+
+    @classmethod
+    def from_combined_lut(
+        cls,
+        lut_data: np.ndarray,
+        first_mapped_value: int = 0,
+        palette_color_lut_uid: Union[UID, str, None] = None
+    ) -> Self:
+        """Create a palette color lookup table from a combined LUT array.
+
+        Parameters
+        ----------
+        lut_data: numpy.ndarray
+            LUT array with shape ``(number_of_entries, 3)`` where the entries
+            are stacked as rows and the 3 columns represent the red, green, and
+            blue channels (in that order). Data type must be ``numpy.uint8`` or
+            ``numpy.uint16``.
+        first_mapped_value: int
+            Input pixel value that will be mapped to the first value in the
+            lookup table.
+        palette_color_lut_uid: Union[highdicom.UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation:
+            Palette Color Lookup table created from the given colors. This will
+            be an 8-bit or 16-bit LUT depending on the data type of the input
+            ``lut_data``.
+
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` from a built-in colormap
+        from the well-known ``matplotlib`` python package (must be installed
+        separately).
+
+        >>> import numpy as np
+        >>> from matplotlib import colormaps
+        >>> import highdicom as hd
+        >>>
+        >>> # Use matplotlib's built-in 'gist_rainbow_r' colormap as an example
+        >>> cmap = colormaps['gist_rainbow_r']
+        >>>
+        >>> # Create an 8-bit RGBA LUT array from the colormap
+        >>> num_entries = 10  # e.g. number of classes in a segmentation
+        >>> lut_data = cmap(np.arange(num_entries) / (num_entries + 1), bytes=True)
+        >>>
+        >>> # Remove the alpha channel (at index 3)
+        >>> lut_data = lut_data[:, :3]
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation.from_combined_lut(
+        >>>     lut_data,
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
+
+        """  # noqa: E501
+        if lut_data.ndim != 2 or lut_data.shape[1] != 3:
+            raise ValueError(
+                "Argument 'lut_data' must have shape (number_of_entries, 3)."
+            )
+
+        if lut_data.dtype not in (np.uint8, np.uint16):
+            raise ValueError(
+                "Argument 'lut_data' must have data type numpy.uint8 or "
+                'numpy.uint16.'
+            )
+
+        red_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 0],
+            color='red'
+        )
+        green_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 1],
+            color='green'
+        )
+        blue_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 2],
             color='blue'
         )
 

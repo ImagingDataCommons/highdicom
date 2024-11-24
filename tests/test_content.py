@@ -2071,6 +2071,23 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert np.array_equal(lut.green_lut.lut_data, [0, 0, 128, 0, 255])
         assert np.array_equal(lut.blue_lut.lut_data, [0, 0, 0, 255, 255])
 
+    def test_construction_from_combined(self):
+
+        r_lut_data = np.arange(10, 120, dtype=np.uint8)
+        g_lut_data = np.arange(20, 130, dtype=np.uint8)
+        b_lut_data = np.arange(30, 140, dtype=np.uint8)
+
+        combined_lut = np.stack(
+            [r_lut_data, g_lut_data, b_lut_data],
+            axis=-1
+        )
+        lut = PaletteColorLUTTransformation.from_combined_lut(
+            combined_lut,
+        )
+
+        assert np.array_equal(lut.red_lut.lut_data, r_lut_data)
+        assert np.array_equal(lut.blue_lut.lut_data, b_lut_data)
+        assert np.array_equal(lut.green_lut.lut_data, g_lut_data)
 
 class TestSpecimenDescription(TestCase):
     def test_construction(self):
