@@ -24,6 +24,12 @@ from highdicom.enum import (
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
 )
+from highdicom.pixel_transforms import (
+    _get_combined_palette_color_lut,
+    _parse_palette_color_lut_attributes,
+    apply_lut,
+    voi_window_function,
+)
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import (
@@ -2115,33 +2121,12 @@ class LUT(Dataset):
             Array with LUT applied.
 
         """
-        if array.dtype.kind not in ('i', 'u'):
-            raise ValueError(
-                "Array must have an integer datatype."
-            )
-
-        lut_data = self.lut_data
-        if dtype is None:
-            dtype = lut_data.dtype
-        dtype = np.dtype(dtype)
-
-        # Check dtype is suitable
-        if dtype.kind not in ('u', 'i', 'f'):
-            raise ValueError(
-                f'Data type "{dtype}" is not suitable.'
-            )
-
-        if dtype != np.dtype:
-            lut_data = lut_data.astype(dtype, casting='safe')
-
-        last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
-        # Clip because values outside the range should be mapped to the
-        # first/last value
-        array = np.clip(array, self.first_mapped_value, last_mapped_value)
-
-        if self.first_mapped_value != 0:
-            array = array - self.first_mapped_value
-        return lut_data[array]
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
 
 
 class ModalityLUT(LUT):
@@ -2384,115 +2369,6 @@ class VOILUTTransformation(Dataset):
         """
         return 'WindowCenter' in self
 
-    @staticmethod
-    def voi_window_function(
-        array: np.ndarray,
-        window_center: float,
-        window_width: float,
-        voi_lut_function: Union[
-            str,
-            VOILUTFunctionValues
-        ] = VOILUTFunctionValues.LINEAR,
-        output_range: Tuple[float, float] = (0.0, 1.0),
-        dtype: Union[type, str, np.dtype, None] = np.float64,
-        invert: bool = False,
-    ) -> np.ndarray:
-        """Functional implementation of the DICOM VOI windowing function.
-
-        Parameters
-        ----------
-        apply: numpy.ndarray
-            Pixel array to which the transformation should be applied. Can be
-            of any shape but must have an integer datatype if the
-            transformation uses a LUT.
-        window_center: float
-            Center of the window.
-        window_width: float
-            Width of the window.
-        voi_lut_function: Union[str, highdicom.VOILUTFunctionValues], optional
-            Type of VOI LUT function.
-        output_range: Tuple[float, float], optional
-            Range of output values to which the VOI range is mapped.
-        dtype: Union[type, str, numpy.dtype, None], optional
-            Data type the output array. Should be a floating point data type.
-        invert: bool, optional
-            Invert the returned array such that the lowest original value in
-            the LUT or input window is mapped to the upper limit and the
-            highest original value is mapped to the lower limit. This may be
-            used to efficiently combined a VOI LUT transformation with a
-            presentation transform that inverts the range.
-
-        Returns
-        -------
-        numpy.ndarray:
-            Array with the VOI window function applied.
-
-        """
-        voi_lut_function = VOILUTFunctionValues(voi_lut_function)
-        output_min, output_max = output_range
-        if output_min >= output_max:
-            raise ValueError(
-                "Second value of 'output_range' must be higher than the first."
-            )
-
-        if dtype is None:
-            dtype = np.dtype(np.float64)
-        else:
-            dtype = np.dtype(dtype)
-
-        window_width = dtype.type(window_width)
-        window_center = dtype.type(window_center)
-        if array.dtype != dtype:
-            array = array.astype(dtype)
-
-        if voi_lut_function in (
-            VOILUTFunctionValues.LINEAR,
-            VOILUTFunctionValues.LINEAR_EXACT,
-        ):
-            output_scale = (
-                output_max - output_min
-            )
-            if voi_lut_function == VOILUTFunctionValues.LINEAR:
-                # LINEAR uses the range
-                # from c - 0.5w to c + 0.5w - 1
-                scale_factor = (
-                    output_scale / (window_width - 1)
-                )
-            else:
-                # LINEAR_EXACT uses the full range
-                # from c - 0.5w to c + 0.5w
-                scale_factor = output_scale / window_width
-
-            window_min = window_center - window_width / 2.0
-            if invert:
-                array = (
-                    (window_min - array) * scale_factor +
-                    output_max
-                )
-            else:
-                array = (
-                    (array - window_min) * scale_factor +
-                    output_min
-                )
-
-            array = np.clip(array, output_min, output_max)
-
-        elif voi_lut_function == VOILUTFunctionValues.SIGMOID:
-            if invert:
-                offset_array = window_center - array
-            else:
-                offset_array = array - window_center
-            exp_term = np.exp(
-                -4.0 * offset_array /
-                window_width
-            )
-            array = (
-                (output_max - output_min) /
-                (1.0 + exp_term)
-            ) + output_min
-
-        return array
-
     def apply(
         self,
         array: np.ndarray,
@@ -2565,7 +2441,11 @@ class VOILUTTransformation(Dataset):
                 dtype=dtype,
                 invert=invert,
             )
-            array = scaled_lut_data[array - voi_lut.first_mapped_value]
+            array = apply_lut(
+                array=array,
+                lut_data=scaled_lut_data,
+                first_mapped_value=voi_lut.first_mapped_value,
+            )
         else:
             voi_lut_function = 'LINEAR'
 
@@ -2607,7 +2487,7 @@ class VOILUTTransformation(Dataset):
                     "not present."
                 )
 
-            array = self.voi_window_function(
+            array = voi_window_function(
                 array,
                 window_center=cast(float, window_center),
                 window_width=cast(float, window_width),
@@ -3066,31 +2946,12 @@ class PaletteColorLUT(Dataset):
             Array with LUT applied.
 
         """
-        if array.dtype.kind not in ('i', 'u'):
-            raise ValueError(
-                "Array must have an integer datatype."
-            )
-
-        lut_data = self.lut_data
-        if dtype is None:
-            dtype = lut_data.dtype
-        dtype = np.dtype(dtype)
-
-        # Check dtype is suitable
-        if dtype.kind not in ('u', 'i', 'f'):
-            raise ValueError(
-                f'Data type "{dtype}" is not suitable.'
-            )
-
-        if dtype != np.dtype:
-            lut_data = lut_data.astype(dtype, casting='safe')
-
-        last_mapped_value = self.first_mapped_value + self.number_of_entries - 1
-        # Clip because values outside the range should be mapped to the
-        # first/last value
-        array = np.clip(array, self.first_mapped_value, last_mapped_value)
-
-        return lut_data[array - self.first_mapped_value]
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
 
     @classmethod
     def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
@@ -3575,115 +3436,6 @@ class PaletteColorLUTTransformation(Dataset):
             palette_color_lut_uid=palette_color_lut_uid,
         )
 
-    @staticmethod
-    def _parse_attributes(dataset: Dataset) -> Tuple[
-        bool,
-        Tuple[int, int, int],
-        Tuple[bytes, bytes, bytes],
-    ]:
-        """Extract information about palette color lookup table from a dataset.
-
-        Performs various checks that the information retrieved is valid.
-
-        Parameters
-        ----------
-        dataset: pydicom.Dataset
-            Dataset containing Palette Color LUT information. Note that any
-            number of other attributes may be included and will be ignored (for
-            example allowing an entire image with Palette Color LUT information
-            at the top level to be passed).
-
-        Returns
-        -------
-        is_segmented: bool
-            True if the LUT is segmented. False otherwise.
-        descriptor: Tuple[int, int, int]
-            Lookup table descriptor containing in this order the number of
-            entries, first mapped value, and bits per entry. These values are
-            shared between the three color LUTs.
-        lut_data: Tuple[bytes, bytes, bytes]
-            Raw bytes data for the red, green and blue LUTs.
-
-        """
-        is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
-
-        if not is_segmented:
-            if 'RedPaletteColorLookupTableData' not in dataset:
-                raise AttributeError(
-                    'Dataset does not contain palette color lookup table '
-                    'attributes.'
-                )
-
-        descriptor = dataset.RedPaletteColorLookupTableDescriptor
-        if len(descriptor) != 3:
-            raise RuntimeError(
-                'Invalid Palette Color LUT Descriptor'
-            )
-        number_of_entries, _, bits_per_entry = descriptor
-
-        if number_of_entries == 0:
-            number_of_entries = 2 ** 16
-
-        if bits_per_entry == 8:
-            expected_num_bytes = number_of_entries
-            if number_of_entries % 2 == 1:
-                # Account for padding byte
-                number_of_entries += 1
-        elif bits_per_entry == 16:
-            expected_num_bytes = number_of_entries * 2
-        else:
-            raise RuntimeError(
-                'Invalid number of bits per entry found in Palette Color '
-                'LUT Descriptor.'
-            )
-
-        lut_data = []
-        for color in ['Red', 'Green', 'Blue']:
-            desc_kw = f'{color}PaletteColorLookupTableDescriptor'
-            if desc_kw not in dataset:
-                raise AttributeError(
-                    f"Dataset has no attribute '{desc_kw}'."
-                )
-
-            color_descriptor = getattr(dataset, desc_kw)
-            if color_descriptor != descriptor:
-                # Descriptors must match between all three colors
-                raise RuntimeError(
-                    'Dataset has no mismatched palette color LUT '
-                    'descriptors.'
-                )
-
-            segmented_kw = f'Segmented{color}PaletteColorLookupTableData'
-            standard_kw = f'{color}PaletteColorLookupTableData'
-            if is_segmented:
-                data_kw = segmented_kw
-                wrong_data_kw = standard_kw
-            else:
-                data_kw = standard_kw
-                wrong_data_kw = segmented_kw
-
-            if data_kw not in dataset:
-                raise AttributeError(
-                    f"Dataset has no attribute '{desc_kw}'."
-                )
-            if wrong_data_kw in dataset:
-                raise AttributeError(
-                    "Mismatch of segmented LUT and standard LUT found."
-                )
-
-            lut_bytes = getattr(dataset, data_kw)
-            if len(lut_bytes) != expected_num_bytes:
-                raise RuntimeError(
-                    "LUT data has incorrect length"
-                )
-            lut_data.append(lut_bytes)
-
-        return (
-            is_segmented,
-            tuple(descriptor),
-            tuple(lut_data)
-        )
-
     @property
     def is_segmented(self) -> bool:
         """bool: True if the transformation is a segmented LUT.
@@ -3776,61 +3528,8 @@ class PaletteColorLUTTransformation(Dataset):
 
         """
         if self._lut_data is None:
-            _, self._lut_data = self._get_combined_lut_data(self)
+            _, self._lut_data = _get_combined_palette_color_lut(self)
         return cast(np.ndarray, self._lut_data)
-
-    @classmethod
-    def _get_combined_lut_data(
-        cls,
-        dataset: Dataset,
-    ) -> Tuple[int, np.ndarray]:
-        """Get a LUT array with three color channels from a dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.Dataset
-            Dataset containing Palette Color LUT information. Note that any
-            number of other attributes may be included and will be ignored (for
-            example allowing an entire image with Palette Color LUT information
-            at the top level to be passed).
-
-        Returns
-        -------
-        first_mapped_value: int
-            The first input value included in the LUT.
-        lut_data: numpy.ndarray
-            An NumPy array of shape (number_of_entries, 3) containing the red,
-            green and blue lut data stacked along the final dimension of the
-            array. Data type with be 8 or 16 bit unsigned integer depending on
-            the number of bits per entry in the LUT.
-
-        """
-        (
-            is_segmented,
-            (number_of_entries, first_mapped_value, bits_per_entry),
-            lut_data,
-        ) = cls._parse_attributes(dataset)
-
-        if is_segmented:
-            raise RuntimeError(
-                'Combined LUT data is not supported for segmented LUTs'
-            )
-
-        if bits_per_entry == 8:
-            dtype = np.uint8
-        else:
-            dtype = np.uint16
-
-        combined_array = np.stack(
-            [np.frombuffer(buf, dtype=dtype) for buf in lut_data],
-            axis=-1
-        )
-
-        # Account for padding byte
-        if combined_array.shape[0] == number_of_entries + 1:
-            combined_array = combined_array[:-1]
-
-        return first_mapped_value, combined_array
 
     @classmethod
     def extract_from_dataset(cls, dataset: Dataset) -> Self:
@@ -3860,7 +3559,7 @@ class PaletteColorLUTTransformation(Dataset):
             is_segmented,
             descriptor,
             lut_data,
-        ) = cls._parse_attributes(dataset)
+        ) = _parse_palette_color_lut_attributes(dataset)
 
         for color, data in zip(['Red', 'Green', 'Blue'], lut_data):
             desc_kw = f'{color}PaletteColorLookupTableDescriptor'
@@ -3875,7 +3574,11 @@ class PaletteColorLUTTransformation(Dataset):
         new_dataset.__class__ = cls
         return cast(cls, new_dataset)
 
-    def apply(self, array: np.ndarray) -> np.ndarray:
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: Union[type, str, np.dtype, None] = None,
+    ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 
         Parameters
@@ -3883,6 +3586,11 @@ class PaletteColorLUTTransformation(Dataset):
         apply: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
 
         Returns
         -------
@@ -3896,15 +3604,9 @@ class PaletteColorLUTTransformation(Dataset):
                 "The 'apply' method is not implemented for segmented LUTs."
             )
 
-        last_mapped_value = (
-            self.first_mapped_value + self.number_of_entries - 1
+        return apply_lut(
+            array=array,
+            lut_data=self.combined_lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
         )
-
-        # Clip because values outside the region are mapped to the first/last
-        # values in the LUT
-        array = np.clip(array, self.first_mapped_value, last_mapped_value)
-
-        if self.first_mapped_value != 0:
-            array = array - self.first_mapped_value
-
-        return self.combined_lut_data[array, :]

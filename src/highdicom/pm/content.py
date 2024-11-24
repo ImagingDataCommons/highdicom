@@ -9,6 +9,7 @@ from highdicom._module_utils import is_multiframe_image
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
+from highdicom.pixel_transforms import apply_lut
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import CodeContentItem
 from highdicom.uid import UID
@@ -217,15 +218,12 @@ class RealWorldValueMapping(Dataset):
                     "LUT data is stored with the incorrect number of elements."
                 )
 
-            if array.min() < first or array.max() > last:
-                raise RuntimeError(
-                    "Array contains values not in the LUT."
-                )
-
-            if first != 0:
-                array = array - first
-
-            return lut_data[array]
+            return apply_lut(
+                array=array,
+                lut_data=lut_data,
+                first_mapped_value=first,
+                clip=False,  # values outside the range are undefined
+            )
         else:
             slope = self.RealWorldValueSlope
             intercept = self.RealWorldValueIntercept
