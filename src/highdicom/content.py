@@ -25,10 +25,11 @@ from highdicom.enum import (
     VOILUTFunctionValues,
 )
 from highdicom.pixel_transforms import (
+    _check_rescale_dtype,
     _get_combined_palette_color_lut,
     _parse_palette_color_lut_attributes,
     apply_lut,
-    voi_window_function,
+    voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept
@@ -2011,6 +2012,7 @@ class LUT(Dataset):
             Constructed object
 
         """
+        # TODO should this be an extract_from_dataset?
         attrs = [
             'LUTDescriptor',
             'LUTData'
@@ -2482,7 +2484,7 @@ class VOILUTTransformation(Dataset):
                     "not present."
                 )
 
-            array = voi_window_function(
+            array = voi_window(
                 array,
                 window_center=cast(float, window_center),
                 window_width=cast(float, window_width),
@@ -2623,52 +2625,22 @@ class ModalityLUTTransformation(Dataset):
         if 'ModalityLUTSequence' in self:
             return self.ModalityLUTSequence[0].apply(array, dtype=dtype)
         else:
-            slope = np.float64(self.get('RescaleSlope', 1.0))
-            intercept = np.float64(
-                self.get('RescaleIntercept', 0.0)
-            )
+            slope = self.get('RescaleSlope', 1.0)
+            intercept = self.get('RescaleIntercept', 0.0)
 
             if dtype is None:
                 dtype = np.dtype(np.float64)
             dtype = np.dtype(dtype)
 
-            # Check dtype is suitable
-            if dtype.kind not in ('u', 'i', 'f'):
-                raise ValueError(
-                    f'Data type "{dtype}" is not suitable.'
-                )
-            if dtype.kind in ('u', 'i'):
-                if not (slope.is_integer() and intercept.is_integer()):
-                    raise ValueError(
-                        'An integer data type cannot be used if the slope '
-                        'or intercept is a non-integer value.'
-                    )
-                if array.dtype.kind not in ('u', 'i'):
-                    raise ValueError(
-                        'An integer data type cannot be used if the input '
-                        'array is floating point.'
-                    )
+            _check_rescale_dtype(
+                input_dtype=array.dtype,
+                output_dtype=dtype,
+                intercept=intercept,
+                slope=slope,
+            )
 
-                if dtype.kind == 'u' and intercept < 0.0:
-                    raise ValueError(
-                        'An unsigned integer data type cannot be used if the '
-                        'intercept is negative.'
-                    )
-
-                output_max = np.iinfo(array.dtype).max * slope + intercept
-                output_type_max = np.iinfo(dtype).max
-                output_min = np.iinfo(array.dtype).min * slope + intercept
-                output_type_min = np.iinfo(dtype).min
-
-                if output_max > output_type_max or output_min < output_type_min:
-                    raise ValueError(
-                        f'Datatype {dtype} does not have capacity for values '
-                        f'with slope {slope:.2f} and intercept {intercept:.2f}.'
-                    )
-
-            if dtype != np.float64:
-                slope = slope.astype(dtype)
-                intercept = intercept.astype(dtype)
+            intercept = intercept.astype(dtype)
+            slope = slope.astype(dtype)
 
             # Avoid unnecessary array operations for efficiency
             if slope != 1.0 or intercept != 0.0:

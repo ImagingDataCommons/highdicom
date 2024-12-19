@@ -1,5 +1,5 @@
 """Functional interface for pixel transformations."""
-from typing import Union, Tuple
+from typing import Optional, Union, Tuple
 
 import numpy as np
 
@@ -168,7 +168,79 @@ def _get_combined_palette_color_lut(
     return first_mapped_value, combined_array
 
 
-def voi_window_function(
+def _check_rescale_dtype(
+    input_dtype: np.dtype,
+    output_dtype: np.dtype,
+    intercept: float,
+    slope: float,
+    input_range: Optional[Tuple[float, float]] = None,
+) -> None:
+    """Checks whether it is appropriate to apply a given rescale to an array
+    with a given dtype.
+
+    Raises an error if not compatible.
+
+    Parameters
+    ----------
+    input_dtype: numpy.dtype
+        Datatype of the input array of the rescale operation.
+    output_dtype: numpy.dtype
+        Datatype of the output array of the rescale operation.
+    intercept: float
+        Intercept of the rescale operation.
+    slope: float
+        Slope of the rescale operation.
+    input_range: Optional[Tuple[float, float]], optional
+        Known limit of values for the input array. This could for example be
+        deduced by the number of bits stored in an image. If not specified, the
+        full range of values of the ``input_dtype`` is assumed.
+
+    """
+    slope_np = np.float64(slope)
+    intercept_np = np.float64(intercept)
+
+    # Check dtype is suitable
+    if output_dtype.kind not in ('u', 'i', 'f'):
+        raise ValueError(
+            f'Data type "{output_dtype}" is not suitable.'
+        )
+    if output_dtype.kind in ('u', 'i'):
+        if not (slope.is_integer() and intercept.is_integer()):
+            raise ValueError(
+                'An integer data type cannot be used if the slope '
+                'or intercept is a non-integer value.'
+            )
+        if input_dtype.kind not in ('u', 'i'):
+            raise ValueError(
+                'An integer data type cannot be used if the input '
+                'array is floating point.'
+            )
+
+        if input_dtype.kind == 'u' and intercept < 0.0:
+            raise ValueError(
+                'An unsigned integer data type cannot be used if the '
+                'intercept is negative.'
+            )
+
+        if input_range is not None:
+            input_min, input_max = input_range
+        else:
+            input_min = np.iinfo(input_dtype).min
+            input_max = np.iinfo(input_dtype).max
+
+        output_max = input_max * slope_np + intercept_np
+        output_min = input_min * slope_np + intercept_np
+        output_type_max = np.iinfo(output_dtype).max
+        output_type_min = np.iinfo(output_dtype).min
+
+        if output_max > output_type_max or output_min < output_type_min:
+            raise ValueError(
+                f'Datatype {output_dtype} does not have capacity for values '
+                f'with slope {slope:.2f} and intercept {intercept:.2f}.'
+            )
+
+
+def voi_window(
     array: np.ndarray,
     window_center: float,
     window_width: float,

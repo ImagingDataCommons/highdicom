@@ -1643,7 +1643,6 @@ class VolumeGeometry(_VolumeBase):
 
         """
         _, new_shape, new_affine = self._prepare_getitem_index(index)
-        self._spatial_shape = new_shape
 
         return self.__class__(
             affine=new_affine,
