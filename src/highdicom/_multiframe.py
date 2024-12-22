@@ -28,6 +28,7 @@ from pydicom.datadict import (
     tag_for_keyword,
 )
 from pydicom.multival import MultiValue
+from pydicom.uid import ParametricMapStorage
 
 from highdicom._module_utils import is_multiframe_image
 from highdicom.base import SOPClass, _check_little_endian
@@ -164,7 +165,6 @@ class _CombinedPixelTransformation:
             ICC Profile.
 
         """
-        # TODO: real world value map
         # TODO: specify that code should error if no transform found?
         # TODO: choose VOI by explanation?
         # TODO: how to combine with multiframe?
@@ -190,21 +190,41 @@ class _CombinedPixelTransformation:
         self._effective_window_center_width: Optional[Tuple[float, float]] = None
         self._effective_slope_intercept: Optional[Tuple[float, float]] = None
         self._invert = False
+        self._clip = True
 
-        if 'FloatPixelData' in image:
-            input_dtype = np.float32
-            input_range = None
-        elif 'DoubleFloatPixelData' in image:
-            input_dtype = np.float64
-            input_range = None
+        input_range = None
+        if (
+            image.SOPClassUID == ParametricMapStorage
+            and image.BitsAllocated > 16
+        ):
+            # Parametric Maps are the only SOP Class (currently) that allows
+            # floating point pixels
+            if image.BitsAllocated == 32:
+                self.input_dtype = np.dtype(np.float32)
+            elif image.BitsAllocated == 64:
+                self.input_dtype = np.dtype(np.float64)
         else:
-            if image.BitsAllocated == 16:
-                self.input_dtype = np.dtype(np.uint16)
-            elif image.BitsAllocated == 32:
-                self.input_dtype = np.dtype(np.uint32)
+            if image.PixelRepresentation == 1:
+                if image.BitsAllocated == 8:
+                    self.input_dtype = np.dtype(np.int8)
+                elif image.BitsAllocated == 16:
+                    self.input_dtype = np.dtype(np.int16)
+                elif image.BitsAllocated == 32:
+                    self.input_dtype = np.dtype(np.int32)
+
+                # 2's complement to define the range
+                half_range = 2 ** (image.BitsStored - 1)
+                input_range = (-half_range, half_range - 1)
             else:
-                self.input_dtype = np.dtype(np.uint8)
-            input_range = (0, 2 ** image.BitsStored)
+                if image.BitsAllocated == 1:
+                    self.input_dtype = np.dtype(np.uint8)
+                elif image.BitsAllocated == 8:
+                    self.input_dtype = np.dtype(np.uint8)
+                elif image.BitsAllocated == 16:
+                    self.input_dtype = np.dtype(np.uint16)
+                elif image.BitsAllocated == 32:
+                    self.input_dtype = np.dtype(np.uint32)
+                input_range = (0, 2 ** image.BitsStored)
 
         if not self.is_color_input:
             if (
@@ -244,10 +264,12 @@ class _CombinedPixelTransformation:
                 voi_center_width: Optional[Tuple[float, float]] = None
                 voi_function = 'LINEAR'
                 invert = False
+                has_rwvm = False
 
                 if ensure_monochrome_2:
-                    if image.PhotometricInterpretation == 'MONOCHROME1':
-                        # TODO what about presentation LUT
+                    if 'PresentationLUTShape' in image:
+                        invert = image.PresentationLUTShape == 'INVERSE'
+                    elif image.PhotometricInterpretation == 'MONOCHROME1':
                         invert = True
 
                 for ds, is_shared in datasets:
@@ -267,6 +289,7 @@ class _CombinedPixelTransformation:
                             self._effective_lut_first_mapped_value = int(
                                 rwvm_item.RealWorldValueFirstValueMapped
                             )
+                            self._clip = False
                         else:
                             self._effective_slope_intercept = (
                                 rwvm_item.RealWorldValueSlope,
@@ -283,10 +306,10 @@ class _CombinedPixelTransformation:
                                     rwvm_item.RealWorldValueLastValueMapped
                                 )
                         self.is_shared = self.is_shared and is_shared
-                        # TODO skip pixel transformation
+                        has_rwvm = True
                         break
 
-                if apply_modality_transform:
+                if not has_rwvm and apply_modality_transform:
 
                     if 'ModalityLUTSequence' in image:
                         modality_lut = LUT.from_dataset(
@@ -305,7 +328,7 @@ class _CombinedPixelTransformation:
                                 self.is_shared = self.is_shared and is_shared
                                 break
 
-                if apply_voi_transform:
+                if not has_rwvm and apply_voi_transform:
 
                     if 'VOILUTSequence' in image:
                         voi_lut = LUT.from_dataset(
@@ -353,7 +376,7 @@ class _CombinedPixelTransformation:
                 # Determine how to combine modality, voi and presentation
                 # transforms
                 if modality_slope_intercept is not None:
-                    intercept, slope = modality_slope_intercept
+                    slope, intercept = modality_slope_intercept
 
                     if voi_center_width is not None:
                         # Shift and scale the window to account for the scaling
@@ -391,16 +414,24 @@ class _CombinedPixelTransformation:
                         # No VOI LUT transform, so the modality rescale
                         # operates alone
                         if invert:
-                            # TODO what do here?
-                            pass
-                        else:
-                            _check_rescale_dtype(
-                                slope=modality_slope_intercept[0],
-                                intercept=modality_slope_intercept[1],
-                                output_dtype=self.output_dtype,
-                                input_dtype=self.input_dtype,
-                                input_range=input_range,
+                            # Adjust the parameters to invert the intensities
+                            # within the scaled and offset range
+                            eff_slope = -slope
+                            if input_range is None:
+                                # This situation will be unusual: float valued
+                                # pixels with a rescale transform that needs to
+                                # be inverted. For simplicity, just invert
+                                # the pixel values
+                                eff_intercept = -intercept
+                            else:
+                                imin, imax = input_range
+                                eff_intercept = (
+                                    slope * (imin + imax) + intercept
+                                )
+                            self._effective_slope_intercept = (
+                                eff_slope, eff_intercept
                             )
+                        else:
                             self._effective_slope_intercept = (
                                 modality_slope_intercept
                             )
@@ -432,13 +463,32 @@ class _CombinedPixelTransformation:
                     else:
                         # No VOI LUT transform so the modality lut operates alone
                         if invert:
-                            # TODO what do here?
-                            pass
+                            lut_data = modality_lut.lut_data
+                            inverted_lut_data = (
+                                lut_data.min() + lut_data.max() - lut_data
+                            )
+                            self._effective_lut_data = inverted_lut_data
                         else:
                             self._effective_lut_data = modality_lut.lut_data
-                            self._effective_lut_first_mapped_value = (
-                                modality_lut.first_mapped_value
-                            )
+                        self._effective_lut_first_mapped_value = (
+                            modality_lut.first_mapped_value
+                        )
+
+                else:
+                    # No mdality LUT, but may still require inversion
+                    if invert:
+                        # Use a rescale slope and intercept to invert the
+                        # values within their existing range
+                        if input_range is None:
+                            eff_intercept = 0
+                        else:
+                            imin, imax = input_range
+                            eff_intercept = imin + imax
+
+                        self._effective_slope_intercept = (
+                            -1,
+                            eff_intercept
+                        )
 
         if self._effective_lut_data is not None:
             if self._effective_lut_data.dtype != output_dtype:
@@ -446,12 +496,24 @@ class _CombinedPixelTransformation:
                     self._effective_lut_data.astype(output_dtype)
                 )
 
-            if input_dtype.kind == 'f':
+            if self.input_dtype.kind == 'f':
                 raise ValueError(
                     'Images with floating point data may not contain LUTs.'
                 )
 
-        # TODO change type of slope/intercept here?
+        if self._effective_slope_intercept is not None:
+            slope, intercept = self._effective_slope_intercept
+            _check_rescale_dtype(
+                slope=slope,
+                intercept=intercept,
+                output_dtype=self.output_dtype,
+                input_dtype=self.input_dtype,
+                input_range=input_range,
+            )
+            self._effective_slope_intercept = (
+                np.float64(slope).astype(self.output_dtype),
+                np.float64(intercept).astype(self.output_dtype),
+            )
 
         # We don't use the color_correct_frame() function here, since we cache
         # the ICC transform on the instance for improved performance.
@@ -487,19 +549,31 @@ class _CombinedPixelTransformation:
                     "Expected an image of shape (R, C)."
                 )
 
+        if self._input_range_check is not None:
+            first, last = self._input_range_check
+            if frame.min() < first or frame.max() > last:
+                raise ValueError(
+                    'Array contains value outside the valid range.'
+                )
+
         if self._effective_lut_data is not None:
             frame = apply_lut(
                 frame,
                 self._effective_lut_data,
                 self._effective_lut_first_mapped_value,
+                clip=self._clip,
             )
 
         elif self._effective_slope_intercept is not None:
             slope, intercept = self._effective_slope_intercept
+
+            # Avoid unnecessary array operations for efficiency
             if slope != 1.0:
                 frame = frame * slope
             if intercept != 0.0:
                 frame = frame + intercept
+            if frame.dtype != self.output_dtype:
+                frame = frame.astype(self.output_dtype)
 
         elif self._effective_window_center_width is not None:
             frame = voi_window(
