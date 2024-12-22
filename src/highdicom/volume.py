@@ -568,7 +568,11 @@ class _VolumeBase(ABC):
             # are retained in the output array. Also make into a tuple of
             # length 1 to standardize format
             _check_int(index, 0)
-            tuple_index = (slice(index, index + 1), )
+            if index == -1:
+                end_index = None
+            else:
+                end_index = index + 1
+            tuple_index = (slice(index, end_index), )
         elif isinstance(index, slice):
             # Make into a tuple of length one to standardize the format
             _check_slice(index, 0)
@@ -580,7 +584,11 @@ class _VolumeBase(ABC):
                     # Change the index to a slice of length one so that all
                     # dimensions are retained in the output array.
                     _check_int(item, dim)
-                    item = slice(item, item + 1)
+                    if item == -1:
+                        end_index = None
+                    else:
+                        end_index = item + 1
+                    item = slice(item, end_index)
                     index_list.append(item)
                 elif isinstance(item, slice):
                     _check_slice(item, dim)
