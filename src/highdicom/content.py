@@ -2099,6 +2099,27 @@ class LUT(Dataset):
 
         return lut_data
 
+    def get_inverted_lut_data(
+        self,
+    ) -> np.ndarray:
+        """Get LUT data array with output values inverted within the same range.
+
+        This returns the LUT data inverted within its original range. So if the
+        original LUT data has output values in the range 10-20 inclusive, then
+        the entries with output value 10 will be mapped to 20, the entries with
+        output value 11 will be mapped to value 19, and so on until the entries
+        with value 20 are mapped to 10.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Inverted LUT data array, with the same size and data type as the
+            original array.
+
+        """
+        lut_data = self.lut_data
+        return lut_data.min() + lut_data.max() - lut_data
+
     def apply(
         self,
         array: np.ndarray,

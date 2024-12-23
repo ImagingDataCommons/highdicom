@@ -117,7 +117,7 @@ class _CombinedPixelTransformation:
         apply_palette_color_lut: bool = True,
         ensure_monochrome_2: bool = True,
         real_world_value_map_index: int = 0,
-        output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
         correct_color: bool = True,
     ):
         """Apply pixel transformation to a frame.
@@ -155,7 +155,7 @@ class _CombinedPixelTransformation:
         real_world_value_map_index: int, optional
             Index of the real world value map to use (multiple may be stored
             within the dataset).
-        output_range: Tuple[float, float], optional
+        voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
             present.
@@ -174,17 +174,18 @@ class _CombinedPixelTransformation:
                 "'apply_modality_transform'."
             )
 
-        output_min, output_max = output_range
+        output_min, output_max = voi_output_range
         if output_min >= output_max:
             raise ValueError(
-                "Second value of 'output_range' must be higher than the first."
+                "Second value of 'voi_output_range' must be higher than "
+                "the first."
             )
 
         self.output_dtype = np.dtype(output_dtype)
-        self.is_shared = True
+        self.applies_to_all_frames = True
         self.is_color_input = image.SamplesPerPixel == 3
         self._input_range_check: Optional[Tuple[int, int]] = None
-        self._output_range = output_range
+        self._voi_output_range = voi_output_range
         self._effective_lut_data: Optional[np.ndarray] = None
         self._effective_lut_first_mapped_value = 0
         self._effective_window_center_width: Optional[Tuple[float, float]] = None
@@ -192,6 +193,7 @@ class _CombinedPixelTransformation:
         self._invert = False
         self._clip = True
 
+        # Determine input type and range of values
         input_range = None
         if (
             image.SOPClassUID == ParametricMapStorage
@@ -305,7 +307,9 @@ class _CombinedPixelTransformation:
                                     rwvm_item.RealWorldValueFirstValueMapped,
                                     rwvm_item.RealWorldValueLastValueMapped
                                 )
-                        self.is_shared = self.is_shared and is_shared
+                        self.applies_to_all_frames = (
+                            self.applies_to_all_frames and is_shared
+                        )
                         has_rwvm = True
                         break
 
@@ -325,7 +329,9 @@ class _CombinedPixelTransformation:
                                     float(ds.get('RescaleSlope', 1.0)),
                                     float(ds.get('RescaleIntercept', 0.0))
                                 )
-                                self.is_shared = self.is_shared and is_shared
+                                self.applies_to_all_frames = (
+                                    self.applies_to_all_frames and is_shared
+                                )
                                 break
 
                 if not has_rwvm and apply_voi_transform:
@@ -335,10 +341,11 @@ class _CombinedPixelTransformation:
                             image.VOILUTSequence[0]
                         )
                         voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
-                            output_range=output_range,
+                            output_range=voi_output_range,
                             dtype=output_dtype,
                             invert=invert,
                         )
+                    else:
                         for ds, is_shared in datasets:
                             if (
                                 'WindowCenter' in ds or
@@ -369,7 +376,9 @@ class _CombinedPixelTransformation:
                                         "Requested 'voi_transform_index' is "
                                         "not present."
                                     )
-                                self.is_shared = self.is_shared and is_shared
+                                self.applies_to_all_frames = (
+                                    self.applies_to_all_frames and is_shared
+                                )
                                 voi_center_width = (voi_center, voi_width)
                                 break
 
@@ -443,7 +452,7 @@ class _CombinedPixelTransformation:
                             array=modality_lut.lut_data,
                             window_center=voi_center_width[0],
                             window_width=voi_center_width[1],
-                            output_range=output_range,
+                            output_range=voi_output_range,
                             dtype=output_dtype,
                             invert=invert,
                         )
@@ -463,11 +472,9 @@ class _CombinedPixelTransformation:
                     else:
                         # No VOI LUT transform so the modality lut operates alone
                         if invert:
-                            lut_data = modality_lut.lut_data
-                            inverted_lut_data = (
-                                lut_data.min() + lut_data.max() - lut_data
+                            self._effective_lut_data = (
+                                modality_lut.get_inverted_lut_data()
                             )
-                            self._effective_lut_data = inverted_lut_data
                         else:
                             self._effective_lut_data = modality_lut.lut_data
                         self._effective_lut_first_mapped_value = (
@@ -582,7 +589,7 @@ class _CombinedPixelTransformation:
                 window_width=self._effective_window_center_width[1],
                 dtype=self.output_dtype,
                 invert=self._invert,
-                output_range=self._output_range,
+                output_range=self._voi_output_range,
             )
 
         if self._color_manager is not None:
