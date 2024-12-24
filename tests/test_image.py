@@ -9,6 +9,9 @@ from highdicom.image import (
     _CombinedPixelTransformation,
     MultiFrameImage,
 )
+from highdicom.pixel_transforms import (
+    voi_window,
+)
 
 
 def test_slice_spacing():
@@ -112,6 +115,9 @@ def test_combined_transform_ect_rwvm():
         assert np.array_equal(output_arr, expected)
 
         assert output_arr.dtype == output_dtype
+
+        full_output_arr = tf(dcm.pixel_array[0])
+        assert full_output_arr.dtype == output_dtype
 
         out_of_range_input = np.array(
             [[last + 1, 1], [1, 1]],
@@ -219,6 +225,9 @@ def test_combined_transform_ect_modality():
 
         assert output_arr.dtype == output_dtype
 
+        full_output_arr = tf(dcm.pixel_array[0])
+        assert full_output_arr.dtype == output_dtype
+
         # Same thing should work by requiring the modality LUT
         tf = _CombinedPixelTransformation(
             dcm,
@@ -232,6 +241,9 @@ def test_combined_transform_ect_modality():
             slope, intercept
         )
         assert tf._input_range_check is None
+
+        full_output_arr = tf(dcm.pixel_array[0])
+        assert full_output_arr.dtype == output_dtype
 
     msg = (
         'An unsigned integer data type cannot be used if the intercept is '
@@ -338,6 +350,9 @@ def test_combined_transform_ect_with_voi():
 
             assert output_arr.dtype == output_dtype
 
+            full_output_arr = tf(dcm.pixel_array[0])
+            assert full_output_arr.dtype == output_dtype
+
     msg = (
         'The VOI transformation requires a floating point data type.'
     )
@@ -401,6 +416,9 @@ def test_combined_transform_modality_lut():
         assert np.array_equal(output_arr, expected)
         assert output_arr.dtype == output_dtype
 
+        full_output_arr = tf(dcm.pixel_array)
+        assert full_output_arr.dtype == output_dtype
+
     msg = (
         'A VOI transform is required but not found in the image.'
     )
@@ -421,7 +439,7 @@ def test_combined_transform_modality_lut():
 
 
 def test_combined_transform_voi_lut():
-    # A test file that has a modality LUT
+    # A test file that has a voi LUT
     f = get_testdata_file('vlut_04.dcm')
     dcm = pydicom.dcmread(f)
     lut_data = dcm.VOILUTSequence[0].LUTData
@@ -470,3 +488,125 @@ def test_combined_transform_voi_lut():
             output_arr = tf(input_arr)
             assert np.allclose(output_arr, expected, atol=0.1)
             assert output_arr.dtype == output_dtype
+
+            full_output_arr = tf(dcm.pixel_array)
+            assert full_output_arr.dtype == output_dtype
+
+
+def test_combined_transform_monochrome():
+    # A test file that has a modality LUT
+    f = get_testdata_file('RG1_UNCR.dcm')
+    dcm = pydicom.dcmread(f)
+
+    center_width = (dcm.WindowCenter, dcm.WindowWidth)
+
+    max_value = 2 ** dcm.BitsStored - 1
+
+    for output_dtype in [
+        np.int32,
+        np.int64,
+        np.float16,
+        np.float32,
+        np.float64,
+    ]:
+        # Default behavior; inversion but no VOI
+        tf = _CombinedPixelTransformation(
+            dcm,
+            output_dtype=output_dtype,
+        )
+        assert tf._effective_slope_intercept == (-1, max_value)
+        assert tf._effective_lut_data is None
+        assert tf._effective_window_center_width is None
+        assert tf._color_manager is None
+        assert tf._input_range_check is None
+
+        output_arr = tf(dcm.pixel_array)
+
+        expected = max_value - dcm.pixel_array
+        expected = expected.astype(output_dtype)
+        if output_dtype != np.float16:
+            # float16 seems to give a lot of precision related errors in this
+            # range
+            assert np.array_equal(output_arr, expected)
+        assert output_arr.dtype == output_dtype
+
+        # No inversion
+        tf = _CombinedPixelTransformation(
+            dcm,
+            output_dtype=output_dtype,
+            apply_presentation_lut=False,
+        )
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is None
+        assert tf._effective_window_center_width is None
+        assert tf._color_manager is None
+        assert tf._input_range_check is None
+
+        output_arr = tf(dcm.pixel_array)
+
+        expected = dcm.pixel_array
+        expected = expected.astype(output_dtype)
+        assert np.array_equal(output_arr, expected)
+        assert output_arr.dtype == output_dtype
+
+    for output_dtype in [
+        np.float16,
+        np.float32,
+        np.float64,
+    ]:
+        # VOI and inversion
+        tf = _CombinedPixelTransformation(
+            dcm,
+            output_dtype=output_dtype,
+            apply_voi_transform=None,
+        )
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is None
+        assert tf._effective_window_center_width == center_width
+        assert tf._color_manager is None
+        assert tf._input_range_check is None
+        assert tf._invert
+
+        output_arr = tf(dcm.pixel_array)
+
+        expected = voi_window(
+            dcm.pixel_array,
+            window_width=dcm.WindowWidth,
+            window_center=dcm.WindowCenter,
+            dtype=output_dtype,
+            invert=True,
+        )
+        if output_dtype != np.float16:
+            # float16 seems to give a lot of precision related errors in this
+            # range
+            assert np.array_equal(output_arr, expected)
+        assert output_arr.dtype == output_dtype
+
+        # VOI and no inversion
+        tf = _CombinedPixelTransformation(
+            dcm,
+            output_dtype=output_dtype,
+            apply_voi_transform=None,
+            apply_presentation_lut=False,
+        )
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is None
+        assert tf._effective_window_center_width == center_width
+        assert tf._color_manager is None
+        assert tf._input_range_check is None
+        assert not tf._invert
+
+        output_arr = tf(dcm.pixel_array)
+
+        expected = voi_window(
+            dcm.pixel_array,
+            window_width=dcm.WindowWidth,
+            window_center=dcm.WindowCenter,
+            dtype=output_dtype,
+            invert=False,
+        )
+        if output_dtype != np.float16:
+            # float16 seems to give a lot of precision related errors in this
+            # range
+            assert np.array_equal(output_arr, expected)
+        assert output_arr.dtype == output_dtype

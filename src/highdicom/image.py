@@ -360,6 +360,11 @@ class _CombinedPixelTransformation:
                 'a color or palette color image.'
             )
 
+        if not isinstance(apply_presentation_lut, bool):
+            raise TypeError(
+                "Parameter 'apply_presentation_lut' must have type bool."
+            )
+
         output_min, output_max = voi_output_range
         if output_min >= output_max:
             raise ValueError(
@@ -411,7 +416,7 @@ class _CombinedPixelTransformation:
                     self.input_dtype = np.dtype(np.uint16)
                 elif image.BitsAllocated == 32:
                     self.input_dtype = np.dtype(np.uint32)
-                input_range = (0, 2 ** image.BitsStored)
+                input_range = (0, 2 ** image.BitsStored - 1)
 
         if self._color_type == _ImageColorType.PALETTE_COLOR:
             if use_palette_color:
@@ -808,8 +813,6 @@ class _CombinedPixelTransformation:
                 frame = frame * slope
             if intercept != 0.0:
                 frame = frame + intercept
-            if frame.dtype != self.output_dtype:
-                frame = frame.astype(self.output_dtype)
 
         elif self._effective_window_center_width is not None:
             frame = voi_window(
@@ -823,6 +826,9 @@ class _CombinedPixelTransformation:
 
         if self._color_manager is not None:
             return self._color_manager.transform_frame(frame)
+
+        if frame.dtype != self.output_dtype:
+            frame = frame.astype(self.output_dtype)
 
         return frame
 
