@@ -604,8 +604,50 @@ class _CombinedPixelTransformation:
 
             # Determine how to combine modality, voi and presentation
             # transforms
-            if modality_slope_intercept is not None:
-                slope, intercept = modality_slope_intercept
+            if modality_lut is not None and not has_rwvm:
+                if voi_center_width is not None:
+                    # Apply the window function to the modality LUT
+                    self._effective_lut_data = voi_window(
+                        array=modality_lut.lut_data,
+                        window_center=voi_center_width[0],
+                        window_width=voi_center_width[1],
+                        output_range=voi_output_range,
+                        dtype=output_dtype,
+                        invert=invert,
+                    )
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+
+                elif voi_lut is not None and voi_scaled_lut_data is not None:
+                    # "Compose" the two LUTs together by applying the
+                    # second to the first
+                    self._effective_lut_data = voi_lut.apply(
+                        modality_lut.lut_data
+                    )
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+                else:
+                    # No VOI LUT transform so the modality lut operates alone
+                    if invert:
+                        self._effective_lut_data = (
+                            modality_lut.get_inverted_lut_data()
+                        )
+                    else:
+                        self._effective_lut_data = modality_lut.lut_data
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+
+            elif not has_rwvm:
+                # modality LUT either doesn't exist or is a rescale/slope
+                if modality_slope_intercept is not None:
+                    slope, intercept = modality_slope_intercept
+                else:
+                    # No rescale slope found in dataset, so treat them as the
+                    # 'identity' values
+                    slope, intercept = (1.0, 0.0)
 
                 if voi_center_width is not None:
                     # Shift and scale the window to account for the scaling
@@ -627,7 +669,10 @@ class _CombinedPixelTransformation:
                         )
                     intercept = int(intercept)
                     slope = int(slope)
-                    self._effective_lut_data = voi_scaled_lut_data[::slope]
+                    if slope != 1:
+                        self._effective_lut_data = voi_scaled_lut_data[::slope]
+                    else:
+                        self._effective_lut_data = voi_scaled_lut_data
                     adjusted_first_value = (
                         (voi_lut.first_mapped_value - intercept) / slope
                     )
@@ -665,58 +710,6 @@ class _CombinedPixelTransformation:
                             modality_slope_intercept
                         )
 
-            elif modality_lut is not None:
-                if voi_center_width is not None:
-                    # Apply the window function to the modality LUT
-                    self._effective_lut_data = voi_window(
-                        array=modality_lut.lut_data,
-                        window_center=voi_center_width[0],
-                        window_width=voi_center_width[1],
-                        output_range=voi_output_range,
-                        dtype=output_dtype,
-                        invert=invert,
-                    )
-                    self._effective_lut_first_mapped_value = (
-                        modality_lut.first_mapped_value
-                    )
-
-                elif voi_lut is not None and voi_scaled_lut_data is not None:
-                    # "Compose" the two LUTs together by applying the
-                    # second to the first
-                    self._effective_lut_data = voi_lut.apply(
-                        modality_lut.lut_data
-                    )
-                    self._effective_lut_first_mapped_value = (
-                        modality_lut.first_mapped_value
-                    )
-                else:
-                    # No VOI LUT transform so the modality lut operates alone
-                    if invert:
-                        self._effective_lut_data = (
-                            modality_lut.get_inverted_lut_data()
-                        )
-                    else:
-                        self._effective_lut_data = modality_lut.lut_data
-                    self._effective_lut_first_mapped_value = (
-                        modality_lut.first_mapped_value
-                    )
-
-            else:
-                # No modality LUT, but may still require inversion
-                if invert:
-                    # Use a rescale slope and intercept to invert the
-                    # values within their existing range
-                    if input_range is None:
-                        eff_intercept = 0
-                    else:
-                        imin, imax = input_range
-                        eff_intercept = imin + imax
-
-                    self._effective_slope_intercept = (
-                        -1,
-                        eff_intercept
-                    )
-
         if self._effective_lut_data is not None:
             if self._effective_lut_data.dtype != output_dtype:
                 self._effective_lut_data = (
@@ -727,6 +720,11 @@ class _CombinedPixelTransformation:
                 raise ValueError(
                     'Images with floating point data may not contain LUTs.'
                 )
+
+        # Slope/intercept of 1/0 is just a no-op
+        if self._effective_slope_intercept is not None:
+            if self._effective_slope_intercept == (1.0, 0.0):
+                self._effective_slope_intercept = None
 
         if self._effective_slope_intercept is not None:
             slope, intercept = self._effective_slope_intercept
