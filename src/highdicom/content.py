@@ -2090,7 +2090,7 @@ class LUT(Dataset):
         scale_factor = dtype.type(scale_factor)
         output_min = dtype.type(output_min)
 
-        lut_data = lut_data.astype(dtype)
+        lut_data = lut_data.astype(dtype, casting='safe')
         if invert:
             lut_data = -lut_data
             min = -max.astype(dtype)
@@ -2098,7 +2098,7 @@ class LUT(Dataset):
         if min != 0:
             lut_data = lut_data - min
 
-        lut_data = lut_data.astype(dtype) * scale_factor
+        lut_data = lut_data * scale_factor
 
         if output_min != 0.0:
             lut_data = lut_data + output_min

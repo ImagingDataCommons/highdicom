@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from enum import Enum
 import logging
-from os import readlink
 import sqlite3
 from typing import (
     Any,
@@ -32,7 +31,10 @@ from pydicom.datadict import (
 from pydicom.multival import MultiValue
 from pydicom.uid import ParametricMapStorage
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._module_utils import (
+    does_iod_have_pixel_data,
+    is_multiframe_image,
+)
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
 from highdicom.content import LUT
@@ -250,6 +252,11 @@ class _CombinedPixelTransformation:
             raised if it is not present.
 
         """
+        if not does_iod_have_pixel_data(image.SOPClassUID):
+            raise ValueError(
+                'Input dataset does not represent an image.'
+            )
+
         # TODO: choose VOI by explanation?
         # TODO: how to combine with multiframe?
         photometric_interpretation = image.PhotometricInterpretation
@@ -259,7 +266,7 @@ class _CombinedPixelTransformation:
             'MONOCHROME2',
         ):
             self._color_type = _ImageColorType.MONOCHROME
-        elif photometric_interpretation == 'PALETTE_COLOR':
+        elif photometric_interpretation == 'PALETTE COLOR':
             self._color_type = _ImageColorType.PALETTE_COLOR
         else:
             self._color_type = _ImageColorType.COLOR
@@ -424,9 +431,10 @@ class _CombinedPixelTransformation:
                     # TODO
                     raise RuntimeError("Segmented LUTs are not implemented.")
 
-                self._first_mapped_value, self._effective_lut = (
-                    _get_combined_palette_color_lut(image)
-                )
+                (
+                    self._effective_lut_first_mapped_value,
+                    self._effective_lut_data
+                ) = _get_combined_palette_color_lut(image)
 
         elif self._color_type == _ImageColorType.MONOCHROME:
             # Create a list of all datasets to check for transforms for
@@ -715,11 +723,27 @@ class _CombinedPixelTransformation:
                             modality_slope_intercept
                         )
 
-        if self._effective_lut_data is not None:
-            if self._effective_lut_data.dtype != output_dtype:
-                self._effective_lut_data = (
-                    self._effective_lut_data.astype(output_dtype)
+        # We don't use the color_correct_frame() function here, since we cache
+        # the ICC transform on the instance for improved performance.
+        if use_icc and 'ICCProfile' in image:
+            self._color_manager = ColorManager(image.ICCProfile)
+        else:
+            self._color_manager = None
+            if require_icc:
+                raise RuntimeError(
+                    'An ICC profile is required but not found in '
+                    'the image.'
                 )
+
+        if self._effective_lut_data is not None:
+            if self._color_manager is None:
+                # If using palette color LUT, need to keep pixels as integers
+                # to pass into color manager, otherwise eagerly converted the
+                # LUT data to the requested output type
+                if self._effective_lut_data.dtype != output_dtype:
+                    self._effective_lut_data = (
+                        self._effective_lut_data.astype(output_dtype)
+                    )
 
             if self.input_dtype.kind == 'f':
                 raise ValueError(
@@ -750,18 +774,6 @@ class _CombinedPixelTransformation:
                 raise ValueError(
                     'The VOI transformation requires a floating point data '
                     'type.'
-                )
-
-        # We don't use the color_correct_frame() function here, since we cache
-        # the ICC transform on the instance for improved performance.
-        if use_icc and 'ICCProfile' in image:
-            self._color_manager = ColorManager(image.ICCProfile)
-        else:
-            self._color_manager = None
-            if require_icc:
-                raise RuntimeError(
-                    'An ICC profile is required but not found in '
-                    'the image.'
                 )
 
     def __call__(self, frame: np.ndarray) -> np.ndarray:
@@ -825,7 +837,7 @@ class _CombinedPixelTransformation:
             )
 
         if self._color_manager is not None:
-            return self._color_manager.transform_frame(frame)
+            frame = self._color_manager.transform_frame(frame)
 
         if frame.dtype != self.output_dtype:
             frame = frame.astype(self.output_dtype)

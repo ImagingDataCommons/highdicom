@@ -56,11 +56,13 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> Tuple[
     if number_of_entries == 0:
         number_of_entries = 2 ** 16
 
+    strip_final_byte = False
     if bits_per_entry == 8:
         expected_num_bytes = number_of_entries
-        if number_of_entries % 2 == 1:
+        if expected_num_bytes % 2 == 1:
             # Account for padding byte
-            number_of_entries += 1
+            expected_num_bytes += 1
+            strip_final_byte = True
     elif bits_per_entry == 16:
         expected_num_bytes = number_of_entries * 2
     else:
@@ -108,6 +110,8 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> Tuple[
             raise RuntimeError(
                 "LUT data has incorrect length"
             )
+        if strip_final_byte:
+            lut_bytes = lut_bytes[:-1]
         lut_data.append(lut_bytes)
 
     return (

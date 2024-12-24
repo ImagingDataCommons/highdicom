@@ -1,16 +1,24 @@
 """Tests for the highdicom.image module."""
+from pathlib import Path
 import pickle
 import numpy as np
 import pydicom
+import pkgutil
 from pydicom.data import get_testdata_file, get_testdata_files
 import pytest
 
+from highdicom._module_utils import (
+    does_iod_have_pixel_data,
+)
 from highdicom.image import (
     _CombinedPixelTransformation,
     MultiFrameImage,
 )
 from highdicom.pixel_transforms import (
     voi_window,
+)
+from highdicom.pr.content import (
+    _add_icc_profile_attributes,
 )
 
 
@@ -446,7 +454,6 @@ def test_combined_transform_voi_lut():
     first_mapped_value = dcm.VOILUTSequence[0].LUTDescriptor[1]
 
     for output_dtype in [
-        np.float16,
         np.float32,
         np.float64,
     ]:
@@ -610,3 +617,134 @@ def test_combined_transform_monochrome():
             # range
             assert np.array_equal(output_arr, expected)
         assert output_arr.dtype == output_dtype
+
+
+def test_combined_transform_color():
+    # A simple color image test file, with no ICC profile
+    f = get_testdata_file('color-pl.dcm')
+    dcm = pydicom.dcmread(f)
+
+    # Not quite sure why this is needed...
+    # The original UID is not recognized
+    dcm.SOPClassUID = pydicom.uid.UltrasoundImageStorage
+
+    tf = _CombinedPixelTransformation(dcm)
+    assert tf._effective_slope_intercept is None
+    assert tf._effective_lut_data is None
+    assert tf._effective_window_center_width is None
+    assert tf._color_manager is None
+    assert tf._input_range_check is None
+    assert not tf._invert
+
+    output_arr = tf(dcm.pixel_array)
+    assert np.array_equal(output_arr, dcm.pixel_array)
+
+    msg = "An ICC profile is required but not found in the image."
+    with pytest.raises(RuntimeError, match=msg):
+        _CombinedPixelTransformation(
+            dcm,
+            apply_icc_profile=True,
+        )
+
+    # Add an ICC profile
+    # Use default sRGB profile
+    icc_profile = pkgutil.get_data(
+        'highdicom',
+        '_icc_profiles/sRGB_v4_ICC_preference.icc'
+    )
+    _add_icc_profile_attributes(
+        dcm,
+        icc_profile=icc_profile,
+    )
+    tf = _CombinedPixelTransformation(dcm)
+    assert tf._effective_slope_intercept is None
+    assert tf._effective_lut_data is None
+    assert tf._effective_window_center_width is None
+    assert tf._color_manager is not None
+    assert tf._input_range_check is None
+    assert not tf._invert
+
+    output_arr = tf(dcm.pixel_array)
+
+
+def test_combined_transform_labelmap_seg():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+
+    dcm = pydicom.dcmread(f)
+
+    for output_dtype in [
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.float16,
+        np.float32,
+        np.float64,
+    ]:
+        tf = _CombinedPixelTransformation(dcm, output_dtype=output_dtype)
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is not None
+        assert tf._effective_window_center_width is None
+        assert tf._color_manager is not None
+        assert tf._input_range_check is None
+        assert not tf._invert
+
+        input_arr = dcm.pixel_array[0]
+        output_arr = tf(input_arr)
+        assert output_arr.shape == (dcm.Rows, dcm.Columns, 3)
+        assert output_arr.dtype == output_dtype
+
+        tf = _CombinedPixelTransformation(
+            dcm,
+            output_dtype=output_dtype,
+            apply_icc_profile=False,
+        )
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is not None
+        assert tf._effective_lut_data.dtype == output_dtype
+        assert tf._effective_window_center_width is None
+        assert tf._color_manager is None
+        assert tf._input_range_check is None
+        assert not tf._invert
+
+        input_arr = dcm.pixel_array[0]
+        output_arr = tf(input_arr)
+        assert output_arr.shape == (dcm.Rows, dcm.Columns, 3)
+        assert output_arr.dtype == output_dtype
+
+
+def test_combined_transform_all_test_files():
+    # A simple test that the trasnform at least does something for the default
+    # parameters for all images in the pydicom test suite
+    all_files = get_testdata_files()
+
+    for f in all_files:
+        try:
+            dcm = pydicom.dcmread(f)
+        except:
+            continue
+
+        if 'SOPClassUID' not in dcm:
+            continue
+        if not does_iod_have_pixel_data(dcm.SOPClassUID):
+            continue
+
+        try:
+            pix = dcm.pixel_array
+        except:
+            continue
+
+        tf = _CombinedPixelTransformation(dcm)
+
+        # Crudely decide whether indexing by frame is needed
+        expected_dims = 3 if dcm.SamplesPerPixel > 1 else 2
+        if pix.ndim > expected_dims:
+            pix = pix[0]
+
+        out = tf(pix)
+        assert isinstance(out, np.ndarray)
