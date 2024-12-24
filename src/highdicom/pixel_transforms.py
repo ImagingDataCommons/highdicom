@@ -1,4 +1,5 @@
 """Functional interface for pixel transformations."""
+from enum import Enum
 from typing import Optional, Union, Tuple
 
 import numpy as np
@@ -216,7 +217,7 @@ def _check_rescale_dtype(
                 'array is floating point.'
             )
 
-        if input_dtype.kind == 'u' and intercept < 0.0:
+        if output_dtype.kind == 'u' and intercept < 0.0:
             raise ValueError(
                 'An unsigned integer data type cannot be used if the '
                 'intercept is negative.'
@@ -299,6 +300,10 @@ def voi_window(
         dtype = np.dtype(np.float64)
     else:
         dtype = np.dtype(dtype)
+        if dtype.kind != 'f':
+            raise ValueError(
+                'dtype must be a floating point data type.'
+            )
 
     window_width = dtype.type(window_width)
     window_center = dtype.type(window_center)

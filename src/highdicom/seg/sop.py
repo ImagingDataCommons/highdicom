@@ -47,7 +47,7 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom._multiframe import MultiFrameImage
+from highdicom.image import MultiFrameImage
 from highdicom.base import _check_little_endian
 from highdicom.color import CIELabColor
 from highdicom.content import (

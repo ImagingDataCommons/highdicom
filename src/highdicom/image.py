@@ -1,7 +1,8 @@
-"""Tools for working with multiframe DICOM images."""
+"""Tools for working with general DICOM images."""
 from collections import Counter
 from contextlib import contextmanager
 from copy import deepcopy
+from enum import Enum
 import logging
 import sqlite3
 from typing import (
@@ -102,25 +103,64 @@ _NO_FRAME_REF_VALUE = -1
 logger = logging.getLogger(__name__)
 
 
+class _ImageColorType(Enum):
+    """Internal enum describing color arrangement of an image."""
+    MONOCHROME = 'MONOCHROME'
+    COLOR = 'COLOR'
+    PALETTE_COLOR = 'PALETTE_COLOR'
+
+
 class _CombinedPixelTransformation:
 
-    """Class representing a combined pixel transformation."""
+    """Class representing a combined pixel transformation.
+
+    DICOM images contain multi-stage transformations to apply to the raw stored
+    pixel values. This class is intended to provdie a single class that
+    configurably and efficiently applies the net effect of the selected
+    transforms to stored pixel data.
+
+    Depending on the parameters, it may perform operations related to the
+    following:
+
+    For monochrome images:
+    * Real world value maps, which map stored pixels to real-world values and
+    is independent of all other transforms
+    * Modality LUT transformation, which transforms stored pixel values to
+    modality-specific values
+    * Value-of-interest (VOI) LUT transformation, which transforms the output
+    of the Modality LUT transform to output values in order to focus on a
+    particular region of intensities values of particular interest (such as a
+    windowing operation).
+    * Presentation LUT transformation, which inverts the range of values for
+    display.
+
+    For pseudo-color images (stored as monochrome images but displayed as color
+    images):
+    * The Palette Color LUT transformation, which maps stored single-sample
+    pixel values to 3-samples-per-pixel RGB color images.
+
+    For color images and pseudo-color images:
+    * The ICCProfile, which performs color correction.
+
+    """
 
     def __init__(
         self,
         image: Dataset,
         frame_index: int = 0,
+        *,
         output_dtype: Union[type, str, np.dtype, None] = np.float64,
-        apply_modality_transform: bool = True,
-        apply_voi_transform: bool = False,
-        voi_transform_index: int = 0,
-        apply_palette_color_lut: bool = True,
-        ensure_monochrome_2: bool = True,
+        apply_real_world_transform: bool | None = None,
         real_world_value_map_index: int = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_index: int = 0,
         voi_output_range: Tuple[float, float] = (0.0, 1.0),
-        correct_color: bool = True,
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
     ):
-        """Apply pixel transformation to a frame.
+        """
 
         Parameters
         ----------
@@ -129,49 +169,194 @@ class _CombinedPixelTransformation:
             transformation should be represented.
         frame_index: int
             Zero-based index (one less than the frame number).
-        apply_modality_transform: bool, optional
+        output_dtype: Union[type, str, np.dtype, None], optional
+            Data type of the output array.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply to apply the real-world value map to the frame.
+            The real world value map converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_index: int, optional
+            Index of the real world value map to use (multiple may be stored
+            within the dataset).
+        apply_modality_transform: bool | None, optional
             Whether to apply to the modality transform (if present in the
             dataset) the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
-        apply_voi_transform: bool, optional
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
             dataset), which limits the range of pixel values to a particular
             range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
         voi_transform_index: int, optional
             Index (zero-based) of the VOI transform to apply if multiple are
             included in the datasets. Ignored if ``apply_voi_transform`` is
             ``False`` or no VOI transform is included in the datasets. May be a
             negative integer, following standard Python indexing convention.
-        apply_palette_color_lut: bool, optional
-            Apply the palette color LUT, if present in the dataset. The palette
-            color LUT maps a single sample for each pixel stored in the dataset
-            to a 3 sample-per-pixel color image.
-        ensure_monochrome_2: bool, optional
-            If the Photometric Interpretation is MONOCHROME1, convert the range
-            of the output pixels corresponds to MONOCHROME2 (in which high
-            values are represent white and low values represent black). Ignored
-            if PhotometricInterpretation is not MONOCHROME1.
-        real_world_value_map_index: int, optional
-            Index of the real world value map to use (multiple may be stored
-            within the dataset).
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
             present.
-        correct_color: bool, optional
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
             ICC Profile.
 
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+
         """
-        # TODO: specify that code should error if no transform found?
         # TODO: choose VOI by explanation?
         # TODO: how to combine with multiframe?
-        if apply_voi_transform and not apply_modality_transform:
+        photometric_interpretation = image.PhotometricInterpretation
+
+        if photometric_interpretation in (
+            'MONOCHROME1',
+            'MONOCHROME2',
+        ):
+            self._color_type = _ImageColorType.MONOCHROME
+        elif photometric_interpretation == 'PALETTE_COLOR':
+            self._color_type = _ImageColorType.PALETTE_COLOR
+        else:
+            self._color_type = _ImageColorType.COLOR
+
+        if apply_real_world_transform is None:
+            use_rwvm = True
+            require_rwvm = False
+        else:
+            use_rwvm = bool(apply_real_world_transform)
+            require_rwvm = use_rwvm
+
+        if apply_modality_transform is None:
+            use_modality = True
+            require_modality = False
+        else:
+            use_modality = bool(apply_modality_transform)
+            require_modality = use_modality
+
+        if require_modality and require_rwvm:
             raise ValueError(
-                "Parameter 'apply_voi_transform' requires "
-                "'apply_modality_transform'."
+                "Setting both 'apply_real_world_transform' and "
+                "'apply_modality_transform' to True is not "
+                "permitted."
+            )
+        if require_rwvm:
+            # No need to search for modality or VOI since they won't be used
+            use_modality = False
+            use_voi = False
+        if require_modality:
+            # No need to search for rwvm since it won't be used
+            use_rwvm = False
+
+        if apply_voi_transform is None:
+            use_voi = True
+            require_voi = False
+        else:
+            use_voi = bool(apply_voi_transform)
+            require_voi = use_voi
+
+        if use_voi and not use_modality:
+            # The transform is dependent on first applying the modality
+            # transform
+            raise ValueError(
+                "If 'apply_voi_transform' is True or None, "
+                "'apply_modality_transform' cannot be False."
+            )
+
+        if require_rwvm and self._color_type != _ImageColorType.MONOCHROME:
+            raise ValueError(
+                'Real-world value map is required but the image is not '
+                'a monochrome image.'
+            )
+        if require_modality and self._color_type != _ImageColorType.MONOCHROME:
+            raise ValueError(
+                'Modality transform is required but the image is not '
+                'a monochrome image.'
+            )
+        if require_voi and self._color_type != _ImageColorType.MONOCHROME:
+            raise ValueError(
+                'VOI transform is required but the image is not '
+                'a monochrome image.'
+            )
+
+        if apply_palette_color_lut is None:
+            use_palette_color = True
+            require_palette_color = False
+        else:
+            use_palette_color = bool(apply_palette_color_lut)
+            require_palette_color = use_palette_color
+
+        if (
+            require_palette_color and self._color_type != 
+            _ImageColorType.PALETTE_COLOR
+        ):
+            raise ValueError(
+                'Palette color transform is required but the image is not '
+                'a palette color image.'
+            )
+
+        if apply_icc_profile is None:
+            use_icc = True
+            require_icc = False
+        else:
+            use_icc = bool(apply_icc_profile)
+            require_icc = use_icc
+
+        if use_icc and not use_palette_color:
+            # The transform is dependent on first applying the icc
+            # transform
+            raise ValueError(
+                "If 'apply_icc_transform' is True or None, "
+                "'apply_palette_color_lut' cannot be False."
+            )
+
+        if require_icc and self._color_type == _ImageColorType.MONOCHROME:
+            raise ValueError(
+                'ICC profile is required but the image is not '
+                'a color or palette color image.'
             )
 
         output_min, output_max = voi_output_range
@@ -183,7 +368,6 @@ class _CombinedPixelTransformation:
 
         self.output_dtype = np.dtype(output_dtype)
         self.applies_to_all_frames = True
-        self.is_color_input = image.SamplesPerPixel == 3
         self._input_range_check: Optional[Tuple[int, int]] = None
         self._voi_output_range = voi_output_range
         self._effective_lut_data: Optional[np.ndarray] = None
@@ -228,11 +412,8 @@ class _CombinedPixelTransformation:
                     self.input_dtype = np.dtype(np.uint32)
                 input_range = (0, 2 ** image.BitsStored)
 
-        if not self.is_color_input:
-            if (
-                image.PhotometricInterpretation == 'PALETTE COLOR' and
-                apply_palette_color_lut
-            ):
+        if self._color_type == _ImageColorType.PALETTE_COLOR:
+            if use_palette_color:
                 if 'SegmentedRedPaletteColorLookupTableData' in image:
                     # TODO
                     raise RuntimeError("Segmented LUTs are not implemented.")
@@ -240,40 +421,42 @@ class _CombinedPixelTransformation:
                 self._first_mapped_value, self._effective_lut = (
                     _get_combined_palette_color_lut(image)
                 )
-            else:
-                # Create a list of all datasets to check for transforms for
-                # this frame, and whether they are shared by all frames
-                datasets = [(image, True)]
 
-                if 'SharedFunctionalGroupsSequence' in image:
-                    datasets.append(
-                        (image.SharedFunctionalGroupsSequence[0], True)
+        elif self._color_type == _ImageColorType.MONOCHROME:
+            # Create a list of all datasets to check for transforms for
+            # this frame, and whether they are shared by all frames
+            datasets = [(image, True)]
+
+            if 'SharedFunctionalGroupsSequence' in image:
+                datasets.append(
+                    (image.SharedFunctionalGroupsSequence[0], True)
+                )
+
+            if 'PerFrameFunctionalGroupsSequence' in image:
+                datasets.append(
+                    (
+                        image.PerFrameFunctionalGroupsSequence[frame_index],
+                        False,
                     )
+                )
 
-                if 'PerFrameFunctionalGroupsSequence' in image:
-                    datasets.append(
-                        (
-                            image.PerFrameFunctionalGroupsSequence[frame_index],
-                            False,
-                        )
-                    )
+            modality_lut: Optional[LUT] = None
+            modality_slope_intercept: Optional[Tuple[float, float]] = None
 
-                modality_lut: Optional[LUT] = None
-                modality_slope_intercept: Optional[Tuple[float, float]] = None
+            voi_lut: Optional[LUT] = None
+            voi_scaled_lut_data: Optional[np.ndarray] = None
+            voi_center_width: Optional[Tuple[float, float]] = None
+            voi_function = 'LINEAR'
+            invert = False
+            has_rwvm = False
 
-                voi_lut: Optional[LUT] = None
-                voi_scaled_lut_data: Optional[np.ndarray] = None
-                voi_center_width: Optional[Tuple[float, float]] = None
-                voi_function = 'LINEAR'
-                invert = False
-                has_rwvm = False
+            if apply_presentation_lut:
+                if 'PresentationLUTShape' in image:
+                    invert = image.PresentationLUTShape == 'INVERSE'
+                elif image.PhotometricInterpretation == 'MONOCHROME1':
+                    invert = True
 
-                if ensure_monochrome_2:
-                    if 'PresentationLUTShape' in image:
-                        invert = image.PresentationLUTShape == 'INVERSE'
-                    elif image.PhotometricInterpretation == 'MONOCHROME1':
-                        invert = True
-
+            if use_rwvm:
                 for ds, is_shared in datasets:
                     rwvm_seq = ds.get('RealWorldValueMappingSequence')
                     if rwvm_seq is not None:
@@ -313,189 +496,225 @@ class _CombinedPixelTransformation:
                         has_rwvm = True
                         break
 
-                if not has_rwvm and apply_modality_transform:
+            if require_rwvm and not has_rwvm:
+                raise RuntimeError(
+                    'A real-world value map is required but not found in the '
+                    'image.'
+                )
 
-                    if 'ModalityLUTSequence' in image:
-                        modality_lut = LUT.from_dataset(
-                            image.ModalityLUTSequence[0]
-                        )
-                    else:
-                        for ds, is_shared in datasets:
-                            if (
-                                'RescaleSlope' in ds or
-                                'RescaleIntercept' in ds
-                            ):
-                                modality_slope_intercept = (
-                                    float(ds.get('RescaleSlope', 1.0)),
-                                    float(ds.get('RescaleIntercept', 0.0))
-                                )
-                                self.applies_to_all_frames = (
-                                    self.applies_to_all_frames and is_shared
-                                )
-                                break
+            if not has_rwvm and use_modality:
 
-                if not has_rwvm and apply_voi_transform:
-
-                    if 'VOILUTSequence' in image:
-                        voi_lut = LUT.from_dataset(
-                            image.VOILUTSequence[0]
-                        )
-                        voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
-                            output_range=voi_output_range,
-                            dtype=output_dtype,
-                            invert=invert,
-                        )
-                    else:
-                        for ds, is_shared in datasets:
-                            if (
-                                'WindowCenter' in ds or
-                                'WindowWidth' in ds
-                            ):
-                                voi_center = ds.WindowCenter
-                                voi_width = ds.WindowWidth
-
-                                if 'VOILUTFunction' in ds:
-                                    voi_function = ds.VOILUTFunction
-
-                                if isinstance(voi_width, list):
-                                    voi_width = voi_width[
-                                        voi_transform_index
-                                    ]
-                                elif voi_transform_index not in (0, -1):
-                                    raise IndexError(
-                                        "Requested 'voi_transform_index' is "
-                                        "not present."
-                                    )
-
-                                if isinstance(voi_center, list):
-                                    voi_center = voi_center[
-                                        voi_transform_index
-                                    ]
-                                elif voi_transform_index not in (0, -1):
-                                    raise IndexError(
-                                        "Requested 'voi_transform_index' is "
-                                        "not present."
-                                    )
-                                self.applies_to_all_frames = (
-                                    self.applies_to_all_frames and is_shared
-                                )
-                                voi_center_width = (voi_center, voi_width)
-                                break
-
-                # Determine how to combine modality, voi and presentation
-                # transforms
-                if modality_slope_intercept is not None:
-                    slope, intercept = modality_slope_intercept
-
-                    if voi_center_width is not None:
-                        # Shift and scale the window to account for the scaling
-                        # and intercept
-                        center, width = voi_center_width
-                        self._effective_window_center_width = (
-                            (center - intercept) / slope,
-                            width / slope
-                        )
-                        self._effective_voi_function = voi_function
-                        self._invert = invert
-
-                    elif voi_lut is not None and voi_scaled_lut_data is not None:
-                        # Shift and "scale" the LUT to account for the rescale
-                        if not intercept.is_integer() and slope.is_integer():
-                            raise ValueError(
-                                "Cannot apply a VOI LUT when rescale intercept "
-                                "or slope have non-integer values."
-                            )
-                        intercept = int(intercept)
-                        slope = int(slope)
-                        self._effective_lut_data = voi_scaled_lut_data[::slope]
-                        adjusted_first_value = (
-                            (voi_lut.first_mapped_value - intercept) / slope
-                        )
-                        if not adjusted_first_value.is_integer():
-                            raise ValueError(
-                                "Cannot apply a VOI LUT when rescale intercept "
-                                "or slope have non-integer values."
-                            )
-                        self._effective_lut_first_mapped_value = int(
-                            adjusted_first_value
-                        )
-                    else:
-                        # No VOI LUT transform, so the modality rescale
-                        # operates alone
-                        if invert:
-                            # Adjust the parameters to invert the intensities
-                            # within the scaled and offset range
-                            eff_slope = -slope
-                            if input_range is None:
-                                # This situation will be unusual: float valued
-                                # pixels with a rescale transform that needs to
-                                # be inverted. For simplicity, just invert
-                                # the pixel values
-                                eff_intercept = -intercept
-                            else:
-                                imin, imax = input_range
-                                eff_intercept = (
-                                    slope * (imin + imax) + intercept
-                                )
-                            self._effective_slope_intercept = (
-                                eff_slope, eff_intercept
-                            )
-                        else:
-                            self._effective_slope_intercept = (
-                                modality_slope_intercept
-                            )
-
-                elif modality_lut is not None:
-                    if voi_center_width is not None:
-                        # Apply the window function to the modality LUT
-                        self._effective_lut_data = voi_window(
-                            array=modality_lut.lut_data,
-                            window_center=voi_center_width[0],
-                            window_width=voi_center_width[1],
-                            output_range=voi_output_range,
-                            dtype=output_dtype,
-                            invert=invert,
-                        )
-                        self._effective_lut_first_mapped_value = (
-                            modality_lut.first_mapped_value
-                        )
-
-                    elif voi_lut is not None and voi_scaled_lut_data is not None:
-                        # "Compose" the two LUTs together by applying the
-                        # second to the first
-                        self._effective_lut_data = voi_lut.apply(
-                            modality_lut.lut_data
-                        )
-                        self._effective_lut_first_mapped_value = (
-                            modality_lut.first_mapped_value
-                        )
-                    else:
-                        # No VOI LUT transform so the modality lut operates alone
-                        if invert:
-                            self._effective_lut_data = (
-                                modality_lut.get_inverted_lut_data()
-                            )
-                        else:
-                            self._effective_lut_data = modality_lut.lut_data
-                        self._effective_lut_first_mapped_value = (
-                            modality_lut.first_mapped_value
-                        )
-
+                if 'ModalityLUTSequence' in image:
+                    modality_lut = LUT.from_dataset(
+                        image.ModalityLUTSequence[0]
+                    )
                 else:
-                    # No mdality LUT, but may still require inversion
+                    for ds, is_shared in datasets:
+                        if 'PixelValueTransformationSequence' in ds:
+                            sub_ds = ds.PixelValueTransformationSequence[0]
+                        else:
+                            sub_ds = ds
+
+                        if (
+                            'RescaleSlope' in sub_ds or
+                            'RescaleIntercept' in sub_ds
+                        ):
+                            modality_slope_intercept = (
+                                float(sub_ds.get('RescaleSlope', 1.0)),
+                                float(sub_ds.get('RescaleIntercept', 0.0))
+                            )
+                            self.applies_to_all_frames = (
+                                self.applies_to_all_frames and is_shared
+                            )
+                            break
+
+            if (
+                require_modality and
+                modality_lut is None and
+                modality_slope_intercept is None
+            ):
+                raise RuntimeError(
+                    'A modality LUT transform is required but not found in '
+                    'the image.'
+                )
+
+            if not has_rwvm and use_voi:
+
+                if 'VOILUTSequence' in image:
+                    voi_lut = LUT.from_dataset(
+                        image.VOILUTSequence[0]
+                    )
+                    voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
+                        output_range=voi_output_range,
+                        dtype=output_dtype,
+                        invert=invert,
+                    )
+                else:
+                    for ds, is_shared in datasets:
+                        if 'FrameVOILUTSequence' in ds:
+                            sub_ds = ds.FrameVOILUTSequence[0]
+                        else:
+                            sub_ds = ds
+
+                        if (
+                            'WindowCenter' in sub_ds or
+                            'WindowWidth' in sub_ds
+                        ):
+                            voi_center = sub_ds.WindowCenter
+                            voi_width = sub_ds.WindowWidth
+
+                            if 'VOILUTFunction' in sub_ds:
+                                voi_function = sub_ds.VOILUTFunction
+
+                            if isinstance(voi_width, list):
+                                voi_width = voi_width[
+                                    voi_transform_index
+                                ]
+                            elif voi_transform_index not in (0, -1):
+                                raise IndexError(
+                                    "Requested 'voi_transform_index' is "
+                                    "not present."
+                                )
+
+                            if isinstance(voi_center, list):
+                                voi_center = voi_center[
+                                    voi_transform_index
+                                ]
+                            elif voi_transform_index not in (0, -1):
+                                raise IndexError(
+                                    "Requested 'voi_transform_index' is "
+                                    "not present."
+                                )
+                            self.applies_to_all_frames = (
+                                self.applies_to_all_frames and is_shared
+                            )
+                            voi_center_width = (voi_center, voi_width)
+                            break
+
+            if (
+                require_voi and
+                voi_center_width is None and
+                voi_lut is None
+            ):
+                raise RuntimeError(
+                    'A VOI transform is required but not found in '
+                    'the image.'
+                )
+
+            # Determine how to combine modality, voi and presentation
+            # transforms
+            if modality_slope_intercept is not None:
+                slope, intercept = modality_slope_intercept
+
+                if voi_center_width is not None:
+                    # Shift and scale the window to account for the scaling
+                    # and intercept
+                    center, width = voi_center_width
+                    self._effective_window_center_width = (
+                        (center - intercept) / slope,
+                        width / slope
+                    )
+                    self._effective_voi_function = voi_function
+                    self._invert = invert
+
+                elif voi_lut is not None and voi_scaled_lut_data is not None:
+                    # Shift and "scale" the LUT to account for the rescale
+                    if not intercept.is_integer() and slope.is_integer():
+                        raise ValueError(
+                            "Cannot apply a VOI LUT when rescale intercept "
+                            "or slope have non-integer values."
+                        )
+                    intercept = int(intercept)
+                    slope = int(slope)
+                    self._effective_lut_data = voi_scaled_lut_data[::slope]
+                    adjusted_first_value = (
+                        (voi_lut.first_mapped_value - intercept) / slope
+                    )
+                    if not adjusted_first_value.is_integer():
+                        raise ValueError(
+                            "Cannot apply a VOI LUT when rescale intercept "
+                            "or slope have non-integer values."
+                        )
+                    self._effective_lut_first_mapped_value = int(
+                        adjusted_first_value
+                    )
+                else:
+                    # No VOI LUT transform, so the modality rescale
+                    # operates alone
                     if invert:
-                        # Use a rescale slope and intercept to invert the
-                        # values within their existing range
+                        # Adjust the parameters to invert the intensities
+                        # within the scaled and offset range
+                        eff_slope = -slope
                         if input_range is None:
-                            eff_intercept = 0
+                            # This situation will be unusual: float valued
+                            # pixels with a rescale transform that needs to
+                            # be inverted. For simplicity, just invert
+                            # the pixel values
+                            eff_intercept = -intercept
                         else:
                             imin, imax = input_range
-                            eff_intercept = imin + imax
-
+                            eff_intercept = (
+                                slope * (imin + imax) + intercept
+                            )
                         self._effective_slope_intercept = (
-                            -1,
-                            eff_intercept
+                            eff_slope, eff_intercept
                         )
+                    else:
+                        self._effective_slope_intercept = (
+                            modality_slope_intercept
+                        )
+
+            elif modality_lut is not None:
+                if voi_center_width is not None:
+                    # Apply the window function to the modality LUT
+                    self._effective_lut_data = voi_window(
+                        array=modality_lut.lut_data,
+                        window_center=voi_center_width[0],
+                        window_width=voi_center_width[1],
+                        output_range=voi_output_range,
+                        dtype=output_dtype,
+                        invert=invert,
+                    )
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+
+                elif voi_lut is not None and voi_scaled_lut_data is not None:
+                    # "Compose" the two LUTs together by applying the
+                    # second to the first
+                    self._effective_lut_data = voi_lut.apply(
+                        modality_lut.lut_data
+                    )
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+                else:
+                    # No VOI LUT transform so the modality lut operates alone
+                    if invert:
+                        self._effective_lut_data = (
+                            modality_lut.get_inverted_lut_data()
+                        )
+                    else:
+                        self._effective_lut_data = modality_lut.lut_data
+                    self._effective_lut_first_mapped_value = (
+                        modality_lut.first_mapped_value
+                    )
+
+            else:
+                # No modality LUT, but may still require inversion
+                if invert:
+                    # Use a rescale slope and intercept to invert the
+                    # values within their existing range
+                    if input_range is None:
+                        eff_intercept = 0
+                    else:
+                        imin, imax = input_range
+                        eff_intercept = imin + imax
+
+                    self._effective_slope_intercept = (
+                        -1,
+                        eff_intercept
+                    )
 
         if self._effective_lut_data is not None:
             if self._effective_lut_data.dtype != output_dtype:
@@ -522,13 +741,24 @@ class _CombinedPixelTransformation:
                 np.float64(intercept).astype(self.output_dtype),
             )
 
+        if self._effective_window_center_width is not None:
+            if self.output_dtype.kind != 'f':
+                raise ValueError(
+                    'The VOI transformation requires a floating point data '
+                    'type.'
+                )
+
         # We don't use the color_correct_frame() function here, since we cache
         # the ICC transform on the instance for improved performance.
-        if correct_color and 'ICCProfile' in image:
+        if use_icc and 'ICCProfile' in image:
             self._color_manager = ColorManager(image.ICCProfile)
         else:
             self._color_manager = None
-
+            if require_icc:
+                raise RuntimeError(
+                    'An ICC profile is required but not found in '
+                    'the image.'
+                )
 
     def __call__(self, frame: np.ndarray) -> np.ndarray:
         """Apply the composed loss.
@@ -544,7 +774,7 @@ class _CombinedPixelTransformation:
             Output frame after the transformation is applied.
 
         """
-        if self.is_color_input:
+        if self._color_type == _ImageColorType.COLOR:
             if frame.ndim != 3 or frame.shape[2] != 3:
                 raise ValueError(
                     "Expected an image of shape (R, C, 3)."
