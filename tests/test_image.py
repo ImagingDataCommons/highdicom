@@ -1,11 +1,13 @@
 """Tests for the highdicom.image module."""
 from pathlib import Path
-import pickle
-import numpy as np
-import pydicom
-import pkgutil
 from pydicom.data import get_testdata_file, get_testdata_files
+from pydicom.sr.codedict import codes
+import numpy as np
+import pickle
+import pkgutil
+import pydicom
 import pytest
+import re
 
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
@@ -20,6 +22,11 @@ from highdicom.pixel_transforms import (
 from highdicom.pr.content import (
     _add_icc_profile_attributes,
 )
+from highdicom.pm import (
+    RealWorldValueMapping,
+    ParametricMap,
+)
+from highdicom.uid import UID
 
 
 def test_slice_spacing():
@@ -406,7 +413,6 @@ def test_combined_transform_modality_lut():
     for output_dtype in [
         np.int32,
         np.int64,
-        np.float16,
         np.float32,
         np.float64,
     ]:
@@ -435,6 +441,13 @@ def test_combined_transform_modality_lut():
             dcm,
             apply_voi_transform=True,
         )
+
+    msg = re.escape(
+        "Cannot cast array data from dtype('uint16') to "
+        "dtype('float16') according to the rule 'safe'"
+    )
+    with pytest.raises(TypeError, match=msg):
+        tf = _CombinedPixelTransformation(dcm, output_dtype=np.float16)
 
     # Add a voi lut
     dcm.WindowCenter = 24
@@ -748,3 +761,65 @@ def test_combined_transform_all_test_files():
 
         out = tf(pix)
         assert isinstance(out, np.ndarray)
+
+
+def test_combined_transform_pmap_rwvm_lut():
+    # Construct a temporary parametric map with a real world value map lut
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/ct_image.dcm'
+    source_image = pydicom.dcmread(f)
+
+    m = RealWorldValueMapping(
+        lut_label='1',
+        lut_explanation='Feature 1',
+        unit=codes.UCUM.NoUnits,
+        value_range=(0, 255),
+        lut_data=[v**2 - 0.15 for v in range(256)]
+    )
+
+    pixel_array = np.zeros(
+        source_image.pixel_array.shape,
+        dtype=np.uint16
+    )
+
+    pmap = ParametricMap(
+        pixel_array=pixel_array,
+        source_images=[source_image],
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='manufacturer',
+        manufacturer_model_name='manufacturer_model_name',
+        software_versions='software_versions',
+        device_serial_number='12345',
+        real_world_value_mappings=[m],
+        contains_recognizable_visual_features=False,
+        window_center=0,
+        window_width=100,
+    )
+
+    output_dtype = np.float64
+    tf = _CombinedPixelTransformation(pmap, output_dtype=output_dtype)
+    assert tf._effective_lut_data is not None
+    assert tf._effective_lut_data.dtype == output_dtype
+    assert tf._effective_slope_intercept is None
+    assert tf._effective_window_center_width is None
+    assert tf._color_manager is None
+    assert tf._input_range_check is None
+    assert not tf._invert
+
+    out = tf(pmap.pixel_array)
+    assert out.dtype == output_dtype
+
+    test_arr = np.array([[0, 1], [254, 255]], np.uint16)
+    output_arr = tf(test_arr)
+    assert output_arr.dtype == output_dtype
+
+    msg = re.escape(
+        "Cannot cast array data from dtype('float64') to "
+        "dtype('float32') according to the rule 'safe'"
+    )
+    with pytest.raises(TypeError, match=msg):
+        tf = _CombinedPixelTransformation(pmap, output_dtype=np.float32)

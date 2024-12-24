@@ -742,7 +742,10 @@ class _CombinedPixelTransformation:
                 # LUT data to the requested output type
                 if self._effective_lut_data.dtype != output_dtype:
                     self._effective_lut_data = (
-                        self._effective_lut_data.astype(output_dtype)
+                        self._effective_lut_data.astype(
+                            output_dtype,
+                            casting='safe',
+                        )
                     )
 
             if self.input_dtype.kind == 'f':

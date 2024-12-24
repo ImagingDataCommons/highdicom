@@ -817,7 +817,7 @@ class ParametricMap(SOPClass):
                 self._pixel_data_type_map[_PixelDataType.USHORT],
             )
         raise ValueError(
-            'Unsupported data type for pixel data.'
+            'Unsupported data type for pixel data. '
             'Supported are 8-bit or 16-bit unsigned integer types as well as '
             '32-bit (single-precision) or 64-bit (double-precision) '
             'floating-point types.'
