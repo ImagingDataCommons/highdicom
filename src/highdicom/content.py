@@ -1954,8 +1954,14 @@ class LUT(Dataset):
         if bits_per_entry == 8 and length % 2 == 1 and len(data) == length + 1:
             data = data[:-1]
 
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=dtype)
+        # LUT Data may have value representation of either US (which pydicom
+        # will return as a list of ints) or OW, which pydicom will return as a
+        # bytes object
+        if self['LUTData'].VR == 'US':
+            array = np.array(data, dtype=dtype)
+        else:
+            # The LUT data attributes have VR OW (16-bit other words)
+            array = np.frombuffer(data, dtype=dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '

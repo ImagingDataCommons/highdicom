@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from enum import Enum
 import logging
+from os import readlink
 import sqlite3
 from typing import (
     Any,
