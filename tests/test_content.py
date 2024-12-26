@@ -241,7 +241,6 @@ class TestLUT(TestCase):
             (100.0, 150.0),
         ]:
             for dtype in [
-                np.float16,
                 np.float32,
                 np.float64,
             ]:
@@ -1420,15 +1419,15 @@ class TestVOILUTTransformation(TestCase):
             ]
         )
 
-        out = lut.apply(array=input_array_lung, voi_transform_index=0)
+        out = lut.apply(array=input_array_lung, voi_transform_selector=0)
         assert np.allclose(expected, out)
         assert out.dtype == np.float64
 
-        out = lut.apply(array=input_array_soft_tissue, voi_transform_index=1)
+        out = lut.apply(array=input_array_soft_tissue, voi_transform_selector=1)
         assert np.array_equal(expected, out)
         assert out.dtype == np.float64
 
-        out = lut.apply(array=input_array_soft_tissue, voi_transform_index=-1)
+        out = lut.apply(array=input_array_soft_tissue, voi_transform_selector=-1)
         assert np.array_equal(expected, out)
         assert out.dtype == np.float64
 

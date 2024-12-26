@@ -44,8 +44,10 @@ from highdicom.enum import (
 from highdicom.pixel_transforms import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
+    _select_voi_lut,
+    _select_voi_window_center_width,
     apply_lut,
-    voi_window,
+    apply_voi_window,
 )
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
@@ -157,7 +159,7 @@ class _CombinedPixelTransformation:
         real_world_value_map_index: int = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
-        voi_transform_index: int = 0,
+        voi_transform_selector: int | str = 0,
         voi_output_range: Tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
@@ -217,11 +219,18 @@ class _CombinedPixelTransformation:
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_index: int, optional
-            Index (zero-based) of the VOI transform to apply if multiple are
-            included in the datasets. Ignored if ``apply_voi_transform`` is
-            ``False`` or no VOI transform is included in the datasets. May be a
-            negative integer, following standard Python indexing convention.
+        voi_transform_selector: int | str, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpretted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the Window Center Width
+            Explanation or the LUT Explanation to choose from multiple VOI
+            transforms. Note that such explanations are optional according to
+            the standard and therefore may not be present. Ignored if
+            ``apply_voi_transform`` is ``False`` or no VOI transform is
+            included in the datasets.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -381,12 +390,13 @@ class _CombinedPixelTransformation:
 
         self.output_dtype = np.dtype(output_dtype)
         self.applies_to_all_frames = True
-        self._input_range_check: Optional[Tuple[int, int]] = None
+        self._input_range_check: tuple[int, int] | None = None
         self._voi_output_range = voi_output_range
-        self._effective_lut_data: Optional[np.ndarray] = None
+        self._effective_lut_data: np.ndarray | None = None
         self._effective_lut_first_mapped_value = 0
-        self._effective_window_center_width: Optional[Tuple[float, float]] = None
-        self._effective_slope_intercept: Optional[Tuple[float, float]] = None
+        self._effective_window_center_width: tuple[float, float] | None = None
+        self._effective_voi_function = None
+        self._effective_slope_intercept: tuple[float, float] | None = None
         self._invert = False
         self._clip = True
 
@@ -555,9 +565,16 @@ class _CombinedPixelTransformation:
             if not has_rwvm and use_voi:
 
                 if 'VOILUTSequence' in image:
-                    voi_lut = LUT.from_dataset(
-                        image.VOILUTSequence[0]
-                    )
+
+                    voi_lut_ds = _select_voi_lut(image, voi_transform_selector)
+
+                    if voi_lut_ds is None:
+                        raise IndexError(
+                            "Requested 'voi_transform_selector' is "
+                            "not present."
+                        )
+
+                    voi_lut = LUT.from_dataset(voi_lut_ds)
                     voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
                         output_range=voi_output_range,
                         dtype=output_dtype,
@@ -574,35 +591,19 @@ class _CombinedPixelTransformation:
                             'WindowCenter' in sub_ds or
                             'WindowWidth' in sub_ds
                         ):
-                            voi_center = sub_ds.WindowCenter
-                            voi_width = sub_ds.WindowWidth
+                            voi_function = sub_ds.get('VOILUTFunction', 'LINEAR')
 
-                            if 'VOILUTFunction' in sub_ds:
-                                voi_function = sub_ds.VOILUTFunction
-
-                            if isinstance(voi_width, list):
-                                voi_width = voi_width[
-                                    voi_transform_index
-                                ]
-                            elif voi_transform_index not in (0, -1):
+                            voi_center_width = _select_voi_window_center_width(
+                                sub_ds,
+                                voi_transform_selector,
+                            )
+                            if voi_center_width is None:
                                 raise IndexError(
-                                    "Requested 'voi_transform_index' is "
-                                    "not present."
-                                )
-
-                            if isinstance(voi_center, list):
-                                voi_center = voi_center[
-                                    voi_transform_index
-                                ]
-                            elif voi_transform_index not in (0, -1):
-                                raise IndexError(
-                                    "Requested 'voi_transform_index' is "
-                                    "not present."
-                                )
+                                    "Requested 'voi_transform_selector' is not present."
+                             )
                             self.applies_to_all_frames = (
                                 self.applies_to_all_frames and is_shared
                             )
-                            voi_center_width = (voi_center, voi_width)
                             break
 
             if (
@@ -620,13 +621,14 @@ class _CombinedPixelTransformation:
             if modality_lut is not None and not has_rwvm:
                 if voi_center_width is not None:
                     # Apply the window function to the modality LUT
-                    self._effective_lut_data = voi_window(
+                    self._effective_lut_data = apply_voi_window(
                         array=modality_lut.lut_data,
                         window_center=voi_center_width[0],
                         window_width=voi_center_width[1],
                         output_range=voi_output_range,
                         dtype=output_dtype,
                         invert=invert,
+                        voi_lut_function=voi_function,
                     )
                     self._effective_lut_first_mapped_value = (
                         modality_lut.first_mapped_value
@@ -830,13 +832,14 @@ class _CombinedPixelTransformation:
                 frame = frame + intercept
 
         elif self._effective_window_center_width is not None:
-            frame = voi_window(
+            frame = apply_voi_window(
                 frame,
                 window_center=self._effective_window_center_width[0],
                 window_width=self._effective_window_center_width[1],
                 dtype=self.output_dtype,
                 invert=self._invert,
                 output_range=self._voi_output_range,
+                voi_lut_function=self._effective_voi_function,
             )
 
         if self._color_manager is not None:

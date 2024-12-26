@@ -28,8 +28,10 @@ from highdicom.pixel_transforms import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
     _parse_palette_color_lut_attributes,
+    _select_voi_lut,
+    _select_voi_window_center_width,
     apply_lut,
-    voi_window,
+    apply_voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept
@@ -2402,7 +2404,7 @@ class VOILUTTransformation(Dataset):
         self,
         array: np.ndarray,
         output_range: Tuple[float, float] = (0.0, 1.0),
-        voi_transform_index: int = 0,
+        voi_transform_selector: int | str = 0,
         dtype: Union[type, str, np.dtype, None] = None,
         invert: bool = False,
         prefer_lut: bool = False,
@@ -2417,10 +2419,16 @@ class VOILUTTransformation(Dataset):
             transformation uses a LUT.
         output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped.
-        voi_transform_index: int, optional
-            Index (zero-based) of the VOI transform to apply if multiple are
-            included in the dataset. May be a negative integer, following
-            standard Python indexing convention.
+        voi_transform_selector: int | str, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpretted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the Window Center Width
+            Explanation or the LUT Explanation to choose from multiple VOI
+            transforms. Note that such explanations are optional according to
+            the standard and therefore may not be present.
         dtype: Union[type, str, numpy.dtype, None], optional
             Data type the output array. Should be a floating point data type.
             If not specified, ``numpy.float64`` is used.
@@ -2453,13 +2461,14 @@ class VOILUTTransformation(Dataset):
                 )
 
         if not self.has_window() or (self.has_lut() and prefer_lut):
-            try:
-                voi_lut = self.VOILUTSequence[voi_transform_index]
-            except IndexError as e:
+            voi_lut = _select_voi_lut(self, voi_transform_selector)
+
+            if voi_lut is None:
                 raise IndexError(
-                    "Requested 'voi_transform_index' is "
+                    "Requested 'voi_transform_selector' is "
                     "not present."
-                ) from e
+                )
+
             scaled_lut_data = voi_lut.get_scaled_lut_data(
                 output_range=output_range,
                 dtype=dtype,
@@ -2471,50 +2480,24 @@ class VOILUTTransformation(Dataset):
                 first_mapped_value=voi_lut.first_mapped_value,
             )
         else:
-            voi_lut_function = 'LINEAR'
+            voi_lut_function = self.get('VOILUTFunction', 'LINEAR')
 
-            window_center = self.WindowCenter
-            window_width = self.WindowWidth
+            center_width = _select_voi_window_center_width(
+                self,
+                voi_transform_selector
+            )
 
-            if 'VOILUTFunction' in self:
-                voi_lut_function = self.VOILUTFunction
-
-            if isinstance(window_width, (list, MultiValue)):
-                try:
-                    window_width = window_width[
-                        voi_transform_index
-                    ]
-                except IndexError as e:
-                    raise IndexError(
-                        "Requested 'voi_transform_index' is "
-                        "not present."
-                    ) from e
-            elif voi_transform_index not in (0, -1):
+            if center_width is None:
                 raise IndexError(
-                    "Requested 'voi_transform_index' is "
-                    "not present."
+                    "Requested 'voi_transform_selector' is not present."
                 )
 
-            if isinstance(window_center, (list, MultiValue)):
-                try:
-                    window_center = window_center[
-                        voi_transform_index
-                    ]
-                except IndexError as e:
-                    raise IndexError(
-                        "Requested 'voi_transform_index' is "
-                        "not present."
-                    ) from e
-            elif voi_transform_index not in (0, -1):
-                raise IndexError(
-                    "Requested 'voi_transform_index' is "
-                    "not present."
-                )
+            window_center, window_width = center_width
 
-            array = voi_window(
+            array = apply_voi_window(
                 array,
-                window_center=cast(float, window_center),
-                window_width=cast(float, window_width),
+                window_center=window_center,
+                window_width=window_width,
                 voi_lut_function=voi_lut_function,
                 output_range=output_range,
                 dtype=dtype,

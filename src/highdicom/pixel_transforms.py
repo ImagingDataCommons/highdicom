@@ -5,6 +5,7 @@ from typing import Optional, Union, Tuple
 import numpy as np
 
 from pydicom import Dataset
+from pydicom.multival import MultiValue
 from highdicom.enum import VOILUTFunctionValues
 
 
@@ -129,10 +130,10 @@ def _get_combined_palette_color_lut(
     Parameters
     ----------
     dataset: pydicom.Dataset
-        Dataset containing Palette Color LUT information. Note that any
-        number of other attributes may be included and will be ignored (for
-        example allowing an entire image with Palette Color LUT information
-        at the top level to be passed).
+        Dataset containing Palette Color LUT information. Note that any number
+        of other attributes may be included and will be ignored (for example
+        allowing an entire image dataset with Palette Color LUT information at
+        the top level to be passed).
 
     Returns
     -------
@@ -245,7 +246,121 @@ def _check_rescale_dtype(
             )
 
 
-def voi_window(
+def _select_voi_window_center_width(
+    dataset: Dataset,
+    selector: int | str,
+) -> tuple[float, float] | None:
+    """Get a specific window center and width from a VOI LUT dataset.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to search for window center and width information. This must
+        contain at a minimum the 'WindowCenter' and 'WindowWidth' attributes.
+        Note that the dataset is not search recursively, only window
+        information at the top level of the dataset is searched.
+    selector: int | str
+        Specification of the window to select. May either be an int or a str.
+        If an int, it is interpretted as a (zero-based) index of the list of
+        windows to apply. A negative integer may be used to index from the end
+        of the list following standard Python indexing convention. If a str,
+        the string that will be used to match the Window Center Width
+        Explanation to choose from multiple voi windows. Note that such
+        explanations are optional according to the standard and therefore may
+        not be present.
+
+    Returns
+    -------
+    tuple[float, float] | None:
+        If the specified window is found in the dataset, it is returned as a
+        tuple of (window center, window width). If it is not found, ``None`` is
+        returned.
+
+    """
+    voi_center = dataset.WindowCenter
+    voi_width = dataset.WindowWidth
+
+    if isinstance(selector, str):
+        explanations = dataset.get(
+            'WindowCenterWidthExplanation'
+        )
+        if explanations is None:
+            return None
+
+        if isinstance(explanations, str):
+            explanations = [explanations]
+
+        try:
+            selector = explanations.index(selector)
+        except ValueError:
+            return None
+
+    if isinstance(voi_width, MultiValue):
+        try:
+            voi_width = voi_width[selector]
+        except IndexError:
+            return None
+    elif selector not in (0, -1):
+        return None
+
+    if isinstance(voi_center, MultiValue):
+        try:
+            voi_center = voi_center[selector]
+        except IndexError:
+            return None
+    elif selector not in (0, -1):
+        return None
+
+    return float(voi_center), float(voi_width)
+
+
+def _select_voi_lut(
+    dataset: Dataset,
+    selector: int | str
+) -> Dataset | None:
+    """Get a specific VOI LUT dataset from dataset.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to search for VOI LUT information. This must contain the
+        'VOILUTSequence'. Note that the dataset is not search recursively, only
+        information at the top level of the dataset is searched.
+    selector: int | str
+        Specification of the LUT to select. May either be an int or a str. If
+        an int, it is interpretted as a (zero-based) index of the sequence of
+        LUTs to apply. A negative integer may be used to index from the end of
+        the list following standard Python indexing convention. If a str, the
+        string that will be used to match the LUT Explanation to choose from
+        multiple voi LUTs. Note that such explanations are optional according
+        to the standard and therefore may not be present.
+
+    Returns
+    -------
+    pydicom.Dataset | None:
+        If the LUT is found in the dataset, it is returned as a
+        ``pydicom.Dataset``. If it is not found, ``None`` is returned.
+
+    """
+    if isinstance(selector, str):
+        explanations = [
+            ds.get('LUTExplanation') for ds in dataset.VOILUTSequence
+        ]
+
+        try:
+            selector = explanations.index(selector)
+        except ValueError:
+            return None
+
+    try:
+        voi_lut_ds = dataset.VOILUTSequence[selector]
+    except IndexError:
+        return None
+
+    return voi_lut_ds
+
+
+def apply_voi_window(
     array: np.ndarray,
     window_center: float,
     window_width: float,

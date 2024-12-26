@@ -17,7 +17,7 @@ from highdicom.image import (
     MultiFrameImage,
 )
 from highdicom.pixel_transforms import (
-    voi_window,
+    apply_voi_window,
 )
 from highdicom.pr.content import (
     _add_icc_profile_attributes,
@@ -347,6 +347,7 @@ def test_combined_transform_ect_with_voi():
             assert tf._effective_slope_intercept is None
             assert tf._color_manager is None
             assert tf._voi_output_range == output_range
+            assert tf._effective_voi_function == 'LINEAR'
 
             input_arr = np.array(
                 [
@@ -459,6 +460,77 @@ def test_combined_transform_modality_lut():
     assert np.allclose(output_arr, expected)
 
 
+def test_combined_transform_multiple_vois():
+    # This test file includes multiple windows
+    f = get_testdata_file('examples_overlay.dcm')
+    dcm = pydicom.dcmread(f)
+    c1, c2 = dcm.WindowCenter
+    w1, w2 = dcm.WindowWidth
+
+    tf = _CombinedPixelTransformation(dcm, apply_voi_transform=None)
+    assert tf._effective_window_center_width == (c1, w1)
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector=1,
+    )
+    assert tf._effective_window_center_width == (c2, w2)
+    assert tf._effective_voi_function == 'LINEAR'
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector=-1,
+    )
+    assert tf._effective_window_center_width == (c2, w2)
+    assert tf._effective_voi_function == 'LINEAR'
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector=-2,
+    )
+    assert tf._effective_window_center_width == (c1, w1)
+    assert tf._effective_voi_function == 'LINEAR'
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector='WINDOW1',
+    )
+    assert tf._effective_window_center_width == (c1, w1)
+    assert tf._effective_voi_function == 'LINEAR'
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector='WINDOW2',
+    )
+    assert tf._effective_window_center_width == (c2, w2)
+    assert tf._effective_voi_function == 'LINEAR'
+
+    msg = "Requested 'voi_transform_selector' is not present."
+    with pytest.raises(IndexError, match=msg):
+        _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector='DOES_NOT_EXIST',
+        )
+    with pytest.raises(IndexError, match=msg):
+        _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector=2,
+        )
+    with pytest.raises(IndexError, match=msg):
+        tf = _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector=-3,
+        )
+
+
 def test_combined_transform_voi_lut():
     # A test file that has a voi LUT
     f = get_testdata_file('vlut_04.dcm')
@@ -511,6 +583,37 @@ def test_combined_transform_voi_lut():
 
             full_output_arr = tf(dcm.pixel_array)
             assert full_output_arr.dtype == output_dtype
+
+    # Create an explanation to use for searching by explanation
+    dcm.VOILUTSequence[0].LUTExplanation = 'BONE'
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector='BONE'
+    )
+    assert tf._effective_lut_data is not None
+
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector=-1,
+    )
+    assert tf._effective_lut_data is not None
+
+    msg = "Requested 'voi_transform_selector' is not present."
+    with pytest.raises(IndexError, match=msg):
+        _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector='NOT_BONE',
+        )
+    with pytest.raises(IndexError, match=msg):
+        _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector=1,
+        )
 
 
 def test_combined_transform_monochrome():
@@ -589,7 +692,7 @@ def test_combined_transform_monochrome():
 
         output_arr = tf(dcm.pixel_array)
 
-        expected = voi_window(
+        expected = apply_voi_window(
             dcm.pixel_array,
             window_width=dcm.WindowWidth,
             window_center=dcm.WindowCenter,
@@ -618,7 +721,7 @@ def test_combined_transform_monochrome():
 
         output_arr = tf(dcm.pixel_array)
 
-        expected = voi_window(
+        expected = apply_voi_window(
             dcm.pixel_array,
             window_width=dcm.WindowWidth,
             window_center=dcm.WindowCenter,
