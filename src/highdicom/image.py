@@ -29,6 +29,7 @@ from pydicom.datadict import (
     tag_for_keyword,
 )
 from pydicom.multival import MultiValue
+from pydicom.sr.coding import Code
 from pydicom.uid import ParametricMapStorage
 
 from highdicom._module_utils import (
@@ -44,6 +45,7 @@ from highdicom.enum import (
 from highdicom.pixel_transforms import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
+    _select_real_world_value_map,
     _select_voi_lut,
     _select_voi_window_center_width,
     apply_lut,
@@ -54,6 +56,7 @@ from highdicom.spatial import (
     get_image_coordinate_system,
     get_volume_positions,
 )
+from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as hd_UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
@@ -156,7 +159,7 @@ class _CombinedPixelTransformation:
         *,
         output_dtype: Union[type, str, np.dtype, None] = np.float64,
         apply_real_world_transform: bool | None = None,
-        real_world_value_map_index: int = 0,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
@@ -193,9 +196,16 @@ class _CombinedPixelTransformation:
             preferentially. This also implies that specifying both
             ``apply_real_world_transform`` and ``apply_modality_transform`` to
             True is not permitted.
-        real_world_value_map_index: int, optional
-            Index of the real world value map to use (multiple may be stored
-            within the dataset).
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply to the modality transform (if present in the
             dataset) the frame. The modality transformation maps stored pixel
@@ -225,12 +235,12 @@ class _CombinedPixelTransformation:
             interpretted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
-            the string that will be used to match the Window Center Width
-            Explanation or the LUT Explanation to choose from multiple VOI
-            transforms. Note that such explanations are optional according to
-            the standard and therefore may not be present. Ignored if
-            ``apply_voi_transform`` is ``False`` or no VOI transform is
-            included in the datasets.
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -493,13 +503,18 @@ class _CombinedPixelTransformation:
                 for ds, is_shared in datasets:
                     rwvm_seq = ds.get('RealWorldValueMappingSequence')
                     if rwvm_seq is not None:
-                        try:
-                            rwvm_item = rwvm_seq[real_world_value_map_index]
-                        except IndexError as e:
+
+                        rwvm_item = _select_real_world_value_map(
+                            rwvm_seq,
+                            real_world_value_map_selector,
+                        )
+
+                        if rwvm_item is None:
                             raise IndexError(
-                                "Requested 'real_world_value_map_index' is "
+                                "Requested 'real_world_value_map_selector' is "
                                 "not present."
-                            ) from e
+                            )
+
                         if 'RealWorldValueLUTData' in rwvm_item:
                             self._effective_lut_data = np.array(
                                 rwvm_item.RealWorldValueLUTData

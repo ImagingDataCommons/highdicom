@@ -28,6 +28,7 @@ from highdicom.pm import (
     RealWorldValueMapping,
     ParametricMap,
 )
+from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 
 
@@ -183,6 +184,25 @@ def test_combined_transform_ect_rwvm():
             dcm,
             output_dtype=np.int16,
         )
+
+    # Various different indexing methods
+    unit_code = CodedConcept('ml/100ml/s', 'UCUM', 'ml/100ml/s', '1.4')
+    for selector in [-1, 'RCBF', unit_code]:
+        tf = _CombinedPixelTransformation(
+            dcm,
+            real_world_value_map_selector=selector,
+        )
+        assert tf._effective_slope_intercept == (slope, intercept)
+
+    # Various different incorrect indexing methods
+    msg = "Requested 'real_world_value_map_selector' is not present."
+    other_unit_code = CodedConcept('m/s', 'UCUM', 'm/s', '1.4')
+    for selector in [2, -2, 'ABCD', other_unit_code]:
+        with pytest.raises(IndexError, match=msg):
+            _CombinedPixelTransformation(
+                dcm,
+                real_world_value_map_selector=selector,
+            )
 
     # Delete the real world value map
     del (

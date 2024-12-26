@@ -5,8 +5,11 @@ from typing import Optional, Union, Tuple
 import numpy as np
 
 from pydicom import Dataset
+from pydicom.sr.coding import Code
+from pydicom.sequence import Sequence as pydicom_sequence
 from pydicom.multival import MultiValue
 from highdicom.enum import VOILUTFunctionValues
+from highdicom.sr.coding import CodedConcept
 
 
 def _parse_palette_color_lut_attributes(dataset: Dataset) -> Tuple[
@@ -552,3 +555,59 @@ def apply_lut(
         array = array - first_mapped_value
 
     return lut_data[array, ...]
+
+
+def _select_real_world_value_map(
+    sequence: pydicom_sequence,
+    selector: int | str | CodedConcept | Code,
+) -> Dataset | None:
+    """Select a real world value map from a sequence.
+
+    Parameters
+    ----------
+    sequence: pydicom.sequence.Sequence
+        Sequence representing a Real World Value Mapping Sequence.
+    selector: int | str | highdicom.sr.coding.CodedConcept | pydicom.sr.coding.Code
+        Selector specifying an item in the sequence. If an integer, it is used
+        as a index to the sequence in the usual way. If a string, the
+        ``"LUTLabel"`` attribute of the items will be searched for a value that
+        exactly matches the selector. If a code, the
+        ``"MeasurementUnitsCodeSequence"`` will be searched for a value that
+        matches the selector.
+
+    Returns
+    -------
+    pydicom.Dataset | None:
+        Either an item of the input sequence that matches the selector, or
+        ``None`` if no such item is found.
+
+    """
+    if isinstance(selector, int):
+        try:
+            item = sequence[selector]
+        except IndexError:
+            return None
+
+        return item
+
+    elif isinstance(selector, str):
+        labels = [item.LUTLabel for item in sequence]
+
+        try:
+            index = labels.index(selector)
+        except ValueError:
+            return None
+
+        return sequence[index]
+
+    elif isinstance(selector, (CodedConcept, Code)):
+        units = [
+            CodedConcept.from_dataset(item.MeasurementUnitsCodeSequence[0])
+            for item in sequence
+        ]
+        try:
+            index = units.index(selector)
+        except ValueError:
+            return None
+
+        return sequence[index]
