@@ -9,9 +9,11 @@ import pydicom
 import pytest
 import re
 
+import highdicom
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
 )
+from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransformation,
     MultiFrameImage,
@@ -530,6 +532,33 @@ def test_combined_transform_multiple_vois():
             voi_transform_selector=-3,
         )
 
+    c3, w3 = (40, 400)
+    external_voi = VOILUTTransformation(
+        window_center=c3,
+        window_width=w3,
+    )
+    tf = _CombinedPixelTransformation(
+        dcm,
+        apply_voi_transform=None,
+        voi_transform_selector=external_voi,
+    )
+    assert tf._effective_window_center_width == (c3, w3)
+
+    # External VOIs should not contain multiple transforms
+    invalid_external_voi = VOILUTTransformation(
+        window_center=[100, 200],
+        window_width=[300, 400],
+    )
+    msg = (
+        "If providing a VOILUTTransformation as the "
+        "'voi_transform_selector', it must contain a single transform."
+    )
+    with pytest.raises(ValueError, match=msg):
+        tf = _CombinedPixelTransformation(
+            dcm,
+            apply_voi_transform=None,
+            voi_transform_selector=invalid_external_voi,
+        )
 
 def test_combined_transform_voi_lut():
     # A test file that has a voi LUT

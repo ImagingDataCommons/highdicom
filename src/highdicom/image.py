@@ -37,7 +37,7 @@ from highdicom._module_utils import (
 )
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
-from highdicom.content import LUT
+from highdicom.content import LUT, VOILUTTransformation
 from highdicom.enum import (
     CoordinateSystemNames,
 )
@@ -159,7 +159,7 @@ class _CombinedPixelTransformation:
         real_world_value_map_index: int = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
-        voi_transform_selector: int | str = 0,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
         voi_output_range: Tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
@@ -219,7 +219,7 @@ class _CombinedPixelTransformation:
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str, optional
+        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpretted as a (zero-based) index of the list of VOI transforms
@@ -260,10 +260,19 @@ class _CombinedPixelTransformation:
             transform will be applied if it is present, but no error will be
             raised if it is not present.
 
-        """
+        """  # noqa: E501
         if not does_iod_have_pixel_data(image.SOPClassUID):
             raise ValueError(
                 'Input dataset does not represent an image.'
+            )
+
+        if not isinstance(
+            voi_transform_selector,
+            (int, str, VOILUTTransformation),
+        ):
+            raise TypeError(
+                "Parameter 'voi_transform_selector' must have type 'int', "
+                "'str', or 'highdicom.content.VOILUTTransformation'."
             )
 
         # TODO: choose VOI by explanation?
@@ -564,47 +573,68 @@ class _CombinedPixelTransformation:
 
             if not has_rwvm and use_voi:
 
-                if 'VOILUTSequence' in image:
+                if isinstance(voi_transform_selector, VOILUTTransformation):
 
-                    voi_lut_ds = _select_voi_lut(image, voi_transform_selector)
-
-                    if voi_lut_ds is None:
-                        raise IndexError(
-                            "Requested 'voi_transform_selector' is "
-                            "not present."
-                        )
-
-                    voi_lut = LUT.from_dataset(voi_lut_ds)
-                    voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
-                        output_range=voi_output_range,
-                        dtype=output_dtype,
-                        invert=invert,
-                    )
-                else:
-                    for ds, is_shared in datasets:
-                        if 'FrameVOILUTSequence' in ds:
-                            sub_ds = ds.FrameVOILUTSequence[0]
-                        else:
-                            sub_ds = ds
-
+                    if voi_transform_selector.has_lut():
+                        if len(voi_transform_selector.VOILUTSequence) > 1:
+                            raise ValueError(
+                                "If providing a VOILUTTransformation as the "
+                                "'voi_transform_selector', it must contain "
+                                "a single transform."
+                            )
+                        voi_lut = voi_transform_selector.VOILUTSequence[0]
+                    else:
+                        voi_center = voi_transform_selector.WindowCenter
+                        voi_width = voi_transform_selector.WindowWidth
                         if (
-                            'WindowCenter' in sub_ds or
-                            'WindowWidth' in sub_ds
+                            isinstance(voi_width, MultiValue) or
+                            isinstance(voi_center, MultiValue)
                         ):
-                            voi_function = sub_ds.get('VOILUTFunction', 'LINEAR')
+                            raise ValueError(
+                                "If providing a VOILUTTransformation as the "
+                                "'voi_transform_selector', it must contain "
+                                "a single transform."
+                            )
+                        voi_center_width = (float(voi_center), float(voi_width))
+                else:
+                    # Need to find existing VOI LUT information
+                    if 'VOILUTSequence' in image:
 
-                            voi_center_width = _select_voi_window_center_width(
-                                sub_ds,
-                                voi_transform_selector,
+                        voi_lut_ds = _select_voi_lut(image, voi_transform_selector)
+
+                        if voi_lut_ds is None:
+                            raise IndexError(
+                                "Requested 'voi_transform_selector' is "
+                                "not present."
                             )
-                            if voi_center_width is None:
-                                raise IndexError(
-                                    "Requested 'voi_transform_selector' is not present."
-                             )
-                            self.applies_to_all_frames = (
-                                self.applies_to_all_frames and is_shared
-                            )
-                            break
+
+                        voi_lut = LUT.from_dataset(voi_lut_ds)
+                    else:
+                        for ds, is_shared in datasets:
+                            if 'FrameVOILUTSequence' in ds:
+                                sub_ds = ds.FrameVOILUTSequence[0]
+                            else:
+                                sub_ds = ds
+
+                            if (
+                                'WindowCenter' in sub_ds or
+                                'WindowWidth' in sub_ds
+                            ):
+                                voi_function = sub_ds.get('VOILUTFunction', 'LINEAR')
+
+                                voi_center_width = _select_voi_window_center_width(
+                                    sub_ds,
+                                    voi_transform_selector,
+                                )
+                                if voi_center_width is None:
+                                    raise IndexError(
+                                        "Requested 'voi_transform_selector' is "
+                                        'not present.'
+                                 )
+                                self.applies_to_all_frames = (
+                                    self.applies_to_all_frames and is_shared
+                                )
+                                break
 
             if (
                 require_voi and
@@ -634,7 +664,7 @@ class _CombinedPixelTransformation:
                         modality_lut.first_mapped_value
                     )
 
-                elif voi_lut is not None and voi_scaled_lut_data is not None:
+                elif voi_lut is not None:
                     # "Compose" the two LUTs together by applying the
                     # second to the first
                     self._effective_lut_data = voi_lut.apply(
@@ -675,7 +705,7 @@ class _CombinedPixelTransformation:
                     self._effective_voi_function = voi_function
                     self._invert = invert
 
-                elif voi_lut is not None and voi_scaled_lut_data is not None:
+                elif voi_lut is not None:
                     # Shift and "scale" the LUT to account for the rescale
                     if not intercept.is_integer() and slope.is_integer():
                         raise ValueError(
@@ -684,6 +714,11 @@ class _CombinedPixelTransformation:
                         )
                     intercept = int(intercept)
                     slope = int(slope)
+                    voi_scaled_lut_data = voi_lut.get_scaled_lut_data(
+                        output_range=voi_output_range,
+                        dtype=output_dtype,
+                        invert=invert,
+                    )
                     if slope != 1:
                         self._effective_lut_data = voi_scaled_lut_data[::slope]
                     else:
