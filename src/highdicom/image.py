@@ -23,6 +23,7 @@ from typing_extensions import Self
 
 import numpy as np
 from pydicom import Dataset
+from pydicom.encaps import get_frame
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
     get_entry,
@@ -30,8 +31,9 @@ from pydicom.datadict import (
 )
 from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
-from pydicom.uid import ParametricMapStorage
+from pydicom.uid import ParametricMapStorage, UID
 
+from highdicom import frame
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
@@ -42,6 +44,7 @@ from highdicom.content import LUT, VOILUTTransformation
 from highdicom.enum import (
     CoordinateSystemNames,
 )
+from highdicom.frame import decode_frame
 from highdicom.pixel_transforms import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
@@ -109,6 +112,10 @@ _NO_FRAME_REF_VALUE = -1
 
 
 logger = logging.getLogger(__name__)
+
+
+# TODO deal with extended offset table
+# TODO deal with single frame images
 
 
 class _ImageColorType(Enum):
@@ -285,7 +292,6 @@ class _CombinedPixelTransformation:
                 "'str', or 'highdicom.content.VOILUTTransformation'."
             )
 
-        # TODO: choose VOI by explanation?
         # TODO: how to combine with multiframe?
         photometric_interpretation = image.PhotometricInterpretation
 
@@ -901,9 +907,20 @@ class _CombinedPixelTransformation:
         return frame
 
 
-class MultiFrameImage(SOPClass):
+class Image(SOPClass):
 
-    """Database manager for frame information in a multiframe image."""
+    """Class representing a general DICOM image.
+
+    An "image" is any object representing an Image Information Entity.
+
+    Note that this does not correspond to a particular SOP class in DICOM, but
+    instead tries to capture behavior that is common to a large number of SOP
+    classes.
+
+    The class may not be instantiated directly, but should be created from an
+    existing dataset.
+
+    """
 
     _coordinate_system: CoordinateSystemNames
     _is_tiled_full: bool
@@ -914,14 +931,16 @@ class MultiFrameImage(SOPClass):
     _locations_preserved: Optional[SpatialLocationsPreservedValues]
     _db_con: sqlite3.Connection
     _volume_geometry: Optional[VolumeGeometry]
+    _lazy_frame_access: bool
 
     @classmethod
     def from_dataset(
         cls,
         dataset: Dataset,
         copy: bool = True,
+        lazy_frame_access: bool = False,
     ) -> Self:
-        """Create a MultiFrameImage from an existing pydicom Dataset.
+        """Create an Image from an existing pydicom Dataset.
 
         Parameters
         ----------
@@ -931,6 +950,11 @@ class MultiFrameImage(SOPClass):
             If True, the underlying dataset is deep-copied such that the
             original dataset remains intact. If False, this operation will
             alter the original dataset in place.
+        lazy_frame_access: bool, optional
+            If True, image frames are only decompressed from the raw bytes of
+            the PixelData when needed. If False, pixel data for all frames are
+            eagerly decompressed whenever any pixel data are accessed
+            (pydicom's default behavior).
 
         """
         if not isinstance(dataset, Dataset):
@@ -950,7 +974,136 @@ class MultiFrameImage(SOPClass):
         im = cast(cls, im)
 
         im._build_luts()
+        im._lazy_frame_access = lazy_frame_access
         return im
+
+    @property
+    def number_of_frames(self) -> int:
+        """int: Number of frames in the image."""
+        return self.get('NumberOfFrames', 1)
+
+    def get_frame_raw(self, frame_number: int) -> bytes:
+        """Get the raw data for an encoded frame.
+
+        Parameters
+        ----------
+        frame_number: int
+            One-based frame number.
+
+        Returns
+        -------
+        bytes:
+            Raw encoded data relating to the requested frame.
+
+        Note
+        ----
+        In some situations, where the number of bits allocated is 1, the
+        transfer syntax is not encapsulated (i.e. is native), and the number of
+        pixels per frame is not a multiple of 8, frame boundaries are not
+        aligned with byte boundaries in the raw bytes. In this situation, the
+        returned bytes will contain the minimum range of bytes required to
+        entirely contain the requested frame, however some bits may need
+        stripping from the start and/or end to get the bits related to the
+        requested frame.
+
+        """
+        if frame_number < 1 or frame_number > self.number_of_frames:
+            raise IndexError(
+                f"Invalid frame number '{frame_number}' for image with "
+                f"{self.number_of_frames} frame. Note that frame numbers "
+                "use a 1-based index."
+            )
+
+        index = frame_number - 1
+
+        if UID(self.file_meta.TransferSyntaxUID).is_encapsulated:
+            return get_frame(
+                self.PixelData,
+                index=index,
+                number_of_frames=self.number_of_frames,
+            )
+        else:
+            if self.PhotometricInterpretation == 'YBR_FULL_422':
+                # Account for subsampling of CB and CR when calculating
+                # expected number of samples
+                # See https://dicom.nema.org/medical/dicom/current/output/chtml
+                # /part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2
+                n_pixels = self.metadata.Rows * self.metadata.Columns * 2
+            else:
+                n_pixels = self.Rows * self.Columns * self.SamplesPerPixel
+
+            frame_length_bits = self.BitsAllocated * n_pixels
+            if self.BitsAllocated == 1 and (n_pixels % 8 != 0):
+                start = (index * frame_length_bits) // 8
+                end = ((index + 1) * frame_length_bits + 7) // 8
+            else:
+                frame_length = frame_length_bits // 8
+                start = index * frame_length
+                end = start + frame_length
+
+            return self.PixelData[start:end]
+
+    def get_frame(
+        self,
+        frame_number: int,
+        *,
+        output_dtype: Union[type, str, np.dtype, None] = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ) -> np.ndarray:
+        if frame_number < 1 or frame_number > self.number_of_frames:
+            raise IndexError(
+                f"Invalid frame number '{frame_number}' for image with "
+                f"{self.number_of_frames} frame. Note that frame numbers "
+                "use a 1-based index."
+            )
+
+        if (
+            self._lazy_frame_access and
+            self._pixel_array is None
+        ):
+            raw_frame = self.get_frame_raw(frame_number)
+            frame = decode_frame(
+                value=raw_frame,
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                rows=self.Rows,
+                columns=self.Columns,
+                samples_per_pixel=self.SamplesPerPixel,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.get('BitsAllocated', self.BitsAllocated),
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation,
+                planar_configuration=self.get('PlanarConfiguration'),
+                index=frame_number - 1,
+            )
+        else:
+            if self.number_of_frames == 1:
+                frame = self.pixel_array
+            else:
+                frame = self.pixel_array[frame_number - 1]
+
+        frame_transform = _CombinedPixelTransformation(
+            self,
+            output_dtype=output_dtype,
+            apply_real_world_transform=apply_real_world_transform,
+            real_world_value_map_selector=real_world_value_map_selector,
+            apply_modality_transform=apply_modality_transform,
+            apply_voi_transform=apply_voi_transform,
+            voi_transform_selector=voi_transform_selector,
+            voi_output_range=voi_output_range,
+            apply_presentation_lut=apply_presentation_lut,
+            apply_palette_color_lut=apply_palette_color_lut,
+            apply_icc_profile=apply_icc_profile,
+        )
+
+        return frame_transform(frame)
 
     def __getstate__(self) -> Dict[str, Any]:
         """Get the state for pickling.

@@ -9,14 +9,13 @@ import pydicom
 import pytest
 import re
 
-import highdicom
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
 )
 from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransformation,
-    MultiFrameImage,
+    Image,
 )
 from highdicom.pixel_transforms import (
     apply_voi_window,
@@ -36,7 +35,7 @@ def test_slice_spacing():
     ct_multiframe = pydicom.dcmread(
         get_testdata_file('eCT_Supplemental.dcm')
     )
-    image = MultiFrameImage.from_dataset(ct_multiframe)
+    image = Image.from_dataset(ct_multiframe)
 
     expected_affine = np.array(
         [
@@ -60,7 +59,7 @@ def test_slice_spacing_irregular():
     ct_multiframe.PerFrameFunctionalGroupsSequence[0].\
         PlanePositionSequence[0].ImagePositionPatient = [1.0, 0.0, 0.0]
 
-    image = MultiFrameImage.from_dataset(ct_multiframe)
+    image = Image.from_dataset(ct_multiframe)
 
     assert image.volume_geometry is None
 
@@ -70,7 +69,7 @@ def test_pickle():
     ct_multiframe = pydicom.dcmread(
         get_testdata_file('eCT_Supplemental.dcm')
     )
-    image = MultiFrameImage.from_dataset(ct_multiframe)
+    image = Image.from_dataset(ct_multiframe)
 
     ptr = image.dimension_index_pointers[0]
 
@@ -82,7 +81,7 @@ def test_pickle():
     assert not image.are_dimension_indices_unique([ptr])
 
     unpickled = pickle.loads(pickled)
-    assert isinstance(unpickled, MultiFrameImage)
+    assert isinstance(unpickled, Image)
 
     # Check that the database has been successfully restored in the
     # deserialization process

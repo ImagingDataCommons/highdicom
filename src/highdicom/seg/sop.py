@@ -47,7 +47,7 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom.image import MultiFrameImage
+from highdicom.image import Image
 from highdicom.base import _check_little_endian
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -170,7 +170,7 @@ def _check_numpy_value_representation(
         )
 
 
-class Segmentation(MultiFrameImage):
+class Segmentation(Image):
 
     """SOP class for the Segmentation IOD."""
 

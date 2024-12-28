@@ -2,7 +2,7 @@
 import logging
 import sys
 import traceback
-from typing import List, Tuple, Union, cast
+from typing import List, Tuple, Union
 from typing_extensions import Self
 from pathlib import Path
 
@@ -17,13 +17,11 @@ from pydicom.filereader import (
     read_file_meta_info,
     read_partial
 )
-from pydicom.pixels.utils import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
 from pydicom.uid import UID
 
 from highdicom.frame import decode_frame
 from highdicom.color import ColorManager
-from highdicom.content import LUT, PaletteColorLUTTransformation
 
 logger = logging.getLogger(__name__)
 
@@ -600,14 +598,6 @@ class ImageFileReader:
 
         logger.debug(f'decode frame #{index}')
 
-        if self.metadata.BitsAllocated == 1:
-            unpacked_frame = cast(np.ndarray, unpack_bits(frame_data))
-            rows, columns = self.metadata.Rows, self.metadata.Columns
-            n_pixels = self._pixels_per_frame
-            pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
-            pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
-            return pixel_array.reshape(rows, columns)
-
         frame_array = decode_frame(
             frame_data,
             rows=self.metadata.Rows,
@@ -620,7 +610,8 @@ class ImageFileReader:
             pixel_representation=self.metadata.PixelRepresentation,
             planar_configuration=getattr(
                 self.metadata, 'PlanarConfiguration', None
-            )
+            ),
+            index=index,
         )
 
         # We don't use the color_correct_frame() function here, since we cache
@@ -639,302 +630,6 @@ class ImageFileReader:
             return self._color_manager.transform_frame(frame_array)
 
         return frame_array
-
-    def read_transformed_frame(
-        self,
-        index: int,
-        apply_modality_transform: bool = True,
-        apply_voi_transform: bool = False,
-        voi_transform_index: int = 0,
-        apply_palette_color_lut: bool = True,
-        ensure_monochrome_2: bool = True,
-        window_output_min: float = 0.0,
-        window_output_max: float = 1.0,
-        correct_color: bool = True,
-    ) -> np.ndarray:
-        """Reads a frame using pixel transformations defined in the dataset.
-
-        Parameters
-        ----------
-        index: int
-            Zero-based frame index
-        apply_modality_transform: bool, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
-            values to output values, either using a LUT or rescale slope and
-            intercept.
-        apply_voi_transform: bool, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
-            dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
-        voi_transform_index: int, optional
-            Index (zero-based) of the VOI transform to apply if multiple are
-            included in the datasets. Ignored if ``apply_voi_transform`` is
-            ``False`` or no VOI transform is included in the datasets. May be a
-            negative integer, following standard Python indexing convention.
-        apply_palette_color_lut: bool, optional
-            Apply the palette color LUT, if present in the dataset. The palette
-            color LUT maps a single sample for each pixel stored in the dataset
-            to a 3 sample-per-pixel color image.
-        ensure_monochrome_2: bool, optional
-            If the Photometric Interpretation is MONOCHROME1, convert the range
-            of the output pixels corresponds to MONOCHROME2 (in which high
-            values are represent white and low values represent black). Ignored
-            if PhotometricInterpretation is not MONOCHROME1.
-        window_output_min: float, optional
-            Value to which the lower edge of the window is mapped.
-        window_output_max: float, optional
-            Value to which the upper edge of the window is mapped.
-        correct_color: bool, optional
-            Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
-            ICC Profile.
-
-        Returns
-        -------
-        np.ndarray
-            Output array, having undergone the pixel transformation. Will have
-            shape of either (rows, columns) or (rows, columns, samples).
-            TODO document datatype.
-
-        """
-        frame = self.read_frame(index, correct_color=False)
-
-        return self._transform_frame(
-            frame=frame,
-            frame_index=index,
-            apply_modality_transform=apply_modality_transform,
-            apply_voi_transform=apply_voi_transform,
-            voi_transform_index=voi_transform_index,
-            apply_palette_color_lut=apply_palette_color_lut,
-            ensure_monochrome_2=ensure_monochrome_2,
-            window_output_min=window_output_min,
-            window_output_max=window_output_max,
-            correct_color=correct_color,
-        )
-
-    def _transform_frame(
-        self,
-        frame: np.ndarray,
-        frame_index: int,
-        apply_modality_transform: bool = True,
-        apply_voi_transform: bool = False,
-        voi_transform_index: int = 0,
-        apply_palette_color_lut: bool = True,
-        ensure_monochrome_2: bool = True,
-        output_range: Tuple[float, float] = (0.0, 1.0),
-        correct_color: bool = True,
-    ) -> np.ndarray:
-        """Apply pixel transformation to a frame.
-
-        Parameters
-        ----------
-        frame: n.ndarray
-            Numpy array of the frame. Integer datatype and with shape (rows,
-            columns) or (rows, columns, samples).
-        frame_index: int
-            Zero-based index (one less than the frame number).
-        apply_modality_transform: bool, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
-            values to output values, either using a LUT or rescale slope and
-            intercept.
-        apply_voi_transform: bool, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
-            dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
-        voi_transform_index: int, optional
-            Index (zero-based) of the VOI transform to apply if multiple are
-            included in the datasets. Ignored if ``apply_voi_transform`` is
-            ``False`` or no VOI transform is included in the datasets. May be a
-            negative integer, following standard Python indexing convention.
-        apply_palette_color_lut: bool, optional
-            Apply the palette color LUT, if present in the dataset. The palette
-            color LUT maps a single sample for each pixel stored in the dataset
-            to a 3 sample-per-pixel color image.
-        ensure_monochrome_2: bool, optional
-            If the Photometric Interpretation is MONOCHROME1, convert the range
-            of the output pixels corresponds to MONOCHROME2 (in which high
-            values are represent white and low values represent black). Ignored
-            if PhotometricInterpretation is not MONOCHROME1.
-        output_range: Tuple[float, float], optional
-            Range of output values to which the VOI range is mapped. Only
-            relevant if ``apply_voi_transform`` is True and a VOI transform is
-            present.
-        correct_color: bool, optional
-            Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
-            ICC Profile.
-
-        Returns
-        -------
-        np.ndarray
-            Output array, having undergone the pixel transformation. Will have
-            shape of either (rows, columns) or (rows, columns, samples).
-            TODO document datatype.
-
-        """
-        # TODO: real world value map
-        # TODO: what if modality LUT outputs non-integer and there a VOI LUT?
-        # TODO: specify that code should error if no transform found?
-        # TODO: output range for VOI LUT and monochrome1
-        # TODO: how to combine with multiframe?
-        if apply_voi_transform and not apply_modality_transform:
-            raise ValueError(
-                "Parameter 'apply_voi_transform' requires "
-                "'apply_modality_transform'."
-            )
-
-        output_min, output_max = output_range
-        if output_min >= output_max:
-            raise ValueError(
-                "Second value of 'output_range' must be higher than the first."
-            )
-
-        # Crrate a list of all datasets to check for transforms for this frame
-        datasets = [self.metadata]
-
-        if 'SharedFunctionalGroupsSequence' in self.metadata:
-            datasets.append(self.metadata.SharedFunctionalGroupsSequence[0])
-
-        if 'PerFrameFunctionalGroupsSequence' in self.metadata:
-            datasets.append(
-                self.metadata.PerFrameFunctionalGroupsSequence[frame_index]
-            )
-
-        if self.metadata.SamplesPerPixel == 1:
-            if self.metadata.PhotometricInterpretation == 'PALETTE COLOR':
-
-                if apply_palette_color_lut:
-                    if self._palette_color_lut is None:
-                        self._palette_color_lut = (
-                            PaletteColorLUTTransformation.from_dataset(
-                                self.metadata
-                            )
-                        )
-                    frame = self._palette_color_lut.apply(frame)
-
-            else:
-                if apply_modality_transform:
-
-                    if 'ModalityLUTSequence' in self.metadata:
-                        self._modality_lut = LUT.from_dataset(
-                            self.metadata.ModalityLUTSequence[0]
-                        )
-                        frame = self._modality_lut.apply(frame)
-                    else:
-                        slope = None
-                        intercept = None
-                        for ds in datasets:
-                            if (
-                                'RescaleSlope' in ds or
-                                'RescaleIntercept' in ds
-                            ):
-                                slope = float(ds.get('RescaleSlope', 1.0))
-                                intercept = float(
-                                    ds.get('RescaleIntercept', 0.0)
-                                )
-                                break
-
-                        if slope is not None or intercept is not None:
-                            frame = frame * slope + intercept
-
-                if apply_voi_transform:
-
-                    if 'VOILUTSequence' in self.metadata:
-                        self._voi_lut = LUT.from_dataset(
-                            self.metadata.VOILUTSequence[0]
-                        )
-                        frame = self._voi_lut.apply(frame)
-                        # TODO should rescale here?
-                    else:
-                        window_center = None
-                        window_width = None
-                        voi_function = 'LINEAR'
-
-                        for ds in datasets:
-                            if (
-                                'WindowCenter' in ds or
-                                'WindowWidth' in ds
-                            ):
-                                window_center = ds.WindowCenter
-                                window_width = ds.WindowWidth
-
-                                if 'VOILUTFunction' in ds:
-                                    voi_function = ds.VOILUTFunction
-
-                                if isinstance(window_width, list):
-                                    window_width = window_width[
-                                        voi_transform_index
-                                    ]
-                                elif voi_transform_index not in (0, -1):
-                                    raise IndexError(
-                                        "Requested 'voi_transform_index' is "
-                                        "not present."
-                                    )
-
-                                if isinstance(window_center, list):
-                                    window_center = window_center[
-                                        voi_transform_index
-                                    ]
-                                elif voi_transform_index not in (0, -1):
-                                    raise IndexError(
-                                        "Requested 'voi_transform_index' is "
-                                        "not present."
-                                    )
-                                break
-
-                        if (
-                            window_center is not None and
-                            window_width is not None
-                        ):
-                            if voi_function in ('LINEAR', 'LINEAR_EXACT'):
-                                window_min = window_center - window_width / 2.0
-                                output_range = output_max - output_min
-                                if voi_function == 'LINEAR':
-                                    # LINEAR uses the range
-                                    # from c - 0.5w to c + 0.5w - 1
-                                    scale_factor = (
-                                        output_range / (window_width - 1)
-                                    )
-                                else:
-                                    # LINEAR_EXACT uses the full range
-                                    # from c - 0.5w to c + 0.5w
-                                    scale_factor = output_range / window_width
-
-                                frame = (
-                                    (frame - window_min) * scale_factor +
-                                    output_min
-                                )
-                            elif voi_function == 'SIGMOID':
-                                exp_term = np.exp(
-                                    -4.0 * (frame - window_center) /
-                                    window_width
-                                )
-                                frame = (
-                                    (output_max - output_min) /
-                                    (1.0 + exp_term)
-                                )
-                            else:
-                                raise ValueError(
-                                    'Unrecognized value for VOILUTFunction: '
-                                    f"'{voi_function}'"
-                                )
-
-                            frame = np.clip(frame, output_min, output_max)
-
-                if ensure_monochrome_2:
-                    if self.metadata.PhotometricInterpretation == 'MONOCHROME1':
-                        # Flip pixel intensities within the same range
-                        frame = frame.min() + frame.max() - frame
-
-        # We don't use the color_correct_frame() function here, since we cache
-        # the ICC transform on the reader instance for improved performance.
-        if correct_color and frame.shape[-1] == 3:
-            if self._color_manager is not None:
-                frame = self._color_manager.transform_frame(frame)
-
-        return frame
 
     @property
     def number_of_frames(self) -> int:

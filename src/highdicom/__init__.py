@@ -53,6 +53,7 @@ from highdicom.enum import (
     VOILUTFunctionValues,
 )
 from highdicom import frame
+from highdicom.image import Image
 from highdicom import io
 from highdicom import spatial
 from highdicom.uid import UID
@@ -76,6 +77,7 @@ __all__ = [
     'LateralityValues',
     'ModalityLUT',
     'ModalityLUTTransformation',
+    'Image',
     'PadModes',
     'PaletteColorLUT',
     'PaletteColorLUTTransformation',
