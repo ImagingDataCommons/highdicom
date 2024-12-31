@@ -33,7 +33,10 @@ from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
 from pydicom.uid import ParametricMapStorage, UID
 
-from highdicom import frame
+from highdicom._value_types import (
+    _DCM_PYTHON_TYPE_MAP,
+    _DCM_SQL_TYPE_MAP,
+)
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
@@ -67,47 +70,6 @@ from highdicom.utils import (
 from highdicom.volume import VolumeGeometry
 
 
-# Dictionary mapping DCM VRs to appropriate SQLite types
-_DCM_SQL_TYPE_MAP = {
-    'CS': 'VARCHAR',
-    'DS': 'REAL',
-    'FD': 'REAL',
-    'FL': 'REAL',
-    'IS': 'INTEGER',
-    'LO': 'TEXT',
-    'LT': 'TEXT',
-    'PN': 'TEXT',
-    'SH': 'TEXT',
-    'SL': 'INTEGER',
-    'SS': 'INTEGER',
-    'ST': 'TEXT',
-    'UI': 'TEXT',
-    'UL': 'INTEGER',
-    'UR': 'TEXT',
-    'US or SS': 'INTEGER',
-    'US': 'INTEGER',
-    'UT': 'TEXT',
-}
-_DCM_PYTHON_TYPE_MAP = {
-    'CS': str,
-    'DS': float,
-    'FD': float,
-    'FL': float,
-    'IS': int,
-    'LO': str,
-    'LT': str,
-    'PN': str,
-    'SH': str,
-    'SL': int,
-    'SS': int,
-    'ST': str,
-    'UI': str,
-    'UL': int,
-    'UR': str,
-    'US or SS': int,
-    'US': int,
-    'UT': str,
-}
 _NO_FRAME_REF_VALUE = -1
 
 
@@ -641,7 +603,9 @@ class _CombinedPixelTransformation:
                                 'WindowCenter' in sub_ds or
                                 'WindowWidth' in sub_ds
                             ):
-                                voi_function = sub_ds.get('VOILUTFunction', 'LINEAR')
+                                voi_function = str(
+                                    sub_ds.get('VOILUTFunction', 'LINEAR')
+                                )
 
                                 voi_center_width = _select_voi_window_center_width(
                                     sub_ds,
@@ -837,6 +801,14 @@ class _CombinedPixelTransformation:
                     'type.'
                 )
 
+        self.color_output = (
+            self._color_type == _ImageColorType.COLOR or
+            (
+                self._color_type == _ImageColorType.PALETTE_COLOR and
+                self._effective_lut_data is not None
+            )
+        )
+
     def __call__(self, frame: np.ndarray) -> np.ndarray:
         """Apply the composed loss.
 
@@ -914,8 +886,7 @@ class Image(SOPClass):
     An "image" is any object representing an Image Information Entity.
 
     Note that this does not correspond to a particular SOP class in DICOM, but
-    instead tries to capture behavior that is common to a large number of SOP
-    classes.
+    instead captures behavior that is common to a number of SOP classes.
 
     The class may not be instantiated directly, but should be created from an
     existing dataset.
@@ -1065,6 +1036,8 @@ class Image(SOPClass):
                 "use a 1-based index."
             )
 
+        frame_index = frame_number - 1
+
         if (
             self._lazy_frame_access and
             self._pixel_array is None
@@ -1091,6 +1064,7 @@ class Image(SOPClass):
 
         frame_transform = _CombinedPixelTransformation(
             self,
+            frame_index=frame_index,
             output_dtype=output_dtype,
             apply_real_world_transform=apply_real_world_transform,
             real_world_value_map_selector=real_world_value_map_selector,

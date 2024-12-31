@@ -502,7 +502,7 @@ def test_volume_transformer():
         with pytest.raises(ValueError):
             transformer(np.array([oob_indices]))
 
-    geometry3 = geometry2.permute_axes([2, 1, 0])
+    geometry3 = geometry2.permute_spatial_axes([2, 1, 0])
     expected = np.array(
         [
             [1, 5, 8],

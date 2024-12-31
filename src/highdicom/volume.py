@@ -1,18 +1,26 @@
+"""Representations of multidimensional arrays with spatial metadata."""
 from abc import ABC, abstractmethod
-from os import PathLike
+from enum import Enum
+import itertools
+from os import PathLike, chflags
 from pathlib import Path
-from typing import List, Optional, Sequence, Union, Tuple, cast
+from typing import Any, List, Optional, Sequence, Type, Union, Tuple, cast
+from pydicom.tag import BaseTag
 from typing_extensions import Self
 
 import numpy as np
 
+from highdicom._value_types import (
+    _DCM_PYTHON_TYPE_MAP
+)
 from highdicom._module_utils import is_multiframe_image
-from highdicom.color import ColorManager
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
     PadModes,
     PatientOrientationValuesBiped,
+    RGBColorChannels,
+    SpecialChannelIdentifiers,
 )
 from highdicom.spatial import (
     _create_affine_transformation_matrix,
@@ -25,11 +33,6 @@ from highdicom.spatial import (
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     get_closest_patient_orientation,
-    get_image_coordinate_system,
-    get_plane_sort_index,
-    get_volume_positions,
-    get_series_volume_positions,
-    sort_datasets,
 )
 from highdicom.content import (
     PixelMeasuresSequence,
@@ -37,12 +40,11 @@ from highdicom.content import (
     PlanePositionSequence,
 )
 
-from pydicom import Dataset, dcmread
-from pydicom.pixel_data_handlers.util import (
-    apply_modality_lut,
-    apply_color_lut,
-    apply_voi_lut,
-    convert_color_space,
+from pydicom import dcmread
+from pydicom.datadict import (
+    get_entry,
+    tag_for_keyword,
+    keyword_for_tag,
 )
 
 
@@ -59,6 +61,129 @@ from pydicom.pixel_data_handlers.util import (
 # TODO make multiframe public
 # TODO allow non-consecutive segments when reading (confirm with standard)?
 # TODO check logic around slice thickness and spacing for seg creation
+# TODO what do about multiple custom channels
+
+
+class ChannelIdentifier:
+
+    def __init__(
+        self,
+        identifier: str | int | Self,
+        is_custom: bool = False,
+        value_type: type | None = None,
+    ):
+        if isinstance(identifier, self.__class__):
+            self._keyword = identifier.keyword
+            self._tag = identifier.tag
+            self._value_type = identifier.value_type
+            return
+
+        if is_custom:
+            if not isinstance(identifier, str):
+                raise TypeError(
+                    'Custom identifiers must be specified via a string.'
+                )
+            if tag_for_keyword(identifier) is not None:
+                raise ValueError(
+                    f"The string '{identifier}' cannot be used for a "
+                    "custom channel identifier because it is a DICOM "
+                    "keyword."
+                )
+            self._keyword = identifier
+            self._tag: BaseTag | None = None
+
+            if value_type is None:
+                raise TypeError(
+                    "Argument 'value_type' must be specified when defining "
+                    "a custom channel identifier."
+                )
+
+            if not issubclass(value_type, (str, int, float, Enum)):
+                raise ValueError(
+                    "Argument 'value_type' must be str, int, float, Enum "
+                    "or a subclass of these."
+                )
+
+            if value_type is Enum:
+                raise ValueError(
+                    "When using Enums, argument 'value_type' must be a specific "
+                    "subclass of Enum "
+                )
+
+            self._value_type = value_type
+        else:
+            if isinstance(identifier, int):  # also covers BaseTag
+                self._tag = BaseTag(identifier)
+                keyword = keyword_for_tag(identifier)
+                if keyword is None:
+                    self._keyword = str(self._tag)
+                else:
+                    self._keyword = keyword
+
+            elif isinstance(identifier, str):
+                t = tag_for_keyword(identifier)
+
+                if t is None:
+                    raise ValueError(
+                        f'No attribute found with keyword {identifier}. '
+                        'You may need to specify a custom identifier '
+                        "using 'is_custom'."
+                    )
+
+                self._tag = BaseTag(t)
+                self._keyword = identifier
+            else:
+                raise TypeError(
+                    "Argument 'identifier' must be an int or str."
+                )
+
+            if value_type is not None:
+                raise TypeError(
+                    "Argument 'value_type' should only be specified when defining "
+                    "a custom channel identifier."
+                )
+
+            vr, _, _, _, _ = get_entry(self._tag)
+            self._value_type = _DCM_PYTHON_TYPE_MAP[vr]
+
+    @property
+    def value_type(self) -> type:
+        return self._value_type
+
+    @property
+    def keyword(self) -> str:
+        return self._keyword
+
+    @property
+    def tag(self) -> BaseTag | None:
+        return self._tag
+
+    @property
+    def is_custom(self) -> bool:
+        return self._tag is None
+
+    @property
+    def is_enumerated(self) -> bool:
+        return issubclass(self.value_type, Enum)
+
+    def __hash__(self) -> int:
+        return hash(self._keyword)
+
+    def __str__(self):
+        return self._keyword
+
+    def __repr__(self):
+        return self._keyword
+
+    def __eq__(self, other):
+        return self._keyword == other._keyword
+
+
+rgb_color_channel_identifier = ChannelIdentifier(
+    'RGBColorChannel',
+    value_type=RGBColorChannels,
+    is_custom=True,
+)
 
 
 class _VolumeBase(ABC):
@@ -764,7 +889,7 @@ class _VolumeBase(ABC):
         pass
 
     @abstractmethod
-    def permute_axes(self, indices: Sequence[int]) -> Self:
+    def permute_spatial_axes(self, indices: Sequence[int]) -> Self:
         """Create a new volume by permuting the spatial axes.
 
         Parameters
@@ -782,7 +907,7 @@ class _VolumeBase(ABC):
         """
         pass
 
-    def random_permute_axes(
+    def random_permute_spatial_axes(
         self,
         axes: Sequence[int] = (0, 1, 2)
     ) -> Self:
@@ -823,7 +948,7 @@ class _VolumeBase(ABC):
             missing_index = {0, 1, 2} - set(indices)
             indices.insert(missing_index, missing_index)
 
-        return self.permute_axes(indices)
+        return self.permute_spatial_axes(indices)
 
     def get_closest_patient_orientation(self) -> Tuple[
         PatientOrientationValuesBiped,
@@ -886,13 +1011,13 @@ class _VolumeBase(ABC):
             permute_indices.append(from_index)
 
         if len(flip_axes) > 0:
-            result = self.flip(flip_axes)
+            result = self.flip_spatial(flip_axes)
         else:
             result = self
 
-        return result.permute_axes(permute_indices)
+        return result.permute_spatial_axes(permute_indices)
 
-    def swap_axes(self, axis_1: int, axis_2: int) -> Self:
+    def swap_spatial_axes(self, axis_1: int, axis_2: int) -> Self:
         """Swap the spatial axes of the array.
 
         Parameters
@@ -923,9 +1048,9 @@ class _VolumeBase(ABC):
         permutation[axis_1] = axis_2
         permutation[axis_2] = axis_1
 
-        return self.permute_axes(permutation)
+        return self.permute_spatial_axes(permutation)
 
-    def flip(self, axes: Union[int, Sequence[int]]) -> Self:
+    def flip_spatial(self, axes: Union[int, Sequence[int]]) -> Self:
         """Flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -962,7 +1087,7 @@ class _VolumeBase(ABC):
 
         return self[tuple(index)]
 
-    def random_flip(self, axes: Sequence[int] = (0, 1, 2)) -> Self:
+    def random_flip_spatial(self, axes: Sequence[int] = (0, 1, 2)) -> Self:
         """Randomly flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -1062,16 +1187,16 @@ class _VolumeBase(ABC):
             return self
 
         if flip_axis is not None:
-            return self.flip(flip_axis)
+            return self.flip_spatial(flip_axis)
 
         if len(swap_axes) != 2:
             raise ValueError(
                 "Argument 'swap_axes' must have length 2."
             )
 
-        return self.swap_axes(swap_axes[0], swap_axes[1])
+        return self.swap_spatial_axes(swap_axes[0], swap_axes[1])
 
-    def pad_to_shape(
+    def pad_to_spatial_shape(
         self,
         spatial_shape: Sequence[int],
         *,
@@ -1140,7 +1265,7 @@ class _VolumeBase(ABC):
             per_channel=per_channel,
         )
 
-    def crop_to_shape(self, spatial_shape: Sequence[int]) -> Self:
+    def crop_to_spatial_shape(self, spatial_shape: Sequence[int]) -> Self:
         """Center-crop volume to a given spatial shape.
 
         Parameters
@@ -1179,7 +1304,7 @@ class _VolumeBase(ABC):
             crop_vals[2][0]:crop_vals[2][1],
         ]
 
-    def pad_or_crop_to_shape(
+    def pad_or_crop_to_spatial_shape(
         self,
         spatial_shape: Sequence[int],
         *,
@@ -1238,7 +1363,7 @@ class _VolumeBase(ABC):
                 pad_front = diff // 2
                 pad_back = diff - pad_front
                 pad_width.append((pad_front, pad_back))
-                crop_vals.append((0, outsize))
+                crop_vals.append((0, insize))
             elif diff < 0:
                 crop_front = (-diff) // 2
                 crop_back = (-diff) - crop_front
@@ -1406,7 +1531,7 @@ class _VolumeBase(ABC):
 
         requires_permute = permute_indices != [0, 1, 2]
         if requires_permute:
-            new_volume = self.permute_axes(permute_indices)
+            new_volume = self.permute_spatial_axes(permute_indices)
             step_sizes = [step_sizes[i] for i in permute_indices]
         else:
             new_volume = self
@@ -1716,7 +1841,7 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def permute_axes(self, indices: Sequence[int]) -> Self:
+    def permute_spatial_axes(self, indices: Sequence[int]) -> Self:
         """Create a new geometry by permuting the spatial axes.
 
         Parameters
@@ -1796,15 +1921,16 @@ class Volume(_VolumeBase):
         array: np.ndarray,
         affine: np.ndarray,
         frame_of_reference_uid: Optional[str] = None,
+        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ):
         """
 
         Parameters
         ----------
         array: numpy.ndarray
-            Array of voxel data. Must be either 3D (three spatial dimensions),
-            or 4D (three spatial dimensions followed by a channel dimension).
-            Any datatype is permitted.
+            Array of voxel data. Must be at least 3D. The first three
+            dimensions are the three spatial dimensions, and any subsequent
+            dimensions are channel dimensions. Any datatype is permitted.
         affine: numpy.ndarray
             4 x 4 affine matrix representing the transformation from pixel
             indices (slice index, row index, column index) to the
@@ -1814,236 +1940,80 @@ class Volume(_VolumeBase):
             component. The last row should have value [0, 0, 0, 1].
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
+        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keywork describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
 
         """
         super().__init__(
             affine=affine,
             frame_of_reference_uid=frame_of_reference_uid,
         )
-        if array.ndim not in (3, 4):
+        if array.ndim < 3:
             raise ValueError(
-                "Argument 'array' must be three or four-dimensional."
+                "Argument 'array' must be at least three dimensional."
             )
+
+        if channels is None:
+            channels = {}
+
+        if len(channels) != array.ndim - 3:
+            raise ValueError(
+                f"Number of items in the 'channels' parameter ({len(channels)}) "
+                'does not match the number of channels dimensions in the array '
+                f'({array.ndim - 3}).'
+            )
+
+        self._channels: dict[
+            ChannelIdentifier, list[str | int | float | Enum]
+        ] = {}
+
+        # NB insertion order of the dictionary is significant
+        for a, (iden, values) in enumerate(channels.items()):
+
+            channel_number = a + 3
+
+            if not isinstance(iden, ChannelIdentifier):
+                iden_obj = ChannelIdentifier(iden)
+            else:
+                iden_obj = iden
+
+            if iden_obj.is_enumerated:
+                values = [iden_obj.value_type(v) for v in values]
+
+            expected_length = array.shape[channel_number]
+            if len(values) != expected_length:
+                raise ValueError(
+                    f'Number of values for channel number {channel_number} '
+                    f'({len(values)}) does not match the size of the corresponding '
+                    f'dimension of the array ({expected_length}).'
+                )
+
+            if not all(isinstance(v, iden_obj.value_type) for v in values):
+                raise TypeError(
+                    f'Values for channel {iden_obj} '
+                    f'do not have the expected type ({iden_obj.value_type}).'
+                )
+
+            if iden_obj in self._channels:
+                raise ValueError(
+                    'Channel identifiers must represent unique attributes.'
+                )
+            self._channels[iden_obj] = list(values)
+
         self._array = array
-
-    @classmethod
-    def from_image_series(
-        cls,
-        series_datasets: Sequence[Dataset],
-        apply_modality_transform: bool = True,
-        apply_voi_transform: bool = False,
-        voi_transform_index: int = 0,
-        apply_palette_color_lut: bool = True,
-        apply_icc_transform: bool = True,
-        standardize_color_space: bool = True,
-    ) -> Self:
-        """Create volume from a series of single frame images.
-
-        Parameters
-        ----------
-        series_datasets: Sequence[pydicom.Dataset]
-            Series of single frame datasets. There is no requirement on the
-            sorting of the datasets.
-        apply_modality_transform: bool, optional
-            Whether to apply the modality transform (either a rescale intercept
-            and slope or modality LUT) to the pixel values, if present in the
-            datasets.
-        apply_voi_transform: bool, optional
-            Whether to apply the value of interest (VOI) transform (either a
-            windowing operation or VOI LUT) to the pixel values, if present in
-            the datasets.
-        voi_transform_index: int, optional
-            Index of the VOI transform to apply if multiple are included in the
-            datasets. Ignored if ``apply_voi_transform`` is ``False`` or no VOI
-            transform is included in the datasets.
-        apply_palette_color_lut: bool, optional
-            Whether to apply the palette color LUT if a dataset has photometric
-            interpretation ``'PALETTE COLOR'``.
-        apply_icc_transform: bool, optional
-            Whether to apply an ICC color profile, if present in the datasets.
-        convert_color_space: bool, optional
-            Whether to convert the color space to a standardized space. If
-            True, images with photometric interpretation ``MONOCHROME1`` are
-            inverted to mimic ``MONOCHROME2``, and images with photometric
-            interpretation ``YBR_FULL`` or ``YBR_FULL_422`` are converted to
-            ``RGB``.
-
-        Returns
-        -------
-        Volume:
-            Volume created from the series.
-
-        """
-        if apply_voi_transform and not apply_modality_lut:
-            raise ValueError(
-                "Argument 'apply_voi_transform' requires 'apply_modality_lut'."
-            )
-        series_instance_uid = series_datasets[0].SeriesInstanceUID
-        if not all(
-            ds.SeriesInstanceUID == series_instance_uid
-            for ds in series_datasets
-        ):
-            raise ValueError('Images do not belong to the same series.')
-
-        coordinate_system = get_image_coordinate_system(series_datasets[0])
-        if (
-            coordinate_system is None or
-            coordinate_system != CoordinateSystemNames.PATIENT
-        ):
-            raise ValueError(
-                "Dataset should exist in the patient "
-                "coordinate_system."
-            )
-
-        frame_of_reference_uid = series_datasets[0].FrameOfReferenceUID
-        if not all(
-            ds.FrameOfReferenceUID == frame_of_reference_uid
-            for ds in series_datasets
-        ):
-            raise ValueError('Images do not share a frame of reference.')
-
-        series_datasets = sort_datasets(series_datasets)
-
-        ds = series_datasets[0]
-
-        if len(series_datasets) == 1:
-            slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
-        else:
-            slice_spacing, _ = get_series_volume_positions(series_datasets)
-            if slice_spacing is None:
-                raise ValueError('Series is not a regularly-spaced volume.')
-
-        affine = _create_affine_transformation_matrix(
-            image_position=ds.ImagePositionPatient,
-            image_orientation=ds.ImageOrientationPatient,
-            pixel_spacing=ds.PixelSpacing,
-            spacing_between_slices=slice_spacing,
-            index_convention=VOLUME_INDEX_CONVENTION,
-            slices_first=True,
-        )
-
-        frames = []
-        for ds in series_datasets:
-            frame = ds.pixel_array
-            max_value = 2 ** np.iinfo(ds.pixel_array.dtype).bits
-            if apply_modality_transform:
-                frame = apply_modality_lut(frame, ds)
-            if apply_voi_transform:
-                frame = apply_voi_lut(frame, ds, voi_transform_index)
-            if (
-                apply_palette_color_lut and
-                ds.PhotometricInterpretation == 'PALETTE COLOR'
-            ):
-                frame = apply_color_lut(frame, ds)
-            if apply_icc_transform and 'ICCProfile' in ds:
-                manager = ColorManager(ds.ICCProfile)
-                frame = manager.transform_frame(frame)
-            if standardize_color_space:
-                if ds.PhotometricInterpretation == 'MONOCHROME1':
-                    # TODO what if a VOI_LUT has been applied
-                    frame = max_value - frame
-                elif ds.PhotometricInterpretation in (
-                    'YBR_FULL', 'YBR_FULL_422'
-                ):
-                    frame = convert_color_space(
-                        frame,
-                        current=ds.PhotometricInterpretation,
-                        desired='RGB'
-                    )
-
-            frames.append(frame)
-
-        array = np.stack(frames)
-
-        return cls(
-            affine=affine,
-            array=array,
-            frame_of_reference_uid=frame_of_reference_uid,
-        )
-
-    @classmethod
-    def from_image(
-        cls,
-        dataset: Dataset,
-    ) -> Self:
-        """Create volume from a multiframe image.
-
-        Parameters
-        ----------
-        dataset: pydicom.Dataset
-            A multi-frame image dataset.
-
-        Returns
-        -------
-        Volume:
-            Volume created from the image.
-
-        """
-        if not is_multiframe_image(dataset):
-            raise ValueError(
-                'Dataset should be a multi-frame image.'
-            )
-        coordinate_system = get_image_coordinate_system(dataset)
-        if (
-            coordinate_system is None or
-            coordinate_system != CoordinateSystemNames.PATIENT
-        ):
-            raise ValueError(
-                "Dataset should exist in the patient "
-                "coordinate_system."
-            )
-        sfgs = dataset.SharedFunctionalGroupsSequence[0]
-        if 'PlaneOrientationSequence' not in sfgs:
-            raise ValueError('Frames do not share an orientation.')
-        image_orientation = (
-            sfgs
-            .PlaneOrientationSequence[0]
-            .ImageOrientationPatient
-        )
-        pffgs = dataset.PerFrameFunctionalGroupsSequence
-        image_positions = [
-            g.PlanePositionSequence[0].ImagePositionPatient
-            for g in pffgs
-        ]
-        sort_index = get_plane_sort_index(
-            image_positions,
-            image_orientation,
-        )
-        sorted_positions = [image_positions[i] for i in sort_index]
-
-        if 'PixelMeasuresSequence' not in sfgs:
-            raise ValueError('Frames do not share pixel measures.')
-        pixel_spacing = sfgs.PixelMeasuresSequence[0].PixelSpacing
-
-        slice_spacing, _ = get_volume_positions(
-            image_positions=image_positions,
-            image_orientation=image_orientation,
-        )
-        if slice_spacing is None:
-            raise ValueError(
-                'Dataset does not represent a regularly sampled volume.'
-            )
-
-        affine = _create_affine_transformation_matrix(
-            image_position=sorted_positions[0],
-            image_orientation=image_orientation,
-            pixel_spacing=pixel_spacing,
-            spacing_between_slices=slice_spacing,
-            index_convention=VOLUME_INDEX_CONVENTION,
-            slices_first=True,
-        )
-
-        # TODO apply VOI color modality LUT etc
-        array = dataset.pixel_array
-        if array.ndim == 2:
-            array = array[np.newaxis]
-        array = array[sort_index]
-
-        return cls(
-            affine=affine,
-            array=array,
-            frame_of_reference_uid=dataset.FrameOfReferenceUID,
-        )
 
     @classmethod
     def from_attributes(
@@ -2054,6 +2024,7 @@ class Volume(_VolumeBase):
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
         frame_of_reference_uid: Optional[str] = None,
+        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Create a volume from DICOM attributes.
 
@@ -2089,6 +2060,21 @@ class Volume(_VolumeBase):
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
+        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keywork describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
 
         Returns
         -------
@@ -2108,6 +2094,7 @@ class Volume(_VolumeBase):
             affine=affine,
             array=array,
             frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels,
         )
 
     @classmethod
@@ -2118,6 +2105,7 @@ class Volume(_VolumeBase):
         direction: Sequence[float],
         spacing: Sequence[float],
         frame_of_reference_uid: Optional[str] = None,
+        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Construct a Volume from components.
 
@@ -2142,6 +2130,21 @@ class Volume(_VolumeBase):
             Sequence of three integers giving the shape of the volume.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
+        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keywork describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
 
         Returns
         -------
@@ -2178,6 +2181,7 @@ class Volume(_VolumeBase):
             array=array,
             affine=affine,
             frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels,
         )
 
     def get_geometry(self) -> VolumeGeometry:
@@ -2198,13 +2202,13 @@ class Volume(_VolumeBase):
     @property
     def dtype(self) -> type:
         """type: Datatype of the array."""
-        return self._array.dtype
+        return self._array.dtype.type
 
     @property
     def shape(self) -> Tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
-        May or may not include a fourth channel dimension.
+        Includes any channel dimensions.
 
         """
         return tuple(self._array.shape)
@@ -2213,21 +2217,32 @@ class Volume(_VolumeBase):
     def spatial_shape(self) -> Tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
 
-        Does not include the channel dimension.
+        Does not include the channel dimensions.
 
         """
         return tuple(self._array.shape[:3])
 
     @property
-    def number_of_channels(self) -> Optional[int]:
-        """Optional[int]: Number of channels.
+    def number_of_channel_dimensions(self) -> int:
+        """int: Number of channel dimensions."""
+        return self._array.ndim - 3
 
-        If the array has no channel dimension, returns None.
+    @property
+    def channel_shape(self) -> Tuple[int, ...]:
+        """Tuple[int, ...]: Channel shape of the array.
+
+        Does not include the spatial dimensions.
 
         """
-        if self._array.ndim == 4:
-            return self._array.shape[3]
-        return None
+        return tuple(self._array.shape[3:])
+
+    @property
+    def channel_identifiers(self) -> tuple[ChannelIdentifier, ...]:
+        """tuple[pydicom.BaseTag | highdicom.enum.SpecialChannelIdentifiers]
+        Identifier of each channel.
+
+        """
+        return tuple(self._channels.keys())
 
     @property
     def array(self) -> np.ndarray:
@@ -2241,18 +2256,13 @@ class Volume(_VolumeBase):
         Parameters
         ----------
         array: np.ndarray
-            New 3D or 4D array of voxel data. The spatial shape must match the
-            existing array, but the presence and number of channels and/or the
-            voxel datatype may differ.
+            New array of voxel data. The shape (spatial and channel) must match
+            the existing array.
 
         """
-        if value.ndim not in (3, 4):
+        if value.shape != self.shape:
             raise ValueError(
-                "Argument 'array' must be a three or four dimensional array."
-            )
-        if value.shape[:3] != self.spatial_shape:
-            raise ValueError(
-                "Array must match the spatial shape of the existing array."
+                "Array must match the shape of the existing array."
             )
         self._array = value
 
@@ -2290,11 +2300,19 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def with_array(self, array: np.ndarray) -> Self:
+    def with_array(
+        self,
+        array: np.ndarray,
+        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+    ) -> Self:
         """Get a new volume using a different array.
 
         The spatial and other metadata will be copied from this volume.
         The original volume will be unaltered.
+
+        By default, the new volume will have the same channels (if any) as the
+        existing volume. Different channels may be specified by passing the
+        'channels' parameter.
 
         Parameters
         ----------
@@ -2302,6 +2320,11 @@ class Volume(_VolumeBase):
             New 3D or 4D array of voxel data. The spatial shape must match the
             existing array, but the presence and number of channels and/or the
             voxel datatype may differ.
+        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels as used by the constructor. If not
+            specified, the channels are assumed to match those in the original
+            volume and therefore the array must have the same shape as the
+            array of the original volume.
 
         Returns
         -------
@@ -2309,25 +2332,29 @@ class Volume(_VolumeBase):
             New volume using the given array and the metadata of this volume.
 
         """
-        if array.ndim not in (3, 4):
-            raise ValueError(
-                "Argument 'array' must be a three or four dimensional array."
-            )
         if array.shape[:3] != self.spatial_shape:
             raise ValueError(
                 "Array must match the spatial shape of the existing array."
             )
+        if channels is None:
+            if array.ndim != 3:
+                channels = self._channels
+                if array.shape != self.shape:
+                    raise ValueError(
+                        "Array must match the shape of the existing array."
+                    )
         return self.__class__(
             array=array,
             affine=self._affine.copy(),
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=channels,
         )
 
     def __getitem__(
         self,
         index: Union[int, slice, Tuple[Union[int, slice]]],
     ) -> Self:
-        """Get a sub-volume of this volume as a new volume.
+        """Get a spatial sub-volume of this volume as a new volume.
 
         Parameters
         ----------
@@ -2350,9 +2377,10 @@ class Volume(_VolumeBase):
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
 
-    def permute_axes(self, indices: Sequence[int]) -> Self:
+    def permute_spatial_axes(self, indices: Sequence[int]) -> Self:
         """Create a new volume by permuting the spatial axes.
 
         Parameters
@@ -2379,6 +2407,246 @@ class Volume(_VolumeBase):
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
+        )
+
+    def permute_channel_axes_by_index(self, indices: Sequence[int]) -> Self:
+        """Create a new volume by permuting the channel axes.
+
+        Parameters
+        ----------
+        indices: Sequence[int]
+            List of integers containing values in the range 0 (inclusive) to
+            the number of channel dimensions (exclusive) in some order, used
+            to permute the channels. A value of ``i`` corresponds to the channel
+            given by ``volume.channel_identifiers[i]``.
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            New volume with channel axes permuted in the provided order.
+
+        """
+        if len(set(indices)) != len(indices):
+            raise ValueError(
+                "Set of channel indices must not contain "
+                "duplicates."
+            )
+        expected_indices = set(range(self.number_of_channel_dimensions))
+        if set(indices) != expected_indices:
+            raise ValueError(
+                "Set of channel indices must match exactly those "
+                "present in the volume."
+            )
+        full_indices = [0, 1, 2] + [ind + 3 for ind in indices]
+
+        new_array = np.transpose(self._array, full_indices)
+
+        new_channel_identifiers = [
+            self.channel_identifiers[ind] for ind in indices
+        ]
+        new_channels = {
+            iden: self._channels[iden] for iden in new_channel_identifiers
+        }
+
+        return self.with_array(
+            array=new_array,
+            channels=new_channels,
+        )
+
+    def permute_channel_axes(
+        self,
+        channel_identifiers: Sequence[BaseTag | int | str | ChannelIdentifier],
+    ) -> Self:
+        """Create a new volume by permuting the channel axes.
+
+        Parameters
+        ----------
+        channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.volume.ChannelIdentifier]
+            List of channel identifiers matching those in the volume but in an arbitrary order.
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            New volume with channel axes permuted in the provided order.
+
+        """
+        channel_identifier_objs = [
+            self._get_channel_identifier(iden) for iden in channel_identifiers
+        ]
+
+        current_identifiers = self.channel_identifiers
+        if len(set(channel_identifier_objs)) != len(channel_identifier_objs):
+            raise ValueError(
+                "Set of channel identifiers must not contain "
+                "duplicates."
+            )
+        if set(channel_identifier_objs) != set(current_identifiers):
+            raise ValueError(
+                "Set of channel identifiers must match exactly those "
+                "present in the volume."
+            )
+
+        permutation_indices = [
+            current_identifiers.index(iden) for iden in channel_identifier_objs
+        ]
+
+        return self.permute_channel_axes_by_index(permutation_indices)
+
+    def _get_channel_identifier(
+        self,
+        identifier: ChannelIdentifier | int | str,
+    ) -> ChannelIdentifier:
+        """Standardize representation of a channel identifier.
+
+        Given a value used to specify a channel, check that such a channel
+        exists in the volume and return a channel identifier as a
+        highdicom.volume.ChannelIdentifier object.
+
+        Parameters
+        ----------
+        identifier: highdicom.volume.ChannelIdentifier | int | str
+            Identifier. Strings will be matched against keywords and integers
+            will be matched against tags.
+
+        Returns
+        -------
+        highdicom.volume.ChannelIdentifier:
+            Channel identifier in standard form.
+
+        """
+        if isinstance(identifier, ChannelIdentifier):
+            if identifier not in self._channels:
+                raise ValueError(
+                    f"No channel with identifier '{identifier}' found "
+                    'in volume.'
+                )
+
+            return identifier
+        elif isinstance(identifier, str):
+            for c in self.channel_identifiers:
+                if c.keyword == identifier:
+                    return c
+            else:
+                raise ValueError(
+                    f"No channel identifier with keyword '{identifier}' found "
+                    'in volume.'
+                )
+        elif isinstance(identifier, int):
+            t = BaseTag(identifier)
+            for c in self.channel_identifiers:
+                if c.tag is not None and c.tag == t:
+                    return c
+            else:
+                raise ValueError(
+                    f"No channel identifier with tag '{t}' found "
+                    'in volume.'
+                )
+        else:
+            raise TypeError(
+                f'Invalid type for channel identifier: {type(identifier)}'
+            )
+
+    def _get_channel_index(
+        self,
+        identifier: ChannelIdentifier | int | str,
+    ) -> int:
+        """Get zero-based channel index for a given channel.
+
+        Parameters
+        ----------
+        identifier: highdicom.volume.ChannelIdentifier | int | str
+            Identifier. Strings will be matched against keywords and integers
+            will be matched against tags.
+
+        Returns
+        -------
+        int:
+            Zero-based index of the channel within the channel axes.
+
+        """
+        identifier_obj = self._get_channel_identifier(identifier)
+
+        index = self.channel_identifiers.index(identifier_obj)
+
+        return index
+
+    def get_channel_values(
+        self,
+        channel_identifier: int | str | ChannelIdentifier
+    ) -> list[str | int | float | Enum]:
+        """Get channel values along a particular dimension.
+
+        Parameters
+        ----------
+        channel_identifier: highdicom.volume.ChannelIdentifier | int | str
+            Identifier of a channel within the image.
+
+        Returns
+        -------
+        list[str | int | float | Enum]:
+            Copy of channel values along the selected dimension.
+
+        """
+        iden = self._get_channel_identifier(channel_identifier)
+        return self._channels[iden][:]
+
+    def get_channel(self, *, keepdims: bool = False, **kwargs) -> Self:
+        """Get a volume corresponding to a particular channel along one or more
+        dimensions.
+
+        Parameters
+        ----------
+        keepdims: bool
+            Whether to keep a singleton dimension in the output volume.
+        kwargs: dict[str, str | int | float | Enum]
+            kwargs where the keyword is the keyword of a channel present in the
+            volume and the value is the channel value along that channel.
+
+        Returns
+        -------
+        highdicom.volume.Volume:
+            Volume representing a single channel of the original volume.
+
+        """
+        indexer: list[slice | int] = [slice(None)] * self._array.ndim
+
+        new_channels = self._channels.copy()
+
+        for kw, v in kwargs.items():
+
+            iden = self._get_channel_identifier(kw)
+            cind = self._get_channel_index(iden)
+
+            iden = self.channel_identifiers[cind]
+            if iden.is_enumerated:
+                v = iden.value_type(v)
+            elif not isinstance(v, iden.value_type):
+                raise TypeError(
+                    f"Value for argument '{iden}' must be of type "
+                    f"'{iden.value_type}'."
+                )
+
+            dim_ind = cind + 3
+            try:
+                ind = self._channels[iden].index(v)
+            except IndexError as e:
+                raise IndexError(
+                    f"Value {v} is not found in channel {iden}."
+                ) from e
+
+            if keepdims:
+                indexer[dim_ind] = slice(ind, ind + 1)
+                new_channels[iden] = [v]
+            else:
+                indexer[dim_ind] = ind
+                del new_channels[iden]
+
+        new_array = self._array[tuple(indexer)]
+
+        return self.with_array(
+            array=new_array,
+            channels=new_channels,
         )
 
     def normalize_mean_std(
@@ -2394,9 +2662,9 @@ class Volume(_VolumeBase):
         Parameters
         ----------
         per_channel: bool, optional
-            If True (the default), each channel is normalized by its own mean
-            and variance. If False, all channels are normalized together using
-            the overall mean and variance.
+            If True (the default), each channel along each channel dimension is
+            normalized by its own mean and variance. If False, all channels are
+            normalized together using the overall mean and variance.
         output_mean: float, optional
             The mean value of the output array (or channel), after scaling.
         output_std: float, optional
@@ -2412,22 +2680,16 @@ class Volume(_VolumeBase):
         """
         if (
             per_channel and
-            self.number_of_channels is not None and
-            self.number_of_channels > 1
+            self.number_of_channel_dimensions > 0
         ):
-            new_array = self.array.astype(np.float64)
-            for c in range(self.number_of_channels):
-                channel = new_array[:, :, :, c]
-                new_array[:, :, :, c] = (
-                    (channel - channel.mean()) /
-                    (channel.std() / output_std)
-                ) + output_mean
+            mean = self.array.mean(axis=(0, 1, 2), keepdims=True)
+            std = self.array.std(axis=(0, 1, 2), keepdims=True)
         else:
-            new_array = (
-                (self.array - self.array.mean()) /
-                (self.array.std() / output_std) +
-                output_mean
-            )
+            mean = self.array.mean()
+            std = self.array.std()
+        new_array = (
+            (self.array - mean) / (std / output_std) + output_mean
+        )
 
         return self.with_array(new_array)
 
@@ -2448,9 +2710,9 @@ class Volume(_VolumeBase):
         output_max: float, optional
             The value to which the maximum intensity is mapped.
         per_channel: bool, optional
-            If True, each channel is normalized by its own mean and variance.
-            If False (the default), all channels are normalized together using
-            the overall mean and variance.
+            If True, each channel along each channel dimension is normalized by
+            its own min and max. If False (the default), all channels are
+            normalized together using the overall min and max.
 
         Returns
         -------
@@ -2465,23 +2727,16 @@ class Volume(_VolumeBase):
 
         if (
             per_channel and
-            self.number_of_channels is not None and
-            self.number_of_channels > 1
+            self.number_of_channel_dimensions > 1
         ):
-            new_array = self.array.astype(np.float64)
-            for c in range(self.number_of_channels):
-                channel = new_array[:, :, :, c]
-                imin = channel.min()
-                imax = channel.max()
-                scale_factor = output_range / (imax - imin)
-                new_array[:, :, :, c] = (
-                    (channel - imin) * scale_factor + output_min
-                )
+            imin = self.array.min(axis=(0, 1, 2), keepdims=True)
+            imax = self.array.max(axis=(0, 1, 2), keepdims=True)
         else:
             imin = self.array.min()
             imax = self.array.max()
-            scale_factor = output_range / (imax - imin)
-            new_array = (self.array - imin) * scale_factor + output_min
+
+        scale_factor = output_range / (imax - imin)
+        new_array = (self.array - imin) * scale_factor + output_min
 
         return self.with_array(new_array)
 
@@ -2573,10 +2828,20 @@ class Volume(_VolumeBase):
 
         return self.with_array(new_array)
 
-    def squeeze_channel(self) -> Self:
-        """Remove a singleton channel axis.
+    def squeeze_channel(
+        self,
+        channel_identifiers: Sequence[
+            int | str | BaseTag | ChannelIdentifier
+        ] | None = None,
+    ) -> Self:
+        """Removes any singleton channel axes.
 
-        If the volume has no channels, returns an unaltered copy.
+        Parameters
+        ----------
+        channel_identifiers: Sequence[str | int | highdicom.enum.SpecialChannelIdentifiers] | None
+            Identifiers of channels to squeeze. If ``None``, squeeze all
+            singleton channels. Otherwise squeeze only the specified channels
+            and raise an error if any cannot be squeezed.
 
         Returns
         -------
@@ -2584,29 +2849,38 @@ class Volume(_VolumeBase):
             Volume with channel axis removed.
 
         """
-        if self.number_of_channels is None:
-            return self.copy()
-        if self.number_of_channels == 1:
-            return self.with_array(self.array.squeeze(3))
+        if channel_identifiers is None:
+            channel_identifiers = self.channel_identifiers
+            raise_error = False
         else:
-            raise RuntimeError(
-                'Volume with multiple channels cannot be squeezed.'
-            )
+            raise_error = True
+            channel_identifiers = [
+                ChannelIdentifier(iden) for iden in channel_identifiers
+            ]
+            for iden in channel_identifiers:
+                if iden not in self._channels:
+                    raise ValueError(
+                        f'No channel with identifier: {iden}'
+                    )
 
-    def ensure_channel(self) -> Self:
-        """Add a singleton channel axis, if needed.
+        to_squeeze = []
+        new_channel_idens = []
+        for iden in channel_identifiers:
+            cind = self.channel_identifiers.index(iden)
+            if self.channel_shape[cind] == 1:
+                to_squeeze.append(cind + 3)
+            else:
+                if raise_error:
+                    raise RuntimeError(
+                        f'Volume has channels along the dimension {iden} and cannot '
+                        'be squeezed.'
+                    )
+                new_channel_idens.append(iden)
 
-        If the volume has channels already, returns an unaltered copy.
+        array = self.array.squeeze(tuple(to_squeeze))
+        new_channels = {iden: self._channels[iden] for iden in new_channel_idens}
 
-        Returns
-        -------
-        highdicom.volume.Volume:
-            Volume with added channel axis (if required).
-
-        """
-        if self.number_of_channels is None:
-            return self.with_array(self.array[:, :, :, None])
-        return self.copy()
+        return self.with_array(array, channels=new_channels)
 
     def pad(
         self,
@@ -2645,10 +2919,8 @@ class Volume(_VolumeBase):
             Mode to use to pad the array. See :class:`highdicom.PadModes` for
             options.
         constant_value: Union[float, Sequence[float]], optional
-            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
-            if True, a sequence whose length is equal to the number of channels
-            may be passed, and each value will be used for the corresponding
-            channel. With other pad modes, this argument is ignored.
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored.
         per_channel: bool, optional
             For padding modes that involve calculation of image statistics to
             determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
@@ -2668,12 +2940,6 @@ class Volume(_VolumeBase):
             mode = mode.upper()
         mode = PadModes(mode)
 
-        if per_channel and self.number_of_channels is None:
-            raise ValueError(
-                "Argument 'per_channel' may not be True if the image has no "
-                "channels."
-            )
-
         if mode in (
             PadModes.MINIMUM,
             PadModes.MAXIMUM,
@@ -2681,37 +2947,23 @@ class Volume(_VolumeBase):
             PadModes.MEDIAN,
         ):
             used_mode = PadModes.CONSTANT
-        elif (
-            mode == PadModes.CONSTANT and
-            isinstance(constant_value, Sequence)
-        ):
-            used_mode = mode
-            if not per_channel:
-                raise TypeError(
-                    "Argument 'constant_value' should be a single value if "
-                    "'per_channel' is False."
-                )
-            if len(constant_value) != self.number_of_channels:
-                raise ValueError(
-                    "Argument 'constant_value' must have length equal to the "
-                    'number of channels in the volume.'
-                )
         else:
             used_mode = mode
             # per_channel result is same as default result, so just ignore it
             per_channel = False
 
         if (
-            self.number_of_channels is None or
-            self.number_of_channels == 1
+            self.number_of_channel_dimensions == 0 or
+            self.channel_shape == (1, )
         ):
-            # Only one channel, so can ignore the per_channel logic
+            # Zero or one channels, so can ignore the per_channel logic
             per_channel = False
 
         new_affine, full_pad_width = self._prepare_pad_width(pad_width)
 
-        if self.number_of_channels is not None and not per_channel:
-            full_pad_width.append([0, 0])  # no padding for channel dim
+        if not per_channel:
+            # no padding for channel dims
+            full_pad_width.extend([[0, 0]] * self.number_of_channel_dimensions)
 
         def pad_array(array: np.ndarray, cval: float) -> float:
             if used_mode == PadModes.CONSTANT:
@@ -2737,12 +2989,15 @@ class Volume(_VolumeBase):
             )
 
         if per_channel:
-            if not isinstance(constant_value, Sequence):
-                constant_value = [constant_value] * self.number_of_channels
-            padded_channels = []
-            for c, v in enumerate(constant_value):
-                padded_channels.append(pad_array(self.array[:, :, :, c], v))
-            new_array = np.stack(padded_channels, axis=-1)
+            out_spatial_shape = [
+                s + p1 + p2
+                for s, (p1, p2) in zip(self.spatial_shape, full_pad_width)
+            ]
+            # preallocate output array
+            new_array = np.zeros([*out_spatial_shape, *self.channel_shape])
+            for cind in itertools.product(*[range(n) for n in self.channel_shape]):
+                indexer = (slice(None), slice(None), slice(None), *cind)
+                new_array[indexer] = pad_array(self.array[indexer], constant_value)
         else:
             new_array = pad_array(self.array, constant_value)
 
@@ -2750,66 +3005,8 @@ class Volume(_VolumeBase):
             array=new_array,
             affine=new_affine,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
-
-
-def concat_channels(volumes: Sequence[Volume]) -> Volume:
-    """Form a new volume by concatenating channels of existing volumes.
-
-    Parameters
-    ----------
-    volumes: Sequence[highdicom.volume.Volume]
-        Sequence of one or more volumes to concatenate. Volumes must
-        share the same spatial shape and affine matrix, but may differ
-        by number and presence of channels.
-
-    Returns
-    -------
-    highdicom.volume.Volume:
-        New volume formed by concatenating the input volumes.
-
-    """
-    if len(volumes) < 1:
-        raise ValueError("Argument 'volumes' should not be empty.")
-    spatial_shape = volumes[0].spatial_shape
-    affine = volumes[0].affine.copy()
-    frame_of_reference_uids = [
-        v.frame_of_reference_uid for v in volumes
-        if v.frame_of_reference_uid is not None
-    ]
-    if len(set(frame_of_reference_uids)) > 1:
-        raise ValueError(
-            "Volumes have differing frame of reference UIDs."
-        )
-    if len(frame_of_reference_uids) > 0:
-        frame_of_reference_uid = frame_of_reference_uids[0]
-    else:
-        frame_of_reference_uid = None
-    if not all(v.spatial_shape == spatial_shape for v in volumes):
-        raise ValueError(
-            "All items in 'volumes' should have the same spatial "
-            "shape."
-        )
-    if not all(np.allclose(v.affine, affine) for v in volumes):
-        raise ValueError(
-            "All items in 'volumes' should have the same affine "
-            "matrix."
-        )
-
-    arrays = []
-    for v in volumes:
-        array = v.array
-        if array.ndim == 3:
-            array = array[:, :, :, None]
-
-        arrays.append(array)
-
-    concat_array = np.concatenate(arrays, axis=3)
-    return Volume(
-        array=concat_array,
-        affine=affine,
-        frame_of_reference_uid=frame_of_reference_uid,
-    )
 
 
 class VolumeToVolumeTransformer:
