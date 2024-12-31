@@ -16,6 +16,7 @@ from typing import (
     Set,
     Sequence,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -809,13 +810,33 @@ class _CombinedPixelTransformation:
             )
         )
 
-    def __call__(self, frame: np.ndarray) -> np.ndarray:
-        """Apply the composed loss.
+        self.transfer_syntax_uid = image.file_meta.TransferSyntaxUID
+        self.rows = image.Rows
+        self.columns = image.Columns
+        self.samples_per_pixel = image.SamplesPerPixel
+        self.bits_allocated = image.BitsAllocated
+        self.bits_stored = image.get('BitsAllocated', image.BitsAllocated)
+        self.photometric_interpretation = image.PhotometricInterpretation
+        self.pixel_representation = image.PixelRepresentation
+        self.planar_configuration = image.get('PlanarConfiguration')
+
+    def __call__(
+        self,
+        frame: np.ndarray | bytes,
+        frame_index: int = 0,
+    ) -> np.ndarray:
+        """Apply the composed transform.
 
         Parameters
         ----------
-        frame: numpy.ndarray
-            Input frame for the transformation.
+        frame: numpy.ndarray | bytes
+            Input frame for the transformation. Either a raw bytes array or the
+            numpy array of the stored values.
+        frame_index: int, optional
+            Frame index. This is only required if frame is a raw bytes array,
+            the number of bits allocated is 1 and the number of pixels per
+            frame is not a multiple of 8. In this case, the frame index is
+            required to extract the frame from the bytes array.
 
         Returns
         -------
@@ -823,28 +844,49 @@ class _CombinedPixelTransformation:
             Output frame after the transformation is applied.
 
         """
+        if isinstance(frame, bytes):
+            frame_out = decode_frame(
+                value=frame,
+                transfer_syntax_uid=self.transfer_syntax_uid,
+                rows=self.rows,
+                columns=self.columns,
+                samples_per_pixel=self.samples_per_pixel,
+                bits_allocated=self.bits_allocated,
+                bits_stored=self.bits_stored,
+                photometric_interpretation=self.photometric_interpretation,
+                pixel_representation=self.pixel_representation,
+                planar_configuration=self.planar_configuration,
+                index=frame_index,
+            )
+        elif isinstance(frame, np.ndarray):
+            frame_out = frame
+        else:
+            raise TypeError(
+                "Argument 'frame' must be either bytes or a numpy ndarray."
+            )
+
         if self._color_type == _ImageColorType.COLOR:
-            if frame.ndim != 3 or frame.shape[2] != 3:
+            if frame_out.ndim != 3 or frame_out.shape[2] != 3:
                 raise ValueError(
                     "Expected an image of shape (R, C, 3)."
                 )
 
         else:
-            if frame.ndim != 2:
+            if frame_out.ndim != 2:
                 raise ValueError(
                     "Expected an image of shape (R, C)."
                 )
 
         if self._input_range_check is not None:
             first, last = self._input_range_check
-            if frame.min() < first or frame.max() > last:
+            if frame_out.min() < first or frame_out.max() > last:
                 raise ValueError(
                     'Array contains value outside the valid range.'
                 )
 
         if self._effective_lut_data is not None:
-            frame = apply_lut(
-                frame,
+            frame_out = apply_lut(
+                frame_out,
                 self._effective_lut_data,
                 self._effective_lut_first_mapped_value,
                 clip=self._clip,
@@ -855,28 +897,28 @@ class _CombinedPixelTransformation:
 
             # Avoid unnecessary array operations for efficiency
             if slope != 1.0:
-                frame = frame * slope
+                frame_out = frame_out * slope
             if intercept != 0.0:
-                frame = frame + intercept
+                frame_out = frame_out + intercept
 
         elif self._effective_window_center_width is not None:
-            frame = apply_voi_window(
-                frame,
+            frame_out = apply_voi_window(
+                frame_out,
                 window_center=self._effective_window_center_width[0],
                 window_width=self._effective_window_center_width[1],
                 dtype=self.output_dtype,
                 invert=self._invert,
                 output_range=self._voi_output_range,
-                voi_lut_function=self._effective_voi_function,
+                voi_lut_function=self._effective_voi_function or 'LINEAR',
             )
 
         if self._color_manager is not None:
-            frame = self._color_manager.transform_frame(frame)
+            frame_out = self._color_manager.transform_frame(frame_out)
 
-        if frame.dtype != self.output_dtype:
-            frame = frame.astype(self.output_dtype)
+        if frame_out.dtype != self.output_dtype:
+            frame_out = frame_out.astype(self.output_dtype)
 
-        return frame
+        return frame_out
 
 
 class Image(SOPClass):
@@ -1303,10 +1345,9 @@ class Image(SOPClass):
 
             # Create a list of source images and check for spatial locations
             # preserved
-            locations_list_type = List[
-                Optional[SpatialLocationsPreservedValues]
-            ]
-            locations_preserved: locations_list_type = []
+            locations_preserved: list[
+                SpatialLocationsPreservedValues | None
+            ] = []
 
             for frame_item in self.PerFrameFunctionalGroupsSequence:
                 # Get dimension indices for this frame
@@ -1975,16 +2016,17 @@ class Image(SOPClass):
 
     def _get_pixels_by_frame(
         self,
-        output_shape: Union[int, Tuple[int, int]],
+        spatial_shape: Union[int, Tuple[int, int]],
         indices_iterator: Iterator[
             Tuple[
+                int,
                 Tuple[Union[slice, int], ...],
                 Tuple[Union[slice, int], ...],
-                int
+                Tuple[int, ...],
             ]
         ],
-        num_channels: int = 0,
-        dtype: Union[type, str, np.dtype, None] = None,
+        frame_transform: _CombinedPixelTransformation,
+        channel_shape: tuple[int] = (),
     ) -> np.ndarray:
         """Construct a pixel array given an array of frame numbers.
 
@@ -1994,28 +2036,29 @@ class Image(SOPClass):
 
         Parameters
         ----------
-        output_shape: Union[int, Tuple[int, int]]
-            Shape of the output array. If an integer, this is the number of
-            frames in the output array and the number of rows and columns are
-            taken to match those of each frame. If a tuple of integers, it
-            contains the number of (rows, columns) in the output array and
-            there is no frame dimension (this is the tiled case). Note in
-            either case, the channels dimension (if relevant) is omitted.
-        indices_iterator: Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int ]]
-            An iterable object that yields tuples of (output_indexer,
-            frame_indexer, channel_number) that describes how to construct the
-            desired output pixel array from the multiframe image's pixel array.
-            'output_indexer' is a tuple that may be used directly to index the
-            output array to place a single frame's pixels into the output
-            array. Similarly 'frame_indexer' is a tuple that may be used
-            directly to index the image's pixel array to retrieve the pixels to
-            place into the output array. with channel number 'channel_number'.
-            The channel indexer may be ``None`` if the output array has no
-            channels. Note that in both cases the indexers access the frame,
-            row and column dimensions of the relevant array, but not the
-            channel dimension (if relevant).
-        num_channels: int
-            Number of channels in the output array. The use of channels depends
+        spatial_shape: Union[int, Tuple[int, int]]
+            Spatial shape of the output array. If an integer, this is the
+            number of frames in the output array and the number of rows and
+            columns are taken to match those of each frame. If a tuple of
+            integers, it contains the number of (rows, columns) in the output
+            array and there is no frame dimension (this is the tiled case).
+            Note in either case, the channel dimensions (if relevant) are
+            omitted.
+        indices_iterator: Iterator[Tuple[int, Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], Tuple[int, ...]]]
+            An iterable object that yields tuples of (frame_index,
+            input_indexer, spatial_indexer, channel_indexer) that describes how
+            to construct the desired output pixel array from the multiframe
+            image's pixel array. 'frame_index' specifies the zero-based index
+            of the input frame and 'input_indexer' is a tuple that may be used
+            directly to index a region of that frame. 'spatial_indexer' is a
+            tuple that may be used directly to index the output array to place
+            a single frame's pixels into the output array (excluding the
+            channel dimensions). The 'channel_indexer' indexes a channel of the
+            output array into which the result should be placed. Note that in
+            both cases the indexers access the frame, row and column dimensions
+            of the relevant array, but not the channel dimension (if relevant).
+        channel_shape: int
+            Channel shape of the output array. The use of channels depends
             on image type, for example it may be segments in a segmentation,
             optical paths in a microscopy image, or B-values in an MRI.
         dtype: Union[type, str, np.dtype, None]
@@ -2027,44 +2070,25 @@ class Image(SOPClass):
 
         Returns
         -------
-        pixel_array: np.ndarray
-            Segmentation pixel array
+        pixel_array: numpy.ndarray
+            Pixel array
 
         """  # noqa: E501
-        # TODO multiple samples per pixel
-        if dtype is None:
-            if self.BitsAllocated == 1:
-                dtype = np.uint8
-            else:
-                if hasattr(self, 'FloatPixelData'):
-                    dtype = np.float32
-                elif hasattr(self, 'DoubleFloatPixelData'):
-                    dtype = np.float64
-                else:
-                    dtype = np.dtype(f"uint{self.BitsAllocated}")
-        dtype = np.dtype(dtype)
-
-        # Check dtype is suitable
-        if dtype.kind not in ('u', 'i', 'f', 'b'):
-            raise ValueError(
-                f'Data type "{dtype}" is not suitable.'
-            )
-
-        if self.pixel_array.ndim == 2:
-            h, w = self.pixel_array.shape
-        else:
-            _, h, w = self.pixel_array.shape
+        dtype = frame_transform.output_dtype
 
         # Initialize empty pixel array
-        spatial_shape = (
-            output_shape
-            if isinstance(output_shape, tuple)
-            else (output_shape, h, w)
-        )
-        if num_channels > 0:
-            full_output_shape = (*spatial_shape, num_channels)
+        if isinstance(spatial_shape, tuple):
+            initial_shape = spatial_shape
         else:
-            full_output_shape = spatial_shape
+            initial_shape = (spatial_shape, self.Rows, self.Columns)
+        color_frames = frame_transform.color_output
+        samples_shape = (3, ) if color_frames else ()
+
+        full_output_shape = (
+            *initial_shape,
+            *samples_shape,
+            *channel_shape,
+        )
 
         out_array = np.zeros(
             full_output_shape,
@@ -2072,18 +2096,30 @@ class Image(SOPClass):
         )
 
         # loop through output frames
-        for (output_indexer, input_indexer, channel) in indices_iterator:
+        for (
+            frame_index,
+            input_indexer,
+            spatial_indexer,
+            channel_indexer
+        ) in indices_iterator:
 
-            # Output indexer needs segment index
-            if channel is not None:
-                output_indexer = (*output_indexer, channel)
-
-            # Copy data to to output array
-            if self.pixel_array.ndim == 2:
-                # Special case vith a single frame
-                out_array[output_indexer] = self.pixel_array[input_indexer[1:]]
+            if color_frames:
+                # Include the sample dimension for color images
+                output_indexer = (*spatial_indexer, slice(None), *channel_indexer)
             else:
-                out_array[output_indexer] = self.pixel_array[input_indexer]
+                output_indexer = (*spatial_indexer, *channel_indexer)
+
+            if (
+                self._lazy_frame_access and
+                self._pixel_array is None
+            ):
+                frame_bytes = self.get_frame_raw(frame_index + 1)
+                frame = frame_transform(frame_bytes)
+            else:
+                frame = self.pixel_array[frame_index]
+                frame = frame_transform(frame)
+
+            out_array[output_indexer] = frame[input_indexer]
 
         return out_array
 
@@ -2212,9 +2248,10 @@ class Image(SOPClass):
     ) -> Generator[
             Iterator[
                 Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    Optional[int],
+                    int,  # frame index
+                    Tuple[slice, slice],  # input indexer
+                    Tuple[int, slice, slice],  # output indexer
+                    Tuple[int, ...], # channel indexer
                 ]
             ],
             None,
@@ -2261,15 +2298,12 @@ class Image(SOPClass):
 
         Yields
         ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+        Iterator[ Tuple[int, Tuple[slice, slice], Tuple[int, slice, slice], Tuple[int, ...]]]:
             Indices required to construct the requested mask. Each triplet
-            denotes the (output indexer, input indexer, output channel number)
-            representing a list of "instructions" to create the requested
-            output array by copying frames from the image dataset and inserting
-            them into the output array. Output indexer and input indexer are
-            tuples that can be used to index the output array and image numpy
-            arrays directly. Output channel number will be `None`` if
-            ``channel_indices`` is ``None``.
+            denotes the (frame_index, input indexer, spatial indexer, channel
+            indexer) representing a list of "instructions" to create the
+            requested output array by copying frames from the image dataset and
+            inserting them into the output array.
 
         """
         norm_stack_indices = self._normalize_dimension_queries(
@@ -2369,9 +2403,10 @@ class Image(SOPClass):
             ):
                 yield (
                     (
+                        fi,
+                        (slice(None), slice(None)),
                         (fo, slice(None), slice(None)),
-                        (fi, slice(None), slice(None)),
-                        None
+                        (),
                     )
                     for (fo, fi) in self._db_con.execute(query)
                 )
@@ -2430,9 +2465,10 @@ class Image(SOPClass):
                 ):
                     yield (
                         (
+                            fi,
+                            (slice(None), slice(None)),
                             (fo, slice(None), slice(None)),
-                            (fi, slice(None), slice(None)),
-                            channel
+                            (channel, )
                         )
                         for (fo, fi, channel) in self._db_con.execute(query)
                     )
@@ -2453,9 +2489,10 @@ class Image(SOPClass):
     ) -> Generator[
             Iterator[
                 Tuple[
-                    Tuple[Union[slice, int], ...],
-                    Tuple[Union[slice, int], ...],
-                    Optional[int],
+                    int,
+                    Tuple[slice, slice],
+                    Tuple[slice, slice],
+                    Tuple[int, ...]
                 ]
             ],
             None,
@@ -2511,15 +2548,12 @@ class Image(SOPClass):
 
         Yields
         ------
-        Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int]]:
+        Iterator[ Tuple[int, Tuple[slice, slice], Tuple[slice, slice], Tuple[int, ...]]]:
             Indices required to construct the requested mask. Each triplet
-            denotes the (output indexer, input indexer, output channel number)
-            representing a list of "instructions" to create the requested
-            output array by copying frames from the image dataset and inserting
-            them into the output array. Output indexer and input indexer are
-            tuples that can be used to index the output array and image numpy
-            arrays directly. Output channel number will be `None`` if
-            ``channel_indices`` is ``None``.
+            denotes the (frame_index, input indexer, spatial indexer, channel
+            indexer) representing a list of "instructions" to create the
+            requested output array by copying frames from the image dataset and
+            inserting them into the output array.
 
         """  # noqa: E501
         all_columns = [
@@ -2609,6 +2643,17 @@ class Image(SOPClass):
 
             yield (
                 (
+                    fi,
+                    (
+                        slice(
+                            max(row_start - rp, 0),
+                            min(row_end - rp, th)
+                        ),
+                        slice(
+                            max(column_start - cp, 0),
+                            min(column_end - cp, tw)
+                        ),
+                    ),
                     (
                         slice(
                             max(rp - row_start, 0),
@@ -2619,18 +2664,7 @@ class Image(SOPClass):
                             min(cp + tw - column_start, ow)
                         ),
                     ),
-                    (
-                        fi,
-                        slice(
-                            max(row_start - rp, 0),
-                            min(row_end - rp, th)
-                        ),
-                        slice(
-                            max(column_start - cp, 0),
-                            min(column_end - cp, tw)
-                        ),
-                    ),
-                    None,
+                    (),
                 )
                 for (rp, cp, fi) in self._db_con.execute(query)
             )
@@ -2691,6 +2725,17 @@ class Image(SOPClass):
             ):
                 yield (
                     (
+                        fi,
+                        (
+                            slice(
+                                max(row_start - rp, 0),
+                                min(row_end - rp, th)
+                            ),
+                            slice(
+                                max(column_start - cp, 0),
+                                min(column_end - cp, tw)
+                            ),
+                        ),
                         (
                             slice(
                                 max(rp - row_start, 0),
@@ -2701,18 +2746,7 @@ class Image(SOPClass):
                                 min(cp + tw - column_start, ow)
                             ),
                         ),
-                        (
-                            fi,
-                            slice(
-                                max(row_start - rp, 0),
-                                min(row_end - rp, th)
-                            ),
-                            slice(
-                                max(column_start - cp, 0),
-                                min(column_end - cp, tw)
-                            ),
-                        ),
-                        channel
+                        (channel, ),
                     )
                     for (rp, cp, fi, channel) in self._db_con.execute(query)
                 )
