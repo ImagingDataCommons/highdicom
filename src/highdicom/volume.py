@@ -312,7 +312,7 @@ class _VolumeBase(ABC):
                 'Argument "indices" must be a two-dimensional array '
                 'with shape [n, 3].'
             )
-        indices_augmented = np.row_stack([
+        indices_augmented = np.vstack([
             indices.T.astype(float),
             np.ones((indices.shape[0], ), dtype=float),
         ])
@@ -373,7 +373,7 @@ class _VolumeBase(ABC):
                 'Argument "coordinates" must be a two-dimensional array '
                 'with shape [n, 3].'
             )
-        reference_coordinates = np.row_stack([
+        reference_coordinates = np.vstack([
             coordinates.T.astype(float),
             np.ones((coordinates.shape[0], ), dtype=float)
         ])
@@ -1386,7 +1386,7 @@ class _VolumeBase(ABC):
         )
         return padded
 
-    def random_crop(self, spatial_shape: Sequence[int]) -> Self:
+    def random_spatial_crop(self, spatial_shape: Sequence[int]) -> Self:
         """Create a random crop of a certain shape from the volume.
 
         Parameters
@@ -3089,7 +3089,7 @@ class VolumeToVolumeTransformer:
                 'with shape [n, 3].'
             )
         input_is_int = indices.dtype.kind == 'i'
-        augmented_input = np.row_stack(
+        augmented_input = np.vstack(
             [
                 indices.T,
                 np.ones((indices.shape[0], ), dtype=indices.dtype),

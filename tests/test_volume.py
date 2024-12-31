@@ -10,10 +10,10 @@ from highdicom.spatial import (
     _translate_affine_matrix,
 )
 from highdicom.volume import (
+    ChannelIdentifier,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
-    concat_channels,
     volread,
 )
 
@@ -114,7 +114,8 @@ def test_volume_from_attributes(
     assert volume.spacing_between_slices == spacing_between_slices
     assert volume.shape == (10, 10, 10)
     assert volume.spatial_shape == (10, 10, 10)
-    assert volume.number_of_channels is None
+    assert volume.channel_shape == ()
+    assert volume.channel_identifiers == ()
 
 
 def test_volume_with_channels():
@@ -125,10 +126,17 @@ def test_volume_with_channels():
         image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
         pixel_spacing=(1.0, 1.0),
         spacing_between_slices=2.0,
+        channels={'OpticalPathIdentifier': ['path1', 'path2']}
     )
     assert volume.shape == (10, 10, 10, 2)
     assert volume.spatial_shape == (10, 10, 10)
-    assert volume.number_of_channels == 2
+    assert volume.channel_shape == (2, )
+    assert isinstance(volume.channel_identifiers, tuple)
+    assert len(volume.channel_identifiers) == 1
+    assert isinstance(volume.channel_identifiers[0], ChannelIdentifier)
+    expected = ChannelIdentifier('OpticalPathIdentifier')
+    assert volume.channel_identifiers[0] == expected
+    assert volume.get_channel_values(expected) == ['path1', 'path2']
 
 
 def test_with_array():
@@ -140,19 +148,18 @@ def test_with_array():
         pixel_spacing=(1.0, 1.0),
         spacing_between_slices=2.0,
     )
+    assert volume.channel_shape == ()
     new_array = np.zeros((10, 10, 10, 2), dtype=np.uint8)
-    new_volume = volume.with_array(new_array)
-    assert new_volume.number_of_channels == 2
+    new_volume = volume.with_array(
+        new_array,
+        channels={'OpticalPathIdentifier': ['path1', 'path2']},
+    )
+    assert new_volume.channel_shape == (2, )
     assert isinstance(new_volume, Volume)
     assert volume.spatial_shape == new_volume.spatial_shape
     assert np.array_equal(volume.affine, new_volume.affine)
     assert volume.affine is not new_volume.affine
     assert new_volume.dtype == np.uint8
-
-    concat_volume = concat_channels([volume, new_volume])
-    assert isinstance(concat_volume, Volume)
-    assert volume.spatial_shape == concat_volume.spatial_shape
-    assert concat_volume.number_of_channels == 3
 
 
 def test_volume_single_frame():
@@ -161,7 +168,7 @@ def test_volume_single_frame():
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
     assert volume.shape == (len(ct_series), rows, columns)
     assert volume.spatial_shape == volume.shape
-    assert volume.number_of_channels is None
+    assert volume.channel_shape == (2, )
     orientation = ct_series[0].ImageOrientationPatient
     assert volume.direction_cosines == tuple(orientation)
     direction = volume.direction
