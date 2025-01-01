@@ -178,7 +178,7 @@ class ChannelIdentifier:
         return self._keyword == other._keyword
 
 
-rgb_color_channel_identifier = ChannelIdentifier(
+RGB_COLOR_CHANNEL_IDENTIFIER = ChannelIdentifier(
     'RGBColorChannel',
     value_type=RGBColorChannels,
     is_custom=True,

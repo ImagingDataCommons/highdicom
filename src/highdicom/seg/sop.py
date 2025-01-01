@@ -94,7 +94,7 @@ from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
 )
-from highdicom.volume import Volume
+from highdicom.volume import Volume, RGB_COLOR_CHANNEL_IDENTIFIER
 
 
 logger = logging.getLogger(__name__)
@@ -3120,7 +3120,7 @@ class Segmentation(Image):
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
-        apply_icc_profile: bool = False,
+        apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -3187,12 +3187,14 @@ class Segmentation(Image):
             values will be chosen.
         apply_palette_color_lut: bool, optional
             If True, apply the palette color LUT to give RGB output values.
-            This is only valid for LABELMAP segmentations that contain
+            This is only valid for ``"LABELMAP"`` segmentations that contain
             palette color LUT information, and only when ``combine_segments``
             is ``True`` and ``relabel`` is ``False``.
         apply_icc_profile: bool, optional
-            If True apply an ICC profile to the output. Only possible when
-            ``apply_palette_color_lut`` is True.
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -3234,12 +3236,18 @@ class Segmentation(Image):
         _check_numpy_value_representation(max_output_val, dtype)
         num_output_segments = len(segment_numbers)
 
+        if not isinstance(apply_palette_color_lut, bool):
+            raise ValueError(
+                "'apply_palette_color_lut' must have type bool"
+            )
         if apply_palette_color_lut:
             if not combine_segments or relabel:
                 raise ValueError(
                     "'apply_palette_color_lut' requires that 'combine_segments' "
                     "is True and relabel is False."
                 )
+        else:
+            apply_icc_profile = False
         if apply_icc_profile and not apply_palette_color_lut:
             raise ValueError(
                 "'apply_icc_profile' requires that 'apply_palette_color_lut' "
@@ -3550,6 +3558,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -3593,6 +3603,13 @@ class Segmentation(Image):
         output pixel array (since 0 is reserved for pixels that belong to no
         segments). In this case, the values in the output pixel array will
         always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        With ``"LABELMAP"`` segmentations that use the ``"PALETTE COLOR"``
+        photometric interpretation, the ``apply_palette_color_lut`` parameter
+        may be used to produce a color image in which each segment is given an
+        RGB defined in a palette color LUT within the segmentation object.
+        The three color channels (RGB) will be stacked down the final (4th)
+        dimension of the pixel array.
 
         Parameters
         ----------
@@ -3656,6 +3673,16 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for ``"LABELMAP"`` segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -3769,6 +3796,8 @@ class Segmentation(Image):
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
             )
 
     def get_pixels_by_source_frame(
@@ -3783,6 +3812,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool | None = None,
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -3828,6 +3859,13 @@ class Segmentation(Image):
         output pixel array (since 0 is reserved for pixels that belong to no
         segments). In this case, the values in the output pixel array will
         always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        With ``"LABELMAP"`` segmentations that use the ``"PALETTE COLOR"``
+        photometric interpretation, the ``apply_palette_color_lut`` parameter
+        may be used to produce a color image in which each segment is given an
+        RGB defined in a palette color LUT within the segmentation object.
+        The three color channels (RGB) will be stacked down the final (4th)
+        dimension of the pixel array.
 
         Parameters
         ----------
@@ -3894,6 +3932,16 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for ``"LABELMAP"`` segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -4039,6 +4087,8 @@ class Segmentation(Image):
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
             )
 
     def get_volume(
@@ -4053,6 +4103,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the segmentation.
 
@@ -4134,6 +4186,16 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for ``"LABELMAP"`` segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         """
         # Checks on validity of the inputs
@@ -4200,10 +4262,11 @@ class Segmentation(Image):
         else:
             channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
-        if combine_segments:
-            channel_spec = None
-        else:
+        channel_spec = None
+        if not combine_segments:
             channel_spec = {'ReferencedSegmentNumber': segment_numbers}
+        if apply_palette_color_lut:
+            channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
 
         with self._iterate_indices_for_stack(
             stack_indices={'VolumePosition': volume_positions},
@@ -4220,6 +4283,8 @@ class Segmentation(Image):
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
             )
 
         affine = self.volume_geometry[slice_start].affine
@@ -4242,6 +4307,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool | None = None,
     ):
         """Get a pixel array for a list of dimension index values.
 
@@ -4286,6 +4353,13 @@ class Segmentation(Image):
         output pixel array (since 0 is reserved for pixels that belong to no
         segments). In this case, the values in the output pixel array will
         always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        With ``"LABELMAP"`` segmentations that use the ``"PALETTE COLOR"``
+        photometric interpretation, the ``apply_palette_color_lut`` parameter
+        may be used to produce a color image in which each segment is given an
+        RGB defined in a palette color LUT within the segmentation object.
+        The three color channels (RGB) will be stacked down the final (4th)
+        dimension of the pixel array.
 
         Parameters
         ----------
@@ -4351,6 +4425,16 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the smallest
             unsigned integer type that accommodates all of the output values
             will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for ``"LABELMAP"`` segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -4500,6 +4584,8 @@ class Segmentation(Image):
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
             )
 
     def get_total_pixel_matrix(
@@ -4514,6 +4600,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool = None,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
 
@@ -4560,6 +4648,13 @@ class Segmentation(Image):
         output pixel array (since 0 is reserved for pixels that belong to no
         segments). In this case, the values in the output pixel array will
         always lie in the range ``0`` to ``len(segment_numbers)`` inclusive.
+
+        With ``"LABELMAP"`` segmentations that use the ``"PALETTE COLOR"``
+        photometric interpretation, the ``apply_palette_color_lut`` parameter
+        may be used to produce a color image in which each segment is given an
+        RGB defined in a palette color LUT within the segmentation object.
+        The three color channels (RGB) will be stacked down the final (3rd)
+        dimension of the pixel array.
 
         Parameters
         ----------
@@ -4619,6 +4714,16 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for ``"LABELMAP"`` segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output and require it to be
+            present. If None, apply an ICC profile if found but do not require
+            it to be present. If False, never apply an ICC profile. Only
+            possible when ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -4727,6 +4832,8 @@ class Segmentation(Image):
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
                 dtype=dtype,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
             )
 
 

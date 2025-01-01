@@ -2127,7 +2127,7 @@ class Image(SOPClass):
                 self._pixel_array is None
             ):
                 frame_bytes = self.get_frame_raw(frame_index + 1)
-                frame = frame_transform(frame_bytes)
+                frame = frame_transform(frame_bytes, frame_index)
             else:
                 if self.pixel_array.ndim == 2:
                     if frame_index == 0:
@@ -2139,7 +2139,7 @@ class Image(SOPClass):
                         )
                 else:
                     frame = self.pixel_array[frame_index]
-                frame = frame_transform(frame)
+                frame = frame_transform(frame, frame_index)
 
             out_array[output_indexer] = frame[input_indexer]
 
