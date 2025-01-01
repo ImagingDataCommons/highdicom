@@ -2,9 +2,9 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from os import PathLike, chflags
+from os import PathLike
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Type, Union, Tuple, cast
+from typing import Any, List, Optional, Sequence, Union, Tuple, cast
 from pydicom.tag import BaseTag
 from typing_extensions import Self
 
@@ -20,7 +20,6 @@ from highdicom.enum import (
     PadModes,
     PatientOrientationValuesBiped,
     RGBColorChannels,
-    SpecialChannelIdentifiers,
 )
 from highdicom.spatial import (
     _create_affine_transformation_matrix,
@@ -2238,7 +2237,7 @@ class Volume(_VolumeBase):
 
     @property
     def channel_identifiers(self) -> tuple[ChannelIdentifier, ...]:
-        """tuple[pydicom.BaseTag | highdicom.enum.SpecialChannelIdentifiers]
+        """tuple[highdicom.volume.ChannelIdentifier]
         Identifier of each channel.
 
         """
@@ -2838,7 +2837,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifiers: Sequence[str | int | highdicom.enum.SpecialChannelIdentifiers] | None
+        channel_identifiers: Sequence[str | int | highdicom.volume.ChannelIdentifier] | None
             Identifiers of channels to squeeze. If ``None``, squeeze all
             singleton channels. Otherwise squeeze only the specified channels
             and raise an error if any cannot be squeezed.

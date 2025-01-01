@@ -676,7 +676,6 @@ def test_combined_transform_monochrome():
     for output_dtype in [
         np.int32,
         np.int64,
-        np.float16,
         np.float32,
         np.float64,
     ]:

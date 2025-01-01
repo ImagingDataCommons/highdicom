@@ -47,7 +47,7 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom.image import Image
+from highdicom.image import Image, _CombinedPixelTransformation
 from highdicom.base import _check_little_endian
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -1678,6 +1678,9 @@ class Segmentation(Image):
         # Build lookup tables for efficient decoding
         self._build_luts()
 
+        # TODO this should be moved to Image constructor
+        self._lazy_frame_access = False
+
     def add_segments(
         self,
         pixel_array: np.ndarray,
@@ -3101,12 +3104,13 @@ class Segmentation(Image):
 
     def _get_pixels_by_seg_frame(
         self,
-        output_shape: Union[int, Tuple[int, int]],
+        spatial_shape: Union[int, Tuple[int, int]],
         indices_iterator: Iterator[
             Tuple[
+                int,
                 Tuple[Union[slice, int], ...],
                 Tuple[Union[slice, int], ...],
-                int
+                Tuple[int, ...],
             ]
         ],
         segment_numbers: np.ndarray,
@@ -3115,6 +3119,8 @@ class Segmentation(Image):
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool = False,
     ) -> np.ndarray:
         """Construct a segmentation array given an array of frame numbers.
 
@@ -3132,19 +3138,19 @@ class Segmentation(Image):
             output array and there is no frame dimension (this is the tiled
             case). Note in either case, the segments dimension (if relevant) is
             omitted.
-        indices_iterator: Iterator[Tuple[Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], int ]]
-            An iterable object that yields tuples of (output_indexer,
-            segmentation_indexer, output_segment_number) that describes how to
-            construct the desired output pixel array from the segmentation
-            image's pixel array. 'output_indexer' is a tuple that may be used
-            directly to index the output array to place a single frame's pixels
-            into the output array. Similarly 'segmentation_indexer' is a tuple
-            that may be used directly to index the segmentation pixel array
-            to retrieve the pixels to place into the output array
-            with zero-based segment number 'output_segment_number'. Note that
-            in both cases the indexers access the frame, row and column
-            dimensions of the relevant array, but not the segment dimension (if
-            relevant).
+        indices_iterator: Iterator[Tuple[int, Tuple[Union[slice, int], ...], Tuple[Union[slice, int], ...], Tuple[int, ...]]]
+            An iterable object that yields tuples of (frame_index,
+            input_indexer, spatial_indexer, channel_indexer) that describes how
+            to construct the desired output pixel array from the multiframe
+            image's pixel array. 'frame_index' specifies the zero-based index
+            of the input frame and 'input_indexer' is a tuple that may be used
+            directly to index a region of that frame. 'spatial_indexer' is a
+            tuple that may be used directly to index the output array to place
+            a single frame's pixels into the output array (excluding the
+            channel dimensions). The 'channel_indexer' indexes a channel of the
+            output array into which the result should be placed. Note that in
+            both cases the indexers access the frame, row and column dimensions
+            of the relevant array, but not the channel dimension (if relevant).
         segment_numbers: np.ndarray
             One dimensional numpy array containing segment numbers
             corresponding to the columns of the seg frames matrix.
@@ -3179,6 +3185,14 @@ class Segmentation(Image):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_palette_color_lut: bool, optional
+            If True, apply the palette color LUT to give RGB output values.
+            This is only valid for LABELMAP segmentations that contain
+            palette color LUT information, and only when ``combine_segments``
+            is ``True`` and ``relabel`` is ``False``.
+        apply_icc_profile: bool, optional
+            If True apply an ICC profile to the output. Only possible when
+            ``apply_palette_color_lut`` is True.
 
         Returns
         -------
@@ -3220,6 +3234,18 @@ class Segmentation(Image):
         _check_numpy_value_representation(max_output_val, dtype)
         num_output_segments = len(segment_numbers)
 
+        if apply_palette_color_lut:
+            if not combine_segments or relabel:
+                raise ValueError(
+                    "'apply_palette_color_lut' requires that 'combine_segments' "
+                    "is True and relabel is False."
+                )
+        if apply_icc_profile and not apply_palette_color_lut:
+            raise ValueError(
+                "'apply_icc_profile' requires that 'apply_palette_color_lut' "
+                "is True."
+            )
+
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
 
             need_remap = not np.array_equal(
@@ -3232,10 +3258,19 @@ class Segmentation(Image):
                 if need_remap else dtype
             )
 
+            frame_transform = _CombinedPixelTransformation(
+                self,
+                output_dtype=intermediate_dtype,
+                apply_real_world_transform=False,
+                apply_modality_transform=False,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+            )
+
             out_array = self._get_pixels_by_frame(
-                output_shape=output_shape,
+                spatial_shape=spatial_shape,
                 indices_iterator=indices_iterator,
-                dtype=intermediate_dtype,
+                frame_transform=frame_transform,
             )
             num_input_segments = max(self.segment_numbers) + 1
 
@@ -3328,9 +3363,9 @@ class Segmentation(Image):
 
             # Initialize empty pixel array
             full_output_shape = (
-                output_shape
-                if isinstance(output_shape, tuple)
-                else (output_shape, h, w)
+                spatial_shape
+                if isinstance(spatial_shape, tuple)
+                else (spatial_shape, h, w)
             )
             out_array = np.zeros(
                 full_output_shape,
@@ -3338,13 +3373,15 @@ class Segmentation(Image):
             )
 
             # Loop over the supplied iterable
-            for (output_indexer, seg_indexer, seg_n) in indices_iterator:
-                pix_value = intermediate_dtype.type(seg_n)
+            for (frame_index, input_indexer, output_indexer, seg_n) in indices_iterator:
+                pix_value = intermediate_dtype.type(seg_n[0])
+
+                full_input_indexer = (frame_index, *input_indexer)
 
                 if not skip_overlap_checks:
                     if np.any(
                         np.logical_and(
-                            pixel_array[seg_indexer] > 0,
+                            pixel_array[full_input_indexer] > 0,
                             out_array[output_indexer] > 0
                         )
                     ):
@@ -3353,16 +3390,24 @@ class Segmentation(Image):
                             "overlap."
                         )
                 out_array[output_indexer] = np.maximum(
-                    pixel_array[seg_indexer] * pix_value,
+                    pixel_array[full_input_indexer] * pix_value,
                     out_array[output_indexer]
                 )
 
         else:
+            frame_transform = _CombinedPixelTransformation(
+                self,
+                output_dtype=intermediate_dtype,
+                apply_real_world_transform=False,
+                apply_modality_transform=False,
+                apply_palette_color_lut=False,
+                apply_icc_profile=False,
+            )
             out_array = self._get_pixels_by_frame(
-                output_shape=output_shape,
+                spatial_shape=spatial_shape,
                 indices_iterator=indices_iterator,
-                num_channels=num_output_segments,
-                dtype=intermediate_dtype,
+                channel_shape=(num_output_segments, ),
+                frame_transform=frame_transform,
             )
 
             if rescale_fractional:
@@ -3705,18 +3750,18 @@ class Segmentation(Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = {'ReferencedSegmentNumber': segment_numbers}
+            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         with self._iterate_indices_for_stack(
             stack_indices={
                 'ReferencedSOPInstanceUID': source_sop_instance_uids
             },
             channel_indices=channel_indices,
-            remap_channel_indices=remap_channel_indices,
+            remap_channel_indices=[remap_channel_indices],
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                output_shape=len(source_sop_instance_uids),
+                spatial_shape=len(source_sop_instance_uids),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -3971,7 +4016,7 @@ class Segmentation(Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = {'ReferencedSegmentNumber': segment_numbers}
+            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -3982,11 +4027,11 @@ class Segmentation(Image):
         with self._iterate_indices_for_stack(
             stack_indices={'ReferencedFrameNumber': source_frame_numbers},
             channel_indices=channel_indices,
-            remap_channel_indices=remap_channel_indices,
+            remap_channel_indices=[remap_channel_indices],
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                output_shape=len(source_frame_numbers),
+                spatial_shape=len(source_frame_numbers),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4153,16 +4198,21 @@ class Segmentation(Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = {'ReferencedSegmentNumber': segment_numbers}
+            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
+
+        if combine_segments:
+            channel_spec = None
+        else:
+            channel_spec = {'ReferencedSegmentNumber': segment_numbers}
 
         with self._iterate_indices_for_stack(
             stack_indices={'VolumePosition': volume_positions},
             channel_indices=channel_indices,
-            remap_channel_indices=remap_channel_indices,
+            remap_channel_indices=[remap_channel_indices],
         ) as indices:
 
             array = self._get_pixels_by_seg_frame(
-                output_shape=number_of_slices,
+                spatial_shape=number_of_slices,
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4178,6 +4228,7 @@ class Segmentation(Image):
             array=array,
             affine=affine,
             frame_of_reference_uid=self.FrameOfReferenceUID,
+            channels=channel_spec,
         )
 
     def get_pixels_by_dimension_index_values(
@@ -4417,7 +4468,7 @@ class Segmentation(Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = {'ReferencedSegmentNumber': segment_numbers}
+            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4437,11 +4488,11 @@ class Segmentation(Image):
             stack_indices=stack_indices,
             stack_dimension_use_indices=True,
             channel_indices=channel_indices,
-            remap_channel_indices=remap_channel_indices,
+            remap_channel_indices=[remap_channel_indices],
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                output_shape=len(dimension_index_values),
+                spatial_shape=len(dimension_index_values),
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
@@ -4649,7 +4700,7 @@ class Segmentation(Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = {'ReferencedSegmentNumber': segment_numbers}
+            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4664,11 +4715,11 @@ class Segmentation(Image):
             column_end=column_end,
             tile_shape=(self.Rows, self.Columns),
             channel_indices=channel_indices,
-            remap_channel_indices=remap_channel_indices,
+            remap_channel_indices=[remap_channel_indices],
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
-                output_shape=output_shape,
+                spatial_shape=output_shape,
                 indices_iterator=indices,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,

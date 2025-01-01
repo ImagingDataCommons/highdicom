@@ -2,14 +2,6 @@
 from enum import Enum
 
 
-class SpecialChannelIdentifiers(Enum):
-    RGB_COLOR = 'RGB_COLOR'
-    """RGB color channels."""
-
-    CUSTOM = 'CUSTOM'
-    """Channel with user-defined meaning."""
-
-
 class RGBColorChannels(Enum):
     R = 'R'
     """Red color channel."""

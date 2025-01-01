@@ -2,6 +2,7 @@
 from collections import Counter
 from contextlib import contextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from enum import Enum
 import logging
 import sqlite3
@@ -16,7 +17,6 @@ from typing import (
     Set,
     Sequence,
     Tuple,
-    Type,
     Union,
     cast,
 )
@@ -79,6 +79,8 @@ logger = logging.getLogger(__name__)
 
 # TODO deal with extended offset table
 # TODO deal with single frame images
+# TODO disallow missing frames
+# make the segmentation special cases lazy
 
 
 class _ImageColorType(Enum):
@@ -919,6 +921,22 @@ class _CombinedPixelTransformation:
             frame_out = frame_out.astype(self.output_dtype)
 
         return frame_out
+
+
+@dataclass
+class _SQLTableDefinition:
+
+    """Utility class holding the specification of a single SQL table."""
+
+    table_name: str
+    """Name of the temporary table."""
+
+    column_defs: Sequence[str]
+    """SQL syntax strings defining each column in the temporary table, one
+    string per column."""
+
+    column_data: Iterable[Sequence[Any]]
+    """Column data to place into the table."""
 
 
 class Image(SOPClass):
@@ -1966,53 +1984,48 @@ class Image(SOPClass):
         return self._volume_geometry
 
     @contextmanager
-    def _generate_temp_table(
+    def _generate_temp_tables(
         self,
-        table_name: str,
-        column_defs: Sequence[str],
-        column_data: Iterable[Sequence[Any]],
+        table_defs: Sequence[_SQLTableDefinition],
     ) -> Generator[None, None, None]:
-        """Context manager that handles a temporary table.
+        """Context manager that handles multiple temporary table.
 
-        The temporary table is created with the specified information. Control
+        The temporary tables are created with the specified information. Control
         flow then returns to code within the "with" block. After the "with"
-        block has completed, the cleanup of the table is automatically handled.
+        block has completed, the cleanup of the tables is automatically handled.
 
         Parameters
         ----------
-        table_name: str
-            Name of the temporary table.
-        column_defs: Sequence[str]
-            SQL syntax strings defining each column in the temporary table, one
-            string per column.
-        column_data: Iterable[Sequence[Any]]
-            Column data to place into the table.
+        table_defs: Sequence[_SQLTableDefinition]
+            Specifications of each table to create.
 
         Yields
         ------
         None:
-            Yields control to the "with" block, with the temporary table
+            Yields control to the "with" block, with the temporary tables
             created.
 
         """
-        defs_str = ', '.join(column_defs)
-        create_cmd = (f'CREATE TABLE {table_name}({defs_str})')
-        placeholders = ', '.join(['?'] * len(column_defs))
+        for tdef in table_defs:
+            defs_str = ', '.join(tdef.column_defs)
+            create_cmd = (f'CREATE TABLE {tdef.table_name}({defs_str})')
+            placeholders = ', '.join(['?'] * len(tdef.column_defs))
 
-        with self._db_con:
-            self._db_con.execute(create_cmd)
-            self._db_con.executemany(
-                f'INSERT INTO {table_name} VALUES({placeholders})',
-                column_data
-            )
+            with self._db_con:
+                self._db_con.execute(create_cmd)
+                self._db_con.executemany(
+                    f'INSERT INTO {tdef.table_name} VALUES({placeholders})',
+                    tdef.column_data
+                )
 
         # Return control flow to "with" block
         yield
 
-        # Clean up the table
-        cmd = (f'DROP TABLE {table_name}')
-        with self._db_con:
-            self._db_con.execute(cmd)
+        for tdef in table_defs:
+            # Clean up the tables
+            cmd = (f'DROP TABLE {tdef.table_name}')
+            with self._db_con:
+                self._db_con.execute(cmd)
 
     def _get_pixels_by_frame(
         self,
@@ -2116,7 +2129,16 @@ class Image(SOPClass):
                 frame_bytes = self.get_frame_raw(frame_index + 1)
                 frame = frame_transform(frame_bytes)
             else:
-                frame = self.pixel_array[frame_index]
+                if self.pixel_array.ndim == 2:
+                    if frame_index == 0:
+                        frame = self.pixel_array
+                    else:
+                        raise IndexError(
+                            f'Index {frame_index} is out of bounds for '
+                            'an image with a single frame.'
+                        )
+                else:
+                    frame = self.pixel_array[frame_index]
                 frame = frame_transform(frame)
 
             out_array[output_indexer] = frame[input_indexer]
@@ -2234,13 +2256,102 @@ class Image(SOPClass):
 
         return normalized_queries
 
+    def _prepare_channel_tables(
+        self,
+        norm_channel_indices_list: list[dict[str, Any]],
+        remap_channel_indices: Optional[Sequence[int]] = None,
+    ) -> tuple[list[str], list[str], list[_SQLTableDefinition]]:
+        """Prepare query elements for a query involving output channels.
+
+        This is common code shared between multiple query types that involve
+        channels.
+
+        Parameters
+        ----------
+        norm_channel_indices_list: list[dict[str, Any]]
+            List of dictionaries defining the channel dimensions. The first
+            item in the list corresponds to axis 3 of the output array, if any,
+            the next to axis 4 and so so. Each dictionary has a format
+            identical to that of ``stack_indices``, however the dimensions used
+            must be distinct. Note that each item in the list may contain
+            multiple items, provided that the number of items in each value
+            matches within a single dictionary.
+        remap_channel_indices: Sequence[int] | None, optional
+            Use these values to remap the channel indices returned in the
+            output iterator. The ith item applies to output channel i, and
+            within that list index ``j`` is mapped to
+            ``remap_channel_indices[i][j]``. Ignored if ``channel_indices`` is
+            ``None``. If ``None``, or ``remap_channel_indices[i]`` is ``None``
+            no mapping is performed for output channel ``i``.
+
+        Returns
+        -------
+        list[str]:
+            Channel selection strings for the query.
+        list[str]:
+            Channel join strings for the query.
+        list[_SQLTableDefinition]:
+            Temporary table definitions for the query.
+
+        """
+        selection_lines = []
+        join_lines = []
+        table_defs = []
+
+        for i, channel_indices_dict in enumerate(
+            norm_channel_indices_list
+        ):
+            channel_table_name = f'TemporaryChannelTable{i}'
+            channel_column_defs = (
+                [f'OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                [
+                    f'{c} {self._col_types[c]} NOT NULL'
+                    for c in channel_indices_dict.keys()
+                ]
+            )
+
+            selection_lines.append(
+                f'{channel_table_name}.OutputChannelIndex'
+            )
+
+            num_channels = len(list(channel_indices_dict.values())[0])
+            if (
+                remap_channel_indices is not None and
+                remap_channel_indices[i] is not None
+            ):
+                output_channel_indices = remap_channel_indices[i]
+            else:
+                output_channel_indices = range(num_channels)
+
+            channel_column_data = zip(
+                output_channel_indices,
+                *channel_indices_dict.values()
+            )
+
+            table_defs.append(
+                _SQLTableDefinition(
+                    table_name=channel_table_name,
+                    column_defs=channel_column_defs,
+                    column_data=channel_column_data,
+                )
+            )
+
+            channel_join_condition = ' AND '.join(
+                f'L.{col} = {channel_table_name}.{col}'
+                for col in channel_indices_dict.keys()
+            )
+            join_lines.append(
+                f'INNER JOIN {channel_table_name} ON {channel_join_condition}'
+            )
+
+        return selection_lines, join_lines, table_defs
 
     @contextmanager
     def _iterate_indices_for_stack(
         self,
         stack_indices: Dict[Union[int, str], Sequence[Any]],
         stack_dimension_use_indices: bool = False,
-        channel_indices: Optional[Dict[Union[int, str], Sequence[Any]]] = None,
+        channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
@@ -2278,17 +2389,23 @@ class Image(SOPClass):
             If True, the values in ``stack_indices`` are integer-valued
             dimension *index* values. If False the dimension values themselves
             are used, whose type depends on the choice of dimension.
-        channel_indices: Union[Dict[Union[int, str], Sequence[Any]], None], optional
-            Dictionary defining the channel dimension at axis 3 of the output
-            array, if any. Definition is identical to that of
-            ``stack_indices``, however the dimensions used must be distinct.
+        channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
+            List of dictionaries defining the channel dimensions. The first
+            item in the list corresponds to axis 3 of the output array, if any,
+            the next to axis 4 and so so. Each dictionary has a format
+            identical to that of ``stack_indices``, however the dimensions used
+            must be distinct. Note that each item in the list may contain
+            multiple items, provided that the number of items in each value
+            matches within a single dictionary.
         channel_dimension_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the channel axis.
-        remap_channel_indices: Union[Sequence[int], None], optional
+        remap_channel_indices: Union[Sequence[Union[Sequence[int], None], None], optional
             Use these values to remap the channel indices returned in the
-            output iterator. Index ``i`` is mapped to
-            ``remap_channel_indices[i]``. Ignored if ``channel_indices`` is
-            ``None``. If ``None`` no mapping is performed.
+            output iterator. The ith item applies to output channel i, and
+            within that list index ``j`` is mapped to
+            ``remap_channel_indices[i][j]``. Ignored if ``channel_indices`` is
+            ``None``. If ``None``, or ``remap_channel_indices[i]`` is ``None``
+            no mapping is performed for output channel ``i``.
         filters: Union[Dict[Union[int, str], Any], None], optional
             Additional filters to use to limit frames. Definition is similar to
             ``stack_indices`` except that the dictionary's values are single
@@ -2314,14 +2431,17 @@ class Image(SOPClass):
         all_columns = list(norm_stack_indices.keys())
 
         if channel_indices is not None:
-            norm_channel_indices = self._normalize_dimension_queries(
-                channel_indices,
-                channel_dimension_use_indices,
-                True,
-            )
-            all_columns.extend(list(norm_channel_indices.keys()))
+            norm_channel_indices_list = [
+                self._normalize_dimension_queries(
+                    indices_dict,
+                    channel_dimension_use_indices,
+                    True,
+                ) for indices_dict in channel_indices
+            ]
+            for indices_dict in norm_channel_indices_list:
+                all_columns.extend(list(indices_dict.keys()))
         else:
-            norm_channel_indices = None
+            norm_channel_indices_list = []
 
         if filters is not None:
             norm_filters = self._normalize_dimension_queries(
@@ -2380,98 +2500,51 @@ class Image(SOPClass):
         else:
             filter_str = ''
 
-        if norm_channel_indices is None:
+        stack_table_def = _SQLTableDefinition(
+            table_name=stack_table_name,
+            column_defs=stack_column_defs,
+            column_data=stack_column_data,
+        )
 
-            # Construct the query. The ORDER BY is not logically necessary but
-            # seems to improve performance of the downstream numpy operations,
-            # presumably as it is more cache efficient
-            query = (
-                'SELECT '
-                '    F.OutputFrameIndex,'  # frame index of the output array
-                '    L.FrameNumber - 1 '  # frame *index* of segmentation image
-                f'FROM {stack_table_name} F '
-                'INNER JOIN FrameLUT L'
-                f'   ON {stack_join_str} '
-                f'{filter_str} '
-                'ORDER BY F.OutputFrameIndex'
-            )
+        selection_lines = [
+            'F.OutputFrameIndex',  # frame index of the output array
+            'L.FrameNumber - 1',  # frame *index* of the file
+        ]
 
-            with self._generate_temp_table(
-                table_name=stack_table_name,
-                column_defs=stack_column_defs,
-                column_data=stack_column_data,
-            ):
-                yield (
-                    (
-                        fi,
-                        (slice(None), slice(None)),
-                        (fo, slice(None), slice(None)),
-                        (),
-                    )
-                    for (fo, fi) in self._db_con.execute(query)
+        (
+            channel_selection_lines,
+            channel_join_lines,
+            channel_table_defs,
+        ) = self._prepare_channel_tables(
+            norm_channel_indices_list,
+            remap_channel_indices,
+        )
+
+        selection_str = ', '.join(selection_lines + channel_selection_lines)
+
+        # Construct the query. The ORDER BY is not logically necessary but
+        # seems to improve performance of the downstream numpy operations,
+        # presumably as it is more cache efficient
+        query = (
+            f'SELECT {selection_str} '
+            f'FROM {stack_table_name} F '
+            'INNER JOIN FrameLUT L'
+            f'   ON {stack_join_str} '
+            f'{" ".join(channel_join_lines)} '
+            f'{filter_str} '
+            'ORDER BY F.OutputFrameIndex'
+        )
+
+        with self._generate_temp_tables([stack_table_def] + channel_table_defs):
+            yield (
+                (
+                    fi,
+                    (slice(None), slice(None)),
+                    (fo, slice(None), slice(None)),
+                    tuple(channel),
                 )
-        else:
-            # Create temporary table of channel indices
-            channel_table_name = 'TemporaryChannelTable'
-
-            channel_column_defs = (
-                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
-                [
-                    f'{c} {self._col_types[c]} NOT NULL'
-                    for c in norm_channel_indices.keys()
-                ]
+                for (fo, fi, *channel) in self._db_con.execute(query)
             )
-
-            num_channels = len(list(norm_channel_indices.values())[0])
-            if remap_channel_indices is not None:
-                output_channel_indices = remap_channel_indices
-            else:
-                output_channel_indices = range(num_channels)
-
-            channel_column_data = zip(
-                output_channel_indices,
-                *norm_channel_indices.values()
-            )
-            channel_join_str = ' AND '.join(
-                f'L.{col} = C.{col}' for col in norm_channel_indices.keys()
-            )
-
-            # Construct the query. The ORDER BY is not logically necessary but
-            # seems to improve performance of the downstream numpy operations,
-            # presumably as it is more cache efficient
-            query = (
-                'SELECT '
-                '    F.OutputFrameIndex,'  # frame index of the output array
-                '    L.FrameNumber - 1,'  # frame *index* of segmentation image
-                '    C.OutputChannelIndex '  # channel index of the output array
-                f'FROM {stack_table_name} F '
-                'INNER JOIN FrameLUT L'
-                f'   ON {stack_join_str} '
-                f'INNER JOIN {channel_table_name} C'
-                f'   ON {channel_join_str} '
-                f'{filter_str} '
-                'ORDER BY F.OutputFrameIndex'
-            )
-
-            with self._generate_temp_table(
-                table_name=stack_table_name,
-                column_defs=stack_column_defs,
-                column_data=stack_column_data,
-            ):
-                with self._generate_temp_table(
-                    table_name=channel_table_name,
-                    column_defs=channel_column_defs,
-                    column_data=channel_column_data,
-                ):
-                    yield (
-                        (
-                            fi,
-                            (slice(None), slice(None)),
-                            (fo, slice(None), slice(None)),
-                            (channel, )
-                        )
-                        for (fo, fi, channel) in self._db_con.execute(query)
-                    )
 
     @contextmanager
     def _iterate_indices_for_tiled_region(
@@ -2481,7 +2554,7 @@ class Image(SOPClass):
         column_start: int,
         column_end: int,
         tile_shape: Tuple[int, int],
-        channel_indices: Optional[Dict[Union[int, str], Sequence[Any]]] = None,
+        channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
@@ -2528,17 +2601,29 @@ class Image(SOPClass):
             column of the output array. May be negative (last column is -1).
         tile_shape: Tuple[int, int]
             Shape of each tile (rows, columns).
-        channel_indices: Union[Dict[Union[int, str], Sequence[Any]], None], optional
-            Dictionary defining the channel dimension at axis 2 of the output
-            array, if any. Definition is identical to that of
-            ``stack_indices``, however the dimensions used must be distinct.
+        channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
+            List of dictionaries defining the channel dimensions. Within each
+            dictionary, The keys define the dimensions used. They may be either
+            the tags or keywords of attributes in the image's dimension index,
+            or the special values 'ReferencedSOPInstanceUID',
+            and 'ReferencedFrameNumber'. The values of the dictionary give
+            sequences of values of corresponding dimension that define each
+            slice of the output array. Note that multiple dimensions may be
+            used, in which case a frame must match the values of all provided
+            dimensions to be placed in the output array.The first item in the
+            list corresponds to axis 3 of the output array, if any, the next to
+            axis 4 and so so. Note that each item in the list may contain
+            multiple items, provided that the number of items in each value
+            matches within a single dictionary.
         channel_dimension_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the channel axis.
         remap_channel_indices: Union[Sequence[int], None], optional
             Use these values to remap the channel indices returned in the
-            output iterator. Index ``i`` is mapped to
-            ``remap_channel_indices[i]``. Ignored if ``channel_indices`` is
-            ``None``. If ``None`` no mapping is performed.
+            output iterator. The ith item applies to output channel i, and
+            within that list index ``j`` is mapped to
+            ``remap_channel_indices[i][j]``. Ignored if ``channel_indices`` is
+            ``None``. If ``None``, or ``remap_channel_indices[i]`` is ``None``
+            no mapping is performed for output channel ``i``.
         filters: Union[Dict[Union[int, str], Any], None], optional
             Additional filters to use to limit frames. Definition is similar to
             ``stack_indices`` except that the dictionary's values are single
@@ -2561,14 +2646,17 @@ class Image(SOPClass):
             'ColumnPositionInTotalImagePixelMatrix',
         ]
         if channel_indices is not None:
-            norm_channel_indices = self._normalize_dimension_queries(
-                channel_indices,
-                channel_dimension_use_indices,
-                True,
-            )
-            all_columns.extend(list(norm_channel_indices.keys()))
+            norm_channel_indices_list = [
+                self._normalize_dimension_queries(
+                    indices_dict,
+                    channel_dimension_use_indices,
+                    True,
+                ) for indices_dict in channel_indices
+            ]
+            for indices_dict in norm_channel_indices_list:
+                all_columns.extend(list(indices_dict.keys()))
         else:
-            norm_channel_indices = None
+            norm_channel_indices_list = []
 
         if filters is not None:
             norm_filters = self._normalize_dimension_queries(
@@ -2617,30 +2705,46 @@ class Image(SOPClass):
         row_offset_start = row_start - th + 1
         column_offset_start = column_start - tw + 1
 
+        selection_lines = [
+            'L.RowPositionInTotalImagePixelMatrix',
+            'L.ColumnPositionInTotalImagePixelMatrix',
+            'L.FrameNumber - 1',
+        ]
+
+        (
+            channel_selection_lines,
+            channel_join_lines,
+            channel_table_defs,
+        ) = self._prepare_channel_tables(
+            norm_channel_indices_list,
+            remap_channel_indices,
+        )
+
+        selection_str = ', '.join(selection_lines + channel_selection_lines)
+
         # Construct the query The ORDER BY is not logically necessary
         # but seems to improve performance of the downstream numpy
         # operations, presumably as it is more cache efficient
-        if norm_channel_indices is None:
-            query = (
-                'SELECT '
-                '    L.RowPositionInTotalImagePixelMatrix,'
-                '    L.ColumnPositionInTotalImagePixelMatrix,'
-                '    L.FrameNumber - 1 '
-                'FROM FrameLUT L '
-                'WHERE ('
-                '    L.RowPositionInTotalImagePixelMatrix >= '
-                f'        {row_offset_start}'
-                f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
-                '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
-                f'        {column_offset_start}'
-                f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
-                f'    {filter_str} '
-                ')'
-                'ORDER BY '
-                '     L.RowPositionInTotalImagePixelMatrix,'
-                '     L.ColumnPositionInTotalImagePixelMatrix'
-            )
+        # Create temporary table of channel indices
+        query = (
+            f'SELECT {selection_str} '
+            'FROM FrameLUT L '
+            f'{" ".join(channel_join_lines)} '
+            'WHERE ('
+            '    L.RowPositionInTotalImagePixelMatrix >= '
+            f'        {row_offset_start}'
+            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
+            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
+            f'        {column_offset_start}'
+            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+            f'    {filter_str} '
+            ')'
+            'ORDER BY '
+            '     L.RowPositionInTotalImagePixelMatrix,'
+            '     L.ColumnPositionInTotalImagePixelMatrix'
+        )
 
+        with self._generate_temp_tables(channel_table_defs):
             yield (
                 (
                     fi,
@@ -2664,89 +2768,7 @@ class Image(SOPClass):
                             min(cp + tw - column_start, ow)
                         ),
                     ),
-                    (),
+                    tuple(channel),
                 )
-                for (rp, cp, fi) in self._db_con.execute(query)
+                for (rp, cp, fi, *channel) in self._db_con.execute(query)
             )
-
-        else:
-            # Create temporary table of channel indices
-            channel_table_name = 'TemporaryChannelTable'
-
-            channel_column_defs = (
-                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
-                [
-                    f'{c} {self._col_types[c]} NOT NULL'
-                    for c in norm_channel_indices.keys()
-                ]
-            )
-
-            num_channels = len(list(norm_channel_indices.values())[0])
-            if remap_channel_indices is not None:
-                output_channel_indices = remap_channel_indices
-            else:
-                output_channel_indices = range(num_channels)
-
-            channel_column_data = zip(
-                output_channel_indices,
-                *norm_channel_indices.values()
-            )
-            channel_join_str = ' AND '.join(
-                f'L.{col} = C.{col}' for col in norm_channel_indices.keys()
-            )
-
-            query = (
-                'SELECT '
-                '    L.RowPositionInTotalImagePixelMatrix,'
-                '    L.ColumnPositionInTotalImagePixelMatrix,'
-                '    L.FrameNumber - 1,'
-                '    C.OutputChannelIndex '
-                'FROM FrameLUT L '
-                f'INNER JOIN {channel_table_name} C'
-                f'   ON {channel_join_str} '
-                'WHERE ('
-                '    L.RowPositionInTotalImagePixelMatrix >= '
-                f'        {row_offset_start}'
-                f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
-                '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
-                f'        {column_offset_start}'
-                f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
-                f'    {filter_str} '
-                ')'
-                'ORDER BY '
-                '     L.RowPositionInTotalImagePixelMatrix,'
-                '     L.ColumnPositionInTotalImagePixelMatrix'
-            )
-
-            with self._generate_temp_table(
-                table_name=channel_table_name,
-                column_defs=channel_column_defs,
-                column_data=channel_column_data,
-            ):
-                yield (
-                    (
-                        fi,
-                        (
-                            slice(
-                                max(row_start - rp, 0),
-                                min(row_end - rp, th)
-                            ),
-                            slice(
-                                max(column_start - cp, 0),
-                                min(column_end - cp, tw)
-                            ),
-                        ),
-                        (
-                            slice(
-                                max(rp - row_start, 0),
-                                min(rp + th - row_start, oh)
-                            ),
-                            slice(
-                                max(cp - column_start, 0),
-                                min(cp + tw - column_start, ow)
-                            ),
-                        ),
-                        (channel, ),
-                    )
-                    for (rp, cp, fi, channel) in self._db_con.execute(query)
-                )
