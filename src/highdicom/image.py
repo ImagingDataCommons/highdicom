@@ -79,8 +79,7 @@ logger = logging.getLogger(__name__)
 
 # TODO deal with extended offset table
 # TODO deal with single frame images
-# TODO disallow missing frames
-# make the segmentation special cases lazy
+# TODO make the segmentation special cases lazy
 
 
 class _ImageColorType(Enum):
@@ -2332,7 +2331,7 @@ class Image(SOPClass):
                 _SQLTableDefinition(
                     table_name=channel_table_name,
                     column_defs=channel_column_defs,
-                    column_data=channel_column_data,
+                    column_data=list(channel_column_data),
                 )
             )
 
@@ -2356,6 +2355,7 @@ class Image(SOPClass):
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
+        allow_missing_frames: bool = False,
     ) -> Generator[
             Iterator[
                 Tuple[
@@ -2412,6 +2412,10 @@ class Image(SOPClass):
             values rather than lists.
         filters_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the filters.
+        allow_missing_frames: bool, optional
+            Allow frames in the output array to be blank because these frames
+            are omitted from the image. If False and missing frames are found,
+            an error is raised.
 
         Yields
         ------
@@ -2481,7 +2485,7 @@ class Image(SOPClass):
                 for c in norm_stack_indices.keys()
             ]
         )
-        stack_column_data = (
+        stack_column_data = list(
             (i, *row)
             for i, row in enumerate(zip(*norm_stack_indices.values()))
         )
@@ -2525,17 +2529,45 @@ class Image(SOPClass):
         # Construct the query. The ORDER BY is not logically necessary but
         # seems to improve performance of the downstream numpy operations,
         # presumably as it is more cache efficient
-        query = (
-            f'SELECT {selection_str} '
+        query_template = (
+            'SELECT {selection_str} '
             f'FROM {stack_table_name} F '
-            'INNER JOIN FrameLUT L'
-            f'   ON {stack_join_str} '
+            f'INNER JOIN FrameLUT L ON {stack_join_str} '
             f'{" ".join(channel_join_lines)} '
             f'{filter_str} '
-            'ORDER BY F.OutputFrameIndex'
+            '{order_str}'
         )
 
         with self._generate_temp_tables([stack_table_def] + channel_table_defs):
+
+            if not allow_missing_frames:
+                counting_query = query_template.format(
+                    selection_str='COUNT(*)',
+                    order_str='',
+                )
+
+                # Calculate the number of output frames
+                number_of_output_frames = len(stack_table_def.column_data)
+                for tdef in channel_table_defs:
+                    number_of_output_frames *= len(tdef.column_data)
+
+                # Use a query to find the number of input frames
+                found_number = next(self._db_con.execute(counting_query))[0]
+
+                # If these two numbers are not the same, there are missing
+                # frames
+                if found_number != number_of_output_frames:
+                    raise RuntimeError(
+                        'The requested set of frames includes frames that '
+                        'are missing from the image. You may need to allow '
+                        'missing frames or add additional filters.'
+                    )
+
+            full_query = query_template.format(
+                selection_str=selection_str,
+                order_str='ORDER BY F.OutputFrameIndex',
+            )
+
             yield (
                 (
                     fi,
@@ -2543,7 +2575,7 @@ class Image(SOPClass):
                     (fo, slice(None), slice(None)),
                     tuple(channel),
                 )
-                for (fo, fi, *channel) in self._db_con.execute(query)
+                for (fo, fi, *channel) in self._db_con.execute(full_query)
             )
 
     @contextmanager
@@ -2559,6 +2591,7 @@ class Image(SOPClass):
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
+        allow_missing_frames: bool = False,
     ) -> Generator[
             Iterator[
                 Tuple[
@@ -2589,16 +2622,16 @@ class Image(SOPClass):
         ----------
         row_start: int
             Row index (1-based) in the total pixel matrix of the first row of
-            the output array. May be negative (last row is -1).
+            the output array.
         row_end: int
             Row index (1-based) in the total pixel matrix one beyond the last
-            row of the output array. May be negative (last row is -1).
+            row of the output array.
         column_start: int
             Column index (1-based) in the total pixel matrix of the first
-            column of the output array. May be negative (last column is -1).
+            column of the output array.
         column_end: int
             Column index (1-based) in the total pixel matrix one beyond the last
-            column of the output array. May be negative (last column is -1).
+            column of the output array.
         tile_shape: Tuple[int, int]
             Shape of each tile (rows, columns).
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
@@ -2630,6 +2663,10 @@ class Image(SOPClass):
             values rather than lists.
         filters_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the filters.
+        allow_missing_frames: bool, optional
+            Allow frames in the output array to be blank because these frames
+            are omitted from the image. If False and missing frames are found,
+            an error is raised.
 
         Yields
         ------
@@ -2726,8 +2763,8 @@ class Image(SOPClass):
         # but seems to improve performance of the downstream numpy
         # operations, presumably as it is more cache efficient
         # Create temporary table of channel indices
-        query = (
-            f'SELECT {selection_str} '
+        query_template = (
+            'SELECT {selection_str} '
             'FROM FrameLUT L '
             f'{" ".join(channel_join_lines)} '
             'WHERE ('
@@ -2738,13 +2775,53 @@ class Image(SOPClass):
             f'        {column_offset_start}'
             f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
             f'    {filter_str} '
-            ')'
+            ') '
+            '{order_str}'
+        )
+
+        order_str = (
             'ORDER BY '
             '     L.RowPositionInTotalImagePixelMatrix,'
             '     L.ColumnPositionInTotalImagePixelMatrix'
         )
 
         with self._generate_temp_tables(channel_table_defs):
+
+            if (
+                not allow_missing_frames and
+                self.get('DimensionOrganizationType', '') != "TILED_FULL"
+            ):
+                counting_query = query_template.format(
+                    selection_str='COUNT(*)',
+                    order_str='',
+                )
+
+                # Calculate the number of output frames
+                v_frames = ((row_end - 2)// th) - ((row_start - 1) // th) + 1
+                h_frames = (
+                    ((column_end - 2)// tw) - ((column_start - 1) // tw) + 1
+                )
+                number_of_output_frames = v_frames * h_frames
+                for tdef in channel_table_defs:
+                    number_of_output_frames *= len(tdef.column_data)
+
+                # Use a query to find the number of input frames
+                found_number = next(self._db_con.execute(counting_query))[0]
+
+                # If these two numbers are not the same, there are missing
+                # frames
+                if found_number != number_of_output_frames:
+                    raise RuntimeError(
+                        'The requested set of frames includes frames that '
+                        'are missing from the image. You may need to allow '
+                        'missing frames or add additional filters.'
+                    )
+
+            full_query = query_template.format(
+                selection_str=selection_str,
+                order_str=order_str,
+            )
+
             yield (
                 (
                     fi,
@@ -2770,5 +2847,5 @@ class Image(SOPClass):
                     ),
                     tuple(channel),
                 )
-                for (rp, cp, fi, *channel) in self._db_con.execute(query)
+                for (rp, cp, fi, *channel) in self._db_con.execute(full_query)
             )

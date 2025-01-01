@@ -3564,6 +3564,13 @@ class TestSegmentationParsing:
             self._sm_control_labelmap_seg_ds
         )
 
+        self._sm_control_labelmap_palette_color_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+        )
+        self._sm_control_labelmap_palette_color_seg = Segmentation.from_dataset(
+            self._sm_control_labelmap_palette_color_seg_ds
+        )
+
         self._ct_binary_seg_ds = dcmread(
             'data/test_files/seg_image_ct_binary.dcm'
         )
@@ -4465,6 +4472,31 @@ class TestSegmentationParsing:
         )
         assert np.array_equal(expected_array, out)
 
+    def test_allow_missing_frames(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        # There are no missing frames when indexing with this limited number of
+        # source UIDs
+        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+            allow_missing_frames=False,
+        )
+
+        # There are missing frames when indexing by volume position
+        msg = (
+            'The requested set of frames includes frames that '
+            'are missing from the image. You may need to allow '
+            'missing frames or add additional filters.'
+        )
+        with pytest.raises(RuntimeError, match=msg):
+            self._ct_binary_overlap_seg.get_volume(
+                allow_missing_frames=False,
+            )
+
     def test_get_volume_binary(self):
         vol = self._ct_binary_seg.get_volume()
         assert isinstance(vol, Volume)
@@ -4800,6 +4832,51 @@ class TestSegmentationParsing:
             PatientOrientationValuesBiped.L,
         )
         assert vol.dtype == np.uint8
+
+    def test_total_pixel_matrix_palette_color(self):
+        seg = self._sm_control_labelmap_palette_color_seg
+
+        pixels = seg.get_total_pixel_matrix(
+            combine_segments=True,
+            apply_palette_color_lut=True,
+        )
+        assert pixels.shape == (
+            seg.TotalPixelMatrixRows,
+            seg.TotalPixelMatrixColumns,
+            3
+        )
+
+        msg = (
+            "apply_palette_color_lut' requires that 'combine_segments' is "
+            "True and relabel is False."
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires combine_segments
+            seg.get_total_pixel_matrix(apply_palette_color_lut=True)
+
+        msg = (
+            "apply_palette_color_lut' requires that 'combine_segments' is "
+            "True and relabel is False."
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires relabel false
+            seg.get_total_pixel_matrix(
+                apply_palette_color_lut=True,
+                relabel=True,
+                combine_segments=True,
+            )
+
+        monochrome_seg = self._sm_control_labelmap_seg
+        msg = (
+            'Palette color transform is required but the image is not a palette '
+            'color image.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires combine_segments
+            monochrome_seg.get_total_pixel_matrix(
+                combine_segments=True,
+                apply_palette_color_lut=True,
+            )
 
 
 class TestSegUtilities(unittest.TestCase):
