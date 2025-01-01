@@ -5,9 +5,11 @@ from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 import logging
+from os import PathLike
 import sqlite3
 from typing import (
     Any,
+    BinaryIO,
     Iterable,
     Iterator,
     Dict,
@@ -23,7 +25,7 @@ from typing import (
 from typing_extensions import Self
 
 import numpy as np
-from pydicom import Dataset
+from pydicom import Dataset, dcmread
 from pydicom.encaps import get_frame
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
@@ -62,13 +64,18 @@ from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     get_image_coordinate_system,
     get_volume_positions,
+    is_tiled_image,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as hd_UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
 )
-from highdicom.volume import VolumeGeometry
+from highdicom.volume import (
+    VolumeGeometry,
+    Volume,
+    RGB_COLOR_CHANNEL_IDENTIFIER,
+)
 
 
 _NO_FRAME_REF_VALUE = -1
@@ -87,6 +94,32 @@ class _ImageColorType(Enum):
     MONOCHROME = 'MONOCHROME'
     COLOR = 'COLOR'
     PALETTE_COLOR = 'PALETTE_COLOR'
+
+
+def _deduce_color_type(image: Dataset):
+    """Deduce the color type for an image.
+
+    Parameters
+    ----------
+    image: pydicom.Dataset
+        Image dataset.
+
+    Returns
+    -------
+    _ImageColorType:
+        Color type of the image.
+
+    """
+    photometric_interpretation = image.PhotometricInterpretation
+
+    if photometric_interpretation in (
+        'MONOCHROME1',
+        'MONOCHROME2',
+    ):
+        return _ImageColorType.MONOCHROME
+    elif photometric_interpretation == 'PALETTE COLOR':
+        return _ImageColorType.PALETTE_COLOR
+    return _ImageColorType.COLOR
 
 
 class _CombinedPixelTransformation:
@@ -256,18 +289,7 @@ class _CombinedPixelTransformation:
                 "'str', or 'highdicom.content.VOILUTTransformation'."
             )
 
-        # TODO: how to combine with multiframe?
-        photometric_interpretation = image.PhotometricInterpretation
-
-        if photometric_interpretation in (
-            'MONOCHROME1',
-            'MONOCHROME2',
-        ):
-            self._color_type = _ImageColorType.MONOCHROME
-        elif photometric_interpretation == 'PALETTE COLOR':
-            self._color_type = _ImageColorType.PALETTE_COLOR
-        else:
-            self._color_type = _ImageColorType.COLOR
+        self._color_type = _deduce_color_type(image)
 
         if apply_real_world_transform is None:
             use_rwvm = True
@@ -628,10 +650,16 @@ class _CombinedPixelTransformation:
                 voi_center_width is None and
                 voi_lut is None
             ):
-                raise RuntimeError(
-                    'A VOI transform is required but not found in '
-                    'the image.'
-                )
+                if has_rwvm:
+                    raise RuntimeError(
+                        'A VOI transform is required but is superseded by '
+                        'a real world value transform.'
+                    )
+                else:
+                    raise RuntimeError(
+                        'A VOI transform is required but not found in '
+                        'the image.'
+                    )
 
             # Determine how to combine modality, voi and presentation
             # transforms
@@ -938,7 +966,7 @@ class _SQLTableDefinition:
     """Column data to place into the table."""
 
 
-class Image(SOPClass):
+class _Image(SOPClass):
 
     """Class representing a general DICOM image.
 
@@ -952,7 +980,7 @@ class Image(SOPClass):
 
     """
 
-    _coordinate_system: CoordinateSystemNames
+    _coordinate_system: CoordinateSystemNames | None
     _is_tiled_full: bool
     _single_source_frame_per_frame: bool
     _dim_ind_pointers: List[BaseTag]
@@ -1011,6 +1039,14 @@ class Image(SOPClass):
     def number_of_frames(self) -> int:
         """int: Number of frames in the image."""
         return self.get('NumberOfFrames', 1)
+
+    def _get_color_tyoe(self) -> _ImageColorType:
+        """_ImageColorType: Color type of the image."""
+        return _deduce_color_type(self)
+
+    @property
+    def is_tiled(self):
+        return is_tiled_image(self)
 
     def get_frame_raw(self, frame_number: int) -> bytes:
         """Get the raw data for an encoded frame.
@@ -1847,7 +1883,7 @@ class Image(SOPClass):
 
     def are_dimension_indices_unique(
         self,
-        dimension_index_pointers: Sequence[Union[int, BaseTag]],
+        dimension_index_pointers: Sequence[Union[int, BaseTag, str]],
     ) -> bool:
         """Check if a list of index pointers uniquely identifies frames.
 
@@ -1858,8 +1894,9 @@ class Image(SOPClass):
 
         Parameters
         ----------
-        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag]]
-            Sequence of tags serving as dimension index pointers.
+        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag, str]]
+            Sequence of tags serving as dimension index pointers. If strings,
+            the items are interpretted as keywords.
 
         Returns
         -------
@@ -1869,6 +1906,13 @@ class Image(SOPClass):
         """
         column_names = []
         for ptr in dimension_index_pointers:
+            if isinstance(ptr, str):
+                t = tag_for_keyword(ptr)
+                if t is None:
+                    raise ValueError(
+                        f"Keyword '{ptr}' is not a valid DICOM keyword."
+                    )
+                ptr = t
             column_names.append(self._dim_ind_col_names[ptr][0])
         return self._are_columns_unique(column_names)
 
@@ -2037,14 +2081,24 @@ class Image(SOPClass):
                 Tuple[int, ...],
             ]
         ],
-        frame_transform: _CombinedPixelTransformation,
-        channel_shape: tuple[int] = (),
+        *,
+        dtype: Union[type, str, np.dtype, None] = np.float64,
+        channel_shape: tuple[int, ...] = (),
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
         """Construct a pixel array given an array of frame numbers.
 
-        The output array is either 4D (``num_channels=0``) or 3D
-        (``num_channels>0``), where dimensions are frames x rows x columns x
-        channels.
+        The output array has 3 dimensions (frame, rows, columns), followed by 1
+        for RGB color channels, if applicable, followed by one for each
+        additional channel specified.
 
         Parameters
         ----------
@@ -2069,7 +2123,7 @@ class Image(SOPClass):
             output array into which the result should be placed. Note that in
             both cases the indexers access the frame, row and column dimensions
             of the relevant array, but not the channel dimension (if relevant).
-        channel_shape: int
+        channel_shape: tuple[int, ...], optional
             Channel shape of the output array. The use of channels depends
             on image type, for example it may be segments in a segmentation,
             optical paths in a microscopy image, or B-values in an MRI.
@@ -2079,6 +2133,96 @@ class Image(SOPClass):
             fractional values, this will be numpy.float32. Otherwise, the
             smallest unsigned integer type that accommodates all of the output
             values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply to apply the real-world value map to the frame.
+            The real world value map converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply to the modality transform (if present in the
+            dataset) the frame. The modality transformation maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transformation (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpretted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
 
         Returns
         -------
@@ -2086,14 +2230,26 @@ class Image(SOPClass):
             Pixel array
 
         """  # noqa: E501
-        dtype = frame_transform.output_dtype
+        shared_frame_transform = _CombinedPixelTransformation(
+            self,
+            apply_real_world_transform=apply_real_world_transform,
+            real_world_value_map_selector=real_world_value_map_selector,
+            apply_modality_transform=apply_modality_transform,
+            apply_voi_transform=apply_voi_transform,
+            voi_transform_selector=voi_transform_selector,
+            voi_output_range=voi_output_range,
+            apply_presentation_lut=apply_presentation_lut,
+            apply_palette_color_lut=apply_palette_color_lut,
+            apply_icc_profile=apply_icc_profile,
+            output_dtype=dtype,
+        )
 
         # Initialize empty pixel array
         if isinstance(spatial_shape, tuple):
             initial_shape = spatial_shape
         else:
             initial_shape = (spatial_shape, self.Rows, self.Columns)
-        color_frames = frame_transform.color_output
+        color_frames = shared_frame_transform.color_output
         samples_shape = (3, ) if color_frames else ()
 
         full_output_shape = (
@@ -2114,6 +2270,24 @@ class Image(SOPClass):
             spatial_indexer,
             channel_indexer
         ) in indices_iterator:
+
+            if shared_frame_transform.applies_to_all_frames:
+                frame_transform = shared_frame_transform
+            else:
+                frame_transform = _CombinedPixelTransformation(
+                    self,
+                    frame_index=frame_index,
+                    apply_real_world_transform=apply_real_world_transform,
+                    real_world_value_map_selector=real_world_value_map_selector,
+                    apply_modality_transform=apply_modality_transform,
+                    apply_voi_transform=apply_voi_transform,
+                    voi_transform_selector=voi_transform_selector,
+                    voi_output_range=voi_output_range,
+                    apply_presentation_lut=apply_presentation_lut,
+                    apply_palette_color_lut=apply_palette_color_lut,
+                    apply_icc_profile=apply_icc_profile,
+                    output_dtype=dtype,
+                )
 
             if color_frames:
                 # Include the sample dimension for color images
@@ -2581,28 +2755,30 @@ class Image(SOPClass):
     @contextmanager
     def _iterate_indices_for_tiled_region(
         self,
-        row_start: int,
-        row_end: int,
-        column_start: int,
-        column_end: int,
-        tile_shape: Tuple[int, int],
+        row_start: int = 1,
+        row_end: Optional[int] = None,
+        column_start: int = 1,
+        column_end: Optional[int] = None,
         channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
         allow_missing_frames: bool = False,
-    ) -> Generator[
-            Iterator[
-                Tuple[
-                    int,
-                    Tuple[slice, slice],
-                    Tuple[slice, slice],
-                    Tuple[int, ...]
-                ]
+    ) -> tuple[
+            Generator[
+                Iterator[
+                    Tuple[
+                        int,
+                        Tuple[slice, slice],
+                        Tuple[slice, slice],
+                        Tuple[int, ...]
+                    ]
+                ],
+                None,
+                None,
             ],
-            None,
-            None,
+            tuple[int, int]
         ]:
         """Iterate over segmentation frame indices for a given region of the
         image's total pixel matrix.
@@ -2620,20 +2796,28 @@ class Image(SOPClass):
 
         Parameters
         ----------
-        row_start: int
-            Row index (1-based) in the total pixel matrix of the first row of
-            the output array.
-        row_end: int
-            Row index (1-based) in the total pixel matrix one beyond the last
-            row of the output array.
-        column_start: int
-            Column index (1-based) in the total pixel matrix of the first
-            column of the output array.
-        column_end: int
-            Column index (1-based) in the total pixel matrix one beyond the last
-            column of the output array.
-        tile_shape: Tuple[int, int]
-            Shape of each tile (rows, columns).
+        row_start: int, optional
+            1-based row index in the total pixel matrix of the first row to
+            include in the output array. May be negative, in which case the
+            last row is considered index -1.
+        row_end: Union[int, None], optional
+            1-based row index in the total pixel matrix of the first row beyond
+            the last row to include in the output array. A ``row_end`` value of
+            ``n`` will include rows ``n - 1`` and below, similar to standard
+            Python indexing. If ``None``, rows up until the final row of the
+            total pixel matrix are included. May be negative, in which case the
+            last row is considered index -1.
+        column_start: int, optional
+            1-based column index in the total pixel matrix of the first column
+            to include in the output array. May be negative, in which case the
+            last column is considered index -1.
+        column_end: Union[int, None], optional
+            1-based column index in the total pixel matrix of the first column
+            beyond the last column to include in the output array. A
+            ``column_end`` value of ``n`` will include columns ``n - 1`` and
+            below, similar to standard Python indexing. If ``None``, columns up
+            until the final column of the total pixel matrix are included. May
+            be negative, in which case the last column is considered index -1.
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
             List of dictionaries defining the channel dimensions. Within each
             dictionary, The keys define the dimensions used. They may be either
@@ -2670,12 +2854,14 @@ class Image(SOPClass):
 
         Yields
         ------
-        Iterator[ Tuple[int, Tuple[slice, slice], Tuple[slice, slice], Tuple[int, ...]]]:
+        Iterator[Tuple[int, Tuple[slice, slice], Tuple[slice, slice], Tuple[int, ...]]]:
             Indices required to construct the requested mask. Each triplet
             denotes the (frame_index, input indexer, spatial indexer, channel
             indexer) representing a list of "instructions" to create the
             requested output array by copying frames from the image dataset and
             inserting them into the output array.
+        tuple[int, int]:
+            Output shape.
 
         """  # noqa: E501
         all_columns = [
@@ -2734,7 +2920,52 @@ class Image(SOPClass):
         else:
             filter_str = ''
 
-        th, tw = tile_shape
+        if row_start is None:
+            row_start = 1
+        if row_end is None:
+            row_end = self.TotalPixelMatrixRows + 1
+        if column_start is None:
+            column_start = 1
+        if column_end is None:
+            column_end = self.TotalPixelMatrixColumns + 1
+
+        if column_start == 0 or row_start == 0:
+            raise ValueError(
+                'Arguments "row_start" and "column_start" may not be 0.'
+            )
+
+        if row_start > self.TotalPixelMatrixRows + 1:
+            raise ValueError(
+                'Invalid value for "row_start".'
+            )
+        elif row_start < 0:
+            row_start = self.TotalPixelMatrixRows + row_start + 1
+        if row_end > self.TotalPixelMatrixRows + 1:
+            raise ValueError(
+                'Invalid value for "row_end".'
+            )
+        elif row_end < 0:
+            row_end = self.TotalPixelMatrixRows + row_end + 1
+
+        if column_start > self.TotalPixelMatrixColumns + 1:
+            raise ValueError(
+                'Invalid value for "column_start".'
+            )
+        elif column_start < 0:
+            column_start = self.TotalPixelMatrixColumns + column_start + 1
+        if column_end > self.TotalPixelMatrixColumns + 1:
+            raise ValueError(
+                'Invalid value for "column_end".'
+            )
+        elif column_end < 0:
+            column_end = self.TotalPixelMatrixColumns + column_end + 1
+
+        output_shape = (
+            row_end - row_start,
+            column_end - column_start,
+        )
+
+        th, tw = self.Rows, self.Columns
 
         oh = row_end - row_start
         ow = column_end - column_start
@@ -2848,4 +3079,449 @@ class Image(SOPClass):
                     tuple(channel),
                 )
                 for (rp, cp, fi, *channel) in self._db_con.execute(full_query)
+            ), output_shape
+
+
+class Image(_Image):
+
+    """Public class"""
+
+    def get_volume(
+        self,
+        *,
+        slice_start: int = 0,
+        slice_end: Optional[int] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+        allow_missing_frames: bool = False,
+    ) -> Volume:
+        """Create a :class:`highdicom.Volume` from the image.
+
+        This is only possible if the image represents a regularly-spaced
+        3D volume.
+
+        Parameters
+        ----------
+        slice_start: int, optional
+            Zero-based index of the "volume position" of the first slice of the
+            returned volume. The "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. May be
+            negative, in which case standard Python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc).
+        slice_end: Union[int, None], optional
+            Zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. The "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            May be negative, in which case standard Python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). If
+            None, the last volume position is included as the last output
+            slice.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply to apply the real-world value map to the frame.
+            The real world value map converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply to the modality transform (if present in the
+            dataset) the frame. The modality transformation maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transformation (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpretted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+        allow_missing_frames: bool, optional
+            Allow frames in the output array to be blank because these frames
+            are omitted from the image. If False and missing frames are found,
+            an error is raised.
+
+        """
+        if self.volume_geometry is None:
+            raise RuntimeError(
+                "This image is not a regularly-spaced 3D volume."
             )
+        n_vol_positions = self.volume_geometry.spatial_shape[0]
+
+        # Check that the combination of frame numbers uniquely identify
+        # frames
+        columns = ['VolumePosition']
+        if not self._are_columns_unique(columns):
+            raise RuntimeError(
+                'Volume positions and do not '
+                'uniquely identify frames of the image.'
+            )
+
+        if slice_start < 0:
+            slice_start = n_vol_positions + slice_start
+
+        if slice_end is None:
+            slice_end = n_vol_positions
+        elif slice_end > n_vol_positions:
+            raise IndexError(
+                f"Value of {slice_end} is not valid for segmentation with "
+                f"{n_vol_positions} volume positions."
+            )
+        elif slice_end < 0:
+            if slice_end < (- n_vol_positions):
+                raise IndexError(
+                    f"Value of {slice_end} is not valid for segmentation with "
+                    f"{n_vol_positions} volume positions."
+                )
+            slice_end = n_vol_positions + slice_end
+
+        number_of_slices = cast(int, slice_end) - slice_start
+
+        if number_of_slices < 1:
+            raise ValueError(
+                "The combination of 'slice_start' and 'slice_end' gives an "
+                "empty volume."
+            )
+
+        volume_positions = range(slice_start, slice_end)
+
+        channel_spec = None
+
+        color_type = self._get_color_tyoe()
+        if (
+            color_type == _ImageColorType.COLOR or
+            (
+                color_type == _ImageColorType.PALETTE_COLOR and
+                (apply_palette_color_lut or apply_palette_color_lut is None)
+            )
+        ):
+            channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
+
+        with self._iterate_indices_for_stack(
+            stack_indices={'VolumePosition': volume_positions},
+            # channel_indices=channel_indices,
+            # remap_channel_indices=[remap_channel_indices],
+            allow_missing_frames=allow_missing_frames,
+        ) as indices:
+
+            array = self._get_pixels_by_frame(
+                spatial_shape=number_of_slices,
+                indices_iterator=indices,
+                # channel_shape=channel_shape,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+            )
+
+        affine = self.volume_geometry[slice_start].affine
+
+        return Volume(
+            array=array,
+            affine=affine,
+            frame_of_reference_uid=self.FrameOfReferenceUID,
+            channels=channel_spec,
+        )
+
+    def get_total_pixel_matrix(
+        self,
+        row_start: int = 1,
+        row_end: Optional[int] = None,
+        column_start: int = 1,
+        column_end: Optional[int] = None,
+        dtype: Union[type, str, np.dtype, None] = None,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+        allow_missing_frames: bool = True,
+    ):
+        """Get the pixel array as a (region of) the total pixel matrix.
+
+        Parameters
+        ----------
+        row_start: int, optional
+            1-based row index in the total pixel matrix of the first row to
+            include in the output array. May be negative, in which case the
+            last row is considered index -1.
+        row_end: Union[int, None], optional
+            1-based row index in the total pixel matrix of the first row beyond
+            the last row to include in the output array. A ``row_end`` value of
+            ``n`` will include rows ``n - 1`` and below, similar to standard
+            Python indexing. If ``None``, rows up until the final row of the
+            total pixel matrix are included. May be negative, in which case the
+            last row is considered index -1.
+        column_start: int, optional
+            1-based column index in the total pixel matrix of the first column
+            to include in the output array. May be negative, in which case the
+            last column is considered index -1.
+        column_end: Union[int, None], optional
+            1-based column index in the total pixel matrix of the first column
+            beyond the last column to include in the output array. A
+            ``column_end`` value of ``n`` will include columns ``n - 1`` and
+            below, similar to standard Python indexing. If ``None``, columns up
+            until the final column of the total pixel matrix are included. May
+            be negative, in which case the last column is considered index -1.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply to apply the real-world value map to the frame.
+            The real world value map converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply to the modality transform (if present in the
+            dataset) the frame. The modality transformation maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transformation (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpretted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+        allow_missing_frames: bool, optional
+            Allow frames in the output array to be blank because these frames
+            are omitted from the image. If False and missing frames are found,
+            an error is raised.
+
+        Returns
+        -------
+        pixel_array: numpy.ndarray
+            Pixel array representing the image's total pixel matrix.
+
+        Note
+        ----
+        This method uses 1-based indexing of rows and columns in order to match
+        the conventions used in the DICOM standard. The first row of the total
+        pixel matrix is row 1, and the last is ``self.TotalPixelMatrixRows``.
+        This is is unlike standard Python and NumPy indexing which is 0-based.
+        For negative indices, the two are equivalent with the final row/column
+        having index -1.
+
+        """
+        # Check whether this segmentation is appropriate for tile-based indexing
+        if not self.is_tiled:
+            raise RuntimeError("Image is not a tiled image.")
+        if not self.is_indexable_as_total_pixel_matrix():
+            raise RuntimeError(
+                "Image does not have appropriate dimension indices "
+                "to be indexed as a total pixel matrix."
+            )
+
+        with self._iterate_indices_for_tiled_region(
+            row_start=row_start,
+            row_end=row_end,
+            column_start=column_start,
+            column_end=column_end,
+            allow_missing_frames=allow_missing_frames,
+        ) as (indices, output_shape):
+
+            return self._get_pixels_by_frame(
+                spatial_shape=output_shape,
+                indices_iterator=indices,
+                # channel_shape=channel_shape,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+            )
+
+
+def imread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Image:
+    """Read an image stored in DICOM File Format.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing an
+        image.
+
+    Returns
+    -------
+    highdicom.Image
+        Image read from the file.
+
+    """
+    return Image.from_dataset(dcmread(fp), copy=False)

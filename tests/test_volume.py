@@ -9,18 +9,19 @@ from highdicom.spatial import (
     _normalize_patient_orientation,
     _translate_affine_matrix,
 )
+from highdicom.image import (
+    imread,
+)
 from highdicom.volume import (
     ChannelIdentifier,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
-    volread,
 )
 
-
 def read_multiframe_ct_volume():
-    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
-    return Volume.from_image(dcm), dcm
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+    return im.get_volume(), im
 
 
 def read_ct_series_volume():
@@ -241,7 +242,7 @@ def test_volume_multiframe():
     assert volume.pixel_spacing == tuple(pixel_spacing)
     slice_spacing = 10.0
     assert volume.spacing == (slice_spacing, *pixel_spacing[::-1])
-    assert volume.number_of_channels is None
+    assert volume.channel_shape == ()
     expected_voxel_volume = (
         pixel_spacing[0] * pixel_spacing[1] * slice_spacing
     )
@@ -569,7 +570,7 @@ def test_match_geometry(crop, pad, permute, reversible):
     transformed = (
         vol[crop]
         .pad(pad)
-        .permute_axes(permute)
+        .permute_spatial_axes(permute)
      )
 
     forward_matched = vol.match_geometry(transformed)
@@ -585,7 +586,7 @@ def test_match_geometry(crop, pad, permute, reversible):
         inverted_transformed = (
             vol[crop]
             .pad(pad)
-            .permute_axes(permute)
+            .permute_spatial_axes(permute)
          )
         assert inverted_transformed.geometry_equal(transformed)
         assert np.array_equal(transformed.array, inverted_transformed.array)
@@ -662,59 +663,3 @@ def test_match_geometry_failure_rotation():
 
     with pytest.raises(RuntimeError):
         vol.match_geometry(geometry)
-
-
-@pytest.mark.parametrize(
-    'fp,glob',
-    [
-        (
-            Path(__file__).parents[1].joinpath('data/test_files/ct_image.dcm'),
-            None
-        ),
-        (
-            str(
-                Path(__file__).parents[1].joinpath(
-                    'data/test_files/ct_image.dcm'
-                )
-            ),
-            None
-        ),
-        (
-            [
-                Path(__file__).parents[1].joinpath(
-                    'data/test_files/ct_image.dcm'
-                )
-            ],
-            None
-        ),
-        (get_testdata_file('eCT_Supplemental.dcm'), None),
-        ([get_testdata_file('eCT_Supplemental.dcm')], None),
-        (
-            Path(__file__).parents[1].joinpath('data/test_files/'),
-            'ct_image.dcm'
-        ),
-        (
-            str(Path(__file__).parents[1].joinpath('data/test_files/')),
-            'ct_image.dcm'
-        ),
-        (
-            [
-                get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-                get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-                get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-            ],
-            None,
-        ),
-        (
-            [
-                Path(get_testdata_file('dicomdirtests/77654033/CT2/17136')),
-                Path(get_testdata_file('dicomdirtests/77654033/CT2/17196')),
-                Path(get_testdata_file('dicomdirtests/77654033/CT2/17166')),
-            ],
-            None,
-        ),
-    ]
-)
-def test_volread(fp, glob):
-    volume = volread(fp, glob=glob)
-    assert isinstance(volume, Volume)

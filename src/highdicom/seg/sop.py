@@ -47,7 +47,7 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom.image import Image, _CombinedPixelTransformation
+from highdicom.image import _Image, _CombinedPixelTransformation
 from highdicom.base import _check_little_endian
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -170,7 +170,7 @@ def _check_numpy_value_representation(
         )
 
 
-class Segmentation(Image):
+class Segmentation(_Image):
 
     """SOP class for the Segmentation IOD."""
 
@@ -3266,19 +3266,14 @@ class Segmentation(Image):
                 if need_remap else dtype
             )
 
-            frame_transform = _CombinedPixelTransformation(
-                self,
-                output_dtype=intermediate_dtype,
+            out_array = self._get_pixels_by_frame(
+                spatial_shape=spatial_shape,
+                indices_iterator=indices_iterator,
                 apply_real_world_transform=False,
                 apply_modality_transform=False,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
-            )
-
-            out_array = self._get_pixels_by_frame(
-                spatial_shape=spatial_shape,
-                indices_iterator=indices_iterator,
-                frame_transform=frame_transform,
+                dtype=intermediate_dtype,
             )
             num_input_segments = max(self.segment_numbers) + 1
 
@@ -3403,19 +3398,15 @@ class Segmentation(Image):
                 )
 
         else:
-            frame_transform = _CombinedPixelTransformation(
-                self,
-                output_dtype=intermediate_dtype,
-                apply_real_world_transform=False,
-                apply_modality_transform=False,
-                apply_palette_color_lut=False,
-                apply_icc_profile=False,
-            )
             out_array = self._get_pixels_by_frame(
                 spatial_shape=spatial_shape,
                 indices_iterator=indices_iterator,
                 channel_shape=(num_output_segments, ),
-                frame_transform=frame_transform,
+                apply_real_world_transform=False,
+                apply_modality_transform=False,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=intermediate_dtype,
             )
 
             if rescale_fractional:
@@ -4746,7 +4737,7 @@ class Segmentation(Image):
 
         """
         # Check whether this segmentation is appropriate for tile-based indexing
-        if not is_tiled_image(self):
+        if not self.is_tiled:
             raise RuntimeError("Segmentation is not a tiled image.")
         if not self.is_indexable_as_total_pixel_matrix():
             raise RuntimeError(
@@ -4761,51 +4752,6 @@ class Segmentation(Image):
             raise ValueError(
                 'Segment numbers may not be empty.'
             )
-
-        if row_start is None:
-            row_start = 1
-        if row_end is None:
-            row_end = self.TotalPixelMatrixRows + 1
-        if column_start is None:
-            column_start = 1
-        if column_end is None:
-            column_end = self.TotalPixelMatrixColumns + 1
-
-        if column_start == 0 or row_start == 0:
-            raise ValueError(
-                'Arguments "row_start" and "column_start" may not be 0.'
-            )
-
-        if row_start > self.TotalPixelMatrixRows + 1:
-            raise ValueError(
-                'Invalid value for "row_start".'
-            )
-        elif row_start < 0:
-            row_start = self.TotalPixelMatrixRows + row_start + 1
-        if row_end > self.TotalPixelMatrixRows + 1:
-            raise ValueError(
-                'Invalid value for "row_end".'
-            )
-        elif row_end < 0:
-            row_end = self.TotalPixelMatrixRows + row_end + 1
-
-        if column_start > self.TotalPixelMatrixColumns + 1:
-            raise ValueError(
-                'Invalid value for "column_start".'
-            )
-        elif column_start < 0:
-            column_start = self.TotalPixelMatrixColumns + column_start + 1
-        if column_end > self.TotalPixelMatrixColumns + 1:
-            raise ValueError(
-                'Invalid value for "column_end".'
-            )
-        elif column_end < 0:
-            column_end = self.TotalPixelMatrixColumns + column_end + 1
-
-        output_shape = (
-            row_end - row_start,
-            column_end - column_start,
-        )
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
@@ -4823,11 +4769,10 @@ class Segmentation(Image):
             row_end=row_end,
             column_start=column_start,
             column_end=column_end,
-            tile_shape=(self.Rows, self.Columns),
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
             allow_missing_frames=allow_missing_frames,
-        ) as indices:
+        ) as (indices, output_shape):
 
             return self._get_pixels_by_seg_frame(
                 spatial_shape=output_shape,

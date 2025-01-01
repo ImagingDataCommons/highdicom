@@ -16,6 +16,7 @@ from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransformation,
     Image,
+    imread,
 )
 from highdicom.pixel_transforms import (
     apply_voi_window,
@@ -29,6 +30,7 @@ from highdicom.pm import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import Volume
 
 
 def test_slice_spacing():
@@ -973,3 +975,19 @@ def test_combined_transform_pmap_rwvm_lut():
     )
     with pytest.raises(TypeError, match=msg):
         tf = _CombinedPixelTransformation(pmap, output_dtype=np.float32)
+
+
+def test_get_volume_multiframe_ct():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+    volume = im.get_volume()
+
+    assert isinstance(volume, Volume)
+    assert volume.spatial_shape == (2, 512, 512)
+    assert volume.channel_shape == ()
+
+    volume = im.get_volume(
+        apply_voi_transform=True,
+        apply_real_world_transform=False
+    )
+    assert volume.array.min() == 0.0
+    assert volume.array.max() == 1.0
