@@ -2650,16 +2650,14 @@ class ModalityLUTTransformation(Dataset):
             )
 
             # Avoid unnecessary array operations for efficiency
-            if slope != 1.0 or intercept != 0.0:
-                if slope != 1.0:
-                    slope = np.float64(slope).astype(dtype)
-                    array = array * slope
-                if intercept != 0.0:
-                    intercept = np.float64(intercept).astype(dtype)
-                    array = array + intercept
-            else:
-                if array.dtype != dtype:
-                    array = array.astype(dtype)
+            if slope != 1.0:
+                slope = np.float64(slope).astype(dtype)
+                array = array * slope
+            if intercept != 0.0:
+                intercept = np.float64(intercept).astype(dtype)
+                array = array + intercept
+            if array.dtype != dtype:
+                array = array.astype(dtype)
 
             return array
 
