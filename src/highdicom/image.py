@@ -23,7 +23,6 @@ from typing import (
     cast,
 )
 from typing_extensions import Self
-from matplotlib.pyplot import cool
 
 import numpy as np
 from pydicom import Dataset, dcmread
@@ -781,17 +780,57 @@ class _CombinedPixelTransformation:
                             modality_slope_intercept
                         )
 
-        # We don't use the color_correct_frame() function here, since we cache
-        # the ICC transform on the instance for improved performance.
-        if use_icc and 'ICCProfile' in image:
-            self._color_manager = ColorManager(image.ICCProfile)
-        else:
-            self._color_manager = None
-            if require_icc:
-                raise RuntimeError(
-                    'An ICC profile is required but not found in '
-                    'the image.'
+        self._color_manager = None
+        if use_icc:
+            if 'ICCProfile' in image:
+                # ICC is normally at the top level of the dataset
+                self._color_manager = ColorManager(image.ICCProfile)
+            elif 'OpticalPathSequence' in image:
+                # In certain microscopy images, ICC is in the optical paths
+                # sequence
+                if len(image.OpticalPathSequence) == 1:
+                    optical_path_item = image.OpticalPathSequence[0]
+                else:
+                    # Multiple optical paths, need to find the identifier for
+                    # this frame
+                    identifier = None
+                    if 'SharedFunctionalGroupsSequence' in image:
+                        sfgs = image.SharedFunctionalGroupsSequence[0]
+                        if 'OpticalPathIdentificationSequence' in sfgs:
+                            identifier = (
+                                sfgs
+                                .OpticalPathIdentificationSequence[0]
+                                .OpticalPathIdentifier
+                            )
+
+                    if 'PerFrameFunctionalGroupsSequence' in image:
+                        pffg = image.PerFrameFunctionalGroupsSequence[frame_index]
+                        if 'OpticalPathIdentificationSequence' in pffg:
+                            identifier = (
+                                pffg
+                                .OpticalPathIdentificationSequence[0]
+                                .OpticalPathIdentifier
+                            )
+                            self.applies_to_all_frames = False
+
+                    if identifier is None:
+                        raise ValueError('Could not determine optical path identifier.')
+
+                    for optical_path_item in image.OpticalPathSequence:
+                        if optical_path_item.OpticalPathIdentifier == identifier:
+                            break
+                    else:
+                        raise ValueError('No information on optical path found.')
+
+                self._color_manager = ColorManager(
+                    optical_path_item.ICCProfile
                 )
+
+        if require_icc and self._color_manager is None:
+            raise RuntimeError(
+                'An ICC profile is required but not found in '
+                'the image.'
+            )
 
         if self._effective_lut_data is not None:
             if self._color_manager is None:

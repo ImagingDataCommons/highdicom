@@ -883,6 +883,39 @@ def test_combined_transform_labelmap_seg():
         assert output_arr.dtype == output_dtype
 
 
+def test_combined_transform_sm_image():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/sm_image_control.dcm'
+
+    dcm = pydicom.dcmread(f)
+
+    for output_dtype in [
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.float16,
+        np.float32,
+        np.float64,
+    ]:
+        tf = _CombinedPixelTransformation(dcm, output_dtype=output_dtype)
+        assert tf._effective_slope_intercept is None
+        assert tf._effective_lut_data is None
+        assert tf._effective_window_center_width is None
+        assert tf._color_manager is not None
+        assert tf._input_range_check is None
+        assert not tf._invert
+
+        input_arr = dcm.pixel_array[0]
+        output_arr = tf(input_arr)
+        assert output_arr.shape == (dcm.Rows, dcm.Columns, 3)
+        assert output_arr.dtype == output_dtype
+
+
 def test_combined_transform_all_test_files():
     # A simple test that the trasnform at least does something for the default
     # parameters for all images in the pydicom test suite
