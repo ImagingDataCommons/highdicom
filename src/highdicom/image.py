@@ -822,9 +822,10 @@ class _CombinedPixelTransformation:
                     else:
                         raise ValueError('No information on optical path found.')
 
-                self._color_manager = ColorManager(
-                    optical_path_item.ICCProfile
-                )
+                if 'ICCProfile' in optical_path_item:
+                    self._color_manager = ColorManager(
+                        optical_path_item.ICCProfile
+                    )
 
         if require_icc and self._color_manager is None:
             raise RuntimeError(
