@@ -4608,7 +4608,7 @@ class Segmentation(_Image):
         skip_overlap_checks: bool = False,
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
-        apply_icc_profile: bool = None,
+        apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = True,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
@@ -4727,7 +4727,7 @@ class Segmentation(_Image):
             This is only valid for ``"LABELMAP"`` segmentations that contain
             palette color LUT information, and only when ``combine_segments``
             is ``True`` and ``relabel`` is ``False``.
-        apply_icc_profile: bool, optional
+        apply_icc_profile: bool | None, optional
             If True apply an ICC profile to the output and require it to be
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
