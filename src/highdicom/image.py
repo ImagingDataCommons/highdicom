@@ -88,7 +88,9 @@ logger = logging.getLogger(__name__)
 # TODO rebase parametric map
 # TODO tiled volumes
 # TODO additional get pixel methods
-# behavior of simple frame volumes
+# TODO expose channel bhaviour
+# TODO behavior of simple frame images
+# TODO exports/inits and docs
 
 
 class _ImageColorType(Enum):
@@ -172,6 +174,7 @@ class _CombinedPixelTransformation:
         voi_output_range: Tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
+        remove_palette_color_values: Sequence[int] | None = None,
         apply_icc_profile: bool | None = None,
     ):
         """
@@ -265,6 +268,11 @@ class _CombinedPixelTransformation:
             PhotometricInterpretation is not MONOCHROME1 and the
             PresentationLUTShape is not present, or if a real world value
             transform is applied.
+        remove_palette_color_values: Sequence[int] | None, optional
+            Remove values from the palette color LUT (if any) by altering the
+            LUT so that these values map to RGB(0, 0, 0) instead of their
+            original value. This is intended to remove segments from a palette
+            color labelmap segmentation.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
@@ -449,6 +457,8 @@ class _CombinedPixelTransformation:
                 input_range = (0, 2 ** image.BitsStored - 1)
 
         if self._color_type == _ImageColorType.PALETTE_COLOR:
+            # Note that some monochrome images have optional palette color
+            # LUTs. Currently such LUTs will never be applied
             if use_palette_color:
                 if 'SegmentedRedPaletteColorLookupTableData' in image:
                     # TODO
@@ -458,6 +468,16 @@ class _CombinedPixelTransformation:
                     self._effective_lut_first_mapped_value,
                     self._effective_lut_data
                 ) = _get_combined_palette_color_lut(image)
+
+                # Zero out certain indices if requested
+                if (
+                    remove_palette_color_values is not None and
+                    len(remove_palette_color_values) > 0
+                ):
+                    to_remove = np.array(
+                        remove_palette_color_values
+                    ) - self._effective_lut_first_mapped_value
+                    self._effective_lut_data[to_remove, :] = 0
 
         elif self._color_type == _ImageColorType.MONOCHROME:
             # Create a list of all datasets to check for transforms for
@@ -1086,7 +1106,7 @@ class _Image(SOPClass):
     def is_tiled(self):
         return is_tiled_image(self)
 
-    def get_frame_raw(self, frame_number: int) -> bytes:
+    def get_raw_frame(self, frame_number: int) -> bytes:
         """Get the raw data for an encoded frame.
 
         Parameters
@@ -1147,21 +1167,10 @@ class _Image(SOPClass):
 
             return self.PixelData[start:end]
 
-    def get_frame(
+    def get_stored_frame(
         self,
         frame_number: int,
-        *,
-        output_dtype: Union[type, str, np.dtype, None] = np.float64,
-        apply_real_world_transform: bool | None = None,
-        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
-        apply_modality_transform: bool | None = None,
-        apply_voi_transform: bool | None = False,
-        voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
-        apply_presentation_lut: bool = True,
-        apply_palette_color_lut: bool | None = None,
-        apply_icc_profile: bool | None = None,
-    ) -> np.ndarray:
+    )-> np.ndarray:
         if frame_number < 1 or frame_number > self.number_of_frames:
             raise IndexError(
                 f"Invalid frame number '{frame_number}' for image with "
@@ -1169,13 +1178,11 @@ class _Image(SOPClass):
                 "use a 1-based index."
             )
 
-        frame_index = frame_number - 1
-
         if (
             self._lazy_frame_access and
             self._pixel_array is None
         ):
-            raw_frame = self.get_frame_raw(frame_number)
+            raw_frame = self.get_raw_frame(frame_number)
             frame = decode_frame(
                 value=raw_frame,
                 transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
@@ -1194,6 +1201,28 @@ class _Image(SOPClass):
                 frame = self.pixel_array
             else:
                 frame = self.pixel_array[frame_number - 1]
+
+        return frame
+
+    def get_frame(
+        self,
+        frame_number: int,
+        *,
+        output_dtype: Union[type, str, np.dtype, None] = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ) -> np.ndarray:
+
+        frame_index = frame_number - 1
+
+        frame = self.get_stored_frame(frame_number)
 
         frame_transform = _CombinedPixelTransformation(
             self,
@@ -2204,6 +2233,7 @@ class _Image(SOPClass):
         voi_output_range: Tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
+        remove_palette_color_values: Sequence[int] | None = None,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
         """Construct a pixel array given an array of frame numbers.
@@ -2325,6 +2355,11 @@ class _Image(SOPClass):
             PhotometricInterpretation is not MONOCHROME1 and the
             PresentationLUTShape is not present, or if a real world value
             transform is applied.
+        remove_palette_color_values: Sequence[int] | None, optional
+            Remove values from the palette color LUT (if any) by altering the
+            LUT so that these values map to RGB(0, 0, 0) instead of their
+            original value. This is intended to remove segments from a palette
+            color labelmap segmentation.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
@@ -2352,6 +2387,7 @@ class _Image(SOPClass):
             voi_output_range=voi_output_range,
             apply_presentation_lut=apply_presentation_lut,
             apply_palette_color_lut=apply_palette_color_lut,
+            remove_palette_color_values=remove_palette_color_values,
             apply_icc_profile=apply_icc_profile,
             output_dtype=dtype,
         )
@@ -2411,7 +2447,7 @@ class _Image(SOPClass):
                 self._lazy_frame_access and
                 self._pixel_array is None
             ):
-                frame_bytes = self.get_frame_raw(frame_index + 1)
+                frame_bytes = self.get_raw_frame(frame_index + 1)
                 frame = frame_transform(frame_bytes, frame_index)
             else:
                 if self.pixel_array.ndim == 2:

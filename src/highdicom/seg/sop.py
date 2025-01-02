@@ -3266,10 +3266,21 @@ class Segmentation(_Image):
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
 
-            need_remap = not np.array_equal(
-                segment_numbers,
-                self.segment_numbers
-            )
+            if apply_palette_color_lut:
+                # Remap is handled by the frame transform
+                need_remap = False
+                # Any segment not requested is mapped to zero
+                # note that this assumes the background is RGB(0, 0, 0)
+                remove_palette_color_values = [
+                    s for s in self.segment_numbers
+                    if s not in segment_numbers
+                ]
+            else:
+                need_remap = not np.array_equal(
+                    segment_numbers,
+                    self.segment_numbers
+                )
+                remove_palette_color_values = None
 
             intermediate_dtype = (
                 _get_unsigned_dtype(self.BitsStored)
@@ -3283,11 +3294,12 @@ class Segmentation(_Image):
                 apply_modality_transform=False,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
+                remove_palette_color_values=remove_palette_color_values,
                 dtype=intermediate_dtype,
             )
-            num_input_segments = max(self.segment_numbers) + 1
 
             if need_remap:
+                num_input_segments = max(self.segment_numbers) + 1
                 remap_dtype = (
                     dtype if combine_segments else intermediate_dtype
                 )
@@ -3363,15 +3375,7 @@ class Segmentation(_Image):
             for (frame_index, input_indexer, output_indexer, seg_n) in indices_iterator:
                 pix_value = intermediate_dtype.type(seg_n[0])
 
-                pixel_array = self.get_frame(
-                    frame_index + 1,
-                    output_dtype=intermediate_dtype,
-                    apply_real_world_transform=False,
-                    apply_modality_transform=False,
-                    apply_presentation_lut=False,
-                    apply_palette_color_lut=False,
-                    apply_icc_profile=False,
-                )
+                pixel_array = self.get_stored_frame(frame_index + 1)
                 pixel_array = pixel_array[input_indexer]
 
                 if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
