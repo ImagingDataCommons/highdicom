@@ -84,13 +84,10 @@ logger = logging.getLogger(__name__)
 
 
 # TODO deal with extended offset table
-# TODO deal with single frame images
-# TODO make the segmentation special cases lazy
 # TODO test laziness
 # TODO rebase parametric map
 # TODO tiled volumes
 # TODO additional get pixel methods
-# TODO ICCProfile within optical paths
 # behavior of simple frame volumes
 
 

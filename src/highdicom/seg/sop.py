@@ -2680,6 +2680,7 @@ class Segmentation(_Image):
         cls,
         dataset: Dataset,
         copy: bool = True,
+        lazy_frame_access: bool = False,
     ) -> Self:
         """Create instance from an existing dataset.
 
@@ -2691,6 +2692,11 @@ class Segmentation(_Image):
             If True, the underlying dataset is deep-copied such that the
             original dataset remains intact. If False, this operation will
             alter the original dataset in place.
+        lazy_frame_access: bool, optional
+            If True, image frames are only decompressed from the raw bytes of
+            the PixelData when needed. If False, pixel data for all frames are
+            eagerly decompressed whenever any pixel data are accessed
+            (pydicom's default behavior).
 
         Returns
         -------
@@ -2785,7 +2791,11 @@ class Segmentation(_Image):
                     )
                     pffg_item.PixelMeasuresSequence = pixel_measures
 
-        seg = super().from_dataset(seg, copy=False)
+        seg = super().from_dataset(
+            seg,
+            copy=False,
+            lazy_frame_access=lazy_frame_access,
+        )
 
         return cast(cls, seg)
 
@@ -3328,11 +3338,6 @@ class Segmentation(_Image):
             intermediate_dtype = dtype
 
         if combine_segments:
-            if self.pixel_array.ndim == 2:
-                h, w = self.pixel_array.shape
-            else:
-                _, h, w = self.pixel_array.shape
-
             # Check whether segmentation is binary, or fractional with only
             # binary values
             if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
@@ -3342,33 +3347,12 @@ class Segmentation(_Image):
                         'segmentation image, argument "rescale_fractional" '
                         'must be set to True.'
                     )
-                # Combining fractional segs is only possible if there are
-                # two unique values in the array: 0 and MaximumFractionalValue
-                is_binary = np.isin(
-                    np.unique(self.pixel_array),
-                    np.array([0, self.MaximumFractionalValue]),
-                    assume_unique=True
-                ).all()
-                if not is_binary:
-                    raise ValueError(
-                        'Combining segments of a FRACTIONAL segmentation is '
-                        'only possible if the pixel array contains only 0s '
-                        'and the specified MaximumFractionalValue '
-                        f'({self.MaximumFractionalValue}).'
-                    )
-                pixel_array = self.pixel_array // self.MaximumFractionalValue
-                pixel_array = pixel_array.astype(np.uint8)
-            else:
-                pixel_array = self.pixel_array
-
-            if pixel_array.ndim == 2:
-                pixel_array = pixel_array[None, :, :]
 
             # Initialize empty pixel array
             full_output_shape = (
                 spatial_shape
                 if isinstance(spatial_shape, tuple)
-                else (spatial_shape, h, w)
+                else (spatial_shape, self.Rows, self.Columns)
             )
             out_array = np.zeros(
                 full_output_shape,
@@ -3379,12 +3363,40 @@ class Segmentation(_Image):
             for (frame_index, input_indexer, output_indexer, seg_n) in indices_iterator:
                 pix_value = intermediate_dtype.type(seg_n[0])
 
-                full_input_indexer = (frame_index, *input_indexer)
+                pixel_array = self.get_frame(
+                    frame_index + 1,
+                    output_dtype=intermediate_dtype,
+                    apply_real_world_transform=False,
+                    apply_modality_transform=False,
+                    apply_presentation_lut=False,
+                    apply_palette_color_lut=False,
+                    apply_icc_profile=False,
+                )
+                pixel_array = pixel_array[input_indexer]
+
+                if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
+                    # Combining fractional segs is only possible if there are
+                    # two unique values in the array: 0 and MaximumFractionalValue
+                    is_binary = np.isin(
+                        np.unique(pixel_array),
+                        np.array([0, self.MaximumFractionalValue]),
+                        assume_unique=True
+                    ).all()
+                    if not is_binary:
+                        raise ValueError(
+                            'Combining segments of a FRACTIONAL segmentation is '
+                            'only possible if the pixel array contains only 0s '
+                            'and the specified MaximumFractionalValue '
+                            f'({self.MaximumFractionalValue}).'
+                        )
+                    pixel_array = pixel_array // self.MaximumFractionalValue
+                    if pixel_array.dtype != np.uint8:
+                        pixel_array = pixel_array.astype(np.uint8)
 
                 if not skip_overlap_checks:
                     if np.any(
                         np.logical_and(
-                            pixel_array[full_input_indexer] > 0,
+                            pixel_array > 0,
                             out_array[output_indexer] > 0
                         )
                     ):
@@ -3393,7 +3405,7 @@ class Segmentation(_Image):
                             "overlap."
                         )
                 out_array[output_indexer] = np.maximum(
-                    pixel_array[full_input_indexer] * pix_value,
+                    pixel_array * pix_value,
                     out_array[output_indexer]
                 )
 
