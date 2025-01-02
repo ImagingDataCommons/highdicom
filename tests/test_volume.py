@@ -11,6 +11,7 @@ from highdicom.spatial import (
 )
 from highdicom.image import (
     imread,
+    volume_from_image_series,
 )
 from highdicom.volume import (
     ChannelIdentifier,
@@ -31,7 +32,7 @@ def read_ct_series_volume():
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    return Volume.from_image_series(ct_series), ct_series
+    return volume_from_image_series(ct_series), ct_series
 
 
 def test_transforms():
@@ -169,7 +170,7 @@ def test_volume_single_frame():
     rows, columns = ct_series[0].Rows, ct_series[0].Columns
     assert volume.shape == (len(ct_series), rows, columns)
     assert volume.spatial_shape == volume.shape
-    assert volume.channel_shape == (2, )
+    assert volume.channel_shape == ()
     orientation = ct_series[0].ImageOrientationPatient
     assert volume.direction_cosines == tuple(orientation)
     direction = volume.direction
@@ -180,8 +181,7 @@ def test_volume_single_frame():
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
 
-    # (sorting)
-    assert volume.position == tuple(ct_series[1].ImagePositionPatient)
+    assert volume.position == tuple(ct_series[0].ImagePositionPatient)
 
     assert volume.pixel_spacing == tuple(ct_series[0].PixelSpacing)
     slice_spacing = 1.25

@@ -23,6 +23,7 @@ from typing import (
     cast,
 )
 from typing_extensions import Self
+from matplotlib.pyplot import cool
 
 import numpy as np
 from pydicom import Dataset, dcmread
@@ -63,8 +64,10 @@ from highdicom.pixel_transforms import (
 from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     get_image_coordinate_system,
+    get_series_volume_positions,
     get_volume_positions,
     is_tiled_image,
+    sort_datasets,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as hd_UID
@@ -78,15 +81,18 @@ from highdicom.volume import (
 )
 
 
-_NO_FRAME_REF_VALUE = -1
-
-
 logger = logging.getLogger(__name__)
 
 
 # TODO deal with extended offset table
 # TODO deal with single frame images
 # TODO make the segmentation special cases lazy
+# TODO test laziness
+# TODO rebase parametric map
+# TODO tiled volumes
+# TODO additional get pixel methods
+# TODO ICCProfile within optical paths
+# behavior of simple frame volumes
 
 
 class _ImageColorType(Enum):
@@ -968,15 +974,12 @@ class _SQLTableDefinition:
 
 class _Image(SOPClass):
 
-    """Class representing a general DICOM image.
+    """Base class representing a general DICOM image.
 
     An "image" is any object representing an Image Information Entity.
 
-    Note that this does not correspond to a particular SOP class in DICOM, but
-    instead captures behavior that is common to a number of SOP classes.
-
-    The class may not be instantiated directly, but should be created from an
-    existing dataset.
+    This class serves as a base class for specific image types, including
+    Segmentations and Parametric Maps, as well as the general Image base class.
 
     """
 
@@ -1022,8 +1025,6 @@ class _Image(SOPClass):
         _check_little_endian(dataset)
 
         # Checks on integrity of input dataset
-        if not is_multiframe_image(dataset):
-            raise ValueError('Dataset is not a multiframe image.')
         if copy:
             im = deepcopy(dataset)
         else:
@@ -1248,6 +1249,80 @@ class _Image(SOPClass):
         self._coordinate_system = get_image_coordinate_system(
             self
         )
+
+        if is_multiframe_image(self):
+            self._build_luts_multiframe()
+        else:
+            self._build_luts_single_frame()
+
+    def _build_luts_single_frame(self) -> None:
+        """Populates LUT information for a single frame image."""
+        self._is_tiled_full = False
+        self._dim_ind_pointers = []
+        self._dim_ind_col_names = {}
+        self._single_source_frame_per_frame = True
+        self._locations_preserved = None
+
+        if 'SourceImageSequence' in self:
+            self._single_source_frame_per_frame = (
+                len(self.SourceImageSequence) == 1
+            )
+            locations_preserved = [
+                item.get('SpatialLocationsPreserved')
+                for item in self.SourceImageSequence
+            ]
+            if all(
+                v is not None and v == "YES" for v in locations_preserved
+            ):
+                self._locations_preserved = (
+                    SpatialLocationsPreservedValues.YES
+                )
+            elif all(
+                v is not None and v == "NO" for v in locations_preserved
+            ):
+                self._locations_preserved = (
+                    SpatialLocationsPreservedValues.NO
+                )
+
+        if self._coordinate_system is not None:
+
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                position = self.ImagePositionSlide
+                orientation = self.ImageOrientationSlide
+            else:
+                position = self.ImagePositionPatient
+                orientation = self.ImageOrientationPatient
+
+            self._volume_geometry = VolumeGeometry.from_attributes(
+                image_position=position,
+                image_orientation=orientation,
+                rows=self.Rows,
+                columns=self.Columns,
+                pixel_spacing=self.PixelSpacing,
+                number_of_frames=1,
+                spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
+            )
+        else:
+            self._volume_geometry = None
+
+        referenced_uids = self._get_ref_instance_uids()
+        self._db_con = sqlite3.connect(":memory:")
+        self._create_ref_instance_table(referenced_uids)
+
+    def _build_luts_multiframe(self) -> None:
+        """Build lookup tables for efficient querying.
+
+        Two lookup tables are currently constructed. The first maps the
+        SOPInstanceUIDs of all datasets referenced in the image to a
+        tuple containing the StudyInstanceUID, SeriesInstanceUID and
+        SOPInstanceUID.
+
+        The second look-up table contains information about each frame of the
+        segmentation, including the segment it contains, the instance and frame
+        from which it was derived (if these are unique), and its dimension
+        index values.
+
+        """
         referenced_uids = self._get_ref_instance_uids()
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
@@ -1476,7 +1551,7 @@ class _Image(SOPClass):
                                     int(src_im.ReferencedFrameNumber)
                                 )
                         else:
-                            frame_source_frames.append(_NO_FRAME_REF_VALUE)
+                            frame_source_frames.append(None)
 
                 if (
                     len(set(frame_source_instances)) != 1 or
@@ -2406,7 +2481,7 @@ class _Image(SOPClass):
             if multiple_values:
                 if len(value) != n_values:
                     raise ValueError(
-                        f'Number of values along all dimensions must match.'
+                        'Number of values along all dimensions must match.'
                     )
                 for v in value:
                     if not isinstance(v, python_type):
@@ -3084,7 +3159,17 @@ class _Image(SOPClass):
 
 class Image(_Image):
 
-    """Public class"""
+    """Class representing a general DICOM image.
+
+    An "image" is any object representing an Image Information Entity.
+
+    Note that this does not correspond to a particular SOP class in DICOM, but
+    instead captures behavior that is common to a number of SOP classes.
+
+    The class may not be instantiated directly, but should be created from an
+    existing dataset.
+
+    """
 
     def get_volume(
         self,
@@ -3525,3 +3610,198 @@ def imread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Image:
 
     """
     return Image.from_dataset(dcmread(fp), copy=False)
+
+
+def volume_from_image_series(
+    series_datasets: Sequence[Dataset],
+    dtype: Union[type, str, np.dtype, None] = None,
+    apply_real_world_transform: bool | None = None,
+    real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+    apply_modality_transform: bool | None = None,
+    apply_voi_transform: bool | None = False,
+    voi_transform_selector: int | str | VOILUTTransformation = 0,
+    voi_output_range: Tuple[float, float] = (0.0, 1.0),
+    apply_presentation_lut: bool = True,
+    apply_palette_color_lut: bool | None = None,
+    apply_icc_profile: bool | None = None,
+) -> Volume:
+    """Create volume from a series of single frame images.
+
+    Parameters
+    ----------
+    series_datasets: Sequence[pydicom.Dataset]
+        Series of single frame datasets. There is no requirement on the
+        sorting of the datasets.
+    dtype: Union[type, str, numpy.dtype, None]
+        Data type of the returned array. If None, an appropriate type will
+        be chosen automatically. If the returned values are rescaled
+        fractional values, this will be numpy.float32. Otherwise, the
+        smallest unsigned integer type that accommodates all of the output
+        values will be chosen.
+    apply_real_world_transform: bool | None, optional
+        Whether to apply to apply the real-world value map to the frame.
+        The real world value map converts stored pixel values to output
+        values with a real-world meaning, either using a LUT or a linear
+        slope and intercept.
+
+        If True, the transform is applied if present, and if not
+        present an error will be raised. If False, the transform will not
+        be applied, regardless of whether it is present. If ``None``, the
+        transform will be applied if present but no error will be raised if
+        it is not present.
+
+        Note that if the dataset contains both a modality LUT and a real
+        world value map, the real world value map will be applied
+        preferentially. This also implies that specifying both
+        ``apply_real_world_transform`` and ``apply_modality_transform`` to
+        True is not permitted.
+    real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+        Specification of the real world value map to use (multiple may be
+        present in the dataset). If an int, it is used to index the list of
+        available maps. A negative integer may be used to index from the
+        end of the list following standard Python indexing convention. If a
+        str, the string will be used to match the ``"LUTLabel"`` attribute
+        to select the map. If a ``pydicom.sr.coding.Code`` or
+        ``highdicom.sr.coding.CodedConcept``, this will be used to match
+        the units (contained in the ``"MeasurementUnitsCodeSequence"``
+        attribute).
+    apply_modality_transform: bool | None, optional
+        Whether to apply to the modality transform (if present in the
+        dataset) the frame. The modality transformation maps stored pixel
+        values to output values, either using a LUT or rescale slope and
+        intercept.
+
+        If True, the transform is applied if present, and if not
+        present an error will be raised. If False, the transform will not
+        be applied, regardless of whether it is present. If ``None``, the
+        transform will be applied if it is present and no real world value
+        map takes precedence, but no error will be raised if it is not
+        present.
+    apply_voi_transform: bool | None, optional
+        Apply the value-of-interest (VOI) transformation (if present in the
+        dataset), which limits the range of pixel values to a particular
+        range of interest, using either a windowing operation or a LUT.
+
+        If True, the transform is applied if present, and if not
+        present an error will be raised. If False, the transform will not
+        be applied, regardless of whether it is present. If ``None``, the
+        transform will be applied if it is present and no real world value
+        map takes precedence, but no error will be raised if it is not
+        present.
+    voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        Specification of the VOI transform to select (multiple may be
+        present). May either be an int or a str. If an int, it is
+        interpretted as a (zero-based) index of the list of VOI transforms
+        to apply. A negative integer may be used to index from the end of
+        the list following standard Python indexing convention. If a str,
+        the string that will be used to match the
+        ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+        attributes to choose from multiple VOI transforms. Note that such
+        explanations are optional according to the standard and therefore
+        may not be present. Ignored if ``apply_voi_transform`` is ``False``
+        or no VOI transform is included in the datasets.
+    voi_output_range: Tuple[float, float], optional
+        Range of output values to which the VOI range is mapped. Only
+        relevant if ``apply_voi_transform`` is True and a VOI transform is
+        present.
+    apply_palette_color_lut: bool | None, optional
+        Apply the palette color LUT, if present in the dataset. The palette
+        color LUT maps a single sample for each pixel stored in the dataset
+        to a 3 sample-per-pixel color image.
+    apply_presentation_lut: bool, optional
+        Apply the presentation LUT transform to invert the pixel values. If
+        the PresentationLUTShape is present with the value ``'INVERSE''``,
+        or the PresentationLUTShape is not present but the Photometric
+        Interpretation is MONOCHROME1, convert the range of the output
+        pixels corresponds to MONOCHROME2 (in which high values are
+        represent white and low values represent black). Ignored if
+        PhotometricInterpretation is not MONOCHROME1 and the
+        PresentationLUTShape is not present, or if a real world value
+        transform is applied.
+    apply_icc_profile: bool | None, optional
+        Whether colors should be corrected by applying an ICC
+        transformation. Will only be performed if metadata contain an
+        ICC Profile.
+
+        If True, the transform is applied if present, and if not
+        present an error will be raised. If False, the transform will not
+        be applied, regardless of whether it is present. If ``None``, the
+        transform will be applied if it is present, but no error will be
+        raised if it is not present.
+
+    Returns
+    -------
+    Volume:
+        Volume created from the series.
+
+    """
+    coordinate_system = get_image_coordinate_system(series_datasets[0])
+    if (
+        coordinate_system is None or
+        coordinate_system != CoordinateSystemNames.PATIENT
+    ):
+        raise ValueError(
+            "Dataset should exist in the patient "
+            "coordinate_system."
+        )
+
+    frame_of_reference_uid = series_datasets[0].FrameOfReferenceUID
+    series_instance_uid = series_datasets[0].SeriesInstanceUID
+    if not all(
+        ds.SeriesInstanceUID == series_instance_uid
+        for ds in series_datasets
+    ):
+        raise ValueError('Images do not belong to the same series.')
+
+    if not all(
+        ds.FrameOfReferenceUID == frame_of_reference_uid
+        for ds in series_datasets
+    ):
+        raise ValueError('Images do not share a frame of reference.')
+
+    series_datasets = sort_datasets(series_datasets)
+
+    ds = series_datasets[0]
+
+    if len(series_datasets) == 1:
+        slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
+    else:
+        slice_spacing, _ = get_series_volume_positions(series_datasets)
+        if slice_spacing is None:
+            raise ValueError('Series is not a regularly-spaced volume.')
+
+    frames = []
+    for ds in series_datasets:
+        frame = ds.pixel_array
+        transf = _CombinedPixelTransformation(
+            ds,
+            output_dtype=dtype,
+            apply_real_world_transform=apply_real_world_transform,
+            real_world_value_map_selector=real_world_value_map_selector,
+            apply_modality_transform=apply_modality_transform,
+            apply_voi_transform=apply_voi_transform,
+            voi_transform_selector=voi_transform_selector,
+            voi_output_range=voi_output_range,
+            apply_presentation_lut=apply_presentation_lut,
+            apply_palette_color_lut=apply_palette_color_lut,
+            apply_icc_profile=apply_icc_profile,
+        )
+
+        frame = transf(frame)
+        frames.append(frame)
+
+    array = np.stack(frames)
+
+    channels = None
+    if array.ndim == 4:
+        channels = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
+
+    return Volume.from_attributes(
+        array=array,
+        frame_of_reference_uid=frame_of_reference_uid,
+        image_position=ds.ImagePositionPatient,
+        image_orientation=ds.ImageOrientationPatient,
+        pixel_spacing=ds.PixelSpacing,
+        spacing_between_slices=slice_spacing,
+        channels=channels,
+    )
