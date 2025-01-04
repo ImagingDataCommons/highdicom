@@ -3010,11 +3010,56 @@ class TestSegmentation:
             )
 
     def test_construction_segment_numbers_start_wrong(self):
-        with pytest.raises(ValueError):
+        msg = (
+            'Segment descriptions should be numbered starting from 1. '
+            'Found 2.'
+        )
+        with pytest.raises(ValueError, match=msg):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._additional_segment_descriptions  # seg num 2
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_segment_numbers_start_wrong_labelmap(self):
+        # Labelmaps have fewer restrictions on segment numbers
+        array = (self._ct_pixel_array * 2).astype(np.uint8)
+        seg = Segmentation(
+            source_images=[self._ct_image],
+            pixel_array=array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=(
+                self._additional_segment_descriptions  # seg num 2
+            ),
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+        assert len(seg.SegmentSequence) == 2
+
+        array_nonmatching = (self._ct_pixel_array * 4).astype(np.uint8)
+        msg = 'Pixel array contains segments that lack descriptions.'
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=array_nonmatching,
+                segmentation_type=SegmentationTypeValues.LABELMAP,
                 segment_descriptions=(
                     self._additional_segment_descriptions  # seg num 2
                 ),
@@ -3129,7 +3174,8 @@ class TestSegmentation:
             )
 
     def test_construction_non_described_segment(self):
-        with pytest.raises(ValueError):
+        msg = 'Pixel array contains segments that lack descriptions.'
+        with pytest.raises(ValueError, match=msg):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=(self._ct_pixel_array * 3).astype(np.uint8),
@@ -3722,6 +3768,19 @@ class TestSegmentationParsing:
     def test_get_segment_description(self):
         desc1 = self._sm_control_seg.get_segment_description(1)
         desc20 = self._sm_control_seg.get_segment_description(20)
+        assert isinstance(desc1, SegmentDescription)
+        assert desc1.segment_number == 1
+        assert isinstance(desc20, SegmentDescription)
+        assert desc20.segment_number == 20
+
+    def test_get_segment_description_non_consecutive(self):
+        out_of_order = deepcopy(self._sm_control_seg)
+        out_of_order.SegmentSequence = [
+            out_of_order.SegmentSequence[i]
+            for i in range(out_of_order.number_of_segments -1, -1, -1)
+        ]
+        desc1 = out_of_order.get_segment_description(1)
+        desc20 = out_of_order.get_segment_description(20)
         assert isinstance(desc1, SegmentDescription)
         assert desc1.segment_number == 1
         assert isinstance(desc20, SegmentDescription)
@@ -4878,6 +4937,126 @@ class TestSegmentationParsing:
                 apply_palette_color_lut=True,
             )
 
+    def test_parsing_nonconsecutive_segment_numbers(self):
+        # parsing a labelmap segmentation with non-consective segment numbers
+        seg_num = 4
+        other_seg_num = 8
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        ct_image = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        array = np.zeros(
+            (ct_image.Rows, ct_image.Columns),
+            dtype=np.uint8,
+        )
+        array[20:30, 20:30] = seg_num
+        array[70:80, 70:80] = other_seg_num
+        desc = SegmentDescription(
+            segment_number=seg_num,
+            segment_label=f'Segment #{seg_num}',
+            segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+            segmented_property_type=codes.SCT.Neoplasm,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+            algorithm_identification=AlgorithmIdentificationSequence(
+                name='foo',
+                family=codes.DCM.ArtificialIntelligence,
+                version='v1'
+            )
+        )
+        other_desc = SegmentDescription(
+            segment_number=other_seg_num,
+            segment_label=f'Segment #{other_seg_num}',
+            segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+            segmented_property_type=codes.SCT.Neoplasm,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+            algorithm_identification=AlgorithmIdentificationSequence(
+                name='foo',
+                family=codes.DCM.ArtificialIntelligence,
+                version='v1'
+            )
+        )
+
+        seg = Segmentation(
+            source_images=[ct_image],
+            pixel_array=array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=[desc, other_desc],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='manufacturer',
+            manufacturer_model_name='model_name',
+            software_versions='123',
+            device_serial_number='456',
+        )
+        assert len(seg.SegmentSequence) == 3  # includes bg
+        assert seg.segment_numbers == [seg_num, other_seg_num]
+
+        assert isinstance(seg.get_segment_description(4), SegmentDescription)
+        msg = '1 is an invalid segment number for this dataset.'
+        with pytest.raises(IndexError, match=msg):
+            seg.get_segment_description(1)
+
+        assert seg.get_segment_numbers() == [seg_num, other_seg_num]
+        assert seg.get_segment_numbers(segment_label=f'Segment #{seg_num}') == [seg_num]
+        assert seg.get_segment_numbers(segment_label='not existing') == []
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(out[0], array)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+            relabel=True,
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(np.unique(out), np.array([0, 1, 2]))
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+            relabel=True,
+            segment_numbers=[seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(out[0], array == seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 2)
+        assert np.array_equal(out[0, :, :, 0], array == seg_num)
+        assert np.array_equal(out[0, :, :, 1], array == other_seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            segment_numbers=[other_seg_num, seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 2)
+        assert np.array_equal(out[0, :, :, 0], array == other_seg_num)
+        assert np.array_equal(out[0, :, :, 1], array == seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            segment_numbers=[other_seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 1)
+        assert np.array_equal(out[0, :, :, 0], array == other_seg_num)
+
+        msg = (
+            'Segment numbers array contains invalid values.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=[ct_image.SOPInstanceUID],
+                segment_numbers=[5]  # not found
+            )
 
 class TestSegUtilities(unittest.TestCase):
 

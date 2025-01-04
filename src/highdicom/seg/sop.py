@@ -5,6 +5,7 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from copy import deepcopy
 from itertools import chain
 from os import PathLike
+from os.path import relpath
 import pkgutil
 from typing import (
     Any,
@@ -2121,8 +2122,9 @@ class Segmentation(_Image):
                     has_undescribed_segments = pixel_array.max() > number_of_segments
                 else:
                     # The general case, much slower
+                    numbers_with_bg = np.concatenate([np.array([0]), segment_numbers])
                     has_undescribed_segments = len(
-                        np.setdiff1d(pixel_array, segment_numbers)
+                        np.setdiff1d(pixel_array, numbers_with_bg)
                     ) != 0
 
                 if has_undescribed_segments:
@@ -3351,10 +3353,24 @@ class Segmentation(_Image):
                     if s not in segment_numbers
                 ]
             else:
-                need_remap = not np.array_equal(
-                    segment_numbers,
-                    self.segment_numbers
-                )
+                if not combine_segments or relabel:
+                    # If combining segments (i.e. if expanding segments),
+                    # always remap the segments for the one-hot later on.
+                    output_segment_numbers = np.arange(1, len(segment_numbers))
+                    need_remap = not np.array_equal(
+                        segment_numbers,
+                        output_segment_numbers
+                    )
+                else:
+                    # Combining segments without relabelling. Need to remap if
+                    # any existing segments are not requested, but order is not
+                    # important
+                    need_remap = len(
+                        np.setxor1d(
+                            segment_numbers,
+                            self.segment_numbers
+                        )
+                    ) > 1
                 remove_palette_color_values = None
 
             intermediate_dtype = (
@@ -3406,7 +3422,10 @@ class Segmentation(_Image):
                 out_array = remapping[out_array]
 
             if not combine_segments:
-                # Obscure trick to calculate one-hot
+                # Obscure trick to calculate one-hot. By this point, whatever
+                # segments were requested will have been remapped to the
+                # numbers 1, 2, ... in the order expected in the output
+                # channels
                 shape = out_array.shape
                 flat_array = out_array.flatten()
                 out_array = np.eye(
