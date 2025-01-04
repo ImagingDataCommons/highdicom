@@ -1840,7 +1840,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
@@ -1882,7 +1882,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
@@ -1980,7 +1980,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
@@ -2023,7 +2023,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
@@ -2066,7 +2066,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
@@ -2109,7 +2109,7 @@ class TestSegmentation:
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
-        assert not hasattr(pm_item, 'SliceThickness')
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
         assert len(shared_item.PlaneOrientationSequence) == 1
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \

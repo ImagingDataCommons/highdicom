@@ -1320,6 +1320,17 @@ class Segmentation(_Image):
         else:
             included_plane_indices = list(range(len(plane_positions)))
 
+        # Dimension Organization Type
+        dimension_organization_type = self._check_tiled_dimension_organization(
+            dimension_organization_type=dimension_organization_type,
+            is_tiled=is_tiled,
+            omit_empty_frames=omit_empty_frames,
+            plane_positions=plane_positions,
+            tile_pixel_array=tile_pixel_array,
+            rows=self.Rows,
+            columns=self.Columns,
+        )
+
         if (
             has_ref_frame_uid and
             dimension_organization_type !=
@@ -1341,56 +1352,61 @@ class Segmentation(_Image):
         else:
             unique_dimension_values = [None]
 
-        # Dimension Organization Type
-        dimension_organization_type = self._check_tiled_dimension_organization(
-            dimension_organization_type=dimension_organization_type,
-            is_tiled=is_tiled,
-            omit_empty_frames=omit_empty_frames,
-            plane_positions=plane_positions,
-            tile_pixel_array=tile_pixel_array,
-            rows=self.Rows,
-            columns=self.Columns,
-        )
-
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            if from_volume:
-                # Skip checks as this is 3D by construction
-                # TODO what about omitted frames
-                dimension_organization_type = (
-                    DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                )
-            else:
-                # TODO calculate spacing before omitting frames?
-                spacing, _ = get_volume_positions(
-                    image_positions=np.array(
-                        plane_position_values[plane_sort_index, 0, :]
-                    ),
-                    image_orientation=np.array(
-                        plane_orientation[0].ImageOrientationPatient
-                    ),
-                )
+            inferred_dim_org_type = None
 
-                if spacing is not None and spacing > 0.0:
-                    # The image is a regular volume, so we should record this
-                    dimension_organization_type = (
+            # To be considered "3D", a segmentation should have frames that are
+            # differentiated only by location. This rules out any non-labelmap
+            # segmentations with more than a single segment.
+            # Further, only segmentation with multiple spatial positions in the
+            # final segmentation should be considered to have 3D dimension
+            # organization type
+            if (
+                len(included_plane_indices) > 1 and
+                (
+                    segmentation_type == SegmentationTypeValues.LABELMAP
+                    or len(described_segment_numbers) == 1
+                )
+            ):
+                if from_volume:
+                    # Skip checks as this is 3D by construction
+                    # TODO what about omitted frames
+                    inferred_dim_org_type = (
                         DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                     )
-                    # Also add the slice spacing to the pixel measures
-                    (
-                        self.SharedFunctionalGroupsSequence[0]
-                            .PixelMeasuresSequence[0]
-                            .SpacingBetweenSlices
-                    ) = spacing
                 else:
-                    if (
-                        dimension_organization_type ==
-                        DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                    ):
-                        raise ValueError(
-                            'Dimension organization "3D" has been specified, '
-                            'but the source image is not a regularly-spaced 3D '
-                            'volume.'
+                    # TODO calculate spacing before omitting frames?
+                    spacing, _ = get_volume_positions(
+                        image_positions=np.array(
+                            plane_position_values[plane_sort_index, 0, :]
+                        ),
+                        image_orientation=np.array(
+                            plane_orientation[0].ImageOrientationPatient
+                        ),
+                    )
+
+                    if spacing is not None and spacing > 0.0:
+                        # The image is a regular volume, so we should record this
+                        inferred_dim_org_type = (
+                            DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                         )
+                        # Also add the slice spacing to the pixel measures
+                        (
+                            self.SharedFunctionalGroupsSequence[0]
+                                .PixelMeasuresSequence[0]
+                                .SpacingBetweenSlices
+                        ) = spacing
+
+            if (
+                dimension_organization_type ==
+                DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+            ) and inferred_dim_org_type is None:
+                raise ValueError(
+                    'Dimension organization "3D" has been specified, '
+                    'but the source image is not a regularly-spaced 3D '
+                    'volume.'
+                )
+            dimension_organization_type = inferred_dim_org_type
 
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
@@ -2017,6 +2033,14 @@ class Segmentation(_Image):
             DimensionOrganizationType to use for the output Segmentation.
 
         """  # noqa: E501
+        if (
+            dimension_organization_type ==
+            DimensionOrganizationTypeValues.THREE_DIMENSIONAL_TEMPORAL
+        ):
+            raise ValueError(
+                "Value of 'THREE_DIMENSIONAL_TEMPORAL' for "
+                "parameter 'dimension_organization_type' is not supported."
+            )
         if is_tiled and dimension_organization_type is None:
             dimension_organization_type = \
                 DimensionOrganizationTypeValues.TILED_SPARSE
