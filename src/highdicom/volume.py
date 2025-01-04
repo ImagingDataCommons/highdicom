@@ -61,6 +61,7 @@ from pydicom.datadict import (
 # TODO allow non-consecutive segments when reading (confirm with standard)?
 # TODO check logic around slice thickness and spacing for seg creation
 # TODO what do about multiple custom channels
+# TODO tidy up channel/dimension terminology
 
 
 class ChannelIdentifier:

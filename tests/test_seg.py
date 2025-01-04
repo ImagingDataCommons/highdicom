@@ -2,6 +2,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 import itertools
+from types import new_class
 import unittest
 from pathlib import Path
 import pkgutil
@@ -667,6 +668,16 @@ class TestSegmentation:
             spacing_between_slices=self._ct_volume_slice_spacing,
             frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
         )
+        self._ct_seg_volume_with_channels = Volume.from_attributes(
+            array=self._ct_volume_array[:, :, :, None],
+            image_position=self._ct_volume_position,
+            image_orientation=self._ct_volume_orientation,
+            pixel_spacing=self._ct_volume_pixel_spacing,
+            spacing_between_slices=self._ct_volume_slice_spacing,
+            frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
+            channels={'SegmentNumber': [1]},
+        )
+
         # A single CR image
         self._cr_image = dcmread(
             get_testdata_file('dicomdirtests/77654033/CR1/6154')
@@ -1843,12 +1854,152 @@ class TestSegmentation:
                 pp[0].ImagePositionPatient
             )
 
+    def test_construction_volume_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_channels_invalid_channel_id(self):
+        # Make a new correctly shaped volume whose channels do not represent
+        # segments
+        new_volume = self._ct_seg_volume_with_channels.with_array(
+            self._ct_seg_volume_with_channels.array,
+            channels={'FrameLabel': ['label']}
+        )
+        msg = (
+            "Input volume should have no channels other than 'SegmentNumber'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                [self._ct_image],
+                new_volume,
+                SegmentationTypeValues.BINARY.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                omit_empty_frames=False
+            )
+
+    def test_construction_volume_channels_invalid_channel_values(self):
+        # Make a new correctly shaped volume whose segment numbers do not
+        # match the descriptions
+        new_volume = self._ct_seg_volume_with_channels.with_array(
+            self._ct_seg_volume_with_channels.array,
+            channels={'SegmentNumber': [15]}
+        )
+        msg = (
+            "Segment numbers in the input volume do not match "
+            "the described segments."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                [self._ct_image],
+                new_volume,
+                SegmentationTypeValues.BINARY.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                omit_empty_frames=False
+            )
+
     def test_construction_volume_fractional(self):
         # Segmentation instance from a series of single-frame CT images
         # with empty frames kept in
         instance = Segmentation(
             [self._ct_image],
             self._ct_seg_volume,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_fractional_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as a volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
             SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
@@ -1928,6 +2079,50 @@ class TestSegmentation:
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
                 pp[0].ImagePositionPatient
             )
+
+    def test_construction_volume_labelmap_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as a volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            np.flip(instance.pixel_array, axis=0),
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert not hasattr(pm_item, 'SliceThickness')
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions()[::-1],
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
 
     def test_construction_3d_multiframe(self):
         # The CT multiframe image is already a volume, but the frames are

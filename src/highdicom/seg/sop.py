@@ -95,7 +95,7 @@ from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
 )
-from highdicom.volume import Volume, RGB_COLOR_CHANNEL_IDENTIFIER
+from highdicom.volume import ChannelIdentifier, Volume, RGB_COLOR_CHANNEL_IDENTIFIER
 
 
 logger = logging.getLogger(__name__)
@@ -611,6 +611,16 @@ class Segmentation(_Image):
                 )
             self._coordinate_system = None
 
+        # Check segment numbers
+        described_segment_numbers = np.array([
+            int(item.SegmentNumber)
+            for item in segment_descriptions
+        ])
+        self._check_segment_numbers(
+            described_segment_numbers,
+            segmentation_type,
+        )
+
         from_volume = isinstance(pixel_array, Volume)
         if from_volume:
             if not has_ref_frame_uid:
@@ -643,6 +653,28 @@ class Segmentation(_Image):
                     "Argument 'plane_positions' should not be provided if "
                     "'pixel_array' is a highdicom.Volume."
                 )
+            if pixel_array.number_of_channel_dimensions == 1:
+                if pixel_array.channel_identifiers != (
+                    ChannelIdentifier('SegmentNumber'),
+                ):
+                    raise ValueError(
+                        "Input volume should have no channels other than "
+                        "'SegmentNumber'."
+                    )
+                vol_seg_nums = pixel_array.get_channel_values('SegmentNumber')
+                if not np.array_equal(
+                    np.array(vol_seg_nums), described_segment_numbers
+                ):
+                    raise ValueError(
+                        "Segment numbers in the input volume do not match "
+                        "the described segments."
+                    )
+            elif pixel_array.number_of_channel_dimensions != 0:
+                raise ValueError(
+                    "If 'pixel_array' is a highdicom.Volume, it should have "
+                    "0 or 1 channel dimensions."
+                )
+
             plane_positions = pixel_array.get_plane_positions()
             plane_orientation = pixel_array.get_plane_orientation()
             pixel_measures = pixel_array.get_pixel_measures()
@@ -755,17 +787,6 @@ class Segmentation(_Image):
                 )
             self.ContentCreatorIdentificationCodeSequence = \
                 content_creator_identification
-
-        # Check segment numbers
-        described_segment_numbers = np.array([
-            int(item.SegmentNumber)
-            for item in segment_descriptions
-        ])
-        self._check_segment_numbers(
-            described_segment_numbers,
-            segmentation_type,
-        )
-        number_of_segments = len(described_segment_numbers)
 
         if segmentation_type == SegmentationTypeValues.BINARY:
             dtype = np.uint8
