@@ -755,6 +755,17 @@ class Segmentation(_Image):
             self.ContentCreatorIdentificationCodeSequence = \
                 content_creator_identification
 
+        # Check segment numbers
+        described_segment_numbers = np.array([
+            int(item.SegmentNumber)
+            for item in segment_descriptions
+        ])
+        self._check_segment_numbers(
+            described_segment_numbers,
+            segmentation_type,
+        )
+        number_of_segments = len(described_segment_numbers)
+
         if segmentation_type == SegmentationTypeValues.BINARY:
             dtype = np.uint8
             self.BitsAllocated = 1
@@ -783,22 +794,13 @@ class Segmentation(_Image):
             self.MaximumFractionalValue = max_fractional_value
         elif segmentation_type == SegmentationTypeValues.LABELMAP:
             # Decide on the output datatype and update the image metadata
-            # accordingly. Use the smallest possible type unless there is
-            # a palette color LUT that says otherwise.
-            if palette_color_lut_transformation is not None:
-                lut_bitdepth = (
-                    palette_color_lut_transformation.red_lut.bits_per_entry
+            # accordingly. Use the smallest possible type
+            dtype = _get_unsigned_dtype(described_segment_numbers.max())
+            if dtype == np.uint32:
+                raise ValueError(
+                    "Too many segments to represent with a 16 bit integer."
                 )
-                labelmap_bitdepth = lut_bitdepth
-                dtype = np.dtype(f'u{labelmap_bitdepth // 8}')
-            else:
-                dtype = _get_unsigned_dtype(len(segment_descriptions))
-                if dtype == np.uint32:
-                    raise ValueError(
-                        "Too many classes to represent with a 16 bit integer."
-                    )
-                labelmap_bitdepth = np.iinfo(dtype).bits
-            self.BitsAllocated = labelmap_bitdepth
+            self.BitsAllocated = np.iinfo(dtype).bits
             self.HighBit = self.BitsAllocated - 1
             self.BitsStored = self.BitsAllocated
             self.PixelPaddingValue = 0
@@ -855,11 +857,11 @@ class Segmentation(_Image):
                 lut_end = lut_start + lut_entries
 
                 if (
-                    (lut_start > 0) or lut_end <= len(segment_descriptions)
+                    (lut_start > 0) or lut_end <= described_segment_numbers.max()
                 ):
                     raise ValueError(
                         'The labelmap provided does not have entries '
-                        'to cover all segments and background.'
+                        'to covering all segments and background.'
                     )
 
                 for desc in segment_descriptions:
@@ -979,13 +981,6 @@ class Segmentation(_Image):
             sffg_item.PlaneOrientationSequence = plane_orientation
         self.SharedFunctionalGroupsSequence = [sffg_item]
 
-        # Check segment numbers
-        described_segment_numbers = np.array([
-            int(item.SegmentNumber)
-            for item in segment_descriptions
-        ])
-        self._check_segment_numbers(described_segment_numbers)
-        number_of_segments = len(described_segment_numbers)
         if segmentation_type == SegmentationTypeValues.LABELMAP:
             # Need to add a background description in the case of labelmap
 
@@ -1025,7 +1020,7 @@ class Segmentation(_Image):
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
             pixel_array,
-            number_of_segments,
+            described_segment_numbers,
             segmentation_type,
             dtype=dtype,
         )
@@ -1524,7 +1519,7 @@ class Segmentation(_Image):
                     segment_array = self._get_segment_pixel_array(
                         plane_array,
                         segment_number=segment_number,
-                        number_of_segments=number_of_segments,
+                        described_segment_numbers=described_segment_numbers,
                         segmentation_type=segmentation_type,
                         max_fractional_value=max_fractional_value,
                         dtype=dtype,
@@ -1702,18 +1697,30 @@ class Segmentation(_Image):
         )
 
     @staticmethod
-    def _check_segment_numbers(described_segment_numbers: np.ndarray):
-        """Checks on segment numbers extracted from the segment descriptions.
+    def _check_segment_numbers(
+        segment_numbers: np.ndarray,
+        segmentation_type: SegmentationTypeValues,
+    ):
+        """Checks on segment numbers for a new segmentation.
 
-        Segment numbers should start at 1 and increase by 1. This method checks
-        this and raises an appropriate exception for the user if the segment
-        numbers are incorrect.
+        For BINARY and FRACTIONAL segmentations, segment numbers should start
+        at 1 and increase by 1. Strictly there is no requirement on the
+        ordering of these items within the segment sequence, however we enforce
+        such an order anyway on segmentations created by highdicom. I.e. our
+        conditions are stricter than the standard requires.
+
+        For LABELMAP segmentations, there are no such limitations.
+
+        This method checks this and raises an appropriate exception for the
+        user if the segment numbers are incorrect.
 
         Parameters
         ----------
-        described_segment_numbers: np.ndarray
+        segment_numbers: numpy.ndarray
             The segment numbers from the segment descriptions, in the order
             they were passed. 1D array of integers.
+        segmentation_type: highdicom.seg.SegmentationTypeValues
+            Type of segmentation being created.
 
         Raises
         ------
@@ -1721,18 +1728,51 @@ class Segmentation(_Image):
             If the ``described_segment_numbers`` do not have the required values
 
         """
-        # Check segment numbers in the segment descriptions are
-        # monotonically increasing by 1
-        if not (np.diff(described_segment_numbers) == 1).all():
-            raise ValueError(
-                'Segment descriptions must be sorted by segment number '
-                'and monotonically increasing by 1.'
-            )
-        if described_segment_numbers[0] != 1:
-            raise ValueError(
-                'Segment descriptions should be numbered starting '
-                f'from 1. Found {described_segment_numbers[0]}. '
-            )
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            # Segment numbers must lie between 1 and 65536 to be represented by
+            # an unsigned short, but need not be consecutive for LABELMAP segs.
+            # 0 is technically allowed by the standard, but at the moment it is
+            # always reserved by highdicom to use for the background segment
+            min_seg_no = segment_numbers.min()
+            max_seg_no = segment_numbers.max()
+
+            if min_seg_no < 0 or max_seg_no > 65535:
+                raise ValueError(
+                    'Segmentation numbers must be positive integers below '
+                    '65536.'
+                )
+            if min_seg_no == 0:
+                raise ValueError(
+                    'The segmentation number 0 is reserved by highdicom for '
+                    'the background class.'
+                )
+
+            # Segment numbers must be unique within an instance
+            if len(np.unique(segment_numbers)) < len(segment_numbers):
+                raise ValueError(
+                    'Segments descriptions must have unique segment numbers.'
+                )
+
+            # We additionally impose an ordering constraint (not required by
+            # the standard)
+            if not np.all(segment_numbers[:-1] <= segment_numbers[1:]):
+                raise ValueError(
+                    'Segments descriptions must be in ascending order by '
+                    'segment number.'
+                )
+        else:
+            # Check segment numbers in the segment descriptions are
+            # monotonically increasing by 1
+            if not (np.diff(segment_numbers) == 1).all():
+                raise ValueError(
+                    'Segment descriptions must be sorted by segment number '
+                    'and monotonically increasing by 1.'
+                )
+            if segment_numbers[0] != 1:
+                raise ValueError(
+                    'Segment descriptions should be numbered starting '
+                    f'from 1. Found {segment_numbers[0]}.'
+                )
 
     @staticmethod
     def _get_pixel_measures_sequence(
@@ -2012,7 +2052,7 @@ class Segmentation(_Image):
     @staticmethod
     def _check_and_cast_pixel_array(
         pixel_array: np.ndarray,
-        number_of_segments: int,
+        segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues,
         dtype: type,
     ) -> Tuple[np.ndarray, SegmentsOverlapValues]:
@@ -2024,7 +2064,7 @@ class Segmentation(_Image):
         ----------
         pixel_array: numpy.ndarray
             The segmentation pixel array.
-        number_of_segments: int
+        segment_numbers: numpy.ndarray
             The segment numbers from the segment descriptions, in the order
             they were passed. 1D array of integers.
         segmentation_type: highdicom.seg.SegmentationTypeValues
@@ -2041,6 +2081,14 @@ class Segmentation(_Image):
             pixel array.
 
         """
+        # Note that for large array (common in pathology) the checks in this
+        # method can take up a significant amount of the overall creation time.
+        # As a result, this method is optimized for runtime efficiency at the
+        # expense of simplicity. In particular, there are several common
+        # special cases that have optimized implementations, and intermediate
+        # results are re-used wherever possible
+        number_of_segments = len(segment_numbers)
+
         if pixel_array.ndim == 4:
             # Check that the number of segments in the array matches
             if pixel_array.shape[-1] != number_of_segments:
@@ -2052,7 +2100,6 @@ class Segmentation(_Image):
                 )
 
         if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
-            max_pixel = pixel_array.max()
 
             if pixel_array.ndim == 3:
                 # A label-map style array where pixel values represent
@@ -2060,7 +2107,25 @@ class Segmentation(_Image):
 
                 # The pixel values in the pixel array must all belong to
                 # a described segment
-                if max_pixel > number_of_segments:
+                if len(
+                    np.setxor1d(
+                        np.arange(1, number_of_segments + 1),
+                        segment_numbers,
+                    )
+                ) == 0:
+                    # This is a common special case where segment numbers are
+                    # consecutive and start at 1 (as is required for FRACTIONAL
+                    # and BINARY segmentations). In this case it is sufficient
+                    # to check the max pixel value, which is MUCH more
+                    # efficient than calculating the set of unique values
+                    has_undescribed_segments = pixel_array.max() > number_of_segments
+                else:
+                    # The general case, much slower
+                    has_undescribed_segments = len(
+                        np.setdiff1d(pixel_array, segment_numbers)
+                    ) != 0
+
+                if has_undescribed_segments:
                     raise ValueError(
                         'Pixel array contains segments that lack '
                         'descriptions.'
@@ -2070,6 +2135,8 @@ class Segmentation(_Image):
                 # cannot overlap
                 segments_overlap = SegmentsOverlapValues.NO
             else:
+                max_pixel = pixel_array.max()
+
                 # Pixel array is 4D where each segment is stacked down
                 # the last dimension
                 # In this case, each segment of the pixel array should be binary
@@ -2295,7 +2362,7 @@ class Segmentation(_Image):
     def _get_segment_pixel_array(
         pixel_array: np.ndarray,
         segment_number: int,
-        number_of_segments: int,
+        described_segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues,
         max_fractional_value: int,
         dtype: type,
@@ -2315,8 +2382,8 @@ class Segmentation(_Image):
             Columns) in case of a "label map" style array.
         segment_number: int
             The segment of interest.
-        number_of_segments: int
-            Number of segments in the the segmentation.
+        described_segment_numbers: np.ndarray
+            Array of all segment numbers in the segmentation.
         segmentation_type: highdicom.seg.SegmentationTypeValues
             Desired output segmentation type.
         max_fractional_value: int
@@ -2334,7 +2401,7 @@ class Segmentation(_Image):
         """
         if pixel_array.dtype in (np.float32, np.float64):
             # Based on the previous checks and casting, if we get here the
-            # output is a FRACTIONAL segmentation Floating-point numbers must
+            # output is a FRACTIONAL segmentation. Floating-point numbers must
             # be mapped to 8-bit integers in the range [0,
             # max_fractional_value].
             if pixel_array.ndim == 3:
@@ -2348,11 +2415,11 @@ class Segmentation(_Image):
         else:
             if pixel_array.ndim == 2:
                 # "Label maps" that must be converted to binary masks.
-                if number_of_segments == 1:
+                if np.array_equal(described_segment_numbers, np.array([1])):
                     # We wish to avoid unnecessary comparison or casting
                     # operations here, for efficiency reasons. If there is only
-                    # a single segment, the label map pixel array is already
-                    # correct
+                    # a single segment with value 1, the label map pixel array
+                    # is already correct
                     if pixel_array.dtype != dtype:
                         segment_array = pixel_array.astype(dtype)
                     else:
@@ -2734,14 +2801,6 @@ class Segmentation(_Image):
         else:
             seg._coordinate_system = None
 
-        if seg.SegmentationType != 'LABELMAP':
-            for i, segment in enumerate(seg.SegmentSequence, 1):
-                if segment.SegmentNumber != i:
-                    raise AttributeError(
-                        'Segments are expected to start at 1 and be '
-                        'consecutive integers.'
-                    )
-
         # Convert contained items to highdicom types
         # Segment descriptions
         seg.SegmentSequence = [
@@ -2863,7 +2922,7 @@ class Segmentation(_Image):
         Parameters
         ----------
         segment_number: int
-            Segment number for the segment, as a 1-based index.
+            Segment number for the segment.
 
         Returns
         -------
@@ -2871,12 +2930,14 @@ class Segmentation(_Image):
             Description of the given segment.
 
         """
-        if segment_number < 1 or segment_number > self.number_of_segments:
-            raise IndexError(
-                f'{segment_number} is an invalid segment number for this '
-                'dataset.'
-            )
-        return self.SegmentSequence[segment_number - 1]
+        for desc in self.SegmentSequence:
+            if desc.segment_number == segment_number:
+                return desc
+
+        raise IndexError(
+            f'{segment_number} is an invalid segment number for this '
+            'dataset.'
+        )
 
     def get_segment_numbers(
         self,
@@ -3078,17 +3139,24 @@ class Segmentation(_Image):
 
     @property
     def segmented_property_categories(self) -> List[CodedConcept]:
-        """Get all unique segmented property categories in this SEG image.
+        """Get all unique non-background segmented property categories.
 
         Returns
         -------
         List[CodedConcept]
-            All unique segmented property categories referenced in segment
-            descriptions in this SEG image.
+            All unique non-background segmented property categories referenced
+            in segment descriptions in this SEG image.
 
         """
         categories = []
         for desc in self.SegmentSequence:
+            if (
+                'PixelPaddingValue' in self and
+                desc.segment_number == self.PixelPaddingValue
+            ):
+                # Skip background segment
+                continue
+
             if desc.segmented_property_category not in categories:
                 categories.append(desc.segmented_property_category)
 
@@ -3096,17 +3164,24 @@ class Segmentation(_Image):
 
     @property
     def segmented_property_types(self) -> List[CodedConcept]:
-        """Get all unique segmented property types in this SEG image.
+        """Get all unique non-background segmented property types.
 
         Returns
         -------
         List[CodedConcept]
-            All unique segmented property types referenced in segment
-            descriptions in this SEG image.
+            All unique non-background segmented property types referenced in
+            segment descriptions in this SEG image.
 
         """
         types = []
         for desc in self.SegmentSequence:
+            if (
+                'PixelPaddingValue' in self and
+                desc.segment_number == self.PixelPaddingValue
+            ):
+                # Skip background segment
+                continue
+
             if desc.segmented_property_type not in types:
                 types.append(desc.segmented_property_type)
 
@@ -3161,7 +3236,7 @@ class Segmentation(_Image):
             output array into which the result should be placed. Note that in
             both cases the indexers access the frame, row and column dimensions
             of the relevant array, but not the channel dimension (if relevant).
-        segment_numbers: np.ndarray
+        segment_numbers: numpy.ndarray
             One dimensional numpy array containing segment numbers
             corresponding to the columns of the seg frames matrix.
         combine_segments: bool
@@ -3295,30 +3370,37 @@ class Segmentation(_Image):
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
                 remove_palette_color_values=remove_palette_color_values,
+                palette_color_background_index=self.get(
+                    'PixelPaddingValue',
+                    0
+                ),
                 dtype=intermediate_dtype,
             )
 
             if need_remap:
                 num_input_segments = max(self.segment_numbers) + 1
+                stored_bg_val = self.get('PixelPaddingValue', 0)
+                num_input_segments = max(stored_bg_val + 1, num_input_segments)
                 remap_dtype = (
                     dtype if combine_segments else intermediate_dtype
                 )
                 remapping = np.zeros(num_input_segments + 1, dtype=remap_dtype)
-                bg_val = self.get('PixelPaddingValue', 0)
                 if combine_segments and not relabel:
-                    # A remapping that just zeroes out unused segments
+                    # A remapping that just sets unused segments to the
+                    # background value
                     for s in range(num_input_segments):
                         remapping[s] = (
                             s if s in segment_numbers
-                            else bg_val
+                            else stored_bg_val
                         )
                 else:
                     # A remapping that applies relabelling logic
+                    output_bg_val = 0  # relabel changes background value
                     for s in range(num_input_segments + 1):
                         remapping[s] = (
                             np.nonzero(segment_numbers == s)[0][0] + 1
                             if s in segment_numbers
-                            else bg_val
+                            else output_bg_val
                         )
 
                 out_array = remapping[out_array]

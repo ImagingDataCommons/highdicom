@@ -175,6 +175,7 @@ class _CombinedPixelTransformation:
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         remove_palette_color_values: Sequence[int] | None = None,
+        palette_color_background_index: int = 0,
         apply_icc_profile: bool | None = None,
     ):
         """
@@ -270,9 +271,14 @@ class _CombinedPixelTransformation:
             transform is applied.
         remove_palette_color_values: Sequence[int] | None, optional
             Remove values from the palette color LUT (if any) by altering the
-            LUT so that these values map to RGB(0, 0, 0) instead of their
-            original value. This is intended to remove segments from a palette
-            color labelmap segmentation.
+            LUT so that these values map to the RGB value at position
+            ``palette_color_background_index`` instead of their original value.
+            This is intended to remove segments from a palette color labelmap
+            segmentation.
+        palette_color_background_index: int, optional
+            The index (i.e. input) of the palette color LUT that corresponds to
+            background. Relevant only if ``remove_palette_color_values`` is
+            provided.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
@@ -477,7 +483,13 @@ class _CombinedPixelTransformation:
                     to_remove = np.array(
                         remove_palette_color_values
                     ) - self._effective_lut_first_mapped_value
-                    self._effective_lut_data[to_remove, :] = 0
+                    target = (
+                        palette_color_background_index -
+                        self._effective_lut_first_mapped_value
+                    )
+                    self._effective_lut_data[
+                        to_remove, :
+                    ] = self._effective_lut_data[target, :]
 
         elif self._color_type == _ImageColorType.MONOCHROME:
             # Create a list of all datasets to check for transforms for
@@ -2234,6 +2246,7 @@ class _Image(SOPClass):
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         remove_palette_color_values: Sequence[int] | None = None,
+        palette_color_background_index: int = 0,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
         """Construct a pixel array given an array of frame numbers.
@@ -2357,9 +2370,14 @@ class _Image(SOPClass):
             transform is applied.
         remove_palette_color_values: Sequence[int] | None, optional
             Remove values from the palette color LUT (if any) by altering the
-            LUT so that these values map to RGB(0, 0, 0) instead of their
-            original value. This is intended to remove segments from a palette
-            color labelmap segmentation.
+            LUT so that these values map to the RGB value at position
+            ``palette_color_background_index`` instead of their original value.
+            This is intended to remove segments from a palette color labelmap
+            segmentation.
+        palette_color_background_index: int, optional
+            The index (i.e. input) of the palette color LUT that corresponds to
+            background. Relevant only if ``remove_palette_color_values`` is
+            provided.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
             transformation. Will only be performed if metadata contain an
@@ -2388,6 +2406,7 @@ class _Image(SOPClass):
             apply_presentation_lut=apply_presentation_lut,
             apply_palette_color_lut=apply_palette_color_lut,
             remove_palette_color_values=remove_palette_color_values,
+            palette_color_background_index=palette_color_background_index,
             apply_icc_profile=apply_icc_profile,
             output_dtype=dtype,
         )

@@ -105,8 +105,10 @@ class SegmentDescription(Dataset):
 
         """  # noqa: E501
         super().__init__()
-        if segment_number < 1:
-            raise ValueError("Segment number must be a positive integer")
+        if segment_number < 1 or segment_number > 65535:
+            raise ValueError(
+                "Segment number must be a positive integer below 65536."
+            )
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
