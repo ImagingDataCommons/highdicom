@@ -3389,7 +3389,11 @@ def get_volume_positions(
     span = (pos2 - pos1)
     span /= np.linalg.norm(span)
 
-    is_perpendicular = abs(normal_vector.T @ span) - 1.0 < tol
+    dot_product = normal_vector.T @ span
+    is_perpendicular = (
+        abs(dot_product - 1.0) < tol or
+        abs(dot_product + 1.0) < tol
+    )
 
     if is_regular and is_perpendicular:
         vol_positions = [
