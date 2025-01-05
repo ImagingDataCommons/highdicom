@@ -1494,7 +1494,7 @@ class Segmentation(_Image):
 
         for segment_number in segments_iterable:
 
-            for plane_index in plane_sort_index:
+            for plane_dim_ind, plane_index in enumerate(plane_sort_index, 1):
 
                 if tile_pixel_array:
                     if (
@@ -1570,21 +1570,28 @@ class Segmentation(_Image):
                     # this segmentation frame
                     if has_ref_frame_uid:
                         plane_pos_val = plane_position_values[plane_index]
-                        try:
-                            dimension_index_values = (
-                                self._get_dimension_index_values(
-                                    unique_dimension_values=unique_dimension_values,  # noqa: E501
-                                    plane_position_value=plane_pos_val,
-                                    coordinate_system=self._coordinate_system,
-                                )
-                            )
-                        except IndexError as error:
-                            raise IndexError(
-                                'Could not determine position of plane '
-                                f'#{plane_index} in three dimensional '
-                                'coordinate system based on dimension index '
-                                f'values: {error}'
-                            ) from error
+                        if (
+                            self._coordinate_system ==
+                            CoordinateSystemNames.SLIDE
+                        ):
+                            try:
+                                dimension_index_values = [
+                                    int(
+                                        np.where(
+                                            unique_dimension_values[idx] == pos
+                                        )[0][0] + 1
+                                    )
+                                    for idx, pos in enumerate(plane_pos_val)
+                                ]
+                            except IndexError as error:
+                                raise IndexError(
+                                    'Could not determine position of plane '
+                                    f'#{plane_index} in three dimensional '
+                                    'coordinate system based on dimension index '
+                                    f'values: {error}'
+                                ) from error
+                        else:
+                            dimension_index_values = [plane_dim_ind]
                     else:
                         if segmentation_type == SegmentationTypeValues.LABELMAP:
                             # Here we have to use the "Frame Label" dimension
@@ -2528,78 +2535,6 @@ class Segmentation(_Image):
                     segment_array *= int(max_fractional_value)
 
         return segment_array
-
-    @staticmethod
-    def _get_dimension_index_values(
-        unique_dimension_values: List[np.ndarray],
-        plane_position_value: np.ndarray,
-        coordinate_system: Optional[CoordinateSystemNames],
-    ) -> List[int]:
-        """Get Dimension Index Values for a frame.
-
-        The Dimension Index Values are a list of integer indices that describe
-        the position of a frame as indices along each of the dimensions of
-        the Dimension Index Sequence. See
-        :class:`highdicom.seg.DimensionIndexSequence`.
-
-        Parameters
-        ----------
-        unique_dimension_values: List[numpy.ndarray]
-            List of arrays containing, for each dimension in the dimension
-            index sequence (except ReferencedSegment), the sorted unique
-            values of all planes along that dimension. Each array in the list
-            corresponds to one dimension, and has shape (N x m) where N is the
-            number of unique values for that dimension and m is the
-            multiplicity of values for that dimension.
-        plane_position_value: numpy.ndarray
-            Plane position of the plane. This is a 1D or 2D array containing
-            each of the raw values for this plane of the attributes listed as
-            dimension index pointers (except ReferencedSegment). For dimension
-            indices where the value multiplicity of all attributes is 1, the
-            array will be 1D. If the value multiplicity of attributes is
-            greater than 1, these values are stacked along the second
-            dimension.
-        coordinate_system: Optional[highdicom.CoordinateSystemNames]
-            The type of coordinate system used (if any).
-
-        Returns
-        -------
-        dimension_index_values: List[int]
-            The dimension index values (except the segment number) for the
-            given plane.
-
-        """
-        # Look up the position of the plane relative to the indexed
-        # dimension.
-        if (
-            coordinate_system ==
-            CoordinateSystemNames.SLIDE
-        ):
-            index_values = [
-                int(
-                    np.where(
-                        unique_dimension_values[idx] == pos
-                    )[0][0] + 1
-                )
-                for idx, pos in enumerate(plane_position_value)
-            ]
-        else:
-            # In case of the patient coordinate system, the
-            # value of the attribute the Dimension Index
-            # Sequence points to (Image Position Patient) has a
-            # value multiplicity greater than one.
-            index_values = [
-                int(
-                    np.where(
-                        (unique_dimension_values[idx] == pos).all(
-                            axis=1
-                        )
-                    )[0][0] + 1
-                )
-                for idx, pos in enumerate(plane_position_value)
-            ]
-
-        return index_values
 
     @staticmethod
     def _get_pffg_item(

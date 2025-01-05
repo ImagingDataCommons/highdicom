@@ -61,6 +61,7 @@ def test_slice_spacing_irregular():
     ct_multiframe.PerFrameFunctionalGroupsSequence[0].\
         PlanePositionSequence[0].ImagePositionPatient = [1.0, 0.0, 0.0]
 
+    breakpoint()
     image = Image.from_dataset(ct_multiframe)
 
     assert image.volume_geometry is None

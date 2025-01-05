@@ -8,6 +8,7 @@ import pkgutil
 import warnings
 
 import numpy as np
+from pydicom.multival import MultiValue
 import pytest
 from PIL import Image
 
@@ -51,7 +52,7 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import sort_datasets
+from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import Volume
@@ -763,7 +764,7 @@ class TestSegmentation:
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=bool
         )
-        nonempty_slice = slice(1, 3)
+        nonempty_slice = slice(1, 4)
         self._ct_series_mask_array[nonempty_slice, 1:5, 7:9] = True
         self._ct_series_nonempty = self._ct_series[nonempty_slice]
 
@@ -845,16 +846,31 @@ class TestSegmentation:
     @staticmethod
     def sort_frames(sources, mask):
         src = sources[0]
+        orientation = None
         if hasattr(src, 'ImageOrientationSlide'):
             coordinate_system = CoordinateSystemNames.SLIDE
         else:
             coordinate_system = CoordinateSystemNames.PATIENT
+            if 'SharedFunctionalGroupsSequence' in src:
+                orientation = (
+                    src
+                    .SharedFunctionalGroupsSequence[0]
+                    .PlaneOrientationSequence[0]
+                    .ImageOrientationPatient
+                )
+            else:
+                orientation = src.ImageOrientationPatient
+
         dim_index = DimensionIndexSequence(coordinate_system)
         if hasattr(src, 'NumberOfFrames'):
             plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
             plane_positions = dim_index.get_plane_positions_of_series(sources)
-        _, index = dim_index.get_index_values(plane_positions)
+        _, index = dim_index.get_index_values(
+            plane_positions,
+            image_orientation=orientation,
+            index_convention=VOLUME_INDEX_CONVENTION
+        )
         return mask[index, ...]
 
     @staticmethod
@@ -874,7 +890,33 @@ class TestSegmentation:
     def check_dimension_index_vals(seg):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
-        is_patient_coord_system = hasattr(
+        if seg.SegmentationType != "LABELMAP":
+            all_segment_numbers = []
+            for f in seg.PerFrameFunctionalGroupsSequence:
+                dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+
+                if isinstance(dim_ind_vals, MultiValue):
+                    posn_index = dim_ind_vals[0]
+                else:
+                    # VM=1 so this is an int
+                    posn_index = dim_ind_vals
+
+                seg_number = (
+                    f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                )
+
+                assert seg_number == posn_index
+                all_segment_numbers.append(seg_number)
+
+            # Probably this should be strict equality and we should adjust the
+            # dimension indices for unused segment numbers
+            assert (
+                set(all_segment_numbers) <=
+                set(range(1, max(all_segment_numbers) + 1))
+            )
+
+        has_frame_of_reference = 'FrameOfReferenceUID' in seg
+        is_patient_coord_system = has_frame_of_reference and hasattr(
             seg.PerFrameFunctionalGroupsSequence[0],
             'PlanePositionSequence'
         )
@@ -882,18 +924,15 @@ class TestSegmentation:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
             for f in seg.PerFrameFunctionalGroupsSequence:
-                if seg.SegmentationType == "LABELMAP":
-                    # DimensionIndexValues has VM=1 in this case so returns int
-                    posn_index = f.FrameContentSequence[0].DimensionIndexValues
+                dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+
+                if isinstance(dim_ind_vals, MultiValue):
+                    posn_index = dim_ind_vals[1]
                 else:
-                    # DimensionIndexValues has VM>1 in this case so returns
-                    # list
-                    posn_index = (
-                        f.FrameContentSequence[0].DimensionIndexValues[1]
-                    )
-                # This is not general, but all the tests run here use axial
-                # images so just check the z coordinate
-                posn_val = f.PlanePositionSequence[0].ImagePositionPatient[2]
+                    # VM=1 so this is an int
+                    posn_index = dim_ind_vals
+
+                posn_val = f.PlanePositionSequence[0].ImagePositionPatient
                 index_mapping[posn_index].append(posn_val)
 
             # Check that each index value found references a unique value
@@ -904,12 +943,18 @@ class TestSegmentation:
             expected_keys = range(1, len(index_mapping) + 1)
             assert set(index_mapping.keys()) == set(expected_keys)
 
-            # Check that values are sorted
-            old_v = float('-inf')
-            for k in expected_keys:
-                assert index_mapping[k][0] > old_v
-                old_v = index_mapping[k][0]
-        else:
+            # Check all three spatial dimensions are sorted one way or the
+            # other
+            for d in range(3):
+                values_array = np.array(
+                    [index_mapping[k][0][d] for k in expected_keys]
+                )
+                assert (
+                    (values_array[1:] >= values_array[:-1]).all() or
+                    (values_array[1:] <= values_array[:-1]).all()
+                )
+
+        elif has_frame_of_reference:
             # Build up the mapping from index to value
             for dim_kw, dim_ind in zip(
                 [
@@ -920,8 +965,16 @@ class TestSegmentation:
             ):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
-                    content_item = f.FrameContentSequence[0]
-                    posn_index = content_item.DimensionIndexValues[dim_ind]
+                    dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+
+                    if isinstance(dim_ind_vals, MultiValue):
+                        posn_index = dim_ind_vals[dim_ind]
+                    elif dim_ind == 0:
+                        # VM=1 so this is an int
+                        posn_index = dim_ind_vals
+                    else:
+                        assert False
+
                     posn_item = f.PlanePositionSlideSequence[0]
                     posn_val = getattr(posn_item, dim_kw)
                     index_mapping[posn_index].append(posn_val)
@@ -1503,6 +1556,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert not hasattr(instance, 'PixelPaddingValue')
+        self.check_dimension_index_vals(instance)
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1603,6 +1657,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert not hasattr(instance, 'PixelPaddingValue')
+        self.check_dimension_index_vals(instance)
 
     def test_construction_8(self):
         # A chest X-ray with no frame of reference, LABELMAP
@@ -1642,6 +1697,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
 
     def test_construction_9(self):
         # A label with a palette color LUT
@@ -1670,6 +1726,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
 
     def test_construction_10(self):
         # A labelmap with a palette color LUT and ICC Profile
@@ -1699,6 +1756,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
 
     def test_construction_large_labelmap_monochrome(self):
         n_classes = 300  # force 16 bit
@@ -1743,6 +1801,7 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.pixel_array.dtype == np.uint16
+        self.check_dimension_index_vals(instance)
         arr = self.get_array_after_writing(instance)
         assert arr.dtype == np.uint16
 
@@ -1806,6 +1865,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.pixel_array.dtype == np.uint16
+        self.check_dimension_index_vals(instance)
         arr = self.get_array_after_writing(instance)
         assert arr.dtype == np.uint16
 
@@ -1832,6 +1892,7 @@ class TestSegmentation:
             self._ct_seg_volume.array,
         )
 
+        self.check_dimension_index_vals(instance)
         assert instance.DimensionOrganizationType == '3D'
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
@@ -1874,6 +1935,7 @@ class TestSegmentation:
             self._ct_seg_volume.array,
         )
 
+        self.check_dimension_index_vals(instance)
         assert instance.DimensionOrganizationType == '3D'
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
@@ -1971,6 +2033,7 @@ class TestSegmentation:
             instance.pixel_array,
             self._ct_seg_volume.array,
         )
+        self.check_dimension_index_vals(instance)
 
         assert instance.DimensionOrganizationType == '3D'
         shared_item = instance.SharedFunctionalGroupsSequence[0]
@@ -2033,6 +2096,7 @@ class TestSegmentation:
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
                 pp[0].ImagePositionPatient
             )
+        self.check_dimension_index_vals(instance)
 
     def test_construction_volume_labelmap(self):
         # Segmentation instance from a series of single-frame CT images
@@ -2076,6 +2140,7 @@ class TestSegmentation:
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
                 pp[0].ImagePositionPatient
             )
+        self.check_dimension_index_vals(instance)
 
     def test_construction_volume_labelmap_channels(self):
         # Segmentation instance from a series of single-frame CT images
@@ -2119,6 +2184,7 @@ class TestSegmentation:
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
                 pp[0].ImagePositionPatient
             )
+        self.check_dimension_index_vals(instance)
 
 
     def test_construction_3d_multiframe(self):
@@ -2162,6 +2228,7 @@ class TestSegmentation:
             .SpacingBetweenSlices
         )
         assert spacing == 10.0
+        self.check_dimension_index_vals(instance)
 
     def test_construction_3d_singleframe(self):
         # The CT single frame series is a volume if you omit one of the images
@@ -2193,6 +2260,7 @@ class TestSegmentation:
             .SpacingBetweenSlices
         )
         assert spacing == 1.25
+        self.check_dimension_index_vals(instance)
 
     def test_construction_3d_singleframe_multisegment(self):
         # The CT single frame series is a volume, but with multiple segments,
@@ -2236,6 +2304,7 @@ class TestSegmentation:
                 # The segment dimension means that otherwise the segmentation
                 # is not a simple spatial stack
                 assert 'DimensionOrganizationType' not in instance
+            self.check_dimension_index_vals(instance)
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
@@ -2347,6 +2416,7 @@ class TestSegmentation:
         assert len(instance.ReferencedSeriesSequence) == 2
         further_item = instance.ReferencedSeriesSequence[1]
         assert further_item.SeriesInstanceUID == series_uid
+        self.check_dimension_index_vals(instance)
 
     @staticmethod
     @pytest.fixture(
@@ -2502,6 +2572,8 @@ class TestSegmentation:
                 reconstructed_array,
                 pixel_array,
             )
+            if dimension_organization_type.value != "TILED_FULL":
+                self.check_dimension_index_vals(instance)
 
             def to_numpy(c):
                 # Move from our 1-based convention to numpy zero based
@@ -3096,7 +3168,7 @@ class TestSegmentation:
         # Encoding an empty segmentation with omit_empty_frames=True issues
         # a warning and encodes the full segmentation
         empty_pixel_array = np.zeros_like(self._ct_pixel_array)
-        seg = Segmentation(
+        instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=empty_pixel_array,
             segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
@@ -3114,7 +3186,8 @@ class TestSegmentation:
             omit_empty_frames=True,
         )
 
-        assert seg.pixel_array.shape == empty_pixel_array.shape
+        assert instance.pixel_array.shape == empty_pixel_array.shape
+        self.check_dimension_index_vals(instance)
 
     def test_construction_empty_seg_image(self):
         # Can encode an empty segmentation with omit_empty_frames=False
@@ -3270,7 +3343,7 @@ class TestSegmentation:
     def test_construction_segment_numbers_start_wrong_labelmap(self):
         # Labelmaps have fewer restrictions on segment numbers
         array = (self._ct_pixel_array * 2).astype(np.uint8)
-        seg = Segmentation(
+        instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=array,
             segmentation_type=SegmentationTypeValues.LABELMAP,
@@ -3286,7 +3359,8 @@ class TestSegmentation:
             software_versions=self._software_versions,
             device_serial_number=self._device_serial_number
         )
-        assert len(seg.SegmentSequence) == 2
+        assert len(instance.SegmentSequence) == 2
+        self.check_dimension_index_vals(instance)
 
         array_nonmatching = (self._ct_pixel_array * 4).astype(np.uint8)
         msg = 'Pixel array contains segments that lack descriptions.'
