@@ -1557,7 +1557,7 @@ class _Image(SOPClass):
 
             for frame_item in self.PerFrameFunctionalGroupsSequence:
                 # Get dimension indices for this frame
-                if 'FrameContentSequence' in frame_item:
+                if len(self._dim_ind_pointers) > 0:
                     content_seq = frame_item.FrameContentSequence[0]
                     indices = content_seq.DimensionIndexValues
                     if not isinstance(indices, (MultiValue, list)):
