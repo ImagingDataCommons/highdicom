@@ -5,7 +5,6 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from copy import deepcopy
 from itertools import chain
 from os import PathLike
-from os.path import relpath
 import pkgutil
 from typing import (
     Any,
@@ -48,7 +47,7 @@ from highdicom._module_utils import (
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom.image import _Image, _CombinedPixelTransformation
+from highdicom.image import _Image
 from highdicom.base import _check_little_endian
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -87,7 +86,6 @@ from highdicom.spatial import (
     get_image_coordinate_system,
     get_volume_positions,
     get_tile_array,
-    is_tiled_image,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
@@ -95,7 +93,12 @@ from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
 )
-from highdicom.volume import ChannelIdentifier, Volume, RGB_COLOR_CHANNEL_IDENTIFIER
+from highdicom.volume import (
+    ChannelIdentifier,
+    Volume,
+    RGB_COLOR_CHANNEL_IDENTIFIER,
+    VOLUME_INDEX_CONVENTION,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -678,7 +681,10 @@ class Segmentation(_Image):
             plane_positions = pixel_array.get_plane_positions()
             plane_orientation = pixel_array.get_plane_orientation()
             pixel_measures = pixel_array.get_pixel_measures()
+            input_volume = pixel_array
             pixel_array = pixel_array.array
+        else:
+            input_volume = None
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
@@ -953,7 +959,6 @@ class Segmentation(_Image):
             )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        sffg_item = Dataset()
         source_pixel_measures = self._get_pixel_measures_sequence(
             source_image=src_img,
             is_multiframe=is_multiframe,
@@ -970,10 +975,26 @@ class Segmentation(_Image):
             else:
                 if is_multiframe:
                     src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+
+                    if 'PlaneOrientationSequence' not in src_sfg:
+                        raise ValueError(
+                            'Source images must have a shared '
+                            'orientation.'
+                        )
+
                     source_plane_orientation = deepcopy(
                         src_sfg.PlaneOrientationSequence
                     )
                 else:
+                    iop = src_img.ImageOrientationPatient
+
+                    for image in source_images:
+                        if image.ImageOrientationPatient != iop:
+                            raise ValueError(
+                                'Source images must have a shared '
+                                'orientation.'
+                            )
+
                     source_plane_orientation = PlaneOrientationSequence(
                         coordinate_system=self._coordinate_system,
                         image_orientation=src_img.ImageOrientationPatient
@@ -994,50 +1015,10 @@ class Segmentation(_Image):
             self.DimensionIndexSequence[0].DimensionOrganizationUID
         self.DimensionOrganizationSequence = [dimension_organization]
 
-        if pixel_measures is not None:
-            sffg_item.PixelMeasuresSequence = pixel_measures
-        if (
-            self._coordinate_system is not None and
-            self._coordinate_system == CoordinateSystemNames.PATIENT
-        ):
-            sffg_item.PlaneOrientationSequence = plane_orientation
-        self.SharedFunctionalGroupsSequence = [sffg_item]
-
-        if segmentation_type == SegmentationTypeValues.LABELMAP:
-            # Need to add a background description in the case of labelmap
-
-            # Set the display color if other segments do
-            if any(
-                hasattr(desc, 'RecommendedDisplayCIELabValue')
-                for desc in segment_descriptions
-            ):
-                bg_color = CIELabColor(0.0, 0.0, 0.0)  # black
-            else:
-                bg_color = None
-
-            bg_algo_id = segment_descriptions[0].get(
-                'SegmentationAlgorithmIdentificationSequence'
-            )
-
-            bg_description = SegmentDescription(
-                segment_number=1,
-                segment_label='Background',
-                segmented_property_category=codes.DCM.Background,
-                segmented_property_type=codes.DCM.Background,
-                algorithm_type=segment_descriptions[0].SegmentAlgorithmType,
-                algorithm_identification=bg_algo_id,
-                display_color=bg_color,
-            )
-            # Override this such that the check on user-constructed segment
-            # descriptions having a positive value can remain in place.
-            bg_description.SegmentNumber = 0
-
-            self.SegmentSequence = [
-                bg_description,
-                *segment_descriptions
-            ]
-        else:
-            self.SegmentSequence = segment_descriptions
+        self._add_segment_descriptions(
+            segment_descriptions,
+            segmentation_type,
+        )
 
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
@@ -1047,22 +1028,6 @@ class Segmentation(_Image):
             dtype=dtype,
         )
         self.SegmentsOverlap = segments_overlap.value
-
-        # Combine segments to create a labelmap image if needed
-        if segmentation_type == SegmentationTypeValues.LABELMAP:
-            if segments_overlap == SegmentsOverlapValues.YES:
-                raise ValueError(
-                    'It is not possible to store a Segmentation with '
-                    'SegmentationType "LABELMAP" if segments overlap.'
-                )
-
-            if pixel_array.ndim == 4:
-                pixel_array = self._combine_segments(
-                    pixel_array,
-                    labelmap_dtype=dtype
-                )
-            else:
-                pixel_array = pixel_array.astype(dtype)
 
         if has_ref_frame_uid:
             if tile_pixel_array:
@@ -1276,6 +1241,7 @@ class Segmentation(_Image):
                     self.DimensionIndexSequence.get_index_values(
                         plane_positions,
                         image_orientation=sort_orientation,
+                        index_convention=VOLUME_INDEX_CONVENTION,
                     )
 
         else:
@@ -1284,6 +1250,31 @@ class Segmentation(_Image):
             plane_position_values = [None]
             plane_sort_index = np.array([0])
             are_spatial_locations_preserved = True
+
+        # Shared functional groops
+        sffg_item = Dataset()
+        if (
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.PATIENT
+        ):
+            sffg_item.PlaneOrientationSequence = plane_orientation
+
+            # Automatically populate the spacing between slices in the
+            # pixel measures if it was not provided. This is done on the
+            # initial plane positions, before any removals, to give the
+            # receiver more information about how to reconstruct a volume
+            # from the frames in the case that slices are omitted
+            if 'SpacingBetweenSlices' not in pixel_measures[0]:
+                slice_spacing, _ = get_volume_positions(
+                    image_positions=plane_position_values[:, 0, :],
+                    image_orientation=plane_orientation[0].ImageOrientationPatient,
+                )
+                if slice_spacing is not None:
+                    pixel_measures[0].SpacingBetweenSlices = slice_spacing
+
+        if pixel_measures is not None:
+            sffg_item.PixelMeasuresSequence = pixel_measures
+        self.SharedFunctionalGroupsSequence = [sffg_item]
 
         if are_spatial_locations_preserved and not tile_pixel_array:
             if pixel_array.shape[1:3] != (src_img.Rows, src_img.Columns):
@@ -1368,34 +1359,19 @@ class Segmentation(_Image):
                     or len(described_segment_numbers) == 1
                 )
             ):
-                if from_volume:
-                    # Skip checks as this is 3D by construction
-                    # TODO what about omitted frames
+                # Calculate the spacing using only the included planes, and
+                # enfore ordering
+                spacing, _ = get_volume_positions(
+                    image_positions=plane_position_values[
+                        included_plane_indices, 0, :
+                    ],
+                    image_orientation=plane_orientation[0].ImageOrientationPatient,
+                    sort=False,
+                )
+                if spacing is not None and spacing > 0.0:
                     inferred_dim_org_type = (
                         DimensionOrganizationTypeValues.THREE_DIMENSIONAL
                     )
-                else:
-                    # TODO calculate spacing before omitting frames?
-                    spacing, _ = get_volume_positions(
-                        image_positions=np.array(
-                            plane_position_values[plane_sort_index, 0, :]
-                        ),
-                        image_orientation=np.array(
-                            plane_orientation[0].ImageOrientationPatient
-                        ),
-                    )
-
-                    if spacing is not None and spacing > 0.0:
-                        # The image is a regular volume, so we should record this
-                        inferred_dim_org_type = (
-                            DimensionOrganizationTypeValues.THREE_DIMENSIONAL
-                        )
-                        # Also add the slice spacing to the pixel measures
-                        (
-                            self.SharedFunctionalGroupsSequence[0]
-                                .PixelMeasuresSequence[0]
-                                .SpacingBetweenSlices
-                        ) = spacing
 
             if (
                 dimension_organization_type ==
@@ -1459,7 +1435,7 @@ class Segmentation(_Image):
 
         # In the case of native encoding when the number pixels in a frame is
         # not a multiple of 8. This array carries "leftover" pixels that
-        # couldn't be encoded in previous iterations, to future iterations This
+        # couldn't be encoded in previous iterations, to future iterations. This
         # saves having to keep the entire un-endoded array in memory, which can
         # get extremely heavy on memory in the case of very large arrays
         remainder_pixels = np.empty((0, ), dtype=np.uint8)
@@ -1867,6 +1843,57 @@ class Segmentation(_Image):
 
         return pixel_measures
 
+    def _add_segment_descriptions(
+        self,
+        segment_descriptions: Sequence[SegmentDescription],
+        segmentation_type: SegmentationTypeValues,
+    ) -> None:
+        """Utility method for constructor that adds segment descriptions.
+
+        Parameters
+        ----------
+        segment_descriptions: Sequence[highdicom.seg.SegmentDescription]
+            User-provided descriptions for each non-background segment.
+        segmentation_type: highdicom.seg.SegmentationTypeValues
+            Type of segmentation being created.
+
+        """
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            # Need to add a background description in the case of labelmap
+
+            # Set the display color if other segments do
+            if any(
+                hasattr(desc, 'RecommendedDisplayCIELabValue')
+                for desc in segment_descriptions
+            ):
+                bg_color = CIELabColor(0.0, 0.0, 0.0)  # black
+            else:
+                bg_color = None
+
+            bg_algo_id = segment_descriptions[0].get(
+                'SegmentationAlgorithmIdentificationSequence'
+            )
+
+            bg_description = SegmentDescription(
+                segment_number=1,
+                segment_label='Background',
+                segmented_property_category=codes.DCM.Background,
+                segmented_property_type=codes.DCM.Background,
+                algorithm_type=segment_descriptions[0].SegmentAlgorithmType,
+                algorithm_identification=bg_algo_id,
+                display_color=bg_color,
+            )
+            # Override this such that the check on user-constructed segment
+            # descriptions having a positive value can remain in place.
+            bg_description.SegmentNumber = 0
+
+            self.SegmentSequence = [
+                bg_description,
+                *segment_descriptions
+            ]
+        else:
+            self.SegmentSequence = segment_descriptions
+
     def _add_slide_coordinate_metadata(
         self,
         source_image: Dataset,
@@ -2095,8 +2122,9 @@ class Segmentation(_Image):
 
         return dimension_organization_type
 
-    @staticmethod
+    @classmethod
     def _check_and_cast_pixel_array(
+        cls,
         pixel_array: np.ndarray,
         segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues,
@@ -2253,12 +2281,21 @@ class Segmentation(_Image):
         else:
             raise TypeError('Pixel array has an invalid data type.')
 
+        # Combine segments to create a labelmap image if needed
         if segmentation_type == SegmentationTypeValues.LABELMAP:
             if segments_overlap == SegmentsOverlapValues.YES:
                 raise ValueError(
-                    'Segments may not overlap if requesting a LABELMAP '
-                    'segmentation type.'
+                    'It is not possible to store a Segmentation with '
+                    'SegmentationType "LABELMAP" if segments overlap.'
                 )
+
+            if pixel_array.ndim == 4:
+                pixel_array = cls._combine_segments(
+                    pixel_array,
+                    labelmap_dtype=dtype
+                )
+            else:
+                pixel_array = pixel_array.astype(dtype)
 
         return pixel_array, segments_overlap
 

@@ -2,7 +2,6 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 import itertools
-from types import new_class
 import unittest
 from pathlib import Path
 import pkgutil
@@ -52,6 +51,7 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
+from highdicom.spatial import sort_datasets
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import Volume
@@ -748,10 +748,7 @@ class TestSegmentation:
         ]
         # Ensure the frames are in the right spatial order
         # (only 3rd dimension changes)
-        self._ct_series = sorted(
-            ct_series,
-            key=lambda x: x.ImagePositionPatient[2]
-        )
+        self._ct_series = sort_datasets(ct_series)
 
         # Hack around the fact that the images are too small to be encoded by
         # openjpeg
@@ -1831,7 +1828,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -1847,7 +1844,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -1873,7 +1870,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -1889,7 +1886,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -1971,7 +1968,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -1987,7 +1984,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -2014,7 +2011,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -2030,7 +2027,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -2057,7 +2054,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -2073,7 +2070,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -2100,7 +2097,7 @@ class TestSegmentation:
             omit_empty_frames=False
         )
         assert np.array_equal(
-            np.flip(instance.pixel_array, axis=0),
+            instance.pixel_array,
             self._ct_seg_volume.array,
         )
 
@@ -2116,7 +2113,7 @@ class TestSegmentation:
             self._ct_volume_orientation
         for plane_item, pp in zip(
             instance.PerFrameFunctionalGroupsSequence,
-            self._ct_seg_volume.get_plane_positions()[::-1],
+            self._ct_seg_volume.get_plane_positions(),
         ):
             assert (
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
@@ -2196,6 +2193,49 @@ class TestSegmentation:
             .SpacingBetweenSlices
         )
         assert spacing == 1.25
+
+    def test_construction_3d_singleframe_multisegment(self):
+        # The CT single frame series is a volume, but with multiple segments,
+        # it should no longer have "3D" dimension organization unless using
+        # LABELMAP
+        ct_series = self._ct_series[:3]
+
+        mask = self._ct_series_mask_array[:3]
+        multi_segment_exc = np.stack([mask, np.logical_not(mask)], axis=-1)
+
+        for segmentation_type in ["BINARY", "FRACTIONAL", "LABELMAP"]:
+            # Segmentation instance series of CT images
+            instance = Segmentation(
+                ct_series,
+                multi_segment_exc,
+                segmentation_type,
+                self._both_segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+            )
+            # This is a "volume" image, so the output instance should have
+            # the DimensionOrganizationType set correctly and should have deduced
+            # the spacing between slices
+            spacing = (
+                instance
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .SpacingBetweenSlices
+            )
+            assert spacing == 1.25
+            if segmentation_type == "LABELMAP":
+                # Since there is no segment dimension, a labelmap seg is 3D
+                assert instance.DimensionOrganizationType == "3D"
+            else:
+                # The segment dimension means that otherwise the segmentation
+                # is not a simple spatial stack
+                assert 'DimensionOrganizationType' not in instance
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
