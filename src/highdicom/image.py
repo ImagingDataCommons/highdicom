@@ -1362,6 +1362,12 @@ class _Image(SOPClass):
                     SpatialLocationsPreservedValues.NO
                 )
 
+        col_defs = []
+        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
+        col_data = [[1]]
+        self._col_types = {}  # dictionary from column name to SQL type
+        self._col_types["FrameNumber"] = "INTEGER"
+
         if self._coordinate_system is not None:
 
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -1380,12 +1386,17 @@ class _Image(SOPClass):
                 number_of_frames=1,
                 spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
             )
+            col_defs.append('VolumePosition INTEGER NOT NULL')
+            col_data.append([0])
+            self._col_types["VolumePosition"] = "INTEGER"
         else:
             self._volume_geometry = None
 
         referenced_uids = self._get_ref_instance_uids()
         self._db_con = sqlite3.connect(":memory:")
         self._create_ref_instance_table(referenced_uids)
+
+        self._create_frame_lut(col_defs, col_data)
 
     def _build_luts_multiframe(self) -> None:
         """Build lookup tables for efficient querying.
@@ -1845,15 +1856,22 @@ class _Image(SOPClass):
                 referenced_instances,
             ]
 
+        self._create_frame_lut(col_defs, col_data)
+
+    def _create_frame_lut(
+        self,
+        column_defs: list[str],
+        column_data: list[list[Any]]
+    ) -> None:
         # Build LUT from columns
-        all_defs = ", ".join(col_defs)
+        all_defs = ", ".join(column_defs)
         cmd = f'CREATE TABLE FrameLUT({all_defs})'
-        placeholders = ', '.join(['?'] * len(col_data))
+        placeholders = ', '.join(['?'] * len(column_data))
         with self._db_con:
             self._db_con.execute(cmd)
             self._db_con.executemany(
                 f'INSERT INTO FrameLUT VALUES({placeholders})',
-                zip(*col_data),
+                zip(*column_data),
             )
 
     def _get_ref_instance_uids(self) -> List[Tuple[str, str, str]]:
@@ -2032,7 +2050,7 @@ class _Image(SOPClass):
         n_unique_combos = cur.execute(
             f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
         ).fetchone()[0]
-        return n_unique_combos == self.NumberOfFrames
+        return n_unique_combos == self.number_of_frames
 
     def are_dimension_indices_unique(
         self,
