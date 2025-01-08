@@ -1694,9 +1694,6 @@ class Segmentation(_Image):
         # Build lookup tables for efficient decoding
         self._build_luts()
 
-        # TODO this should be moved to Image constructor
-        self._lazy_frame_access = False
-
     def add_segments(
         self,
         pixel_array: np.ndarray,
@@ -2766,7 +2763,6 @@ class Segmentation(_Image):
         cls,
         dataset: Dataset,
         copy: bool = True,
-        lazy_frame_access: bool = False,
     ) -> Self:
         """Create instance from an existing dataset.
 
@@ -2778,11 +2774,6 @@ class Segmentation(_Image):
             If True, the underlying dataset is deep-copied such that the
             original dataset remains intact. If False, this operation will
             alter the original dataset in place.
-        lazy_frame_access: bool, optional
-            If True, image frames are only decompressed from the raw bytes of
-            the PixelData when needed. If False, pixel data for all frames are
-            eagerly decompressed whenever any pixel data are accessed
-            (pydicom's default behavior).
 
         Returns
         -------
@@ -2869,11 +2860,7 @@ class Segmentation(_Image):
                     )
                     pffg_item.PixelMeasuresSequence = pixel_measures
 
-        seg = super().from_dataset(
-            seg,
-            copy=False,
-            lazy_frame_access=lazy_frame_access,
-        )
+        seg = super().from_dataset(seg, copy=False)
 
         return cast(cls, seg)
 
@@ -4922,7 +4909,10 @@ class Segmentation(_Image):
             )
 
 
-def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
+def segread(
+    fp: Union[str, bytes, PathLike, BinaryIO],
+    lazy_frame_retrieval: bool = False,
+) -> Segmentation:
     """Read a segmentation image stored in DICOM File Format.
 
     Parameters
@@ -4930,6 +4920,11 @@ def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
     fp: Union[str, bytes, os.PathLike]
         Any file-like object representing a DICOM file containing a
         Segmentation image.
+    lazy_frame_retrieval: bool
+        If True, the returned segmentation will retrieve frames from the file as
+        requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the segmentation.
 
     Returns
     -------
@@ -4937,4 +4932,11 @@ def segread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Segmentation:
         Segmentation image read from the file.
 
     """
-    return Segmentation.from_dataset(dcmread(fp), copy=False)
+    # This is essentially a convenience alias for the classmethod (which is
+    # used so that it is inherited correctly by subclasses). It is used
+    # becuse it follows the format of other similar functions around the
+    # library
+    return Segmentation.from_file(
+        fp,
+        lazy_frame_retrieval=lazy_frame_retrieval,
+    )

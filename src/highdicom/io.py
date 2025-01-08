@@ -5,10 +5,11 @@ import traceback
 from typing import List, Tuple, Union
 from typing_extensions import Self
 from pathlib import Path
+import weakref
 
 import numpy as np
 import pydicom
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileDataset
 from pydicom.encaps import parse_basic_offsets
 from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
@@ -22,6 +23,7 @@ from pydicom.uid import UID
 
 from highdicom.frame import decode_frame
 from highdicom.color import ColorManager
+from highdicom.uid import UID as hd_UID
 
 logger = logging.getLogger(__name__)
 
@@ -264,10 +266,37 @@ class ImageFileReader:
                 'Argument "filename" must be either an open DICOM file object '
                 'or the path to a DICOM file stored on disk.'
             )
-        self._metadata = None
+        self._metadata: Dataset | weakref.ReferenceType | None = None
         self._voi_lut = None
         self._palette_color_lut = None
         self._modality_lut = None
+
+    def _change_metadata_ownership(self) -> FileDataset:
+        """Set the metadata using a weakref.
+
+        This is used by imread to allow an Image object to take ownership of
+        the metadata and this file reader without creating potentially
+        problematic reference cycles.
+
+        Returns
+        -------
+        metadata: pydicom.FileDataset
+            Dataset containing the metadata.
+
+        """
+        with self:
+            self._read_metadata()
+            # The file meta was stripped from metadata previously, add it back
+            # here to give a FileDataset
+            metadata = FileDataset(
+                self._filename,
+                dataset=self.metadata,
+                file_meta=self._file_meta,
+                is_implicit_VR=self.transfer_syntax_uid.is_implicit_VR,
+                is_little_endian=self.transfer_syntax_uid.is_little_endian,
+            )
+        self._metadata = weakref.ref(metadata)
+        return metadata
 
     @property
     def filename(self) -> str:
@@ -388,8 +417,8 @@ class ImageFileReader:
                 f'DICOM metadata cannot be read from file: "{err}"'
             ) from err
 
-        # Cache Transfer Syntax UID, since we need it to decode frame items
-        self._transfer_syntax_uid = UID(metadata.file_meta.TransferSyntaxUID)
+        # Cache file meta, since we need it to decode frame items
+        self._file_meta = metadata.file_meta
 
         # Construct a new Dataset that is fully decoupled from the file, i.e.,
         # that does not contain any File Meta Information
@@ -417,7 +446,7 @@ class ImageFileReader:
 
         logger.debug('build Basic Offset Table')
         number_of_frames = int(getattr(self._metadata, 'NumberOfFrames', 1))
-        if self._transfer_syntax_uid.is_encapsulated:
+        if self.transfer_syntax_uid.is_encapsulated:
             try:
                 self._basic_offset_table = _get_bot(self._fp, number_of_frames)
             except Exception as err:
@@ -454,17 +483,17 @@ class ImageFileReader:
 
         icc_profile: Union[bytes, None] = None
         self._color_manager: Union[ColorManager, None] = None
-        if self.metadata.SamplesPerPixel > 1:
+        if metadata.SamplesPerPixel > 1:
             try:
-                icc_profile = self.metadata.ICCProfile
+                icc_profile = metadata.ICCProfile
             except AttributeError:
                 try:
-                    if len(self.metadata.OpticalPathSequence) > 1:
+                    if len(metadata.OpticalPathSequence) > 1:
                         # This should not happen in case of a color image.
                         logger.warning(
                             'color image contains more than one optical path'
                         )
-                    optical_path_item = self.metadata.OpticalPathSequence[0]
+                    optical_path_item = metadata.OpticalPathSequence[0]
                     icc_profile = optical_path_item.ICCProfile
                 except (IndexError, AttributeError):
                     logger.warning('no ICC Profile found in image metadata.')
@@ -478,9 +507,17 @@ class ImageFileReader:
     @property
     def metadata(self) -> Dataset:
         """pydicom.dataset.Dataset: Metadata"""
+        if isinstance(self._metadata, weakref.ReferenceType):
+            return self._metadata()
         if self._metadata is None:
             self._read_metadata()
         return self._metadata
+
+    @property
+    def transfer_syntax_uid(self) -> hd_UID:
+        """highdicom.UID: Transfer Syntax UID of the file."""
+        self.metadata  # ensure metadata has been read
+        return hd_UID(self._file_meta.TransferSyntaxUID)
 
     @property
     def _pixels_per_frame(self) -> int:
@@ -542,7 +579,7 @@ class ImageFileReader:
 
         frame_offset = self._basic_offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
-        if self._transfer_syntax_uid.is_encapsulated:
+        if self.transfer_syntax_uid.is_encapsulated:
             try:
                 stop_at = self._basic_offset_table[index + 1] - frame_offset
             except IndexError:
@@ -603,7 +640,7 @@ class ImageFileReader:
             rows=self.metadata.Rows,
             columns=self.metadata.Columns,
             samples_per_pixel=self.metadata.SamplesPerPixel,
-            transfer_syntax_uid=self._transfer_syntax_uid,
+            transfer_syntax_uid=self.transfer_syntax_uid,
             bits_allocated=self.metadata.BitsAllocated,
             bits_stored=self.metadata.BitsStored,
             photometric_interpretation=self.metadata.PhotometricInterpretation,

@@ -1,6 +1,6 @@
 """Tools for working with general DICOM images."""
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
@@ -34,7 +34,7 @@ from pydicom.datadict import (
 )
 from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
-from pydicom.uid import ParametricMapStorage, UID
+from pydicom.uid import ParametricMapStorage
 
 from highdicom._value_types import (
     _DCM_PYTHON_TYPE_MAP,
@@ -51,6 +51,7 @@ from highdicom.enum import (
     CoordinateSystemNames,
 )
 from highdicom.frame import decode_frame
+from highdicom.io import ImageFileReader
 from highdicom.pixel_transforms import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
@@ -69,7 +70,7 @@ from highdicom.spatial import (
     sort_datasets,
 )
 from highdicom.sr.coding import CodedConcept
-from highdicom.uid import UID as hd_UID
+from highdicom.uid import UID as UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
 )
@@ -91,6 +92,9 @@ logger = logging.getLogger(__name__)
 # TODO expose channel bhaviour
 # TODO behavior of simple frame images
 # TODO exports/inits and docs
+# TODO disallow direct creation of Image
+# TODO docstrings for frame methods
+# TODO frames by index as well as number?
 
 
 class _ImageColorType(Enum):
@@ -1061,14 +1065,13 @@ class _Image(SOPClass):
     _locations_preserved: Optional[SpatialLocationsPreservedValues]
     _db_con: sqlite3.Connection
     _volume_geometry: Optional[VolumeGeometry]
-    _lazy_frame_access: bool
+    _file_reader: ImageFileReader | None
 
     @classmethod
     def from_dataset(
         cls,
         dataset: Dataset,
         copy: bool = True,
-        lazy_frame_access: bool = False,
     ) -> Self:
         """Create an Image from an existing pydicom Dataset.
 
@@ -1080,11 +1083,6 @@ class _Image(SOPClass):
             If True, the underlying dataset is deep-copied such that the
             original dataset remains intact. If False, this operation will
             alter the original dataset in place.
-        lazy_frame_access: bool, optional
-            If True, image frames are only decompressed from the raw bytes of
-            the PixelData when needed. If False, pixel data for all frames are
-            eagerly decompressed whenever any pixel data are accessed
-            (pydicom's default behavior).
 
         """
         if not isinstance(dataset, Dataset):
@@ -1102,7 +1100,7 @@ class _Image(SOPClass):
         im = cast(cls, im)
 
         im._build_luts()
-        im._lazy_frame_access = lazy_frame_access
+        im._file_reader = None
         return im
 
     @property
@@ -1152,6 +1150,10 @@ class _Image(SOPClass):
 
         index = frame_number - 1
 
+        if self._file_reader is not None:
+            with self._file_reader:
+                return self._file_reader.read_frame_raw(index)
+
         if UID(self.file_meta.TransferSyntaxUID).is_encapsulated:
             return get_frame(
                 self.PixelData,
@@ -1190,14 +1192,11 @@ class _Image(SOPClass):
                 "use a 1-based index."
             )
 
-        if (
-            self._lazy_frame_access and
-            self._pixel_array is None
-        ):
+        if self._pixel_array is None:
             raw_frame = self.get_raw_frame(frame_number)
             frame = decode_frame(
                 value=raw_frame,
-                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                transfer_syntax_uid=self.transfer_syntax_uid,
                 rows=self.Rows,
                 columns=self.Columns,
                 samples_per_pixel=self.SamplesPerPixel,
@@ -2087,7 +2086,7 @@ class _Image(SOPClass):
             column_names.append(self._dim_ind_col_names[ptr][0])
         return self._are_columns_unique(column_names)
 
-    def get_source_image_uids(self) -> List[Tuple[hd_UID, hd_UID, hd_UID]]:
+    def get_source_image_uids(self) -> List[Tuple[UID, UID, UID]]:
         """Get UIDs of source image instances referenced in the image.
 
         Returns
@@ -2104,7 +2103,7 @@ class _Image(SOPClass):
         )
 
         return [
-            (hd_UID(a), hd_UID(b), hd_UID(c)) for a, b, c in res.fetchall()
+            (UID(a), UID(b), UID(c)) for a, b, c in res.fetchall()
         ]
 
     def _get_unique_referenced_sop_instance_uids(self) -> Set[str]:
@@ -2448,58 +2447,72 @@ class _Image(SOPClass):
             dtype=dtype
         )
 
-        # loop through output frames
-        for (
-            frame_index,
-            input_indexer,
-            spatial_indexer,
-            channel_indexer
-        ) in indices_iterator:
+        context_manager = (
+            self._file_reader
+            if self._file_reader is not None
+            else nullcontext()
+        )
 
-            if shared_frame_transform.applies_to_all_frames:
-                frame_transform = shared_frame_transform
-            else:
-                frame_transform = _CombinedPixelTransformation(
-                    self,
-                    frame_index=frame_index,
-                    apply_real_world_transform=apply_real_world_transform,
-                    real_world_value_map_selector=real_world_value_map_selector,
-                    apply_modality_transform=apply_modality_transform,
-                    apply_voi_transform=apply_voi_transform,
-                    voi_transform_selector=voi_transform_selector,
-                    voi_output_range=voi_output_range,
-                    apply_presentation_lut=apply_presentation_lut,
-                    apply_palette_color_lut=apply_palette_color_lut,
-                    apply_icc_profile=apply_icc_profile,
-                    output_dtype=dtype,
-                )
+        with context_manager:
 
-            if color_frames:
-                # Include the sample dimension for color images
-                output_indexer = (*spatial_indexer, slice(None), *channel_indexer)
-            else:
-                output_indexer = (*spatial_indexer, *channel_indexer)
+            # loop through output frames
+            for (
+                frame_index,
+                input_indexer,
+                spatial_indexer,
+                channel_indexer
+            ) in indices_iterator:
 
-            if (
-                self._lazy_frame_access and
-                self._pixel_array is None
-            ):
-                frame_bytes = self.get_raw_frame(frame_index + 1)
-                frame = frame_transform(frame_bytes, frame_index)
-            else:
-                if self.pixel_array.ndim == 2:
-                    if frame_index == 0:
-                        frame = self.pixel_array
-                    else:
-                        raise IndexError(
-                            f'Index {frame_index} is out of bounds for '
-                            'an image with a single frame.'
-                        )
+                if shared_frame_transform.applies_to_all_frames:
+                    frame_transform = shared_frame_transform
                 else:
-                    frame = self.pixel_array[frame_index]
-                frame = frame_transform(frame, frame_index)
+                    frame_transform = _CombinedPixelTransformation(
+                        self,
+                        frame_index=frame_index,
+                        apply_real_world_transform=apply_real_world_transform,
+                        real_world_value_map_selector=real_world_value_map_selector,
+                        apply_modality_transform=apply_modality_transform,
+                        apply_voi_transform=apply_voi_transform,
+                        voi_transform_selector=voi_transform_selector,
+                        voi_output_range=voi_output_range,
+                        apply_presentation_lut=apply_presentation_lut,
+                        apply_palette_color_lut=apply_palette_color_lut,
+                        apply_icc_profile=apply_icc_profile,
+                        output_dtype=dtype,
+                    )
 
-            out_array[output_indexer] = frame[input_indexer]
+                if color_frames:
+                    # Include the sample dimension for color images
+                    output_indexer = (
+                        *spatial_indexer,
+                        slice(None),
+                        *channel_indexer
+                    )
+                else:
+                    output_indexer = (*spatial_indexer, *channel_indexer)
+
+                if self._pixel_array is None:
+                    if self._file_reader is not None:
+                        frame_bytes = self._file_reader.read_frame_raw(
+                            frame_index
+                        )
+                    else:
+                        frame_bytes = self.get_raw_frame(frame_index + 1)
+                    frame = frame_transform(frame_bytes, frame_index)
+                else:
+                    if self.pixel_array.ndim == 2:
+                        if frame_index == 0:
+                            frame = self.pixel_array
+                        else:
+                            raise IndexError(
+                                f'Index {frame_index} is out of bounds for '
+                                'an image with a single frame.'
+                            )
+                    else:
+                        frame = self.pixel_array[frame_index]
+                    frame = frame_transform(frame, frame_index)
+
+                out_array[output_indexer] = frame[input_indexer]
 
         return out_array
 
@@ -3266,6 +3279,46 @@ class _Image(SOPClass):
                 for (rp, cp, fi, *channel) in self._db_con.execute(full_query)
             ), output_shape
 
+    @classmethod
+    def from_file(
+        cls,
+        fp: Union[str, bytes, PathLike, BinaryIO],
+        lazy_frame_retrieval: bool = False
+    ) -> Self:
+        """Read an image stored in DICOM File Format.
+
+        Parameters
+        ----------
+        fp: Union[str, bytes, os.PathLike]
+            Any file-like object representing a DICOM file containing an
+            image.
+        lazy_frame_retrieval: bool
+            If True, the returned image will retrieve frames from the file as
+            requested, rather than loading in the entire object to memory
+            initially. This may be a good idea if file reading is slow and you are
+            likely to need only a subset of the frames in the image.
+
+        Returns
+        -------
+        highdicom._Image
+            Image read from the file.
+
+        """
+        if lazy_frame_retrieval:
+            if not isinstance(fp, (str, PathLike)):
+                raise TypeError(
+                    "Argument 'fp' may not be of type bytes or BinaryIO "
+                    "if using 'lazy_frame_retrieval'."
+                )
+            reader = ImageFileReader(fp)
+            metadata = reader._change_metadata_ownership()
+            image = cls.from_dataset(metadata, copy=False)
+            image._file_reader = reader
+        else:
+            image = cls.from_dataset(dcmread(fp), copy=False)
+
+        return image
+
 
 class Image(_Image):
 
@@ -3704,7 +3757,10 @@ class Image(_Image):
             )
 
 
-def imread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Image:
+def imread(
+    fp: Union[str, bytes, PathLike, BinaryIO],
+    lazy_frame_retrieval: bool = False
+) -> Image:
     """Read an image stored in DICOM File Format.
 
     Parameters
@@ -3712,6 +3768,11 @@ def imread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Image:
     fp: Union[str, bytes, os.PathLike]
         Any file-like object representing a DICOM file containing an
         image.
+    lazy_frame_retrieval: bool
+        If True, the returned image will retrieve frames from the file as
+        requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the image.
 
     Returns
     -------
@@ -3719,7 +3780,11 @@ def imread(fp: Union[str, bytes, PathLike, BinaryIO]) -> Image:
         Image read from the file.
 
     """
-    return Image.from_dataset(dcmread(fp), copy=False)
+    # This is essentially a convenience alias for the classmethod (which is
+    # used so that it is inherited correctly by subclasses). It is used
+    # becuse it follows the format of other similar functions around the
+    # library
+    return Image.from_file(fp, lazy_frame_retrieval=lazy_frame_retrieval)
 
 
 def volume_from_image_series(

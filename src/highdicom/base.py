@@ -244,6 +244,11 @@ class SOPClass(Dataset):
                     )
                 self.CodingSchemeIdentificationSequence.append(item)
 
+    @property
+    def transfer_syntax_uid(self) -> UID:
+        """highdicom.UID: TransferSyntaxUID."""
+        return UID(self.file_meta.TransferSyntaxUID)
+
     def _copy_attribute(
         self,
         dataset: Dataset,
@@ -359,7 +364,7 @@ def _check_little_endian(dataset: Dataset) -> None:
     """
     if not hasattr(dataset, 'file_meta'):
         logger.warning(
-            'Transfer syntax cannot be determined from the file metadata.'
+            'Transfer syntax cannot be determined from the file metadata. '
             'Little endian encoding of attributes has been assumed.'
         )
         return
