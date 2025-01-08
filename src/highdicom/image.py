@@ -91,10 +91,15 @@ logger = logging.getLogger(__name__)
 # TODO additional get pixel methods
 # TODO expose channel bhaviour
 # TODO behavior of simple frame images
+# TODO referenced images for non-seg images
 # TODO exports/inits and docs
 # TODO disallow direct creation of Image
 # TODO docstrings for frame methods
 # TODO frames by index as well as number?
+# TODO fix voi window on volume
+# TODO add labelmap to seg documentation
+# TODO quickstart for image/volume
+# TODO pixel_array for lazy retrieval
 
 
 class _ImageColorType(Enum):
@@ -1100,7 +1105,6 @@ class _Image(SOPClass):
         im = cast(cls, im)
 
         im._build_luts()
-        im._file_reader = None
         return im
 
     @property
@@ -1323,6 +1327,7 @@ class _Image(SOPClass):
         index values.
 
         """
+        self._file_reader = None
         self._coordinate_system = get_image_coordinate_system(
             self
         )
@@ -1364,8 +1369,6 @@ class _Image(SOPClass):
         col_defs = []
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
         col_data = [[1]]
-        self._col_types = {}  # dictionary from column name to SQL type
-        self._col_types["FrameNumber"] = "INTEGER"
 
         if self._coordinate_system is not None:
 
@@ -1387,7 +1390,6 @@ class _Image(SOPClass):
             )
             col_defs.append('VolumePosition INTEGER NOT NULL')
             col_data.append([0])
-            self._col_types["VolumePosition"] = "INTEGER"
         else:
             self._volume_geometry = None
 
@@ -1720,11 +1722,9 @@ class _Image(SOPClass):
         # image
         col_defs = []  # SQL column definitions
         col_data = []  # lists of column data
-        self._col_types = {}  # dictionary from column name to SQL type
 
         # Frame number column
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        self._col_types['FrameNumber'] = 'INTEGER'
         col_data.append(list(range(1, self.NumberOfFrames + 1)))
 
         self._dim_ind_col_names = {}
@@ -1736,7 +1736,6 @@ class _Image(SOPClass):
 
             # Add column for dimension index
             col_defs.append(f'{ind_col_name} INTEGER NOT NULL')
-            self._col_types[ind_col_name] = 'INTEGER'
             col_data.append(dim_indices[t])
 
             # Add column for dimension value
@@ -1764,7 +1763,6 @@ class _Image(SOPClass):
                     data = [el[d] for el in dim_values[t]]
                     col_name = f'{kw}_{d}'
                     col_defs.append(f'{col_name} {sql_type} NOT NULL')
-                    self._col_types[col_name] = sql_type
                     col_data.append(data)
                     val_col_names.append(col_name)
 
@@ -1772,7 +1770,6 @@ class _Image(SOPClass):
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
-                self._col_types[kw] = sql_type
                 col_data.append(dim_values[t])
                 self._dim_ind_col_names[t] = (ind_col_name, kw)
 
@@ -1791,12 +1788,10 @@ class _Image(SOPClass):
                     data = [el[d] for el in extra_collection_values[t]]
                     col_name = f'{kw}_{d}'
                     col_defs.append(f'{col_name} {sql_type} NOT NULL')
-                    self._col_types[col_name] = sql_type
                     col_data.append(data)
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
-                self._col_types[kw] = sql_type
                 col_data.append(dim_values[t])
 
         # Volume related information
@@ -1832,8 +1827,29 @@ class _Image(SOPClass):
                         spacing_between_slices=volume_spacing,
                     )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
-                    self._col_types['VolumePosition'] = 'INTEGER'
                     col_data.append(volume_positions)
+
+        elif self.is_tiled:
+            if 'SharedFunctionalGroupsSequence' in self:
+                sfgs = self.SharedFunctionalGroupsSequence[0]
+                pixel_measures = sfgs.PixelMeasuresSequence[0]
+                slice_spacing = pixel_measures.get('SpacingBetweenSlices', 1.0)
+                pixel_spacing = pixel_measures.PixelSpacing
+                origin_seq = self.TotalPixelMatrixOriginSequence[0]
+                origin_position = [
+                    origin_seq.XOffsetInSlideCoordinateSystem,
+                    origin_seq.YOffsetInSlideCoordinateSystem,
+                    origin_seq.get('YOffsetInSlideCoordinateSystem', 0.0),
+                ]
+                self._volume_geometry = VolumeGeometry.from_attributes(
+                    image_position=origin_position,
+                    image_orientation=shared_image_orientation,
+                    rows=self.TotalPixelMatrixRows,
+                    columns=self.TotalPixelMatrixColumns,
+                    pixel_spacing=pixel_spacing,
+                    number_of_frames=1,
+                    spacing_between_slices=slice_spacing,
+                )
 
         # Columns related to source frames, if they are usable for indexing
         if (referenced_frames is None) != (referenced_instances is None):
@@ -1843,9 +1859,7 @@ class _Image(SOPClass):
             )
         if referenced_instances is not None:
             col_defs.append('ReferencedFrameNumber INTEGER')
-            self._col_types['ReferencedFrameNumber'] = 'INTEGER'
             col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-            self._col_types['ReferencedSOPInstanceUID'] = 'VARCHAR'
             col_defs.append(
                 'FOREIGN KEY(ReferencedSOPInstanceUID) '
                 'REFERENCES InstanceUIDs(SOPInstanceUID)'
@@ -1857,11 +1871,45 @@ class _Image(SOPClass):
 
         self._create_frame_lut(col_defs, col_data)
 
+    def _get_frame_lut_col_type(self, column_name: str) -> str:
+        """Get the SQL type of a column in the FrameLUT table.
+
+        Parameters
+        ----------
+        column_name: str
+            Name of a colume in the FrameLUT whose type is requested.
+
+        Returns
+        -------
+        str:
+            String representation of the SQL type used for this column.
+
+        """
+        query = (
+            "SELECT type FROM pragma_table_info('FrameLUT') "
+            f"WHERE name = '{column_name}'"
+        )
+        result = list(self._db_con.execute(query))
+        if len(result) == 0:
+            raise ValueError(f'No such colume found in frame LUT: {column_name}')
+        return result[0][0]
+
     def _create_frame_lut(
         self,
         column_defs: list[str],
         column_data: list[list[Any]]
     ) -> None:
+        """Create a SQL table containing frame information.
+
+        Parameters
+        ----------
+        column_defs: list[str]
+            String for each column containing SQL-syntax column definitions.
+        column_data: list[list[Any]]
+            Column data. Outer list contains columns, inner list contains
+            values within that column.
+
+        """
         # Build LUT from columns
         all_defs = ", ".join(column_defs)
         cmd = f'CREATE TABLE FrameLUT({all_defs})'
@@ -2220,6 +2268,20 @@ class _Image(SOPClass):
 
         """
         for tdef in table_defs:
+            # First check whether the table already exists and remove it if it
+            # does. This shouldn't happen usually as the context manager should
+            # ensure that the temporary tables are always cleared up. However
+            # it does seem to happen when interactive REPLs such as ipython
+            # handle errors within the context manager
+            query = (
+                "SELECT COUNT(*) FROM sqlite_schema "
+                f"WHERE type = 'table' AND name = '{tdef.table_name}'"
+            )
+            result = next(self._db_con.execute(query))[0]
+            if result > 0:
+                with self._db_con:
+                    self._db_con.execute(f"DROP TABLE {tdef.table_name}")
+
             defs_str = ', '.join(tdef.column_defs)
             create_cmd = (f'CREATE TABLE {tdef.table_name}({defs_str})')
             placeholders = ', '.join(['?'] * len(tdef.column_defs))
@@ -2676,7 +2738,7 @@ class _Image(SOPClass):
             channel_column_defs = (
                 [f'OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
                 [
-                    f'{c} {self._col_types[c]} NOT NULL'
+                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
                     for c in channel_indices_dict.keys()
                 ]
             )
@@ -2853,7 +2915,7 @@ class _Image(SOPClass):
         stack_column_defs = (
             ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
             [
-                f'{c} {self._col_types[c]} NOT NULL'
+                f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
                 for c in norm_stack_indices.keys()
             ]
         )
@@ -3226,9 +3288,9 @@ class _Image(SOPClass):
                 )
 
                 # Calculate the number of output frames
-                v_frames = ((row_end - 2)// th) - ((row_start - 1) // th) + 1
+                v_frames = ((row_end - 2) // th) - ((row_start - 1) // th) + 1
                 h_frames = (
-                    ((column_end - 2)// tw) - ((column_start - 1) // tw) + 1
+                    ((column_end - 2) // tw) - ((column_start - 1) // tw) + 1
                 )
                 number_of_output_frames = v_frames * h_frames
                 for tdef in channel_table_defs:
