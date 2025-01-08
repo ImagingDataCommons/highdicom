@@ -2274,7 +2274,7 @@ class _Image(SOPClass):
             # it does seem to happen when interactive REPLs such as ipython
             # handle errors within the context manager
             query = (
-                "SELECT COUNT(*) FROM sqlite_schema "
+                "SELECT COUNT(*) FROM sqlite_master "
                 f"WHERE type = 'table' AND name = '{tdef.table_name}'"
             )
             result = next(self._db_con.execute(query))[0]
