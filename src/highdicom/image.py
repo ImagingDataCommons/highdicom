@@ -1839,7 +1839,7 @@ class _Image(SOPClass):
                 origin_position = [
                     origin_seq.XOffsetInSlideCoordinateSystem,
                     origin_seq.YOffsetInSlideCoordinateSystem,
-                    origin_seq.get('YOffsetInSlideCoordinateSystem', 0.0),
+                    origin_seq.get('ZOffsetInSlideCoordinateSystem', 0.0),
                 ]
                 self._volume_geometry = VolumeGeometry.from_attributes(
                     image_position=origin_position,
