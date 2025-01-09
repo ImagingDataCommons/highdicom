@@ -19,7 +19,7 @@ from pydicom.filereader import (
     read_partial
 )
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
-from pydicom.uid import UID
+from pydicom.uid import UID, DeflatedExplicitVRLittleEndian
 
 from highdicom.frame import decode_frame
 from highdicom.color import ColorManager
@@ -159,8 +159,13 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
 
     """
     initial_position = fp.tell()
-    offset_values = []
-    current_offset = 0
+
+    # We will keep two lists, one of all fragment boundaries (regardless of
+    # whether or not they are frame boundaries) and the other of just those
+    # frament boundaries that are known to be frame boundaries (as identified
+    # by JPEG start markers).
+    frame_offset_values = []
+    fragment_offset_values = []
     i = 0
     while True:
         frame_position = fp.tell()
@@ -187,26 +192,33 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
                 f'Length of Frame item #{i} is zero.'
             )
 
-        first_two_bytes = fp.read(2)
-        if not fp.is_little_endian:
-            first_two_bytes = first_two_bytes[::-1]
+        current_offset = frame_position - initial_position
+        fragment_offset_values.append(current_offset)
+
         # In case of fragmentation, we only want to get the offsets to the
         # first fragment of a given frame. We can identify those based on the
         # JPEG and JPEG 2000 markers that should be found at the beginning and
         # end of the compressed byte stream.
+        first_two_bytes = fp.read(2)
+        if not fp.is_little_endian:
+            first_two_bytes = first_two_bytes[::-1]
+
         if first_two_bytes in _START_MARKERS:
-            current_offset = frame_position - initial_position
-            offset_values.append(current_offset)
+            frame_offset_values.append(current_offset)
 
         i += 1
         fp.seek(length - 2, 1)  # minus the first two bytes
 
-    if len(offset_values) != number_of_frames:
+    if len(frame_offset_values) == number_of_frames:
+        basic_offset_table = frame_offset_values
+    elif len(fragment_offset_values) == number_of_frames:
+        # This covers RLE and others that have no frame markers but have a
+        # single fragment per frame
+        basic_offset_table = fragment_offset_values
+    else:
         raise ValueError(
             'Number of frame items does not match specified Number of Frames.'
         )
-    else:
-        basic_offset_table = offset_values
 
     fp.seek(initial_position, 0)
     return basic_offset_table
@@ -426,6 +438,16 @@ class ImageFileReader:
         self._metadata = Dataset(metadata)
 
         self._pixel_data_offset = self._fp.tell()
+
+        if self.transfer_syntax_uid == DeflatedExplicitVRLittleEndian:
+            # The entire file is compressed with DEFLATE. These cannot be used
+            # since the entire file must be decompressed to read or build the
+            # basic/extended offset
+            raise ValueError(
+                'Deflated transfer syntaxes cannot be used with the '
+                'ImageFileReader.'
+            )
+
         # Determine whether dataset contains a Pixel Data element
         try:
             tag = TupleTag(self._fp.read_tag())
