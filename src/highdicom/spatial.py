@@ -23,7 +23,7 @@ from highdicom.enum import (
 )
 
 
-_DEFAULT_SPACING_TOLERANCE = 1e-4
+_DEFAULT_SPACING_TOLERANCE = 1e-2
 """Default tolerance for determining whether slices are regularly spaced."""
 
 
