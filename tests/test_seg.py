@@ -668,6 +668,7 @@ class TestSegmentation:
             pixel_spacing=self._ct_volume_pixel_spacing,
             spacing_between_slices=self._ct_volume_slice_spacing,
             frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
+            coordinate_system="PATIENT",
         )
         self._ct_seg_volume_with_channels = Volume.from_attributes(
             array=self._ct_volume_array[:, :, :, None],
@@ -677,6 +678,7 @@ class TestSegmentation:
             spacing_between_slices=self._ct_volume_slice_spacing,
             frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
             channels={'SegmentNumber': [1]},
+            coordinate_system="PATIENT",
         )
 
         # A single CR image
@@ -2457,6 +2459,11 @@ class TestSegmentation:
     def num_segments(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def as_volume(request):
+        return request.param
+
     def test_construction_autotile(
         self,
         tile_size,
@@ -2464,6 +2471,7 @@ class TestSegmentation:
         segmentation_type,
         locations_preserved,
         num_segments,
+        as_volume,
     ):
         if num_segments == 1:
             pixel_array = self._sm_total_pixel_array
@@ -2472,7 +2480,22 @@ class TestSegmentation:
             pixel_array = self._sm_total_pixel_array_multiclass
             segment_descriptions = self._both_segment_descriptions
 
-        if locations_preserved:
+        if as_volume:
+            affine = np.array(
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+            )
+            input_volume = Volume(
+                affine=affine,
+                array=pixel_array[None],
+                coordinate_system="SLIDE",
+            )
+
+        if locations_preserved or as_volume:
             pixel_measures = None
             plane_orientation = None
             plane_positions = None
@@ -2526,7 +2549,7 @@ class TestSegmentation:
         ):
             instance = Segmentation(
                 [self._sm_image],
-                pixel_array=pixel_array,
+                pixel_array=input_volume if as_volume else pixel_array,
                 segmentation_type=segmentation_type,
                 segment_descriptions=segment_descriptions,
                 series_instance_uid=self._series_instance_uid,

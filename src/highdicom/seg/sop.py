@@ -681,10 +681,7 @@ class Segmentation(_Image):
             plane_positions = pixel_array.get_plane_positions()
             plane_orientation = pixel_array.get_plane_orientation()
             pixel_measures = pixel_array.get_pixel_measures()
-            input_volume = pixel_array
             pixel_array = pixel_array.array
-        else:
-            input_volume = None
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
@@ -4505,6 +4502,7 @@ class Segmentation(_Image):
         return Volume(
             array=array,
             affine=affine,
+            coordinate_system=self._coordinate_system,
             frame_of_reference_uid=self.FrameOfReferenceUID,
             channels=channel_spec,
         )

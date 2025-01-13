@@ -193,6 +193,7 @@ class _VolumeBase(ABC):
     def __init__(
         self,
         affine: np.ndarray,
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
     ):
         """
@@ -206,6 +207,9 @@ class _VolumeBase(ABC):
             should be a scaled orthogonal matrix representing the rotation and
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined).
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
 
@@ -222,6 +226,7 @@ class _VolumeBase(ABC):
             )
 
         self._affine = affine
+        self._coordinate_system = CoordinateSystemNames(coordinate_system)
         self._frame_of_reference_uid = frame_of_reference_uid
 
     @property
@@ -233,6 +238,14 @@ class _VolumeBase(ABC):
 
         """
         pass
+
+    @property
+    def coordinate_system(self) -> CoordinateSystemNames:
+        """coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined).
+        """
+        return self._coordinate_system
 
     def get_center_index(self, round_output: bool = False) -> np.ndarray:
         """Get array index of center of the volume.
@@ -417,9 +430,15 @@ class _VolumeBase(ABC):
         index = np.array([[plane_number, 0, 0]])
         position = self.map_indices_to_reference(index)[0]
 
+        if self.coordinate_system == CoordinateSystemNames.SLIDE:
+            matrix_position = (1, 1)
+        else:
+            matrix_position = None
+
         return PlanePositionSequence(
-            CoordinateSystemNames.PATIENT,
+            self.coordinate_system,
             position,
+            pixel_matrix_position=matrix_position,
         )
 
     def get_plane_positions(self) -> List[PlanePositionSequence]:
@@ -442,10 +461,16 @@ class _VolumeBase(ABC):
         )
         positions = self.map_indices_to_reference(indices)
 
+        if self.coordinate_system == CoordinateSystemNames.SLIDE:
+            matrix_position = (1, 1)
+        else:
+            matrix_position = None
+
         return [
             PlanePositionSequence(
-                CoordinateSystemNames.PATIENT,
+                self.coordinate_system,
                 pos,
+                pixel_matrix_position=matrix_position,
             )
             for pos in positions
         ]
@@ -463,7 +488,7 @@ class _VolumeBase(ABC):
 
         """
         return PlaneOrientationSequence(
-            CoordinateSystemNames.PATIENT,
+            self.coordinate_system,
             self.direction_cosines,
         )
 
@@ -516,9 +541,9 @@ class _VolumeBase(ABC):
     ]:
         """Tuple[float, float, float, float, float float]:
 
-        Tuple of 6 floats giving the direction cosines of the
-        vector along the rows and the vector along the columns, matching the
-        format of the DICOM Image Orientation Patient attribute.
+        Tuple of 6 floats giving the direction cosines of the vector along the
+        rows and the vector along the columns, matching the format of the DICOM
+        Image Orientation Patient and Image Orientation Slide attributes.
 
         """
         vec_along_rows = self._affine[:3, 2].copy()
@@ -957,12 +982,19 @@ class _VolumeBase(ABC):
     ]:
         """Get patient orientation codes that best represent the affine.
 
+        Note that this is not valid if the volume is not defined within the
+        patient coordinate system.
+
         Returns
         -------
         Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped]:
             Tuple giving the closest patient orientation.
 
         """  # noqa: E501
+        if self.coordinate_system != CoordinateSystemNames.PATIENT:
+            raise RuntimeError(
+                'Volume is not defined in the patient coordinate system.'
+            )
         return get_closest_patient_orientation(self._affine)
 
     def to_patient_orientation(
@@ -980,6 +1012,9 @@ class _VolumeBase(ABC):
         achieved with these operations alone (and in particular without
         resampling the array).
 
+        Note that this is not valid if the volume is not defined within the
+        patient coordinate system.
+
         Parameters
         ----------
         patient_orientation: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
@@ -993,6 +1028,10 @@ class _VolumeBase(ABC):
             New volume with the requested patient orientation.
 
         """  # noqa: E501
+        if self.coordinate_system != CoordinateSystemNames.PATIENT:
+            raise RuntimeError(
+                'Volume is not defined in the patient coordinate system.'
+            )
         desired_orientation = _normalize_patient_orientation(
             patient_orientation
         )
@@ -1446,6 +1485,9 @@ class _VolumeBase(ABC):
         if self.spatial_shape != other.spatial_shape:
             return False
 
+        if self.coordinate_system != other.coordinate_system:
+            return False
+
         if tol is None:
             return np.array_equal(self._affine, other._affine)
         else:
@@ -1497,6 +1539,11 @@ class _VolumeBase(ABC):
                 raise RuntimeError(
                     "Volumes do not have matching frame of reference UIDs."
                 )
+
+        if self.coordinate_system != other.coordinate_system:
+            raise RuntimeError(
+                "Volumes do not exist in the same coordinate system."
+            )
 
         permute_indices = []
         step_sizes = []
@@ -1626,6 +1673,7 @@ class VolumeGeometry(_VolumeBase):
         self,
         affine: np.ndarray,
         spatial_shape: Sequence[int],
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
     ):
         """
@@ -1641,11 +1689,18 @@ class VolumeGeometry(_VolumeBase):
             component. The last row should have value [0, 0, 0, 1].
         spatial_shape: Sequence[int]
             Number of voxels in the volume along the three spatial dimensions.
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined).
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
 
         """
-        super().__init__(affine, frame_of_reference_uid)
+        super().__init__(
+            affine,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+        )
 
         if len(spatial_shape) != 3:
             raise ValueError("Argument 'spatial_shape' must have length 3.")
@@ -1662,6 +1717,7 @@ class VolumeGeometry(_VolumeBase):
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
         number_of_frames: int,
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
     ) -> Self:
         """Create a volume from DICOM attributes.
@@ -1697,6 +1753,9 @@ class VolumeGeometry(_VolumeBase):
             "ImagePositionPatient" attributes of consecutive slices).
         number_of_frames: int
             Number of frames in the volume.
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined).
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
@@ -1720,6 +1779,7 @@ class VolumeGeometry(_VolumeBase):
         return cls(
             affine=affine,
             spatial_shape=spatial_shape,
+            coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
         )
 
@@ -1735,6 +1795,7 @@ class VolumeGeometry(_VolumeBase):
         return self.__class__(
             affine=self._affine.copy(),
             spatial_shape=self.spatial_shape,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
@@ -1781,6 +1842,7 @@ class VolumeGeometry(_VolumeBase):
         return self.__class__(
             affine=new_affine,
             spatial_shape=new_shape,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
@@ -1839,6 +1901,7 @@ class VolumeGeometry(_VolumeBase):
         return self.__class__(
             spatial_shape=new_shape,
             affine=new_affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
@@ -1865,10 +1928,15 @@ class VolumeGeometry(_VolumeBase):
         return self.__class__(
             spatial_shape=new_shape,
             affine=new_affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
-    def with_array(self, array: np.ndarray) -> Self:
+    def with_array(
+        self,
+        array: np.ndarray,
+        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+    ) -> Self:
         """Create a volume using this geometry and an array.
 
         Parameters
@@ -1877,6 +1945,21 @@ class VolumeGeometry(_VolumeBase):
             Array of voxel data. Must be either 3D (three spatial dimensions),
             or 4D (three spatial dimensions followed by a channel dimension).
             Any datatype is permitted.
+        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keywork describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
 
         Returns
         -------
@@ -1887,7 +1970,9 @@ class VolumeGeometry(_VolumeBase):
         return Volume(
             array=array,
             affine=self.affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=channels,
         )
 
 
@@ -1901,7 +1986,9 @@ class Volume(_VolumeBase):
     be extracted from DICOM image, and/or encoded within a DICOM object,
     potentially following any number of processing steps.
 
-    All such volumes have a geometry that exists within DICOM's patient
+    All such volumes have a geometry that exists either within DICOM's patient
+    coordinate system or its slide coordinate system, both of which clearly
+    define the meaning of the three spatial axes of the frame of reference
     coordinate system.
 
     Internally this class uses the following conventions to represent the
@@ -1921,6 +2008,7 @@ class Volume(_VolumeBase):
         self,
         array: np.ndarray,
         affine: np.ndarray,
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
         channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ):
@@ -1939,6 +2027,9 @@ class Volume(_VolumeBase):
             should be a scaled orthogonal matrix representing the rotation and
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
+            is defined).
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
         channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
@@ -1960,6 +2051,7 @@ class Volume(_VolumeBase):
         """
         super().__init__(
             affine=affine,
+            coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
         )
         if array.ndim < 3:
@@ -2025,6 +2117,7 @@ class Volume(_VolumeBase):
         image_orientation: Sequence[float],
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
         channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
@@ -2059,6 +2152,9 @@ class Volume(_VolumeBase):
             attribute "SpacingBetweenSlices" (however, this may not be present
             in many images and may need to be inferred from
             "ImagePositionPatient" attributes of consecutive slices).
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
+            is defined).
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
@@ -2095,6 +2191,7 @@ class Volume(_VolumeBase):
         return cls(
             affine=affine,
             array=array,
+            coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             channels=channels,
         )
@@ -2107,6 +2204,7 @@ class Volume(_VolumeBase):
         position: Sequence[float],
         direction: Sequence[float],
         spacing: Sequence[float],
+        coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
         channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
@@ -2131,6 +2229,9 @@ class Volume(_VolumeBase):
             coordinate system along each of the dimensions of the array.
         shape: Sequence[int]
             Sequence of three integers giving the shape of the volume.
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
+            is defined).
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
         channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
@@ -2183,6 +2284,7 @@ class Volume(_VolumeBase):
         return cls(
             array=array,
             affine=affine,
+            coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             channels=channels,
         )
@@ -2199,6 +2301,7 @@ class Volume(_VolumeBase):
         return VolumeGeometry(
             affine=self._affine.copy(),
             spatial_shape=self.spatial_shape,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid
         )
 
@@ -2300,6 +2403,7 @@ class Volume(_VolumeBase):
         return self.__class__(
             array=self.array.copy(),  # TODO should this copy?
             affine=self._affine.copy(),
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
@@ -2349,6 +2453,7 @@ class Volume(_VolumeBase):
         return self.__class__(
             array=array,
             affine=self._affine.copy(),
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=channels,
         )
@@ -2379,6 +2484,7 @@ class Volume(_VolumeBase):
         return self.__class__(
             array=new_array,
             affine=new_affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
         )
@@ -2409,6 +2515,7 @@ class Volume(_VolumeBase):
         return self.__class__(
             array=new_array,
             affine=new_affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
         )
@@ -2945,6 +3052,7 @@ class Volume(_VolumeBase):
         return self.__class__(
             array=new_array,
             affine=new_affine,
+            coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
         )

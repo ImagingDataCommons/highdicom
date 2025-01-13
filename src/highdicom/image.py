@@ -1611,6 +1611,7 @@ class _Image(SOPClass):
                 pixel_spacing=self.PixelSpacing,
                 number_of_frames=1,
                 spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
+                coordinate_system=self._coordinate_system,
             )
             col_defs.append('VolumePosition INTEGER NOT NULL')
             col_data.append([0])
@@ -2049,6 +2050,7 @@ class _Image(SOPClass):
                         pixel_spacing=shared_pixel_spacing,
                         number_of_frames=number_of_slices,
                         spacing_between_slices=volume_spacing,
+                        coordinate_system=self._coordinate_system,
                     )
                     col_defs.append('VolumePosition INTEGER NOT NULL')
                     col_data.append(volume_positions)
@@ -2073,6 +2075,7 @@ class _Image(SOPClass):
                     pixel_spacing=pixel_spacing,
                     number_of_frames=1,
                     spacing_between_slices=slice_spacing,
+                    coordinate_system=self._coordinate_system,
                 )
 
         # Columns related to source frames, if they are usable for indexing
@@ -4087,6 +4090,7 @@ class Image(_Image):
         return Volume(
             array=array,
             affine=affine,
+            coordinate_system=self._coordinate_system,
             frame_of_reference_uid=self.FrameOfReferenceUID,
             channels=channel_spec,
         )
@@ -4503,6 +4507,8 @@ def volume_from_image_series(
     if array.ndim == 4:
         channels = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
 
+    coordinate_system = get_image_coordinate_system(series_datasets[0])
+
     return Volume.from_attributes(
         array=array,
         frame_of_reference_uid=frame_of_reference_uid,
@@ -4511,4 +4517,5 @@ def volume_from_image_series(
         pixel_spacing=ds.PixelSpacing,
         spacing_between_slices=slice_spacing,
         channels=channels,
+        coordinate_system=coordinate_system,
     )

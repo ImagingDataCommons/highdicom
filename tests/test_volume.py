@@ -43,6 +43,7 @@ def test_transforms():
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
+        coordinate_system="PATIENT",
     )
     plane_positions = volume.get_plane_positions()
     for i, pos in enumerate(plane_positions):
@@ -109,6 +110,7 @@ def test_volume_from_attributes(
         image_orientation=image_orientation,
         pixel_spacing=pixel_spacing,
         spacing_between_slices=spacing_between_slices,
+        coordinate_system="PATIENT",
     )
     assert volume.position == tuple(image_position)
     assert volume.direction_cosines == tuple(image_orientation)
@@ -128,7 +130,8 @@ def test_volume_with_channels():
         image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
         pixel_spacing=(1.0, 1.0),
         spacing_between_slices=2.0,
-        channels={'OpticalPathIdentifier': ['path1', 'path2']}
+        channels={'OpticalPathIdentifier': ['path1', 'path2']},
+        coordinate_system="PATIENT",
     )
     assert volume.shape == (10, 10, 10, 2)
     assert volume.spatial_shape == (10, 10, 10)
@@ -149,6 +152,7 @@ def test_with_array():
         image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
         pixel_spacing=(1.0, 1.0),
         spacing_between_slices=2.0,
+        coordinate_system="PATIENT",
     )
     assert volume.channel_shape == ()
     new_array = np.zeros((10, 10, 10, 2), dtype=np.uint8)
@@ -270,6 +274,7 @@ def test_indexing():
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
+        coordinate_system="PATIENT",
     )
 
     # Single integer index
@@ -364,6 +369,7 @@ def test_indexing_source_dimension_2():
     volume = Volume(
         array=array,
         affine=affine,
+        coordinate_system="PATIENT",
     )
 
     subvolume = volume[12:14, :, 12:6:-2]
@@ -382,6 +388,7 @@ def test_array_setter():
     volume = Volume(
         array=array,
         affine=affine,
+        coordinate_system="PATIENT",
     )
 
     new_array = np.random.randint(0, 100, (50, 50, 25))
@@ -417,6 +424,7 @@ def test_to_patient_orientation(desired):
         image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
+        coordinate_system="PATIENT",
     )
     desired_tup = _normalize_patient_orientation(desired)
 
@@ -434,6 +442,7 @@ def test_volume_transformer():
     geometry = VolumeGeometry(
         np.eye(4),
         [32, 32, 32],
+        coordinate_system="PATIENT",
     )
 
     indices = np.array(
@@ -603,7 +612,8 @@ def test_match_geometry_nonintersecting():
     # This geometry has no overlap with the original volume
     geometry = VolumeGeometry(
         new_affine,
-        [2, 16, 16]
+        [2, 16, 16],
+        coordinate_system="PATIENT",
     )
 
     transformed = vol.match_geometry(geometry)
@@ -624,6 +634,7 @@ def test_match_geometry_failure_translation():
     geometry = VolumeGeometry(
         new_affine,
         vol.shape,
+        coordinate_system="PATIENT",
     )
 
     with pytest.raises(RuntimeError):
@@ -638,6 +649,7 @@ def test_match_geometry_failure_spacing():
     geometry = VolumeGeometry(
         new_affine,
         vol.shape,
+        coordinate_system="PATIENT",
     )
 
     with pytest.raises(RuntimeError):
@@ -659,6 +671,7 @@ def test_match_geometry_failure_rotation():
         number_of_frames=vol.shape[0],
         columns=vol.shape[2],
         rows=vol.shape[1],
+        coordinate_system="PATIENT",
     )
 
     with pytest.raises(RuntimeError):
