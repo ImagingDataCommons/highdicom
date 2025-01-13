@@ -55,7 +55,7 @@ from highdicom.seg.utils import iter_segments
 from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
-from highdicom.volume import Volume
+from highdicom.volume import RGB_COLOR_CHANNEL_IDENTIFIER, Volume
 
 from .utils import write_and_read_dataset
 
@@ -2575,6 +2575,19 @@ class TestSegmentation:
             if dimension_organization_type.value != "TILED_FULL":
                 self.check_dimension_index_vals(instance)
 
+            volume = instance.get_volume(
+                combine_segments=True,
+            )
+            assert volume.shape == (
+                1,
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            )
+            assert np.array_equal(
+                volume.array,
+                pixel_array[None],
+            )
+
             def to_numpy(c):
                 # Move from our 1-based convention to numpy zero based
                 if c is None:
@@ -2609,6 +2622,26 @@ class TestSegmentation:
                 ]
                 assert np.array_equal(
                     reconstructed_array,
+                    expected_array,
+                )
+
+                volume = instance.get_volume(
+                    combine_segments=True,
+                    row_start=rs,
+                    row_end=re,
+                    column_start=cs,
+                    column_end=ce,
+                )
+
+                rs_np = to_numpy(rs)
+                re_np = to_numpy(re)
+                cs_np = to_numpy(cs)
+                ce_np = to_numpy(ce)
+                expected_array = pixel_array[
+                    (slice(rs_np, re_np), slice(cs_np, ce_np))
+                ][None]
+                assert np.array_equal(
+                    volume.array,
                     expected_array,
                 )
 
@@ -4381,6 +4414,35 @@ class TestSegmentationParsing:
             assert pixels.shape == expected_shape
             assert np.array_equal(np.unique(pixels), expected_vals)
 
+            volume = seg.get_volume(
+                row_end=1 + subregion_rows,
+                column_end=1 + subregion_columns,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert volume.dtype == np.dtype(numpy_dtype)
+            if combine_segments:
+                expected_shape = (
+                    1, subregion_rows, subregion_columns,
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    1, subregion_rows, subregion_columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert volume.shape == expected_shape
+            if not np.array_equal(np.unique(volume.array), expected_vals):
+                print(seg_attr_name)
+            assert np.array_equal(np.unique(volume.array), expected_vals)
+
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
         assert len(ptrs) == 5
@@ -4977,7 +5039,7 @@ class TestSegmentationParsing:
 
     def test_get_volume_binary_multisegment_slice_start(self):
         vol = self._ct_binary_overlap_seg.get_volume(
-            slice_start=160,
+            slice_start=161,
         )
         assert isinstance(vol, Volume)
         # Note that this segmentation has a large number of missing slices
@@ -5035,7 +5097,7 @@ class TestSegmentationParsing:
 
     def test_get_volume_binary_multisegment_slice_end(self):
         vol = self._ct_binary_overlap_seg.get_volume(
-            slice_end=17,
+            slice_end=18,
         )
         assert isinstance(vol, Volume)
         # Note that this segmentation has a large number of missing slices
@@ -5119,6 +5181,49 @@ class TestSegmentationParsing:
             PatientOrientationValuesBiped.F,
             PatientOrientationValuesBiped.P,
             PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_cropped(self):
+        vol = self._ct_binary_overlap_seg.get_volume()
+        vol_cropped = self._ct_binary_overlap_seg.get_volume(
+            row_start=2,
+            row_end=-2,
+            column_start=3,
+            column_end=-5,
+        )
+
+        # Note that this segmentation has a large number of missing slices
+        assert vol_cropped.spatial_shape == (165, 13, 9)
+        assert vol_cropped.shape == (165, 13, 9, 2)
+
+        assert np.array_equal(
+            vol_cropped.array,
+            vol[:, 1:-2, 2:-5].array
+        )
+        assert np.array_equal(
+            vol_cropped.affine,
+            vol[:, 1:-2, 2:-5].affine
+        )
+
+        vol_cropped = self._ct_binary_overlap_seg.get_volume(
+            row_start=1,
+            row_end=-2,
+            column_start=2,
+            column_end=-5,
+            as_indices=True
+        )
+
+        # Note that this segmentation has a large number of missing slices
+        assert vol_cropped.spatial_shape == (165, 13, 9)
+        assert vol_cropped.shape == (165, 13, 9, 2)
+
+        assert np.array_equal(
+            vol_cropped.array,
+            vol[:, 1:-2, 2:-5].array
+        )
+        assert np.array_equal(
+            vol_cropped.affine,
+            vol[:, 1:-2, 2:-5].affine
         )
 
     def test_get_volume_binary_combine(self):
@@ -5212,6 +5317,20 @@ class TestSegmentationParsing:
             seg.TotalPixelMatrixRows,
             seg.TotalPixelMatrixColumns,
             3
+        )
+
+        vol = seg.get_volume(
+            combine_segments=True,
+            apply_palette_color_lut=True,
+        )
+        assert vol.shape == (
+            1,
+            seg.TotalPixelMatrixRows,
+            seg.TotalPixelMatrixColumns,
+            3
+        )
+        assert vol.channel_identifiers == (
+            RGB_COLOR_CHANNEL_IDENTIFIER,
         )
 
         msg = (

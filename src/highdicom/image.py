@@ -84,22 +84,24 @@ from highdicom.volume import (
 logger = logging.getLogger(__name__)
 
 
+# TODO new type hints
 # TODO deal with extended offset table
-# TODO test laziness
 # TODO rebase parametric map
 # TODO tiled volumes
 # TODO additional get pixel methods
 # TODO expose channel bhaviour
 # TODO behavior of simple frame images
 # TODO referenced images for non-seg images
+# TODO single frame images with FoR but no position (e.g. digital mammo x-ray)
+# TODO multi frame images with FoR but no position (e.g. some example CTs)
+# TODO allow tolerance parameter to be passed for volumes
 # TODO exports/inits and docs
 # TODO disallow direct creation of Image
-# TODO docstrings for frame methods
-# TODO frames by index as well as number?
-# TODO fix voi window on volume
 # TODO add labelmap to seg documentation
 # TODO quickstart for image/volume
 # TODO pixel_array for lazy retrieval
+# TODO accept tiled volumes when constructing segmentations
+# TODO shared plane position sequence
 
 
 class _ImageColorType(Enum):
@@ -174,7 +176,7 @@ class _CombinedPixelTransformation:
         image: Dataset,
         frame_index: int = 0,
         *,
-        output_dtype: Union[type, str, np.dtype, None] = np.float64,
+        output_dtype: Union[type, str, np.dtype] = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
@@ -196,7 +198,7 @@ class _CombinedPixelTransformation:
             transformation should be represented.
         frame_index: int
             Zero-based index (one less than the frame number).
-        output_dtype: Union[type, str, np.dtype, None], optional
+        output_dtype: Union[type, str, numpy.dtype], optional
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
             Whether to apply to apply the real-world value map to the frame.
@@ -251,7 +253,7 @@ class _CombinedPixelTransformation:
         voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
-            interpretted as a (zero-based) index of the list of VOI transforms
+            interpreted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
             the string that will be used to match the
@@ -1034,20 +1036,47 @@ class _CombinedPixelTransformation:
         return frame_out
 
 
-@dataclass
 class _SQLTableDefinition:
 
     """Utility class holding the specification of a single SQL table."""
 
-    table_name: str
-    """Name of the temporary table."""
+    def __init__(
+        self,
+        table_name: str,
+        column_defs: Sequence[str],
+        column_data: Iterable[Sequence[Any]],
+    ):
+        """
 
-    column_defs: Sequence[str]
-    """SQL syntax strings defining each column in the temporary table, one
-    string per column."""
+        Parameters
+        ----------
+        table_name: str,
+            Name of the temporary table.
+        column_data: Iterable[Sequence[Any]]
+            Column data to place into the table.
+        column_defs: Sequence[str]
+            SQL syntax strings defining each column in the temporary table, one
+            string per column.
 
-    column_data: Iterable[Sequence[Any]]
-    """Column data to place into the table."""
+        """
+        self.table_name = table_name
+        self.column_defs = list(column_defs)
+
+        # It is important to convert numpy arrays to lists, otherwise the
+        # values get inserted into the table as binary values and this leads to
+        # very difficult to detect failures
+        if isinstance(column_data, np.ndarray):
+            column_data = column_data.tolist()
+
+        sanitized_column_data = []
+
+        for col in column_data:
+            if isinstance(col, np.ndarray):
+                col = col.tolist()
+
+            sanitized_column_data.append(col)
+
+        self.column_data = sanitized_column_data
 
 
 class _Image(SOPClass):
@@ -1120,13 +1149,64 @@ class _Image(SOPClass):
     def is_tiled(self):
         return is_tiled_image(self)
 
-    def get_raw_frame(self, frame_number: int) -> bytes:
+    def _standardize_frame_index(
+        self,
+        frame_number: int,
+        as_index: bool,
+    ) -> int:
+        """Standardize frame index from different conventions.
+
+        Also ensures that the frame index is valid in this image.
+
+        Parameters
+        ----------
+        frame_number: int
+            Number of the frame to retrieve. This is interpreted either as a
+            1-based frame number (i.e. the first frame is numbered 1) or a
+            0-based index instead (as is more common in Python), depending on
+            value of the `as_index` parameter.
+        as_index: bool
+            Interpret the input `frame_number` as a 0-based index, instead of
+            the default 1-based index.
+
+        """
+        if as_index:
+            if frame_number < 0 or frame_number >= self.number_of_frames:
+                raise IndexError(
+                    f"Invalid frame index '{frame_number}' for image with "
+                    f"{self.number_of_frames} frames. Note that frame numbers "
+                    "use a 0-based index when 'as_index' is True."
+                )
+
+            return frame_number
+        else:
+            if frame_number < 1 or frame_number > self.number_of_frames:
+                raise IndexError(
+                    f"Invalid frame number '{frame_number}' for image with "
+                    f"{self.number_of_frames} frame. Note that frame numbers "
+                    "use a 1-based index."
+                )
+
+            return frame_number - 1
+
+    def get_raw_frame(
+        self,
+        frame_number: int,
+        as_index: bool = False,
+    ) -> bytes:
         """Get the raw data for an encoded frame.
 
         Parameters
         ----------
         frame_number: int
-            One-based frame number.
+            Number of the frame to retrieve. Under the default behavior, this
+            is interpreted as a 1-based frame number (i.e. the first frame is
+            numbered 1). This matches the convention used within DICOM when
+            referring to frames within an image. To use a 0-based index instead
+            (as is more common in Python), use the `as_index` parameter.
+        as_index: bool
+            Interpret the input `frame_number` as a 0-based index, instead of
+            the default 1-based index.
 
         Returns
         -------
@@ -1145,23 +1225,16 @@ class _Image(SOPClass):
         requested frame.
 
         """
-        if frame_number < 1 or frame_number > self.number_of_frames:
-            raise IndexError(
-                f"Invalid frame number '{frame_number}' for image with "
-                f"{self.number_of_frames} frame. Note that frame numbers "
-                "use a 1-based index."
-            )
-
-        index = frame_number - 1
+        frame_index = self._standardize_frame_index(frame_number, as_index)
 
         if self._file_reader is not None:
             with self._file_reader:
-                return self._file_reader.read_frame_raw(index)
+                return self._file_reader.read_frame_raw(frame_index)
 
         if UID(self.file_meta.TransferSyntaxUID).is_encapsulated:
             return get_frame(
                 self.PixelData,
-                index=index,
+                index=frame_index,
                 number_of_frames=self.number_of_frames,
             )
         else:
@@ -1170,17 +1243,17 @@ class _Image(SOPClass):
                 # expected number of samples
                 # See https://dicom.nema.org/medical/dicom/current/output/chtml
                 # /part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2
-                n_pixels = self.metadata.Rows * self.metadata.Columns * 2
+                n_pixels = self.Rows * self.Columns * 2
             else:
                 n_pixels = self.Rows * self.Columns * self.SamplesPerPixel
 
             frame_length_bits = self.BitsAllocated * n_pixels
             if self.BitsAllocated == 1 and (n_pixels % 8 != 0):
-                start = (index * frame_length_bits) // 8
-                end = ((index + 1) * frame_length_bits + 7) // 8
+                start = (frame_index * frame_length_bits) // 8
+                end = ((frame_index + 1) * frame_length_bits + 7) // 8
             else:
                 frame_length = frame_length_bits // 8
-                start = index * frame_length
+                start = frame_index * frame_length
                 end = start + frame_length
 
             return self.PixelData[start:end]
@@ -1188,16 +1261,47 @@ class _Image(SOPClass):
     def get_stored_frame(
         self,
         frame_number: int,
+        as_index: bool = False,
     )-> np.ndarray:
-        if frame_number < 1 or frame_number > self.number_of_frames:
-            raise IndexError(
-                f"Invalid frame number '{frame_number}' for image with "
-                f"{self.number_of_frames} frame. Note that frame numbers "
-                "use a 1-based index."
-            )
+        """Get a single frame of stored values.
+
+        Stored values are the pixel values stored within the dataset. They have
+        been decompressed from the raw bytes, interpreted as the correct pixel
+        datatype (according to the pixel representation and planar
+        configuration) and reshaped into a 2D (grayscale image) or 3D (color)
+        frame. However, no further pixel transformation, such as the modality
+        transform, VOI transforms, palette color LUTs, or ICC profile, had been
+        applied.
+
+        To get frames with pixel transformations applied (as is appropriate for
+        most applications), use :func:`highdicom.image.Image.get_frame`
+        instead.
+
+        Parameters
+        ----------
+        frame_number: int
+            Number of the frame to retrieve. Under the default behavior, this
+            is interpreted as a 1-based frame number (i.e. the first frame is
+            numbered 1). This matches the convention used within DICOM when
+            referring to frames within an image. To use a 0-based index instead
+            (as is more common in Python), use the `as_index` parameter.
+        as_index: bool
+            Interpret the input `frame_number` as a 0-based index, instead of
+            the default 1-based index.
+
+        Returns
+        -------
+        numpy.ndarray
+            Numpy array of stored values. This will have shape (Rows, Columns)
+            for a grayscale image, or (Rows, Columns, 3) for a color image. The
+            data type will depend on how the pixels are stored in the file, and
+            may be signed or unsighed integers or float.
+
+        """
+        frame_index = self._standardize_frame_index(frame_number, as_index)
 
         if self._pixel_array is None:
-            raw_frame = self.get_raw_frame(frame_number)
+            raw_frame = self.get_raw_frame(frame_number, as_index=as_index)
             frame = decode_frame(
                 value=raw_frame,
                 transfer_syntax_uid=self.transfer_syntax_uid,
@@ -1209,21 +1313,22 @@ class _Image(SOPClass):
                 photometric_interpretation=self.PhotometricInterpretation,
                 pixel_representation=self.PixelRepresentation,
                 planar_configuration=self.get('PlanarConfiguration'),
-                index=frame_number - 1,
+                index=frame_index,
             )
         else:
             if self.number_of_frames == 1:
                 frame = self.pixel_array
             else:
-                frame = self.pixel_array[frame_number - 1]
+                frame = self.pixel_array[frame_index]
 
         return frame
 
     def get_frame(
         self,
         frame_number: int,
+        as_index: bool = False,
         *,
-        output_dtype: Union[type, str, np.dtype, None] = np.float64,
+        dtype: Union[type, str, np.dtype] = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
@@ -1234,15 +1339,135 @@ class _Image(SOPClass):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
+        """Get a single frame of stored values.
 
-        frame_index = frame_number - 1
+        Stored values are the pixel values stored within the dataset. They have
+        been decompressed from the raw bytes, interpreted as the correct pixel
+        datatype (according to the pixel representation and planar
+        configuration) and reshaped into a 2D (grayscale image) or 3D (color)
+        frame. However, no further pixel transformation, such as the modality
+        transform, VOI transforms, palette color LUTs, or ICC profile, had been
+        applied.
 
-        frame = self.get_stored_frame(frame_number)
+        To get frames with pixel transformations applied (as is appropriate for
+        most applications), use :func:`highdicom.image.Image.get_frame`
+        instead.
+
+        Parameters
+        ----------
+        frame_number: int
+            Number of the frame to retrieve. Under the default behavior, this
+            is interpreted as a 1-based frame number (i.e. the first frame is
+            numbered 1). This matches the convention used within DICOM when
+            referring to frames within an image. To use a 0-based index instead
+            (as is more common in Python), use the `as_index` parameter.
+        as_index: bool
+            Interpret the input `frame_number` as a 0-based index, instead of
+            the default behavior of interpretting it as a 1-based frame number.
+        dtype: Union[type, str, numpy.dtype],
+            Data type of the output array.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply to apply the real-world value map to the frame.
+            The real world value map converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply to the modality transform (if present in the
+            dataset) the frame. The modality transformation maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transformation (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. Will only be performed if metadata contain an
+            ICC Profile.
+
+        Returns
+        -------
+        numpy.ndarray
+            Numpy array of stored values. This will have shape (Rows, Columns)
+            for a grayscale image, or (Rows, Columns, 3) for a color image. The
+            data type will depend on how the pixels are stored in the file, and
+            may be signed or unsighed integers or float.
+
+        """
+        frame_index = self._standardize_frame_index(frame_number, as_index)
+
+        frame = self.get_stored_frame(frame_number, as_index=as_index)
 
         frame_transform = _CombinedPixelTransformation(
             self,
             frame_index=frame_index,
-            output_dtype=output_dtype,
+            output_dtype=dtype,
             apply_real_world_transform=apply_real_world_transform,
             real_world_value_map_selector=real_world_value_map_selector,
             apply_modality_transform=apply_modality_transform,
@@ -1370,14 +1595,13 @@ class _Image(SOPClass):
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
         col_data = [[1]]
 
-        if self._coordinate_system is not None:
-
-            if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                position = self.ImagePositionSlide
-                orientation = self.ImageOrientationSlide
-            else:
-                position = self.ImagePositionPatient
-                orientation = self.ImageOrientationPatient
+        if (
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.PATIENT and
+            'ImagePositionPatient' in self
+        ):
+            position = self.ImagePositionPatient
+            orientation = self.ImageOrientationPatient
 
             self._volume_geometry = VolumeGeometry.from_attributes(
                 image_position=position,
@@ -1725,7 +1949,7 @@ class _Image(SOPClass):
 
         # Frame number column
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        col_data.append(list(range(1, self.NumberOfFrames + 1)))
+        col_data.append(list(range(1, self.number_of_frames + 1)))
 
         self._dim_ind_col_names = {}
         for i, t in enumerate(dim_indices.keys()):
@@ -2070,7 +2294,7 @@ class _Image(SOPClass):
                 referenced_uids,
             )
 
-    def _are_columns_unique(
+    def _do_columns_identify_unique_frames(
         self,
         column_names: Sequence[str],
     ) -> bool:
@@ -2114,7 +2338,7 @@ class _Image(SOPClass):
         ----------
         dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag, str]]
             Sequence of tags serving as dimension index pointers. If strings,
-            the items are interpretted as keywords.
+            the items are interpreted as keywords.
 
         Returns
         -------
@@ -2132,7 +2356,7 @@ class _Image(SOPClass):
                     )
                 ptr = t
             column_names.append(self._dim_ind_col_names[ptr][0])
-        return self._are_columns_unique(column_names)
+        return self._do_columns_identify_unique_frames(column_names)
 
     def get_source_image_uids(self) -> List[Tuple[UID, UID, UID]]:
         """Get UIDs of source image instances referenced in the image.
@@ -2314,7 +2538,7 @@ class _Image(SOPClass):
             ]
         ],
         *,
-        dtype: Union[type, str, np.dtype, None] = np.float64,
+        dtype: Union[type, str, np.dtype] = np.float64,
         channel_shape: tuple[int, ...] = (),
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
@@ -2361,12 +2585,8 @@ class _Image(SOPClass):
             Channel shape of the output array. The use of channels depends
             on image type, for example it may be segments in a segmentation,
             optical paths in a microscopy image, or B-values in an MRI.
-        dtype: Union[type, str, np.dtype, None]
-            Data type of the returned array. If None, an appropriate type will
-            be chosen automatically. If the returned values are rescaled
-            fractional values, this will be numpy.float32. Otherwise, the
-            smallest unsigned integer type that accommodates all of the output
-            values will be chosen.
+        dtype: Union[type, str, numpy.dtype], optional
+            Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply to apply the real-world value map to the frame.
             The real world value map converts stored pixel values to output
@@ -2420,7 +2640,7 @@ class _Image(SOPClass):
         voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
-            interpretted as a (zero-based) index of the list of VOI transforms
+            interpreted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
             the string that will be used to match the
@@ -2664,17 +2884,30 @@ class _Image(SOPClass):
                         )
 
             if multiple_values:
+                if isinstance(value, np.ndarray):
+                    if value.ndim != 1:
+                        raise ValueError('Numpy array of invalid shape.')
+                    value = value.tolist()
+                elif not isinstance(value, list):
+                    value = list(value)
+
                 if len(value) != n_values:
                     raise ValueError(
                         'Number of values along all dimensions must match.'
                     )
                 for v in value:
+                    if isinstance(v, np.generic):
+                        # Change numpy to python type
+                        v = v.item()
                     if not isinstance(v, python_type):
                         raise TypeError(
                             f'For dimension {p}, expected all values to be of type '
                             f'{python_type}.'
                         )
             else:
+                if isinstance(value, np.generic):
+                    # Change numpy to python type
+                    value = value.item()
                 if not isinstance(value, python_type):
                     raise TypeError(
                         f'For dimension {p}, expected value to be of type '
@@ -2752,20 +2985,27 @@ class _Image(SOPClass):
                 remap_channel_indices is not None and
                 remap_channel_indices[i] is not None
             ):
-                output_channel_indices = remap_channel_indices[i]
+                if isinstance(remap_channel_indices[i], np.ndarray):
+                    # Need to call tolist to ensure elements end up as standard
+                    # python types
+                    output_channel_indices = remap_channel_indices[i].tolist()
+                else:
+                    output_channel_indices = remap_channel_indices[i]
             else:
                 output_channel_indices = range(num_channels)
 
-            channel_column_data = zip(
-                output_channel_indices,
-                *channel_indices_dict.values()
+            channel_column_data = list(
+                zip(
+                    output_channel_indices,
+                    *channel_indices_dict.values()
+                )
             )
 
             table_defs.append(
                 _SQLTableDefinition(
                     table_name=channel_table_name,
                     column_defs=channel_column_defs,
-                    column_data=list(channel_column_data),
+                    column_data=channel_column_data,
                 )
             )
 
@@ -2902,7 +3142,7 @@ class _Image(SOPClass):
             )
 
         # Check for uniqueness
-        if not self._are_columns_unique(all_columns):
+        if not self._do_columns_identify_unique_frames(all_columns):
             raise RuntimeError(
                 'The chosen dimensions do not uniquely identify frames of '
                 'the image. You may need to provide further dimensions or '
@@ -3012,13 +3252,138 @@ class _Image(SOPClass):
                 for (fo, fi, *channel) in self._db_con.execute(full_query)
             )
 
+    @staticmethod
+    def _standardize_row_column_indices(
+        row_start: Optional[int],
+        row_end: Optional[int],
+        column_start: Optional[int],
+        column_end: Optional[int],
+        rows: int,
+        columns: int,
+        as_indices: bool = False,
+        outputs_as_indices: bool = False,
+    ) -> tuple[int, int, int, int]:
+        """Standardize format of row/column indices as given by user.
+
+        This includes interpretation of None values, and negatives.
+
+        Parameters
+        ----------
+        row_start: Optional[int]
+            First row.
+        row_end: Optional[int]
+            One beyond last row.
+        column_start: Optional[int]
+            First column.
+        column_end: Optional[int]
+            One beyond last column.
+        rows: int
+            Number of rows in image.
+        columns: int
+            Number of columns in image.
+        as_indices: bool
+            Interpret start and end parameters as zero-based indices (if True)
+            or one-based numbers (if False).
+        outputs_as_indices: bool
+            Return start and end outputs as zero-based indices (if True) or
+            one-based numbers (if False).
+
+        Returns
+        -------
+        row_start: int
+            First row as non-negative integer.
+        row_end: int
+            One beyond last row as non-negative integer.
+        column_start: Optional[int]
+            First column as non-negative integer.
+        column_end: Optional[int]
+            One beyond last column as non-negative integer.
+
+        """
+        # Store the passed values for use in error messages
+        original_row_start = row_start
+        original_row_end = row_end
+        original_column_start = column_start
+        original_column_end = column_end
+
+        # Standardize on 1 based indices to use internally
+        if as_indices:
+            if row_start is not None and row_start >= 0:
+                row_start = row_start + 1
+            if row_end is not None and row_end >= 0:
+                row_end = row_end + 1
+            if column_start is not None and column_start >= 0:
+                column_start = column_start + 1
+            if column_end is not None and column_end >= 0:
+                column_end = column_end + 1
+
+        if row_start is None:
+            row_start = 1
+        if row_end is None:
+            row_end = rows + 1
+        if column_start is None:
+            column_start = 1
+        if column_end is None:
+            column_end = columns + 1
+
+        if column_start == 0 or row_start == 0:
+            raise ValueError(
+                'Arguments "row_start" and "column_start" may not be 0. '
+                "Perhaps you meant to pass 'as_indices=True'?"
+            )
+
+        if row_start > rows:
+            raise ValueError(
+                f'Value of {original_row_start} for "row_start" is out '
+                f'of range for image with {rows} '
+                'rows in the total pixel matrix.'
+            )
+        elif row_start < 0:
+            row_start = rows + row_start + 1
+        if row_end > rows + 1:
+            raise ValueError(
+                f'Value of {original_row_end} for "row_end" is out '
+                f'of range for image with {rows} '
+                'rows in the total pixel matrix.'
+            )
+        elif row_end < 0:
+            row_end = rows + row_end + 1
+
+        if column_start > columns:
+            raise ValueError(
+                f'Value of {original_column_start} for "column_start" is out '
+                f'of range for image with {columns} '
+                'columns in the total pixel matrix.'
+            )
+        elif column_start < 0:
+            column_start = columns + column_start + 1
+        if column_end > columns + 1:
+            raise ValueError(
+                f'Value of {original_column_end} for "column_end" is out '
+                f'of range for image with {columns} '
+                'columns in the total pixel matrix.'
+            )
+        elif column_end < 0:
+            column_end = columns + column_end + 1
+
+        if outputs_as_indices:
+            return (
+                row_start - 1,
+                row_end - 1,
+                column_start - 1,
+                column_end - 1
+            )
+        else:
+            return row_start, row_end, column_start, column_end
+
     @contextmanager
     def _iterate_indices_for_tiled_region(
         self,
-        row_start: int = 1,
+        row_start: Optional[int] = None,
         row_end: Optional[int] = None,
-        column_start: int = 1,
+        column_start: Optional[int] = None,
         column_end: Optional[int] = None,
+        as_indices: bool = False,
         channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
@@ -3057,9 +3422,12 @@ class _Image(SOPClass):
         Parameters
         ----------
         row_start: int, optional
-            1-based row index in the total pixel matrix of the first row to
-            include in the output array. May be negative, in which case the
-            last row is considered index -1.
+            1-based row number in the total pixel matrix of the first row to
+            include in the output array. Alternatively a zero-based row index
+            if ``as_indices`` is True. May be negative, in which case the last
+            row is considered index -1. If ``None``, the first row of the
+            output is the first row of the total pixel matrix (regardless of
+            the value of ``as_indices``).
         row_end: Union[int, None], optional
             1-based row index in the total pixel matrix of the first row beyond
             the last row to include in the output array. A ``row_end`` value of
@@ -3068,8 +3436,9 @@ class _Image(SOPClass):
             total pixel matrix are included. May be negative, in which case the
             last row is considered index -1.
         column_start: int, optional
-            1-based column index in the total pixel matrix of the first column
-            to include in the output array. May be negative, in which case the
+            1-based column number in the total pixel matrix of the first column
+            to include in the output array. Alternatively a zero-based column
+            index if ``as_indices`` is True.May be negative, in which case the
             last column is considered index -1.
         column_end: Union[int, None], optional
             1-based column index in the total pixel matrix of the first column
@@ -3078,6 +3447,11 @@ class _Image(SOPClass):
             below, similar to standard Python indexing. If ``None``, columns up
             until the final column of the total pixel matrix are included. May
             be negative, in which case the last column is considered index -1.
+        as_indices: bool, optional
+            If True, interpret all row/column numbering parameters
+            (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
+            as zero-based indices as opposed to the default one-based numbers
+            used within DICOM.
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
             List of dictionaries defining the channel dimensions. Within each
             dictionary, The keys define the dimensions used. They may be either
@@ -3162,7 +3536,7 @@ class _Image(SOPClass):
             )
 
         # Check for uniqueness
-        if not self._are_columns_unique(all_columns):
+        if not self._do_columns_identify_unique_frames(all_columns):
             raise RuntimeError(
                 'The chosen dimensions do not uniquely identify frames of'
                 'the image. You may need to provide further dimensions or '
@@ -3180,45 +3554,18 @@ class _Image(SOPClass):
         else:
             filter_str = ''
 
-        if row_start is None:
-            row_start = 1
-        if row_end is None:
-            row_end = self.TotalPixelMatrixRows + 1
-        if column_start is None:
-            column_start = 1
-        if column_end is None:
-            column_end = self.TotalPixelMatrixColumns + 1
-
-        if column_start == 0 or row_start == 0:
-            raise ValueError(
-                'Arguments "row_start" and "column_start" may not be 0.'
-            )
-
-        if row_start > self.TotalPixelMatrixRows + 1:
-            raise ValueError(
-                'Invalid value for "row_start".'
-            )
-        elif row_start < 0:
-            row_start = self.TotalPixelMatrixRows + row_start + 1
-        if row_end > self.TotalPixelMatrixRows + 1:
-            raise ValueError(
-                'Invalid value for "row_end".'
-            )
-        elif row_end < 0:
-            row_end = self.TotalPixelMatrixRows + row_end + 1
-
-        if column_start > self.TotalPixelMatrixColumns + 1:
-            raise ValueError(
-                'Invalid value for "column_start".'
-            )
-        elif column_start < 0:
-            column_start = self.TotalPixelMatrixColumns + column_start + 1
-        if column_end > self.TotalPixelMatrixColumns + 1:
-            raise ValueError(
-                'Invalid value for "column_end".'
-            )
-        elif column_end < 0:
-            column_end = self.TotalPixelMatrixColumns + column_end + 1
+        (
+            row_start, row_end, column_start, column_end,
+        ) = self._standardize_row_column_indices(
+            row_start,
+            row_end,
+            column_start,
+            column_end,
+            rows=self.TotalPixelMatrixRows,
+            columns=self.TotalPixelMatrixColumns,
+            as_indices=as_indices,
+            outputs_as_indices=False,
+        )
 
         output_shape = (
             row_end - row_start,
@@ -3399,9 +3746,14 @@ class Image(_Image):
     def get_volume(
         self,
         *,
-        slice_start: int = 0,
+        slice_start: Optional[int] = None,
         slice_end: Optional[int] = None,
-        dtype: Union[type, str, np.dtype, None] = None,
+        row_start: Optional[int] = None,
+        row_end: Optional[int] = None,
+        column_start: Optional[int] = None,
+        column_end: Optional[int] = None,
+        as_indices: bool = False,
+        dtype: Union[type, str, np.dtype] = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
@@ -3415,33 +3767,60 @@ class Image(_Image):
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the image.
 
-        This is only possible if the image represents a regularly-spaced
-        3D volume.
+        This is only possible in two situations: either the image represents a
+        regularly-spaced 3D volume, or a tiled 2D total pixel matrix.
 
         Parameters
         ----------
-        slice_start: int, optional
-            Zero-based index of the "volume position" of the first slice of the
-            returned volume. The "volume position" refers to the position of
+        slice_start: int | none, optional
+            zero-based index of the "volume position" of the first slice of the
+            returned volume. the "volume position" refers to the position of
             slices after sorting spatially, and may correspond to any frame in
-            the segmentation file, depending on its construction. May be
-            negative, in which case standard Python indexing behavior is
+            the segmentation file, depending on its construction. may be
+            negative, in which case standard python indexing behavior is
             followed (-1 corresponds to the last volume position, etc).
-        slice_end: Union[int, None], optional
-            Zero-based index of the "volume position" one beyond the last slice
-            of the returned volume. The "volume position" refers to the
+        slice_end: union[int, none], optional
+            zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. the "volume position" refers to the
             position of slices after sorting spatially, and may correspond to
             any frame in the segmentation file, depending on its construction.
-            May be negative, in which case standard Python indexing behavior is
-            followed (-1 corresponds to the last volume position, etc). If
-            None, the last volume position is included as the last output
+            may be negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). if
+            none, the last volume position is included as the last output
             slice.
-        dtype: Union[type, str, numpy.dtype, None]
-            Data type of the returned array. If None, an appropriate type will
-            be chosen automatically. If the returned values are rescaled
-            fractional values, this will be numpy.float32. Otherwise, the
-            smallest unsigned integer type that accommodates all of the output
-            values will be chosen.
+        row_start: int, optional
+            1-based row number in the total pixel matrix of the first row to
+            include in the output array. alternatively a zero-based row index
+            if ``as_indices`` is true. may be negative, in which case the last
+            row is considered index -1. if ``none``, the first row of the
+            output is the first row of the total pixel matrix (regardless of
+            the value of ``as_indices``).
+        row_end: union[int, none], optional
+            1-based row index in the total pixel matrix of the first row beyond
+            the last row to include in the output array. a ``row_end`` value of
+            ``n`` will include rows ``n - 1`` and below, similar to standard
+            python indexing. if ``none``, rows up until the final row of the
+            total pixel matrix are included. may be negative, in which case the
+            last row is considered index -1.
+        column_start: int, optional
+            1-based column number in the total pixel matrix of the first column
+            to include in the output array. alternatively a zero-based column
+            index if ``as_indices`` is true.may be negative, in which case the
+            last column is considered index -1.
+        column_end: union[int, none], optional
+            1-based column index in the total pixel matrix of the first column
+            beyond the last column to include in the output array. a
+            ``column_end`` value of ``n`` will include columns ``n - 1`` and
+            below, similar to standard python indexing. if ``none``, columns up
+            until the final column of the total pixel matrix are included. may
+            be negative, in which case the last column is considered index -1.
+        as_indices: bool, optional
+            if true, interpret all slice/row/column numbering parameters
+            (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
+            as zero-based indices as opposed to the default one-based numbers
+            used within dicom.
+        dtype: Union[type, str, numpy.dtype], optional
+            Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply to apply the real-world value map to the frame.
             The real world value map converts stored pixel values to output
@@ -3495,7 +3874,7 @@ class Image(_Image):
         voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
-            interpretted as a (zero-based) index of the list of VOI transforms
+            interpreted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
             the string that will be used to match the
@@ -3537,6 +3916,24 @@ class Image(_Image):
             are omitted from the image. If False and missing frames are found,
             an error is raised.
 
+        Note
+        ----
+        By default, this method uses 1-based indexing of rows and columns in
+        order to match the conventions used in the DICOM standard. The first
+        row of the total pixel matrix is row 1, and the last is
+        ``self.TotalPixelMatrixRows``. This is is unlike standard Python and
+        NumPy indexing which is 0-based. For negative indices, the two are
+        equivalent with the final row/column having index -1. To switch to
+        standard Python behavior, specify ``as_indices=True``.
+
+        Note
+        ----
+        The parameters ``row_start``, ``row_end``, ``column_start`` and
+        ``column_end`` are provided primarily for the case where the volume is
+        formed from frames tiled into a total pixel matrix. In other scenarios,
+        it will behave as expected, but will not reduce the number of frames
+        that have to be decoded and transformed.
+
         """
         if self.volume_geometry is None:
             raise RuntimeError(
@@ -3544,15 +3941,27 @@ class Image(_Image):
             )
         n_vol_positions = self.volume_geometry.spatial_shape[0]
 
-        # Check that the combination of frame numbers uniquely identify
-        # frames
-        columns = ['VolumePosition']
-        if not self._are_columns_unique(columns):
-            raise RuntimeError(
-                'Volume positions and do not '
-                'uniquely identify frames of the image.'
-            )
+        original_slice_end = slice_end
 
+        # Standardize on zero-based slice indices
+        if not as_indices:
+            if slice_start is not None:
+                if slice_start == 0:
+                    raise ValueError(
+                        "Value of 'slice_start' cannot be 0. Did you mean to "
+                        "pass 'as_indices=True'?"
+                    )
+                elif slice_start > 0:
+                    slice_start = slice_start - 1
+
+            if slice_end is not None:
+                if slice_start == 0:
+                    raise ValueError()
+                elif slice_end > 0:
+                    slice_end = slice_end - 1
+
+        if slice_start is None:
+            slice_start = 0
         if slice_start < 0:
             slice_start = n_vol_positions + slice_start
 
@@ -3560,13 +3969,13 @@ class Image(_Image):
             slice_end = n_vol_positions
         elif slice_end > n_vol_positions:
             raise IndexError(
-                f"Value of {slice_end} is not valid for segmentation with "
+                f"Value of {original_slice_end} is not valid for image with "
                 f"{n_vol_positions} volume positions."
             )
         elif slice_end < 0:
             if slice_end < (- n_vol_positions):
                 raise IndexError(
-                    f"Value of {slice_end} is not valid for segmentation with "
+                    f"Value of {original_slice_end} is not valid for image with "
                     f"{n_vol_positions} volume positions."
                 )
             slice_end = n_vol_positions + slice_end
@@ -3579,7 +3988,25 @@ class Image(_Image):
                 "empty volume."
             )
 
-        volume_positions = range(slice_start, slice_end)
+        if self.is_tiled:
+            total_rows = self.TotalPixelMatrixRows
+            total_columns = self.TotalPixelMatrixColumns
+        else:
+            total_rows = self.Rows
+            total_columns = self.Columns
+
+        (
+            row_start, row_end, column_start, column_end,
+        ) = self._standardize_row_column_indices(
+            row_start,
+            row_end,
+            column_start,
+            column_end,
+            rows=total_rows,
+            columns=total_columns,
+            as_indices=as_indices,
+            outputs_as_indices=True,
+        )
 
         channel_spec = None
 
@@ -3593,17 +4020,12 @@ class Image(_Image):
         ):
             channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
 
-        with self._iterate_indices_for_stack(
-            stack_indices={'VolumePosition': volume_positions},
-            # channel_indices=channel_indices,
-            # remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
-        ) as indices:
-
-            array = self._get_pixels_by_frame(
-                spatial_shape=number_of_slices,
-                indices_iterator=indices,
-                # channel_shape=channel_shape,
+        if self.is_tiled:
+            array = self.get_total_pixel_matrix(
+                row_start=row_start,
+                row_end=row_end,
+                column_start=column_start,
+                column_end=column_end,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,
                 apply_modality_transform=apply_modality_transform,
@@ -3613,10 +4035,54 @@ class Image(_Image):
                 apply_presentation_lut=apply_presentation_lut,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
+                allow_missing_frames=allow_missing_frames,
+                as_indices=True,  # standardized earlier as indices
                 dtype=dtype,
-            )
+            )[None]
 
-        affine = self.volume_geometry[slice_start].affine
+            affine = self.volume_geometry[
+                0,
+                row_start:,
+                column_start:,
+            ].affine
+        else:
+            # Check that the combination of frame numbers uniquely identify
+            # frames
+            columns = ['VolumePosition']
+            if not self._do_columns_identify_unique_frames(columns):
+                raise RuntimeError(
+                    'Volume positions and do not '
+                    'uniquely identify frames of the image.'
+                )
+
+            volume_positions = range(slice_start, slice_end)
+
+            with self._iterate_indices_for_stack(
+                stack_indices={'VolumePosition': volume_positions},
+                allow_missing_frames=allow_missing_frames,
+            ) as indices:
+
+                array = self._get_pixels_by_frame(
+                    spatial_shape=number_of_slices,
+                    indices_iterator=indices,
+                    apply_real_world_transform=apply_real_world_transform,
+                    real_world_value_map_selector=real_world_value_map_selector,
+                    apply_modality_transform=apply_modality_transform,
+                    apply_voi_transform=apply_voi_transform,
+                    voi_transform_selector=voi_transform_selector,
+                    voi_output_range=voi_output_range,
+                    apply_presentation_lut=apply_presentation_lut,
+                    apply_palette_color_lut=apply_palette_color_lut,
+                    apply_icc_profile=apply_icc_profile,
+                    dtype=dtype,
+                )
+
+            array = array[:, row_start:row_end, column_start:column_end]
+            affine = self.volume_geometry[
+                slice_start:,
+                row_start:row_end,
+                column_start:column_end,
+            ].affine
 
         return Volume(
             array=array,
@@ -3627,11 +4093,11 @@ class Image(_Image):
 
     def get_total_pixel_matrix(
         self,
-        row_start: int = 1,
+        row_start: Optional[int] = None,
         row_end: Optional[int] = None,
-        column_start: int = 1,
+        column_start: Optional[int] = None,
         column_end: Optional[int] = None,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: Union[type, str, np.dtype] = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
@@ -3642,15 +4108,19 @@ class Image(_Image):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = True,
+        as_indices: bool = False,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
 
         Parameters
         ----------
         row_start: int, optional
-            1-based row index in the total pixel matrix of the first row to
-            include in the output array. May be negative, in which case the
-            last row is considered index -1.
+            1-based row number in the total pixel matrix of the first row to
+            include in the output array. Alternatively a zero-based row index
+            if ``as_indices`` is True. May be negative, in which case the last
+            row is considered index -1. If ``None``, the first row of the
+            output is the first row of the total pixel matrix (regardless of
+            the value of ``as_indices``).
         row_end: Union[int, None], optional
             1-based row index in the total pixel matrix of the first row beyond
             the last row to include in the output array. A ``row_end`` value of
@@ -3659,8 +4129,9 @@ class Image(_Image):
             total pixel matrix are included. May be negative, in which case the
             last row is considered index -1.
         column_start: int, optional
-            1-based column index in the total pixel matrix of the first column
-            to include in the output array. May be negative, in which case the
+            1-based column number in the total pixel matrix of the first column
+            to include in the output array. Alternatively a zero-based column
+            index if ``as_indices`` is True.May be negative, in which case the
             last column is considered index -1.
         column_end: Union[int, None], optional
             1-based column index in the total pixel matrix of the first column
@@ -3669,12 +4140,8 @@ class Image(_Image):
             below, similar to standard Python indexing. If ``None``, columns up
             until the final column of the total pixel matrix are included. May
             be negative, in which case the last column is considered index -1.
-        dtype: Union[type, str, numpy.dtype, None]
-            Data type of the returned array. If None, an appropriate type will
-            be chosen automatically. If the returned values are rescaled
-            fractional values, this will be numpy.float32. Otherwise, the
-            smallest unsigned integer type that accommodates all of the output
-            values will be chosen.
+        dtype: Union[type, str, numpy.dtype], optional
+            Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply to apply the real-world value map to the frame.
             The real world value map converts stored pixel values to output
@@ -3728,7 +4195,7 @@ class Image(_Image):
         voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
-            interpretted as a (zero-based) index of the list of VOI transforms
+            interpreted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
             the string that will be used to match the
@@ -3769,6 +4236,11 @@ class Image(_Image):
             Allow frames in the output array to be blank because these frames
             are omitted from the image. If False and missing frames are found,
             an error is raised.
+        as_indices: bool, optional
+            If True, interpret all row/column numbering parameters
+            (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
+            as zero-based indices as opposed to the default one-based numbers
+            used within DICOM.
 
         Returns
         -------
@@ -3777,12 +4249,13 @@ class Image(_Image):
 
         Note
         ----
-        This method uses 1-based indexing of rows and columns in order to match
-        the conventions used in the DICOM standard. The first row of the total
-        pixel matrix is row 1, and the last is ``self.TotalPixelMatrixRows``.
-        This is is unlike standard Python and NumPy indexing which is 0-based.
-        For negative indices, the two are equivalent with the final row/column
-        having index -1.
+        By default, this method uses 1-based indexing of rows and columns in
+        order to match the conventions used in the DICOM standard. The first
+        row of the total pixel matrix is row 1, and the last is
+        ``self.TotalPixelMatrixRows``. This is is unlike standard Python and
+        NumPy indexing which is 0-based. For negative indices, the two are
+        equivalent with the final row/column having index -1. To switch to
+        standard Python behavior, specify ``as_indices=True``.
 
         """
         # Check whether this segmentation is appropriate for tile-based indexing
@@ -3800,12 +4273,12 @@ class Image(_Image):
             column_start=column_start,
             column_end=column_end,
             allow_missing_frames=allow_missing_frames,
+            as_indices=as_indices,
         ) as (indices, output_shape):
 
             return self._get_pixels_by_frame(
                 spatial_shape=output_shape,
                 indices_iterator=indices,
-                # channel_shape=channel_shape,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,
                 apply_modality_transform=apply_modality_transform,
@@ -3851,7 +4324,8 @@ def imread(
 
 def volume_from_image_series(
     series_datasets: Sequence[Dataset],
-    dtype: Union[type, str, np.dtype, None] = None,
+    *,
+    dtype: Union[type, str, np.dtype] = np.float64,
     apply_real_world_transform: bool | None = None,
     real_world_value_map_selector: int | str | Code | CodedConcept = 0,
     apply_modality_transform: bool | None = None,
@@ -3869,12 +4343,8 @@ def volume_from_image_series(
     series_datasets: Sequence[pydicom.Dataset]
         Series of single frame datasets. There is no requirement on the
         sorting of the datasets.
-    dtype: Union[type, str, numpy.dtype, None]
-        Data type of the returned array. If None, an appropriate type will
-        be chosen automatically. If the returned values are rescaled
-        fractional values, this will be numpy.float32. Otherwise, the
-        smallest unsigned integer type that accommodates all of the output
-        values will be chosen.
+    dtype: Union[type, str, numpy.dtype], optional
+        Data type of the returned array.
     apply_real_world_transform: bool | None, optional
         Whether to apply to apply the real-world value map to the frame.
         The real world value map converts stored pixel values to output
@@ -3928,7 +4398,7 @@ def volume_from_image_series(
     voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
         Specification of the VOI transform to select (multiple may be
         present). May either be an int or a str. If an int, it is
-        interpretted as a (zero-based) index of the list of VOI transforms
+        interpreted as a (zero-based) index of the list of VOI transforms
         to apply. A negative integer may be used to index from the end of
         the list following standard Python indexing convention. If a str,
         the string that will be used to match the

@@ -31,6 +31,7 @@ from highdicom.pm import (
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import Volume
+from tests.utils import find_readable_images
 
 
 def test_slice_spacing():
@@ -1024,3 +1025,230 @@ def test_get_volume_multiframe_ct():
     )
     assert volume.array.min() == 0.0
     assert volume.array.max() == 1.0
+
+    for dtype in [
+        np.int32,
+        np.int64,
+        np.float32,
+        np.float64,
+    ]:
+        volume = im.get_volume(dtype=dtype)
+        assert volume.array.dtype == dtype
+
+
+def test_get_total_pixel_matrix_dtypes():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    for dtype in [
+        np.uint8,
+        np.uint32,
+        np.int64,
+        np.float32,
+        np.float64,
+    ]:
+        tpm = im.get_total_pixel_matrix(dtype=dtype)
+        assert tpm.shape == (
+            im.TotalPixelMatrixRows,
+            im.TotalPixelMatrixColumns,
+            3
+        )
+        assert tpm.dtype == dtype
+
+
+def test_get_total_pixel_matrix_subvolumes():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    tpm = im.get_total_pixel_matrix()
+    assert tpm.shape == (
+        im.TotalPixelMatrixRows,
+        im.TotalPixelMatrixColumns,
+        3
+    )
+    assert tpm.dtype == np.float64
+    volume = im.get_volume()
+    assert np.array_equal(volume.array, tpm[None])
+
+    origin_seq = im.TotalPixelMatrixOriginSequence[0]
+    expected_position = np.array(
+        [
+            origin_seq.XOffsetInSlideCoordinateSystem,
+            origin_seq.YOffsetInSlideCoordinateSystem,
+            origin_seq.get('ZOffsetInSlideCoordinateSystem', 0.0),
+        ]
+    )
+    assert np.array_equal(volume.position, expected_position)
+    orientation = im.ImageOrientationSlide
+    assert np.array_equal(volume.direction_cosines, orientation)
+
+    sub_tpm = im.get_total_pixel_matrix(
+        row_start=25,
+        row_end=35,
+        column_start=15,
+        column_end=35,
+    )
+    assert np.array_equal(sub_tpm, tpm[24:34, 14:34])
+
+    sub_volume = im.get_volume(
+        row_start=25,
+        row_end=35,
+        column_start=15,
+        column_end=35,
+    )
+    assert np.array_equal(sub_volume.array, sub_tpm[None])
+    assert np.array_equal(sub_volume.affine, volume[:, 24:34, 14:34].affine)
+
+    sub_tpm = im.get_total_pixel_matrix(
+        row_start=25,
+        row_end=35,
+        column_start=15,
+        column_end=35,
+        as_indices=True,
+    )
+    assert np.array_equal(sub_tpm, tpm[25:35, 15:35])
+
+    sub_volume = im.get_volume(
+        row_start=25,
+        row_end=35,
+        column_start=15,
+        column_end=35,
+        as_indices=True
+    )
+    assert np.array_equal(sub_volume.array, sub_tpm[None])
+    assert np.array_equal(sub_volume.affine, volume[:, 25:35, 15:35].affine)
+
+    sub_tpm = im.get_total_pixel_matrix(
+        row_start=25,
+        row_end=-16,
+        column_start=-36,
+        column_end=35,
+    )
+    assert np.array_equal(sub_tpm, tpm[24:34, 14:34])
+
+    sub_volume = im.get_volume(
+        row_start=25,
+        row_end=-16,
+        column_start=-36,
+        column_end=35,
+    )
+    assert np.array_equal(sub_volume.array, sub_tpm[None])
+    assert np.array_equal(sub_volume.affine, volume[:, 24:34, 14:34].affine)
+
+    sub_tpm = im.get_total_pixel_matrix(
+        row_start=24,
+        row_end=-16,
+        column_start=-36,
+        column_end=34,
+        as_indices=True,
+    )
+    assert np.array_equal(sub_tpm, tpm[24:34, 14:34])
+
+    sub_volume = im.get_volume(
+        row_start=24,
+        row_end=-16,
+        column_start=-36,
+        column_end=34,
+        as_indices=True,
+    )
+    assert np.array_equal(sub_volume.array, sub_tpm[None])
+    assert np.array_equal(sub_volume.affine, volume[:, 24:34, 14:34].affine)
+
+
+def test_get_volume_multiframe_ct_subvolumes():
+    # Test various combinations of the parameters to retrieve a sub-volume
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+    full_volume = im.get_volume()
+    sub_volume = im.get_volume(
+        slice_start=2,
+        row_start=11,
+        column_start=21,
+    )
+
+    assert sub_volume.spatial_shape == (1, 502, 492)
+    assert sub_volume.channel_shape == ()
+    assert np.array_equal(sub_volume.array, full_volume[1, 10:, 20:].array)
+    assert np.array_equal(sub_volume.affine, full_volume[1, 10:, 20:].affine)
+
+    sub_volume = im.get_volume(
+        slice_start=1,
+        row_start=10,
+        column_start=20,
+        as_indices=True,
+    )
+
+    assert sub_volume.spatial_shape == (1, 502, 492)
+    assert sub_volume.channel_shape == ()
+    assert np.array_equal(sub_volume.array, full_volume[1, 10:, 20:].array)
+    assert np.array_equal(sub_volume.affine, full_volume[1, 10:, 20:].affine)
+
+    sub_volume = im.get_volume(
+        slice_start=-1,
+        row_start=257,
+        row_end=-10,
+        column_start=-48,
+        column_end=504,
+    )
+
+    assert sub_volume.spatial_shape == (1, 246, 39)
+    assert sub_volume.channel_shape == ()
+    assert np.array_equal(sub_volume.array, full_volume[1, 256:-10, -48:503].array)
+    assert np.array_equal(sub_volume.affine, full_volume[1, 256:-10, -48:503].affine)
+
+    sub_volume = im.get_volume(
+        slice_start=-1,
+        row_start=256,
+        row_end=-10,
+        column_start=-48,
+        column_end=503,
+        as_indices=True,
+    )
+
+    assert sub_volume.spatial_shape == (1, 246, 39)
+    assert sub_volume.channel_shape == ()
+    assert np.array_equal(sub_volume.array, full_volume[1, 256:-10, -48:503].array)
+    assert np.array_equal(sub_volume.affine, full_volume[1, 256:-10, -48:503].affine)
+
+
+@pytest.mark.parametrize(
+    'f',
+    find_readable_images(),
+)
+def test_imread_all_test_files(f):
+    # A simple test that the reads in all images in the pydicom test suite
+    # and gets a single frame
+    im = imread(f)
+    im_lazy = imread(f, lazy_frame_retrieval=True)
+
+    # Check first frames match between lazy and normal
+    frame = im.get_frame(1)
+    frame_lazy = im_lazy.get_frame(1)
+    assert np.array_equal(frame, frame_lazy)
+
+    # Check multiple frames, also check the last frame
+    if im.number_of_frames > 1:
+        frame = im.get_frame(im.number_of_frames)
+        frame_lazy = im_lazy.get_frame(im.number_of_frames)
+        assert np.array_equal(frame, frame_lazy)
+
+    # Skip segmentations as Image doesn't know how to handle segments as a
+    # dimension
+    is_segmentation = 'SegmentSequence' in im
+
+    # If a volume can be formed into a volume, test this also matches
+    # between the lazy and normal
+    if im.volume_geometry is not None and not is_segmentation:
+        # Only test images that be "simply" indexed as a volume, i.e.
+        # without having to filter on any other dimension
+        if im.is_tiled or im._do_columns_identify_unique_frames(['VolumePosition']):
+
+            # Check that we can retrieve volumes
+            vol = im.get_volume()
+            vol_lazy = im_lazy.get_volume()
+
+            assert np.array_equal(vol.array, vol_lazy.array)
+

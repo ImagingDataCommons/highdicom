@@ -235,7 +235,7 @@ def _convert_legacy_to_enhanced(
 
         elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.128.1':
             # PET Image Frame Type (M)
-            perframe_item.PETImageFrameTypeSequence = [
+            perframe_item.PETFrameTypeSequence = [
                 frame_type_item,
             ]
 

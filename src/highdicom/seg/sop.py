@@ -3864,7 +3864,7 @@ class Segmentation(_Image):
         columns = ['ReferencedSOPInstanceUID']
         if self.segmentation_type != SegmentationTypeValues.LABELMAP:
             columns.append('ReferencedSegmentNumber')
-        if not self._are_columns_unique(columns):
+        if not self._do_columns_identify_unique_frames(columns):
             raise RuntimeError(
                 'Source SOP instance UIDs and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -4162,7 +4162,7 @@ class Segmentation(_Image):
         columns = ['ReferencedFrameNumber']
         if self.segmentation_type != SegmentationTypeValues.LABELMAP:
             columns.append('ReferencedSegmentNumber')
-        if not self._are_columns_unique(columns):
+        if not self._do_columns_identify_unique_frames(columns):
             raise RuntimeError(
                 'Source frame numbers and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
@@ -4187,7 +4187,9 @@ class Segmentation(_Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
+            channel_indices = [
+                {'ReferencedSegmentNumber': list(segment_numbers)}
+            ]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4196,7 +4198,7 @@ class Segmentation(_Image):
         )
 
         with self._iterate_indices_for_stack(
-            stack_indices={'ReferencedFrameNumber': source_frame_numbers},
+            stack_indices={'ReferencedFrameNumber': list(source_frame_numbers)},
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
             allow_missing_frames=allow_missing_frames,
@@ -4218,14 +4220,19 @@ class Segmentation(_Image):
     def get_volume(
         self,
         *,
-        slice_start: int = 0,
+        slice_start: Optional[int] = None,
         slice_end: Optional[int] = None,
+        row_start: Optional[int] = None,
+        row_end: Optional[int] = None,
+        column_start: Optional[int] = None,
+        column_end: Optional[int] = None,
+        as_indices: bool = False,
+        dtype: Union[type, str, np.dtype, None] = None,
         segment_numbers: Optional[Sequence[int]] = None,
         combine_segments: bool = False,
         relabel: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = True,
@@ -4237,22 +4244,53 @@ class Segmentation(_Image):
 
         Parameters
         ----------
-        slice_start: int, optional
-            Zero-based index of the "volume position" of the first slice of the
-            returned volume. The "volume position" refers to the position of
+        slice_start: int | none, optional
+            zero-based index of the "volume position" of the first slice of the
+            returned volume. the "volume position" refers to the position of
             slices after sorting spatially, and may correspond to any frame in
-            the segmentation file, depending on its construction. May be
-            negative, in which case standard Python indexing behavior is
+            the segmentation file, depending on its construction. may be
+            negative, in which case standard python indexing behavior is
             followed (-1 corresponds to the last volume position, etc).
-        slice_end: Union[int, None], optional
-            Zero-based index of the "volume position" one beyond the last slice
-            of the returned volume. The "volume position" refers to the
+        slice_end: union[int, none], optional
+            zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. the "volume position" refers to the
             position of slices after sorting spatially, and may correspond to
             any frame in the segmentation file, depending on its construction.
-            May be negative, in which case standard Python indexing behavior is
-            followed (-1 corresponds to the last volume position, etc). If
-            None, the last volume position is included as the last output
+            may be negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). if
+            none, the last volume position is included as the last output
             slice.
+        row_start: int, optional
+            1-based row number in the total pixel matrix of the first row to
+            include in the output array. alternatively a zero-based row index
+            if ``as_indices`` is true. may be negative, in which case the last
+            row is considered index -1. if ``none``, the first row of the
+            output is the first row of the total pixel matrix (regardless of
+            the value of ``as_indices``).
+        row_end: union[int, none], optional
+            1-based row index in the total pixel matrix of the first row beyond
+            the last row to include in the output array. a ``row_end`` value of
+            ``n`` will include rows ``n - 1`` and below, similar to standard
+            python indexing. if ``none``, rows up until the final row of the
+            total pixel matrix are included. may be negative, in which case the
+            last row is considered index -1.
+        column_start: int, optional
+            1-based column number in the total pixel matrix of the first column
+            to include in the output array. alternatively a zero-based column
+            index if ``as_indices`` is true.may be negative, in which case the
+            last column is considered index -1.
+        column_end: union[int, none], optional
+            1-based column index in the total pixel matrix of the first column
+            beyond the last column to include in the output array. a
+            ``column_end`` value of ``n`` will include columns ``n - 1`` and
+            below, similar to standard python indexing. if ``none``, columns up
+            until the final column of the total pixel matrix are included. may
+            be negative, in which case the last column is considered index -1.
+        as_indices: bool, optional
+            if true, interpret all slice/row/column numbering parameters
+            (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
+            as zero-based indices as opposed to the default one-based numbers
+            used within dicom.
         segment_numbers: Optional[Sequence[int]], optional
             Sequence containing segment numbers to include. If unspecified,
             all segments are included.
@@ -4317,17 +4355,27 @@ class Segmentation(_Image):
             )
         n_vol_positions = self.volume_geometry.spatial_shape[0]
 
-        # Check that the combination of frame numbers and segment numbers
-        # uniquely identify segmentation frames
-        columns = ['VolumePosition']
-        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
-            columns.append('ReferencedSegmentNumber')
-        if not self._are_columns_unique(columns):
-            raise RuntimeError(
-                'Volume positions and segment numbers do not '
-                'uniquely identify frames of the segmentation image.'
-            )
+        original_slice_end = slice_end
 
+        # Standardize on zero-based slice indices
+        if not as_indices:
+            if slice_start is not None:
+                if slice_start == 0:
+                    raise ValueError(
+                        "Value of 'slice_start' cannot be 0. Did you mean to "
+                        "pass 'as_indices=True'?"
+                    )
+                elif slice_start > 0:
+                    slice_start = slice_start - 1
+
+            if slice_end is not None:
+                if slice_start == 0:
+                    raise ValueError()
+                elif slice_end > 0:
+                    slice_end = slice_end - 1
+
+        if slice_start is None:
+            slice_start = 0
         if slice_start < 0:
             slice_start = n_vol_positions + slice_start
 
@@ -4335,13 +4383,13 @@ class Segmentation(_Image):
             slice_end = n_vol_positions
         elif slice_end > n_vol_positions:
             raise IndexError(
-                f"Value of {slice_end} is not valid for segmentation with "
+                f"Value of {original_slice_end} is not valid for image with "
                 f"{n_vol_positions} volume positions."
             )
         elif slice_end < 0:
             if slice_end < (- n_vol_positions):
                 raise IndexError(
-                    f"Value of {slice_end} is not valid for segmentation with "
+                    f"Value of {original_slice_end} is not valid for image with "
                     f"{n_vol_positions} volume positions."
                 )
             slice_end = n_vol_positions + slice_end
@@ -4354,17 +4402,37 @@ class Segmentation(_Image):
                 "empty volume."
             )
 
+        if self.is_tiled:
+            total_rows = self.TotalPixelMatrixRows
+            total_columns = self.TotalPixelMatrixColumns
+        else:
+            total_rows = self.Rows
+            total_columns = self.Columns
+
+        (
+            row_start, row_end, column_start, column_end,
+        ) = self._standardize_row_column_indices(
+            row_start,
+            row_end,
+            column_start,
+            column_end,
+            rows=total_rows,
+            columns=total_columns,
+            as_indices=as_indices,
+            outputs_as_indices=True,
+        )
+
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
             combine_segments=combine_segments,
             relabel=relabel
         )
 
-        volume_positions = range(slice_start, slice_end)
-
+        columns = ['VolumePosition']
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
+            columns.append('ReferencedSegmentNumber')
             channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         channel_spec = None
@@ -4373,27 +4441,66 @@ class Segmentation(_Image):
         if apply_palette_color_lut:
             channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
 
-        with self._iterate_indices_for_stack(
-            stack_indices={'VolumePosition': volume_positions},
-            channel_indices=channel_indices,
-            remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
-        ) as indices:
-
-            array = self._get_pixels_by_seg_frame(
-                spatial_shape=number_of_slices,
-                indices_iterator=indices,
+        if self.is_tiled:
+            array = self.get_total_pixel_matrix(
+                row_start=row_start,
+                row_end=row_end,
+                column_start=column_start,
+                column_end=column_end,
                 segment_numbers=np.array(segment_numbers),
                 combine_segments=combine_segments,
                 relabel=relabel,
                 rescale_fractional=rescale_fractional,
                 skip_overlap_checks=skip_overlap_checks,
-                dtype=dtype,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
-            )
+                allow_missing_frames=allow_missing_frames,
+                as_indices=True,  # due to earlier standardization
+                dtype=dtype,
+            )[None]
 
-        affine = self.volume_geometry[slice_start].affine
+            affine = self.volume_geometry[
+                0,
+                row_start - 1:,
+                column_start - 1:,
+            ].affine
+        else:
+            # Check that the combination of frame numbers and segment numbers
+            # uniquely identify segmentation frames
+            if not self._do_columns_identify_unique_frames(columns):
+                raise RuntimeError(
+                    'Volume positions and segment numbers do not '
+                    'uniquely identify frames of the segmentation image.'
+                )
+
+            volume_positions = range(slice_start, slice_end)
+
+            with self._iterate_indices_for_stack(
+                stack_indices={'VolumePosition': volume_positions},
+                channel_indices=channel_indices,
+                remap_channel_indices=[remap_channel_indices],
+                allow_missing_frames=allow_missing_frames,
+            ) as indices:
+
+                array = self._get_pixels_by_seg_frame(
+                    spatial_shape=number_of_slices,
+                    indices_iterator=indices,
+                    segment_numbers=np.array(segment_numbers),
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    rescale_fractional=rescale_fractional,
+                    skip_overlap_checks=skip_overlap_checks,
+                    dtype=dtype,
+                    apply_palette_color_lut=apply_palette_color_lut,
+                    apply_icc_profile=apply_icc_profile,
+                )
+
+            array = array[:, row_start:row_end, column_start:column_end]
+            affine = self.volume_geometry[
+                slice_start:,
+                row_start:row_end,
+                column_start:column_end,
+            ].affine
 
         return Volume(
             array=array,
@@ -4663,7 +4770,9 @@ class Segmentation(_Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
+            channel_indices = [
+                {'ReferencedSegmentNumber': list(segment_numbers)}
+            ]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4702,9 +4811,9 @@ class Segmentation(_Image):
 
     def get_total_pixel_matrix(
         self,
-        row_start: int = 1,
+        row_start: Optional[int] = None,
         row_end: Optional[int] = None,
-        column_start: int = 1,
+        column_start: Optional[int] = None,
         column_end: Optional[int] = None,
         segment_numbers: Optional[Sequence[int]] = None,
         combine_segments: bool = False,
@@ -4715,6 +4824,7 @@ class Segmentation(_Image):
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = True,
+        as_indices: bool = False,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
 
@@ -4772,9 +4882,12 @@ class Segmentation(_Image):
         Parameters
         ----------
         row_start: int, optional
-            1-based row index in the total pixel matrix of the first row to
-            include in the output array. May be negative, in which case the
-            last row is considered index -1.
+            1-based row number in the total pixel matrix of the first row to
+            include in the output array. Alternatively a zero-based row index
+            if ``as_indices`` is True. May be negative, in which case the last
+            row is considered index -1. If ``None``, the first row of the
+            output is the first row of the total pixel matrix (regardless of
+            the value of ``as_indices``).
         row_end: Union[int, None], optional
             1-based row index in the total pixel matrix of the first row beyond
             the last row to include in the output array. A ``row_end`` value of
@@ -4783,8 +4896,9 @@ class Segmentation(_Image):
             total pixel matrix are included. May be negative, in which case the
             last row is considered index -1.
         column_start: int, optional
-            1-based column index in the total pixel matrix of the first column
-            to include in the output array. May be negative, in which case the
+            1-based column number in the total pixel matrix of the first column
+            to include in the output array. Alternatively a zero-based column
+            index if ``as_indices`` is True.May be negative, in which case the
             last column is considered index -1.
         column_end: Union[int, None], optional
             1-based column index in the total pixel matrix of the first column
@@ -4841,6 +4955,11 @@ class Segmentation(_Image):
             Allow frames in the output array to be blank because these frames
             are omitted from the image. If False and missing frames are found,
             an error is raised.
+        as_indices: bool, optional
+            If True, interpret all row/column numbering parameters
+            (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
+            as zero-based indices as opposed to the default one-based numbers
+            used within DICOM.
 
         Returns
         -------
@@ -4849,12 +4968,13 @@ class Segmentation(_Image):
 
         Note
         ----
-        This method uses 1-based indexing of rows and columns in order to match
-        the conventions used in the DICOM standard. The first row of the total
-        pixel matrix is row 1, and the last is ``self.TotalPixelMatrixRows``.
-        This is is unlike standard Python and NumPy indexing which is 0-based.
-        For negative indices, the two are equivalent with the final row/column
-        having index -1.
+        By default, this method uses 1-based indexing of rows and columns in
+        order to match the conventions used in the DICOM standard. The first
+        row of the total pixel matrix is row 1, and the last is
+        ``self.TotalPixelMatrixRows``. This is is unlike standard Python and
+        NumPy indexing which is 0-based. For negative indices, the two are
+        equivalent with the final row/column having index -1. To switch to
+        standard Python behavior, specify ``as_indices=True``.
 
         """
         # Check whether this segmentation is appropriate for tile-based indexing
@@ -4877,7 +4997,9 @@ class Segmentation(_Image):
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
+            channel_indices = [
+                {'ReferencedSegmentNumber': segment_numbers}
+            ]
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -4893,6 +5015,7 @@ class Segmentation(_Image):
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
             allow_missing_frames=allow_missing_frames,
+            as_indices=as_indices,
         ) as (indices, output_shape):
 
             return self._get_pixels_by_seg_frame(

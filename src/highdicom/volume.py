@@ -4,7 +4,7 @@ from enum import Enum
 import itertools
 from os import PathLike
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Union, Tuple, cast
+from typing import List, Optional, Sequence, Union, Tuple, cast
 from pydicom.tag import BaseTag
 from typing_extensions import Self
 
@@ -1654,6 +1654,7 @@ class VolumeGeometry(_VolumeBase):
     @classmethod
     def from_attributes(
         cls,
+        *,
         image_position: Sequence[float],
         image_orientation: Sequence[float],
         rows: int,
@@ -2018,6 +2019,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_attributes(
         cls,
+        *,
         array: np.ndarray,
         image_position: Sequence[float],
         image_orientation: Sequence[float],
@@ -2101,6 +2103,7 @@ class Volume(_VolumeBase):
     def from_components(
         cls,
         array: np.ndarray,
+        *
         position: Sequence[float],
         direction: Sequence[float],
         spacing: Sequence[float],
@@ -2763,68 +2766,6 @@ class Volume(_VolumeBase):
 
         """
         new_array = np.clip(self.array, a_min, a_max)
-
-        return self.with_array(new_array)
-
-    def apply_window(
-        self,
-        *,
-        window_min: Optional[float] = None,
-        window_max: Optional[float] = None,
-        window_center: Optional[float] = None,
-        window_width: Optional[float] = None,
-        output_min: float = 0.0,
-        output_max: float = 1.0,
-        clip: bool = True,
-    ) -> Self:
-        """Apply a window (similar to VOI transform) to the volume.
-
-        Parameters
-        ----------
-        window_min: Union[float, None], optional
-            Minimum value of window (mapped to ``output_min``).
-        window_max: Union[float, None], optional
-            Maximum value of window (mapped to ``output_max``).
-        window_center: Union[float, None], optional
-            Center value of the window.
-        window_width: Union[float, None], optional
-            Width of the window.
-        output_min: float, optional
-            Value to which the lower edge of the window is mapped.
-        output_max: float, optional
-            Value to which the upper edge of the window is mapped.
-        clip: bool, optional
-            Whether to clip the values to lie within the output range.
-
-        Note
-        ----
-        Either ``window_min`` and ``window_max`` or ``window_center`` and
-        ``window_width`` should be specified. Other combinations are not valid.
-
-        Returns
-        -------
-        highdicom.volume.Volume:
-            Volume with windowed intensities.
-
-        """
-        if (window_min is None) != (window_max is None):
-            raise TypeError("Invalid combination of inputs specified.")
-        if (window_center is None) != (window_width is None):
-            raise TypeError("Invalid combination of inputs specified.")
-        if (window_center is None) == (window_min is None):
-            raise TypeError("Invalid combination of inputs specified.")
-
-        if window_min is None:
-            window_min = window_center - (window_width / 2)
-        if window_width is None:
-            window_width = window_max - window_min
-        output_range = output_max - output_min
-        scale_factor = output_range / window_width
-
-        new_array = (self.array - window_min) * scale_factor + output_min
-
-        if clip:
-            new_array = np.clip(new_array, output_min, output_max)
 
         return self.with_array(new_array)
 
