@@ -1,4 +1,3 @@
-from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file

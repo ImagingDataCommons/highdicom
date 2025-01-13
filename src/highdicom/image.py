@@ -1716,9 +1716,11 @@ class _Image(SOPClass):
         if hasattr(self, 'SharedFunctionalGroupsSequence'):
             sfgs = self.SharedFunctionalGroupsSequence[0]
             if hasattr(sfgs, 'PlaneOrientationSequence'):
-                shared_image_orientation = (
-                    sfgs.PlaneOrientationSequence[0].ImageOrientationPatient
-                )
+                pos = sfgs.PlaneOrientationSequence[0]
+                if 'ImageOrientationPatient' in pos:
+                    shared_image_orientation = (
+                        pos.ImageOrientationPatient
+                    )
         if shared_image_orientation is None:
             # Get the orientation of the first frame, and in the later loop
             # check whether it is shared.
@@ -1792,7 +1794,28 @@ class _Image(SOPClass):
                 SpatialLocationsPreservedValues | None
             ] = []
 
-            for frame_item in self.PerFrameFunctionalGroupsSequence:
+            # Some of the indexed pointers may be in the shared
+            # functional groups
+            if 'SharedFunctionalGroupsSequence' in self:
+                sfgs = self.SharedFunctionalGroupsSequence[0]
+                for ptr in extra_collection_pointers:
+                    grp_ptr = extra_collection_func_pointers[ptr]
+                    dim_val = None
+                    if grp_ptr is not None:
+                        if grp_ptr in sfgs:
+                            grp = sfgs[grp_ptr][0]
+                            if ptr in grp:
+                                dim_val = grp[ptr].value
+                    else:
+                        if ptr in sfgs:
+                            dim_val = sfgs[ptr].value
+
+                    if dim_val is not None:
+                        extra_collection_values[ptr] = (
+                            [dim_val] * self.number_of_frames
+                        )
+
+            for frame_item in self.get('PerFrameFunctionalGroupsSequence', []):
                 # Get dimension indices for this frame
                 if len(self._dim_ind_pointers) > 0:
                     content_seq = frame_item.FrameContentSequence[0]
@@ -1817,6 +1840,14 @@ class _Image(SOPClass):
                         dim_val = frame_item[ptr].value
                     dim_values[ptr].append(dim_val)
                 for ptr in extra_collection_pointers:
+                    # Check this wasn't already found in the shared functional
+                    # groups
+                    if (
+                        len(extra_collection_values[ptr])
+                        == self.number_of_frames
+                    ):
+                        continue
+
                     grp_ptr = extra_collection_func_pointers[ptr]
                     if grp_ptr is not None:
                         dim_val = frame_item[grp_ptr][0][ptr].value
