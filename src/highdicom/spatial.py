@@ -440,7 +440,27 @@ def get_image_coordinate_system(
     ):
         return CoordinateSystemNames.SLIDE
     else:
-        return CoordinateSystemNames.PATIENT
+        # Some images can have a frame of reference UID but no further position
+        # or orientation information
+
+        # Single frame images should have image position at the root
+        if 'ImagePositionPatient' in dataset:
+            return CoordinateSystemNames.PATIENT
+
+        for kw in [
+            'SharedFunctionalGroupsSequence',
+            'PerFrameFunctionalGroupsSequence',
+        ]:
+            fgs = dataset.get(kw)
+            if fgs is not None:
+                if 'PlanePositionSequence' in fgs[0]:
+                    pps = fgs[0].PlanePositionSequence[0]
+                    if 'ImagePositionPatient' in pps:
+                        return CoordinateSystemNames.PATIENT
+
+        # No position information found: infer that there is no coordinate
+        # system
+        return None
 
 
 def _get_spatial_information(

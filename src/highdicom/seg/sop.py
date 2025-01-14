@@ -569,15 +569,6 @@ class Segmentation(_Image):
                 'PositionReferenceIndicator',
                 None
             )
-            # Using Container Type Code Sequence attribute would be more
-            # elegant, but unfortunately it is a type 2 attribute.
-            if (hasattr(src_img, 'ImageOrientationSlide') or
-                    hasattr(src_img, 'ImageCenterPointCoordinatesSequence')):
-                self._coordinate_system: Optional[CoordinateSystemNames] = \
-                    CoordinateSystemNames.SLIDE
-            else:
-                self._coordinate_system = CoordinateSystemNames.PATIENT
-                self._coordinate_system = get_image_coordinate_system(src_img)
         else:
             # Only allow missing FrameOfReferenceUID if it is not required
             # for this IOD
@@ -588,8 +579,11 @@ class Segmentation(_Image):
                     "required by the IOD."
                 )
 
+        self._coordinate_system = get_image_coordinate_system(src_img)
+
+        if self._coordinate_system is None:
             # It may be possible to generalize this, but for now only a single
-            # source frame is permitted when no frame of reference exists
+            # source frame is permitted when there is no coordinate system
             if (
                 len(source_images) > 1 or
                 (is_multiframe and src_img.NumberOfFrames > 1)
@@ -612,7 +606,6 @@ class Segmentation(_Image):
                     "the segmentation pixel array must be spatially aligned "
                     "with the source images."
                 )
-            self._coordinate_system = None
 
         # Check segment numbers
         described_segment_numbers = np.array([
@@ -626,7 +619,7 @@ class Segmentation(_Image):
 
         from_volume = isinstance(pixel_array, Volume)
         if from_volume:
-            if not has_ref_frame_uid:
+            if self._coordinate_system is None:
                 raise ValueError(
                     "A volume should not be passed if the source image(s) "
                     "has/have no FrameOfReferenceUID."
@@ -837,10 +830,12 @@ class Segmentation(_Image):
             '00'
         )
         if self.LossyImageCompression == '01':
-            self.LossyImageCompressionRatio = \
-                src_img.LossyImageCompressionRatio
-            self.LossyImageCompressionMethod = \
-                src_img.LossyImageCompressionMethod
+            if 'LossyImageCompressionRatio' in src_img:
+                self.LossyImageCompressionRatio = \
+                    src_img.LossyImageCompressionRatio
+            if 'LossyImageCompressionMethod' in src_img:
+                self.LossyImageCompressionMethod = \
+                    src_img.LossyImageCompressionMethod
 
         # Use PALETTE COLOR photometric interpretation in the case
         # of a labelmap segmentation with a provided LUT, MONOCHROME2
@@ -959,11 +954,12 @@ class Segmentation(_Image):
         source_pixel_measures = self._get_pixel_measures_sequence(
             source_image=src_img,
             is_multiframe=is_multiframe,
+            coordinate_system=self._coordinate_system,
         )
         if pixel_measures is None:
             pixel_measures = source_pixel_measures
 
-        if has_ref_frame_uid:
+        if self._coordinate_system is not None:
             if self._coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
                     coordinate_system=self._coordinate_system,
@@ -1026,7 +1022,7 @@ class Segmentation(_Image):
         )
         self.SegmentsOverlap = segments_overlap.value
 
-        if has_ref_frame_uid:
+        if self._coordinate_system is not None:
             if tile_pixel_array:
 
                 src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
@@ -1320,7 +1316,7 @@ class Segmentation(_Image):
         )
 
         if (
-            has_ref_frame_uid and
+            self._coordinate_system is not None and
             dimension_organization_type !=
             DimensionOrganizationTypeValues.TILED_FULL
         ):
@@ -1385,7 +1381,7 @@ class Segmentation(_Image):
             self.DimensionOrganizationType = dimension_organization_type.value
 
         if (
-            has_ref_frame_uid and
+            self._coordinate_system is not None and
             self._coordinate_system == CoordinateSystemNames.SLIDE
         ):
             total_pixel_matrix_size = (
@@ -1565,7 +1561,7 @@ class Segmentation(_Image):
 
                     # Get the item of the PerFrameFunctionalGroupsSequence for
                     # this segmentation frame
-                    if has_ref_frame_uid:
+                    if self._coordinate_system is not None:
                         plane_pos_val = plane_position_values[plane_index]
                         if (
                             self._coordinate_system ==
@@ -1605,7 +1601,6 @@ class Segmentation(_Image):
                         source_images=source_images,
                         source_image_index=plane_index,
                         are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
-                        has_ref_frame_uid=has_ref_frame_uid,
                         coordinate_system=self._coordinate_system,
                         is_multiframe=is_multiframe,
                     )
@@ -1793,6 +1788,7 @@ class Segmentation(_Image):
     def _get_pixel_measures_sequence(
         source_image: Dataset,
         is_multiframe: bool,
+        coordinate_system: CoordinateSystemNames | None,
     ) -> Optional[PixelMeasuresSequence]:
         """Get a Pixel Measures Sequence from the source image.
 
@@ -1804,6 +1800,8 @@ class Segmentation(_Image):
             The first source image.
         is_multiframe: bool
             Whether the source image is multiframe.
+        coordinate_system: highdicom.CoordinateSystemNames | None
+            The coordinate system of the soure image.
 
         Returns
         -------
@@ -1816,7 +1814,7 @@ class Segmentation(_Image):
             src_shared_fg = source_image.SharedFunctionalGroupsSequence[0]
             pixel_measures = src_shared_fg.PixelMeasuresSequence
         else:
-            if hasattr(source_image, 'FrameOfReferenceUID'):
+            if coordinate_system is not None:
                 pixel_measures = PixelMeasuresSequence(
                     pixel_spacing=source_image.PixelSpacing,
                     slice_thickness=source_image.SliceThickness,
@@ -2538,7 +2536,6 @@ class Segmentation(_Image):
         source_images: List[Dataset],
         source_image_index: int,
         are_spatial_locations_preserved: bool,
-        has_ref_frame_uid: bool,
         coordinate_system: Optional[CoordinateSystemNames],
         is_multiframe: bool,
     ) -> Dataset:
@@ -2562,8 +2559,6 @@ class Segmentation(_Image):
         are_spatial_locations_preserved: bool
             Whether spatial locations are preserved between the segmentation
             and the source images.
-        has_ref_frame_uid: bool
-            Whether the sources images have a frame of reference UID.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             Coordinate system used, if any.
         is_multiframe: bool
@@ -2617,7 +2612,7 @@ class Segmentation(_Image):
             )
         )
 
-        if has_ref_frame_uid:
+        if coordinate_system is not None:
             if coordinate_system == CoordinateSystemNames.SLIDE:
                 pffg_item.add(
                     DataElement(

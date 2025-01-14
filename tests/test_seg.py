@@ -7,6 +7,7 @@ from pathlib import Path
 import pkgutil
 import warnings
 
+from _pytest._code import source
 import numpy as np
 from pydicom.multival import MultiValue
 import pytest
@@ -1759,6 +1760,41 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
         self.check_dimension_index_vals(instance)
+
+    def test_construction_no_coordinate_system(self):
+        # This image does have a frame of reference, but no spatial information
+        # or coordinate system
+        source_image = dcmread(get_testdata_file('JPEG2000.dcm'))
+        array = np.zeros(
+            (source_image.Rows, source_image.Columns),
+            np.uint8
+        )
+        array[40:300, 20:50] = 1
+
+        instance = Segmentation(
+            [source_image],
+            array,
+            SegmentationTypeValues.BINARY,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert (
+            instance.FrameOfReferenceUID == source_image.FrameOfReferenceUID
+        )
+        assert (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing == source_image.PixelSpacing
+        )
 
     def test_construction_large_labelmap_monochrome(self):
         n_classes = 300  # force 16 bit
