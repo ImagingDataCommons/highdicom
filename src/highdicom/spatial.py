@@ -23,12 +23,15 @@ from highdicom.enum import (
 )
 
 
-_DEFAULT_SPACING_TOLERANCE = 1e-2
+_DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 """Default tolerance for determining whether slices are regularly spaced."""
 
 
 _DEFAULT_EQUALITY_TOLERANCE = 1e-5
 """Tolerance value used by default in tests for equality"""
+
+_DOT_PRODUCT_PERPENDICULAR_TOLERANCE = 1e-3
+"""Tolerance value used on the dot product to determine perpendicularity."""
 
 
 PATIENT_ORIENTATION_OPPOSITES = {
@@ -3048,7 +3051,7 @@ def are_points_coplanar(
 
 def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
-    tol: float = _DEFAULT_SPACING_TOLERANCE,
+    tol: float = _DEFAULT_SPACING_RELATIVE_TOLERANCE,
     sort: bool = True,
     allow_missing: bool = False,
     allow_duplicates: bool = False,
@@ -3079,8 +3082,9 @@ def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset]
         Set of datasets representing an imaging series.
     tol: float
-        Tolerance for determining spacing regularity. If slice spacings vary by
-        less that this spacing, they are considered to be regular.
+        Relative tolerance for determining spacing regularity. If slice
+        spacings vary by less that this proportion of the average spacing, they
+        are considered to be regular.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3177,7 +3181,7 @@ def get_series_volume_positions(
 def get_volume_positions(
     image_positions: Sequence[Sequence[float]],
     image_orientation: Sequence[float],
-    tol: float = _DEFAULT_SPACING_TOLERANCE,
+    tol: float = _DEFAULT_SPACING_RELATIVE_TOLERANCE,
     sort: bool = True,
     allow_missing: bool = False,
     allow_duplicates: bool = False,
@@ -3194,15 +3198,15 @@ def get_volume_positions(
     First determines whether the image positions and orientation represent a 3D
     volume. A 3D volume consists of regularly spaced slices with orthogonal
     axes, i.e. the slices are spaced equally along the direction orthogonal to
-    the in-plane image coordinates.
+    the two axes of the image plane.
 
     If the positions represent a volume, returns the absolute value of the
     slice spacing and the volume indices for each of the input positions. If
     the positions do not represent a volume, returns None for both outputs.
 
     Note that we stipulate that a single plane is a 3D volume for the purposes
-    of this function. In this case, and it ``spacing_hint`` is not provied, the
-    returned slice spacing will be 1.0.
+    of this function. In this case, and if ``spacing_hint`` is not provided,
+    the returned slice spacing will be 1.0.
 
     Parameters
     ----------
@@ -3215,8 +3219,9 @@ def get_volume_positions(
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
     tol: float, optional
-        Tolerance for determining spacing regularity. If slice spacings vary by
-        less that this spacing, they are considered to be regular.
+        Relative tolerance for determining spacing regularity. If slice
+        spacings vary by less that this proportion of the average spacing, they
+        are considered to be regular.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3363,10 +3368,10 @@ def get_volume_positions(
             spacings = np.diff(origin_distances_sorted)
             spacing = spacings.min()
             # Check here to prevent divide by zero errors. Positions should
-            # have been de-duplicated already, is this is allowed, so there
+            # have been de-duplicated already, if this is allowed, so there
             # should only be zero spacings if some positions are related by
             # in-plane translations
-            if np.isclose(spacing, 0.0, atol=tol):
+            if np.isclose(spacing, 0.0, atol=_DEFAULT_EQUALITY_TOLERANCE):
                 return None, None
 
         origin_distance_multiples = (
@@ -3376,7 +3381,7 @@ def get_volume_positions(
         is_regular = np.allclose(
             origin_distance_multiples,
             origin_distance_multiples.round(),
-            atol=tol
+            rtol=tol
         )
 
         inverse_sort_index = origin_distance_multiples.round().astype(np.int64)
@@ -3393,9 +3398,9 @@ def get_volume_positions(
                 )
 
         is_regular = np.isclose(
-            spacing,
             spacings,
-            atol=tol
+            spacing,
+            rtol=tol
         ).all()
 
     if is_regular and enforce_handedness:
@@ -3411,8 +3416,8 @@ def get_volume_positions(
 
     dot_product = normal_vector.T @ span
     is_perpendicular = (
-        abs(dot_product - 1.0) < tol or
-        abs(dot_product + 1.0) < tol
+        abs(dot_product - 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE or
+        abs(dot_product + 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE
     )
 
     if is_regular and is_perpendicular:
