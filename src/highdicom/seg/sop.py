@@ -94,9 +94,9 @@ from highdicom.valuerep import (
     _check_long_string,
 )
 from highdicom.volume import (
-    ChannelIdentifier,
+    ChannelDescriptor,
     Volume,
-    RGB_COLOR_CHANNEL_IDENTIFIER,
+    RGB_COLOR_CHANNEL_DESCRIPTOR,
     VOLUME_INDEX_CONVENTION,
 )
 
@@ -651,7 +651,7 @@ class Segmentation(_Image):
                 )
             if pixel_array.number_of_channel_dimensions == 1:
                 if pixel_array.channel_identifiers != (
-                    ChannelIdentifier('SegmentNumber'),
+                    ChannelDescriptor('SegmentNumber'),
                 ):
                     raise ValueError(
                         "Input volume should have no channels other than "
@@ -4431,7 +4431,7 @@ class Segmentation(_Image):
         if not combine_segments:
             channel_spec = {'ReferencedSegmentNumber': segment_numbers}
         if apply_palette_color_lut:
-            channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
+            channel_spec = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
         if self.is_tiled:
             array = self.get_total_pixel_matrix(

@@ -13,7 +13,7 @@ from highdicom.image import (
     volume_from_image_series,
 )
 from highdicom.volume import (
-    ChannelIdentifier,
+    ChannelDescriptor,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
@@ -137,8 +137,8 @@ def test_volume_with_channels():
     assert volume.channel_shape == (2, )
     assert isinstance(volume.channel_identifiers, tuple)
     assert len(volume.channel_identifiers) == 1
-    assert isinstance(volume.channel_identifiers[0], ChannelIdentifier)
-    expected = ChannelIdentifier('OpticalPathIdentifier')
+    assert isinstance(volume.channel_identifiers[0], ChannelDescriptor)
+    expected = ChannelDescriptor('OpticalPathIdentifier')
     assert volume.channel_identifiers[0] == expected
     assert volume.get_channel_values(expected) == ['path1', 'path2']
 

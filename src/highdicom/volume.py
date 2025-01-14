@@ -47,24 +47,24 @@ from pydicom.datadict import (
 )
 
 
-# TODO add pixel value transformations
 # TODO should methods copy arrays?
 # TODO trim non-zero
-# TODO support slide coordinate system
 # TODO volread and metadata
 # TODO constructors for geometry, do they make sense for volume?
 # TODO ordering of frames in seg, setting 3D dimension organization
-# TODO get_volume to multiframe image
-# TODO lazy loading for multiframe
-# TODO get volume from legacy series
-# TODO make multiframe public
-# TODO allow non-consecutive segments when reading (confirm with standard)?
 # TODO check logic around slice thickness and spacing for seg creation
-# TODO what do about multiple custom channels
 # TODO tidy up channel/dimension terminology
 
 
-class ChannelIdentifier:
+class ChannelDescriptor:
+
+    """Descriptor of a channel (non-spatial) dimension within a Volume.
+
+    A channel dimension may be described either using a standard DICOM
+    attribute (preferable where possible) or a custom descriptor that defines
+    the quantity or characeristic that varies along that dimension.
+
+    """
 
     def __init__(
         self,
@@ -72,6 +72,24 @@ class ChannelIdentifier:
         is_custom: bool = False,
         value_type: type | None = None,
     ):
+        """
+
+        Parameters
+        ----------
+        identifier: str | int | highdicom.volume.ChannelDescriptor
+            Identifier of the attribute. May be a DICOM attribute identified
+            either by its keyword or integer tag value. Alternatively, if
+            ``is_custom`` is True, an arbitrary string used to identify the
+            dimension.
+        is_custom: bool
+            Whether the identifier is a custom identifier, as opposed to a
+            DICOM attribute.
+        value_type: type | None
+            The python type of the values that vary along the dimension. Should
+            be provided if and only if a custom identifier is used. Only ints,
+            floats, strs, or enum.Enums, or their sub-classes, are allowed.
+
+        """
         if isinstance(identifier, self.__class__):
             self._keyword = identifier.keyword
             self._tag = identifier.tag
@@ -148,22 +166,32 @@ class ChannelIdentifier:
 
     @property
     def value_type(self) -> type:
+        """type: The Python type of the quantity that varies along the dimension."""
         return self._value_type
 
     @property
     def keyword(self) -> str:
+        """str: The DICOM keyword or custom string for the descriptor."""
         return self._keyword
 
     @property
     def tag(self) -> BaseTag | None:
+        """str: The DICOM tag for the attribute. ``None`` for custom descriptors."""
         return self._tag
 
     @property
     def is_custom(self) -> bool:
+        """bool: Whether the descriptor is custom, as opposed to using a DICOM
+        attribute.
+
+        """
         return self._tag is None
 
     @property
     def is_enumerated(self) -> bool:
+        """bool: Whether the value type is enumerated.
+
+        """
         return issubclass(self.value_type, Enum)
 
     def __hash__(self) -> int:
@@ -179,11 +207,12 @@ class ChannelIdentifier:
         return self._keyword == other._keyword
 
 
-RGB_COLOR_CHANNEL_IDENTIFIER = ChannelIdentifier(
+RGB_COLOR_CHANNEL_DESCRIPTOR = ChannelDescriptor(
     'RGBColorChannel',
     value_type=RGBColorChannels,
     is_custom=True,
 )
+"""Descriptor used for an RGB color channel dimension."""
 
 
 class _VolumeBase(ABC):
@@ -1935,7 +1964,7 @@ class VolumeGeometry(_VolumeBase):
     def with_array(
         self,
         array: np.ndarray,
-        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Create a volume using this geometry and an array.
 
@@ -2010,7 +2039,7 @@ class Volume(_VolumeBase):
         affine: np.ndarray,
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ):
         """
 
@@ -2070,7 +2099,7 @@ class Volume(_VolumeBase):
             )
 
         self._channels: dict[
-            ChannelIdentifier, list[str | int | float | Enum]
+            ChannelDescriptor, list[str | int | float | Enum]
         ] = {}
 
         # NB insertion order of the dictionary is significant
@@ -2078,8 +2107,8 @@ class Volume(_VolumeBase):
 
             channel_number = a + 3
 
-            if not isinstance(iden, ChannelIdentifier):
-                iden_obj = ChannelIdentifier(iden)
+            if not isinstance(iden, ChannelDescriptor):
+                iden_obj = ChannelDescriptor(iden)
             else:
                 iden_obj = iden
 
@@ -2119,7 +2148,7 @@ class Volume(_VolumeBase):
         spacing_between_slices: float,
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Create a volume from DICOM attributes.
 
@@ -2206,7 +2235,7 @@ class Volume(_VolumeBase):
         spacing: Sequence[float],
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Construct a Volume from components.
 
@@ -2343,7 +2372,7 @@ class Volume(_VolumeBase):
         return tuple(self._array.shape[3:])
 
     @property
-    def channel_identifiers(self) -> tuple[ChannelIdentifier, ...]:
+    def channel_identifiers(self) -> tuple[ChannelDescriptor, ...]:
         """tuple[highdicom.volume.ChannelIdentifier]
         Identifier of each channel.
 
@@ -2410,7 +2439,7 @@ class Volume(_VolumeBase):
     def with_array(
         self,
         array: np.ndarray,
-        channels: dict[BaseTag | int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
         """Get a new volume using a different array.
 
@@ -2566,7 +2595,7 @@ class Volume(_VolumeBase):
 
     def permute_channel_axes(
         self,
-        channel_identifiers: Sequence[BaseTag | int | str | ChannelIdentifier],
+        channel_identifiers: Sequence[BaseTag | int | str | ChannelDescriptor],
     ) -> Self:
         """Create a new volume by permuting the channel axes.
 
@@ -2605,8 +2634,8 @@ class Volume(_VolumeBase):
 
     def _get_channel_identifier(
         self,
-        identifier: ChannelIdentifier | int | str,
-    ) -> ChannelIdentifier:
+        identifier: ChannelDescriptor | int | str,
+    ) -> ChannelDescriptor:
         """Standardize representation of a channel identifier.
 
         Given a value used to specify a channel, check that such a channel
@@ -2625,7 +2654,7 @@ class Volume(_VolumeBase):
             Channel identifier in standard form.
 
         """
-        if isinstance(identifier, ChannelIdentifier):
+        if isinstance(identifier, ChannelDescriptor):
             if identifier not in self._channels:
                 raise ValueError(
                     f"No channel with identifier '{identifier}' found "
@@ -2659,7 +2688,7 @@ class Volume(_VolumeBase):
 
     def _get_channel_index(
         self,
-        identifier: ChannelIdentifier | int | str,
+        identifier: ChannelDescriptor | int | str,
     ) -> int:
         """Get zero-based channel index for a given channel.
 
@@ -2683,7 +2712,7 @@ class Volume(_VolumeBase):
 
     def get_channel_values(
         self,
-        channel_identifier: int | str | ChannelIdentifier
+        channel_identifier: int | str | ChannelDescriptor
     ) -> list[str | int | float | Enum]:
         """Get channel values along a particular dimension.
 
@@ -2879,7 +2908,7 @@ class Volume(_VolumeBase):
     def squeeze_channel(
         self,
         channel_identifiers: Sequence[
-            int | str | BaseTag | ChannelIdentifier
+            int | str | BaseTag | ChannelDescriptor
         ] | None = None,
     ) -> Self:
         """Removes any singleton channel axes.
@@ -2903,7 +2932,7 @@ class Volume(_VolumeBase):
         else:
             raise_error = True
             channel_identifiers = [
-                ChannelIdentifier(iden) for iden in channel_identifiers
+                ChannelDescriptor(iden) for iden in channel_identifiers
             ]
             for iden in channel_identifiers:
                 if iden not in self._channels:

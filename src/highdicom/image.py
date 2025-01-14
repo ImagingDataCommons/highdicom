@@ -2,7 +2,6 @@
 from collections import Counter
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
-from dataclasses import dataclass
 from enum import Enum
 import logging
 from os import PathLike
@@ -77,7 +76,7 @@ from highdicom.utils import (
 from highdicom.volume import (
     VolumeGeometry,
     Volume,
-    RGB_COLOR_CHANNEL_IDENTIFIER,
+    RGB_COLOR_CHANNEL_DESCRIPTOR,
 )
 
 
@@ -4046,7 +4045,7 @@ class Image(_Image):
                 (apply_palette_color_lut or apply_palette_color_lut is None)
             )
         ):
-            channel_spec = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
+            channel_spec = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
         if self.is_tiled:
             array = self.get_total_pixel_matrix(
@@ -4530,7 +4529,7 @@ def volume_from_image_series(
 
     channels = None
     if array.ndim == 4:
-        channels = {RGB_COLOR_CHANNEL_IDENTIFIER: ['R', 'G', 'B']}
+        channels = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
     coordinate_system = get_image_coordinate_system(series_datasets[0])
 

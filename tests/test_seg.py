@@ -56,7 +56,7 @@ from highdicom.seg.utils import iter_segments
 from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
-from highdicom.volume import RGB_COLOR_CHANNEL_IDENTIFIER, Volume
+from highdicom.volume import RGB_COLOR_CHANNEL_DESCRIPTOR, Volume
 
 from .utils import write_and_read_dataset
 
@@ -5389,7 +5389,7 @@ class TestSegmentationParsing:
             3
         )
         assert vol.channel_identifiers == (
-            RGB_COLOR_CHANNEL_IDENTIFIER,
+            RGB_COLOR_CHANNEL_DESCRIPTOR,
         )
 
         msg = (
