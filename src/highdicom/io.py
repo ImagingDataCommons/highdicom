@@ -224,6 +224,37 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
+def _read_eot(
+    extended_offset_table: bytes,
+    number_of_frames: int
+) -> List[int]:
+    """Read an extended offset table.
+
+    Parameters
+    ----------
+    extended_offset_table: bytes
+        Value of the ExtendedOffsetTable attribute.
+    number_of_frames: int
+        Number of frames contained in the Pixel Data element
+
+    Returns
+    -------
+    List[int]
+        Offset of each Frame item in bytes from the first byte of the Pixel Data
+        element following the BOT item
+
+    """
+    result = np.frombuffer(extended_offset_table, dtype=np.uint64).tolist()
+
+    if len(result) != number_of_frames:
+        raise ValueError(
+            'The number of items in the extended offset table does nt match '
+            'the specified number of frames.'
+        )
+
+    return result
+
+
 def _stop_after_group_2(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
     """
     Stop DCM reading after first tag groups
@@ -467,15 +498,30 @@ class ImageFileReader:
         self._fp.seek(self._pixel_data_offset, 0)
 
         logger.debug('build Basic Offset Table')
-        number_of_frames = int(getattr(self._metadata, 'NumberOfFrames', 1))
+        number_of_frames = int(getattr(metadata, 'NumberOfFrames', 1))
         if self.transfer_syntax_uid.is_encapsulated:
-            try:
-                self._basic_offset_table = _get_bot(self._fp, number_of_frames)
-            except Exception as err:
-                raise OSError(
-                    f'Failed to build Basic Offset Table: "{err}"'
-                ) from err
-            self._first_frame_offset = self._fp.tell()
+            if 'ExtendedOffsetTable' in metadata:
+                # Try the extended offset table first
+                self._offset_table = _read_eot(
+                    metadata.ExtendedOffsetTable,
+                    number_of_frames
+                )
+                # tag, VR, reserved and length for PixelData plus tag and
+                # length of the BOT (which should be empty if extended offsets
+                # are present)
+                header_offset = 4 + 2 + 2 + 4 + 4 + 4
+                self._first_frame_offset = (
+                    self._pixel_data_offset + 20
+                )
+            else:
+                # Fall back to the basic offset table
+                try:
+                    self._offset_table = _get_bot(self._fp, number_of_frames)
+                except Exception as err:
+                    raise OSError(
+                        f'Failed to build Basic Offset Table: "{err}"'
+                    ) from err
+                self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:
                 header_offset = 4 + 4  # tag and length
@@ -485,17 +531,17 @@ class ImageFileReader:
             n_pixels = self._pixels_per_frame
             bits_allocated = self._metadata.BitsAllocated
             if bits_allocated == 1:
-                self._basic_offset_table = [
+                self._offset_table = [
                     int(np.floor(i * n_pixels / 8))
                     for i in range(number_of_frames)
                 ]
             else:
-                self._basic_offset_table = [
+                self._offset_table = [
                     i * self._bytes_per_frame_uncompressed
                     for i in range(number_of_frames)
                 ]
 
-        if len(self._basic_offset_table) != number_of_frames:
+        if len(self._offset_table) != number_of_frames:
             raise ValueError(
                 'Length of Basic Offset Table does not match Number of Frames.'
             )
@@ -599,11 +645,11 @@ class ImageFileReader:
             raise ValueError('Frame index exceeds number of frames in image.')
         logger.debug(f'read frame #{index}')
 
-        frame_offset = self._basic_offset_table[index]
+        frame_offset = self._offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
         if self.transfer_syntax_uid.is_encapsulated:
             try:
-                stop_at = self._basic_offset_table[index + 1] - frame_offset
+                stop_at = self._offset_table[index + 1] - frame_offset
             except IndexError:
                 # For the last frame, there is no next offset available.
                 stop_at = -1

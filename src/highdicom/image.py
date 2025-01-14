@@ -85,15 +85,9 @@ logger = logging.getLogger(__name__)
 
 
 # TODO new type hints
-# TODO deal with extended offset table
 # TODO rebase parametric map
-# TODO tiled volumes
-# TODO additional get pixel methods
-# TODO expose channel bhaviour
 # TODO behavior of simple frame images
 # TODO referenced images for non-seg images
-# TODO single frame images with FoR but no position (e.g. digital mammo x-ray)
-# TODO multi frame images with FoR but no position (e.g. some example CTs)
 # TODO allow tolerance parameter to be passed for volumes
 # TODO exports/inits and docs
 # TODO disallow direct creation of Image

@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 from random import shuffle
+from tempfile import TemporaryDirectory
 
 import numpy as np
 from pydicom import dcmread
@@ -246,6 +247,34 @@ class TestImageFileReader(unittest.TestCase):
         with pytest.raises(ValueError, match=msg):
             with ImageFileReader(filename) as reader:
                 reader.read_frame(1)
+
+    def test_extended_offsets(self):
+        # Surprisingly, there are no pydicom test files with extended offsets
+        # Instead, we start with an image with no basic offsets, and mock one
+        # up
+        filename = get_testdata_file('rtdose_rle.dcm')
+
+        # First use the image file reader to infer the offsets
+        with ImageFileReader(filename) as reader:
+            reader.read_frame(1)
+            offsets = reader._offset_table
+
+        # Add the extended offset table to the dataset
+        dataset = dcmread(filename)
+        dataset_with_eot = dcmread(filename)
+        dataset_with_eot.ExtendedOffsetTable = np.array(
+            offsets,
+            np.uint64
+        ).tobytes()
+
+        with TemporaryDirectory() as d:
+            new_filename = d + '/test.dcm'
+            dataset_with_eot.save_as(new_filename)
+
+            with ImageFileReader(new_filename) as reader:
+                for i in range(dataset.NumberOfFrames):
+                    frame = reader.read_frame(i)
+                    assert np.array_equal(frame, dataset.pixel_array[i])
 
 
 @pytest.mark.parametrize(
