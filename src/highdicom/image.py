@@ -89,12 +89,10 @@ logger = logging.getLogger(__name__)
 # TODO referenced images for non-seg images
 # TODO allow tolerance parameter to be passed for volumes
 # TODO exports/inits and docs
-# TODO disallow direct creation of Image
 # TODO add labelmap to seg documentation
 # TODO quickstart for image/volume
 # TODO pixel_array for lazy retrieval
-# TODO accept tiled volumes when constructing segmentations
-# TODO shared plane position sequence
+# TODO tidy up missing frames parameters
 
 
 class _ImageColorType(Enum):
@@ -3769,6 +3767,12 @@ class Image(_Image):
     existing dataset.
 
     """
+
+    def __init__(self, *args, **kwargs):
+        raise RuntimeError(
+            'Instances of this class should not be directly instantiated. Use '
+            'the from_dataset method or the imread function instead.'
+        )
 
     def get_volume(
         self,

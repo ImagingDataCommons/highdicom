@@ -1214,6 +1214,16 @@ def test_get_volume_multiframe_ct_subvolumes():
     assert np.array_equal(sub_volume.affine, full_volume[1, 256:-10, -48:503].affine)
 
 
+def test_instantiation():
+    # Instantiation of the Image class is not allowed
+    msg = (
+        'Instances of this class should not be directly instantiated. Use '
+        'the from_dataset method or the imread function instead.'
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        Image()
+
+
 @pytest.mark.parametrize(
     'f',
     find_readable_images(),
