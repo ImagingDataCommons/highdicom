@@ -13,7 +13,6 @@ import numpy as np
 from highdicom._value_types import (
     _DCM_PYTHON_TYPE_MAP
 )
-from highdicom._module_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -22,7 +21,7 @@ from highdicom.enum import (
     RGBColorChannels,
 )
 from highdicom.spatial import (
-    _create_affine_transformation_matrix,
+    create_affine_matrix_from_attributes,
     _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _stack_affine_matrix,
@@ -31,7 +30,9 @@ from highdicom.spatial import (
     _DEFAULT_EQUALITY_TOLERANCE,
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
+    create_affine_matrix_from_components,
     get_closest_patient_orientation,
+    rotation_for_patient_orientation,
 )
 from highdicom.content import (
     PixelMeasuresSequence,
@@ -39,7 +40,6 @@ from highdicom.content import (
     PlanePositionSequence,
 )
 
-from pydicom import dcmread
 from pydicom.datadict import (
     get_entry,
     tag_for_keyword,
@@ -51,8 +51,6 @@ from pydicom.datadict import (
 # TODO trim non-zero
 # TODO volread and metadata
 # TODO constructors for geometry, do they make sense for volume?
-# TODO ordering of frames in seg, setting 3D dimension organization
-# TODO check logic around slice thickness and spacing for seg creation
 # TODO tidy up channel/dimension terminology
 
 
@@ -254,7 +252,7 @@ class _VolumeBase(ABC):
                 "Argument 'affine' must be an orthogonal matrix."
             )
 
-        self._affine = affine
+        self._affine = affine.astype(np.float64)
         self._coordinate_system = CoordinateSystemNames(coordinate_system)
         self._frame_of_reference_uid = frame_of_reference_uid
 
@@ -276,49 +274,62 @@ class _VolumeBase(ABC):
         """
         return self._coordinate_system
 
-    def get_center_index(self, round_output: bool = False) -> np.ndarray:
-        """Get array index of center of the volume.
+    @property
+    def nearest_center_indices(self) -> tuple[int, int, int]:
+        """Get array index of center of the volume, rounded down to the nearest
+        integer value.
 
-        Parameters
-        ----------
-        round_output: bool, optional
-            If True, the result is returned rounded down to and with an integer
-            datatype. Otherwise it is returned as a floating point datatype
-            without rounding, to sub-voxel precision.
+        Results are discrete zero-based array indices.
 
         Returns
         -------
-        numpy.ndarray:
-            Array of shape 3 representing the array indices at the center of
-            the volume.
+        x: int
+            First array index of the volume center.
+        y: int
+            Second array index of the volume center.
+        z: int
+            Third array index of the volume center.
 
         """
-        if round_output:
-            center = np.array(
-                [(self.spatial_shape[d] - 1) // 2 for d in range(3)],
-                dtype=np.uint32,
-            )
-        else:
-            center = np.array(
-                [(self.spatial_shape[d] - 1) / 2.0 for d in range(3)]
-            )
+        return tuple((d - 1) // 2 for d in self.spatial_shape)
 
-        return center
+    @property
+    def center_indices(self) -> tuple[float, float, float]:
+        """Get array index of center of the volume, as floats with sub-voxel
+        precision.
 
-    def get_center_coordinate(self) -> np.ndarray:
-        """Get frame-of-reference coordinate at the center of the volume.
+        Results are continuous zero-based array indices.
 
         Returns
         -------
-        numpy.ndarray:
-            Array of shape 3 representing the frame-of-reference coordinate at
-            the center of the volume.
+        x: float
+            First array index of the volume center.
+        y: float
+            Second array index of the volume center.
+        z: float
+            Third array index of the volume center.
 
         """
-        center_index = self.get_center_index().reshape((1, 3))
-        center_coordinate = self.map_indices_to_reference(center_index)
+        return tuple((d - 1) / 2.0 for d in self.spatial_shape)
 
-        return center_coordinate.reshape((3, ))
+    @property
+    def center_position(self) -> tuple[float, float, float]:
+        """Get frame-of-reference coordinates of the volume's center.
+
+        Returns
+        -------
+        x: float
+            Frame of reference x coordinate of the volume center.
+        y: float
+            Frame of reference y coordinate of the volume center.
+        z: float
+            Frame of reference z coordinate of the volume center.
+
+        """
+        center_index = np.array(self.center_indices).reshape((1, 3))
+        center_position = self.map_indices_to_reference(center_index)
+
+        return tuple(center_position.flatten().tolist())
 
     def map_indices_to_reference(
         self,
@@ -1046,9 +1057,9 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        patient_orientation: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
+        patient_orientation: Union[str, Sequence[Union[str, highdicom.PatientOrientationValuesBiped]]]
             Desired patient orientation, as either a sequence of three
-            highdicom.enum.PatientOrientationValuesBiped values, or a string
+            highdicom.PatientOrientationValuesBiped values, or a string
             such as ``"FPL"`` using the same characters.
 
         Returns
@@ -1233,7 +1244,7 @@ class _VolumeBase(ABC):
         flip_axis: Union[int, None], optional
             Specification of a spatial axis index (0, 1, or 2) to flip if
             required to meet the given handedness requirement.
-        swap_axes: Union[int, None], optional
+        swap_axes: Union[Sequence[int], None], optional
             Specification of a sequence of two spatial axis indices (each being
             0, 1, or 2) to swap if required to meet the given handedness
             requirement.
@@ -1795,7 +1806,7 @@ class VolumeGeometry(_VolumeBase):
             New Volume using the given array and DICOM attributes.
 
         """
-        affine = _create_affine_transformation_matrix(
+        affine = create_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
@@ -1808,6 +1819,108 @@ class VolumeGeometry(_VolumeBase):
         return cls(
             affine=affine,
             spatial_shape=spatial_shape,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+        )
+
+    @classmethod
+    def from_components(
+        cls,
+        spatial_shape: Sequence[int],
+        *,
+        spacing: Sequence[float] | float,
+        coordinate_system: CoordinateSystemNames | str,
+        position: Sequence[float] | None = None,
+        center_position: Sequence[float] | None = None,
+        direction: Sequence[float] | None = None,
+        patient_orientation: Union[
+            str,
+            Sequence[Union[str, PatientOrientationValuesBiped]],
+            None,
+        ] = None,
+        frame_of_reference_uid: Optional[str] = None,
+    ) -> Self:
+        """Construct a VolumeGeometry from components of the affine matrix.
+
+        Parameters
+        ----------
+        array: numpy.ndarray
+            Three dimensional array of voxel data.
+        spacing: Sequence[float]
+            Spacing between pixel centers in the the frame of reference
+            coordinate system along each of the dimensions of the array. Should
+            be either a sequence of length 3 to give the values along the three
+            spatial dimensions, or a single float value to be shared by all
+            spatial dimensions.
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
+            is defined).
+        position: Sequence[float]
+            Sequence of three floats giving the position in the frame of
+            reference coordinate system of the center of the voxel at location
+            (0, 0, 0).
+        center_position: Sequence[float]
+            Sequence of three floats giving the position in the frame of
+            reference coordinate system of the center of the volume. Note that
+            the center of the volume will not lie at the center of any
+            particular voxel unless the shape of the array is odd along all
+            three spatial dimensions. Incompatible with ``position``.
+        direction: Sequence[float]
+            Direction matrix for the volume. The columns of the direction
+            matrix are orthogonal unit vectors that give the direction in the
+            frame of reference space of the increasing direction of each axis
+            of the array. This matrix may be passed either as a 3x3 matrix or a
+            flattened 9 element array (first row, second row, third row).
+        patient_orientation: Union[str, Sequence[Union[str, highdicom.PatientOrientationValuesBiped]]]
+            Patient orientation used to define an axis-aligned direction
+            matrix, as either a sequence of three
+            highdicom.PatientOrientationValuesBiped values, or a string such as
+            ``"FPL"`` using the same characters. Incompatible with ``direction``.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
+
+        Returns
+        -------
+        highdicom.volume.VolumeGeometry:
+            Volume constructed from the provided components.
+
+        """
+        if patient_orientation is not None:
+            if (
+                CoordinateSystemNames(coordinate_system)
+                != CoordinateSystemNames.PATIENT
+            ):
+                raise ValueError(
+                    "Argument 'patient_orientation' should be provided only "
+                    "for volumes in the patient coordinate system."
+                )
+
+        affine = create_affine_matrix_from_components(
+            spacing=spacing,
+            direction=direction,
+            patient_orientation=patient_orientation,
+            position=position,
+            center_position=center_position,
+            spatial_shape=spatial_shape,
+        )
+        return cls(
+            spatial_shape=spatial_shape,
+            affine=affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
         )
@@ -2210,7 +2323,7 @@ class Volume(_VolumeBase):
             New Volume using the given array and DICOM attributes.
 
         """
-        affine = _create_affine_transformation_matrix(
+        affine = create_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
@@ -2230,38 +2343,56 @@ class Volume(_VolumeBase):
     def from_components(
         cls,
         array: np.ndarray,
-        *
-        position: Sequence[float],
-        direction: Sequence[float],
-        spacing: Sequence[float],
+        *,
+        spacing: Sequence[float] | float,
         coordinate_system: CoordinateSystemNames | str,
+        position: Sequence[float] | None = None,
+        center_position: Sequence[float] | None = None,
+        direction: Sequence[float] | None = None,
+        patient_orientation: Union[
+            str,
+            Sequence[Union[str, PatientOrientationValuesBiped]],
+            None,
+        ] = None,
         frame_of_reference_uid: Optional[str] = None,
         channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
     ) -> Self:
-        """Construct a Volume from components.
+        """Construct a Volume from components of the affine matrix.
 
         Parameters
         ----------
         array: numpy.ndarray
             Three dimensional array of voxel data.
+        spacing: Sequence[float]
+            Spacing between pixel centers in the the frame of reference
+            coordinate system along each of the dimensions of the array. Should
+            be either a sequence of length 3 to give the values along the three
+            spatial dimensions, or a single float value to be shared by all
+            spatial dimensions.
+        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
+            is defined).
         position: Sequence[float]
             Sequence of three floats giving the position in the frame of
-            reference coordinate system of the center of the pixel at location
+            reference coordinate system of the center of the voxel at location
             (0, 0, 0).
+        center_position: Sequence[float]
+            Sequence of three floats giving the position in the frame of
+            reference coordinate system of the center of the volume. Note that
+            the center of the volume will not lie at the center of any
+            particular voxel unless the shape of the array is odd along all
+            three spatial dimensions. Incompatible with ``position``.
         direction: Sequence[float]
             Direction matrix for the volume. The columns of the direction
             matrix are orthogonal unit vectors that give the direction in the
             frame of reference space of the increasing direction of each axis
             of the array. This matrix may be passed either as a 3x3 matrix or a
             flattened 9 element array (first row, second row, third row).
-        spacing: Sequence[float]
-            Spacing between pixel centers in the the frame of reference
-            coordinate system along each of the dimensions of the array.
-        shape: Sequence[int]
-            Sequence of three integers giving the shape of the volume.
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
-            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
-            is defined).
+        patient_orientation: Union[str, Sequence[Union[str, highdicom.PatientOrientationValuesBiped]]]
+            Patient orientation used to define an axis-aligned direction
+            matrix, as either a sequence of three
+            highdicom.PatientOrientationValuesBiped values, or a string such as
+            ``"FPL"`` using the same characters. Incompatible with ``direction``.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
         channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
@@ -2282,35 +2413,28 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.spatial.Volume:
+        highdicom.volume.Volume:
             Volume constructed from the provided components.
 
         """
-        if not isinstance(position, Sequence):
-            raise TypeError('Argument "position" must be a sequence.')
-        if len(position) != 3:
-            raise ValueError('Argument "position" must have length 3.')
-        if not isinstance(spacing, Sequence):
-            raise TypeError('Argument "spacing" must be a sequence.')
-        if len(spacing) != 3:
-            raise ValueError('Argument "spacing" must have length 3.')
-        direction_arr = np.array(direction, dtype=np.float32)
-        if direction_arr.shape == (9, ):
-            direction_arr = direction_arr.reshape(3, 3)
-        elif direction_arr.shape == (3, 3):
-            pass
-        else:
-            raise ValueError(
-                "Argument 'direction' must have shape (9, ) or (3, 3)."
-            )
-        if not _is_matrix_orthogonal(direction_arr, require_unit=True):
-            raise ValueError(
-                "Argument 'direction' must be an orthogonal matrix of "
-                "unit vectors."
-            )
+        if patient_orientation is not None:
+            if (
+                CoordinateSystemNames(coordinate_system)
+                != CoordinateSystemNames.PATIENT
+            ):
+                raise ValueError(
+                    "Argument 'patient_orientation' should be provided only "
+                    "for volumes in the patient coordinate system."
+                )
 
-        scaled_direction = direction_arr * spacing
-        affine = _stack_affine_matrix(scaled_direction, np.array(position))
+        affine = create_affine_matrix_from_components(
+            spacing=spacing,
+            direction=direction,
+            patient_orientation=patient_orientation,
+            position=position,
+            center_position=center_position,
+            spatial_shape=array.shape[:3],
+        )
         return cls(
             array=array,
             affine=affine,

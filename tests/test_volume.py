@@ -3,7 +3,7 @@ import pydicom
 from pydicom.data import get_testdata_file
 import pytest
 
-
+from highdicom.enum import PatientOrientationValuesBiped
 from highdicom.spatial import (
     _normalize_patient_orientation,
     _translate_affine_matrix,
@@ -18,6 +18,7 @@ from highdicom.volume import (
     VolumeGeometry,
     VolumeToVolumeTransformer,
 )
+
 
 def read_multiframe_ct_volume():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
@@ -56,11 +57,11 @@ def test_transforms():
     assert np.array_equal(coords, np.array([[3.0, 2.0, -10.0]]))
     round_trip = volume.map_reference_to_indices(coords)
     assert np.array_equal(round_trip, indices)
-    index_center = volume.get_center_index()
+    index_center = volume.center_indices
     assert np.array_equal(index_center, [12.0, 24.5, 24.5])
-    index_center = volume.get_center_index(round_output=True)
+    index_center = volume.nearest_center_indices
     assert np.array_equal(index_center, [12, 24, 24])
-    coord_center = volume.get_center_coordinate()
+    coord_center = volume.center_position
     assert np.array_equal(coord_center, [24.5, 24.5, -120])
 
 
@@ -119,6 +120,76 @@ def test_volume_from_attributes(
     assert volume.spatial_shape == (10, 10, 10)
     assert volume.channel_shape == ()
     assert volume.channel_descriptors == ()
+
+
+def test_volume_from_components():
+    vol = Volume.from_components(
+        np.zeros((10, 10, 10)),
+        position=[1, 2, 3],
+        direction=[1, 0, 0, 0, 1, 0, 0, 0, 1],
+        spacing=[2, 2, 5],
+        coordinate_system="SLIDE",
+    )
+    assert vol.position == (1.0, 2.0, 3.0)
+    assert np.array_equal(vol.direction, np.eye(3, dtype=np.float32))
+    assert vol.spacing == (2.0, 2.0, 5.0)
+
+
+def test_volume_from_components_np_arrays():
+    vol = Volume.from_components(
+        np.zeros((10, 10, 10)),
+        position=np.array([1, 2, 3]),
+        direction=np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]),
+        spacing=np.array([2, 2, 5]),
+        coordinate_system="SLIDE",
+    )
+    assert vol.position == (1.0, 2.0, 3.0)
+    assert np.array_equal(vol.direction, np.eye(3, dtype=np.float32))
+    assert vol.spacing == (2.0, 2.0, 5.0)
+
+
+def test_volume_from_components_np_arrays_2():
+    vol = Volume.from_components(
+        np.zeros((10, 10, 10)),
+        position=np.array([1, 2, 3]),
+        direction=np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).reshape(3, 3),
+        spacing=np.array([2, 2, 5]),
+        coordinate_system="SLIDE",
+    )
+    assert vol.position == (1.0, 2.0, 3.0)
+    assert np.array_equal(vol.direction, np.eye(3, dtype=np.float32))
+    assert vol.spacing == (2.0, 2.0, 5.0)
+
+
+def test_volume_from_components_patient_orientation():
+    vol = Volume.from_components(
+        np.zeros((10, 10, 10)),
+        position=[1, 2, 3],
+        patient_orientation="FPL",
+        spacing=[2, 2, 5],
+        coordinate_system="PATIENT",
+    )
+    assert vol.position == (1.0, 2.0, 3.0)
+    exptected_direction = np.array(
+        [
+            [0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0],
+        ]
+    )
+    assert np.array_equal(vol.direction, exptected_direction)
+    assert vol.spacing == (2.0, 2.0, 5.0)
+
+
+def test_volume_from_components_center_position():
+    vol = Volume.from_components(
+        np.zeros((17, 5, 15)),
+        center_position=[7.9, 1.3, -9.6],
+        patient_orientation="FPL",
+        spacing=[2.8, 2.1, 5.7],
+        coordinate_system="PATIENT",
+    )
+    assert np.allclose(vol.center_position, np.array([7.9, 1.3, -9.6]))
 
 
 def test_volume_with_channels():
@@ -434,6 +505,77 @@ def test_to_patient_orientation(desired):
     flipped = volume.to_patient_orientation(desired_tup)
     assert isinstance(flipped, Volume)
     assert flipped.get_closest_patient_orientation() == desired_tup
+
+
+def test_geometry_from_attributes():
+    ori = (0, 1, 0, -1, 0, 0)
+    pos = (8.8, 5.3, 9.1)
+    spacing_between_slices = 2.5
+    pixel_spacing = (1.5, 2.0)
+    rows = 10
+    columns = 20
+    number_of_frames = 5
+
+    geom = VolumeGeometry.from_attributes(
+        image_orientation=ori,
+        image_position=pos,
+        spacing_between_slices=spacing_between_slices,
+        pixel_spacing=pixel_spacing,
+        rows=rows,
+        columns=columns,
+        number_of_frames=number_of_frames,
+        coordinate_system="PATIENT",
+    )
+
+    assert geom.direction_cosines == ori
+    assert geom.position == pos
+    assert geom.spacing_between_slices == spacing_between_slices
+    assert geom.pixel_spacing == pixel_spacing
+    assert geom.spatial_shape == (number_of_frames, rows, columns)
+
+
+def test_geometry_from_components():
+
+    pos = (8.8, 5.3, 9.1)
+    spacing = (1.3, 9.7, 6.5)
+    shape = (100, 200, 349)
+
+    geom = VolumeGeometry.from_components(
+        patient_orientation="LPH",
+        position=pos,
+        spacing=spacing,
+        coordinate_system="PATIENT",
+        spatial_shape=shape,
+    )
+
+    assert np.array_equal(geom.direction, np.eye(3))
+    assert geom.position == pos
+    assert geom.spacing == spacing
+    assert geom.spatial_shape == shape
+
+
+def test_geometry_from_components_2():
+
+    pos = (8.8, 5.3, 9.1)
+    spacing = (1.3, 9.7, 6.5)
+    shape = (100, 200, 349)
+
+    geom = VolumeGeometry.from_components(
+        direction=np.eye(3),
+        center_position=pos,
+        spacing=spacing,
+        coordinate_system="PATIENT",
+        spatial_shape=shape,
+    )
+
+    assert np.allclose(geom.center_position, pos)
+    assert geom.get_closest_patient_orientation() == (
+        PatientOrientationValuesBiped.L,
+        PatientOrientationValuesBiped.P,
+        PatientOrientationValuesBiped.H,
+    )
+    assert geom.spacing == spacing
+    assert geom.spatial_shape == shape
 
 
 def test_volume_transformer():

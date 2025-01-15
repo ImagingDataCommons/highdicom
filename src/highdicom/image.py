@@ -1136,8 +1136,15 @@ class _Image(SOPClass):
         return _deduce_color_type(self)
 
     @property
-    def is_tiled(self):
+    def is_tiled(self) -> bool:
+        """bool: Whether the image is a tiled multi-frame image."""
         return is_tiled_image(self)
+
+    @property
+    def coordinate_system(self) -> CoordinateSystemNames | None:
+        """highdicom.CoordinateSystemNames | None: Coordinate system, if any,
+        within which the image exists."""
+        return self._coordinate_system
 
     def _standardize_frame_index(
         self,
@@ -4507,7 +4514,7 @@ def volume_from_image_series(
 
     Returns
     -------
-    Volume:
+    highdicom.Volume:
         Volume created from the series.
 
     """

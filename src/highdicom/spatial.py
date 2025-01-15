@@ -1033,7 +1033,7 @@ def create_rotation_matrix(
 
     row_cosines = np.array(image_orientation[:3], dtype=float)
     column_cosines = np.array(image_orientation[3:], dtype=float)
-    if isinstance(pixel_spacing, Sequence):
+    if isinstance(pixel_spacing, (Sequence, np.ndarray)):
         if len(pixel_spacing) != 2:
             raise ValueError(
                 "A sequence passed to argument 'pixel_spacing' must have "
@@ -1044,6 +1044,11 @@ def create_rotation_matrix(
     else:
         spacing_between_rows = pixel_spacing
         spacing_between_columns = pixel_spacing
+
+    if spacing_between_rows <= 0.0 or spacing_between_columns <= 0.0:
+        raise ValueError(
+            "All values in 'pixel_spacing' must be postive."
+        )
 
     rotation_columns = []
     spacings = []
@@ -1114,7 +1119,7 @@ def _stack_affine_matrix(
     )
 
 
-def _create_affine_transformation_matrix(
+def create_affine_matrix_from_attributes(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
     pixel_spacing: Union[float, Sequence[float]],
@@ -1126,7 +1131,7 @@ def _create_affine_transformation_matrix(
     slices_first: bool = False,
     handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
 ) -> np.ndarray:
-    """Create affine matrix for transformation.
+    """Create affine matrix from attributes found in a DICOM object.
 
     The resulting transformation matrix maps the center of a pixel identified
     by zero-based integer indices into the frame of reference, i.e., an input
@@ -1182,9 +1187,10 @@ def _create_affine_transformation_matrix(
     Returns
     -------
     numpy.ndarray
-        4 x 4 affine transformation matrix. Pre-multiplying a pixel index in
-        format (column index, row index, slice index, 1) by this matrix gives
-        the (x, y, z, 1) position in the frame-of-reference coordinate system.
+        4 x 4 affine transformation matrix. pre-multiplying a pixel index in
+        format (column index, row index, slice index, 1) as a column vector by
+        this matrix gives the (x, y, z, 1) position in the frame-of-reference
+        coordinate system.
 
     """  # noqa: E501
     if not isinstance(image_position, Sequence):
@@ -1225,7 +1231,7 @@ def _create_affine_transformation_matrix(
     return affine
 
 
-def _create_inv_affine_transformation_matrix(
+def _create_inv_affine_matrix_from_attributes(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
@@ -1265,9 +1271,9 @@ def _create_inv_affine_transformation_matrix(
     -------
     numpy.ndarray
         4 x 4 affine transformation matrix. Pre-multiplying a
-        frame-of-reference coordinate in the format (x, y, z, 1) by this matrix
-        gives the pixel indices in the form (column index, row index, slice
-        index, 1).
+        frame-of-reference coordinate in the format (x, y, z, 1) as a column
+        vector by this matrix gives the pixel indices in the form (column
+        index, row index, slice index, 1).
 
     Raises
     ------
@@ -1356,6 +1362,140 @@ def rotation_for_patient_orientation(
             for d, s in zip(norm_orientation, spacing)
         ]
     )
+
+
+def create_affine_matrix_from_components(
+    *,
+    spacing: Sequence[float] | float,
+    position: Sequence[float] | None = None,
+    center_position: Sequence[float] | None = None,
+    direction: Sequence[float] | None = None,
+    patient_orientation: Union[
+        str,
+        Sequence[Union[str, PatientOrientationValuesBiped]],
+        None,
+    ] = None,
+    spatial_shape: Sequence[int] | None = None,
+) -> np.ndarray:
+    """Construct an affine matrix from components.
+
+    The resulting 4 x 4 affine matrix maps 3D image indices to frame of
+    reference coordinates.
+
+    Parameters
+    ----------
+    spacing: Sequence[float]
+        Spacing between pixel centers in the the frame of reference
+        coordinate system along each of the dimensions of the array. Should
+        be either a sequence of length 3 to give the values along the three
+        spatial dimensions, or a single float value to be shared by all
+        spatial dimensions.
+    position: Sequence[float]
+        Sequence of three floats giving the position in the frame of
+        reference coordinate system of the center of the voxel at location
+        (0, 0, 0).
+    center_position: Sequence[float]
+        Sequence of three floats giving the position in the frame of
+        reference coordinate system of the center of the volume. Note that
+        the center of the volume will not lie at the center of any
+        particular voxel unless the shape of the array is odd along all
+        three spatial dimensions. Incompatible with ``position``.
+    direction: Sequence[float]
+        Direction matrix for the volume. The columns of the direction
+        matrix are orthogonal unit vectors that give the direction in the
+        frame of reference space of the increasing direction of each axis
+        of the array. This matrix may be passed either as a 3x3 matrix or a
+        flattened 9 element array (first row, second row, third row).
+    patient_orientation: Union[str, Sequence[Union[str, highdicom.PatientOrientationValuesBiped]]]
+        Patient orientation used to define an axis-aligned direction
+        matrix, as either a sequence of three
+        highdicom.PatientOrientationValuesBiped values, or a string such as
+        ``"FPL"`` using the same characters. Incompatible with ``direction``.
+    spatial_shape: Sequence[int] | None
+        Sequence of three integers giving the shape of the volume. Required
+        only if ``center_position`` is used, irrelevant otherwise.
+
+    Returns
+    -------
+    numpy.ndarray
+        4 x 4 affine transformation matrix. pre-multiplying a pixel index in
+        format (column index, row index, slice index, 1) as a column vector by
+        this matrix gives the (x, y, z, 1) position in the frame-of-reference
+        coordinate system.
+
+    """
+    if (direction is None) == (patient_orientation is None):
+        raise TypeError(
+            "Exactly one of 'direction' or 'patient_orientation' must be "
+            'provided.'
+        )
+    if (position is None) == (center_position is None):
+        raise TypeError(
+            "Exactly one of 'position' or 'center_position' must be "
+            'provided.'
+        )
+
+    if isinstance(spacing, (float, int)):
+        spacing_arr = [spacing] * 3
+    elif not isinstance(spacing, (Sequence, np.ndarray)):
+        raise TypeError('Argument "spacing" must be a sequence or float.')
+    spacing_arr = np.array(spacing)
+    if len(spacing_arr) != 3:
+        raise ValueError('Argument "spacing" must have length 3.')
+    if spacing_arr.min() <= 0.0:
+        raise ValueError('All items of "spacing" must be positive.')
+
+    if direction is not None:
+        direction_arr = np.array(direction, dtype=np.float64)
+        if direction_arr.shape == (9, ):
+            direction_arr = direction_arr.reshape(3, 3)
+        elif direction_arr.shape == (3, 3):
+            pass
+        else:
+            raise ValueError(
+                "Argument 'direction' must have shape (9, ) or (3, 3)."
+            )
+        if not _is_matrix_orthogonal(direction_arr, require_unit=True):
+            raise ValueError(
+                "Argument 'direction' must be an orthogonal matrix of "
+                "unit vectors."
+            )
+    else:
+        direction_arr = rotation_for_patient_orientation(
+            patient_orientation
+        )
+
+    scaled_direction = direction_arr * spacing
+
+    if position is not None:
+        if not isinstance(position, (Sequence, np.ndarray)):
+            raise TypeError('Argument "position" must be a sequence.')
+        position_arr = np.array(position)
+        if position_arr.shape != (3, ):
+            raise ValueError('Argument "position" must have length 3.')
+    else:
+        if spatial_shape is None:
+            raise TypeError(
+                "Argument 'spatial_shape' must be provided if "
+                "'center_position' is used."
+            )
+        shape_arr = np.array(spatial_shape)
+        if shape_arr.shape != (3, ):
+            raise ValueError(
+                "Argument 'spatial_shape' must have length 3."
+            )
+        if not isinstance(center_position, (Sequence, np.ndarray)):
+            raise TypeError('Argument "center_position" must be a sequence.')
+        center_position_arr = np.array(center_position)
+        if center_position_arr.shape != (3, ):
+            raise ValueError(
+                'Argument "center_position" must have length 3.'
+            )
+        center_index = (shape_arr - 1.0) / 2.0
+        position_arr = center_position_arr - scaled_direction @ center_index.T
+
+    affine = _stack_affine_matrix(scaled_direction, position_arr)
+    return affine
 
 
 def _transform_affine_matrix(
@@ -1620,7 +1760,7 @@ class PixelToReferenceTransformer:
             When any of the arguments has an incorrect length.
 
         """
-        self._affine = _create_affine_transformation_matrix(
+        self._affine = create_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing
@@ -1822,7 +1962,7 @@ class ReferenceToPixelTransformer:
         """
         self._round_output = round_output
         self._drop_slice_index = drop_slice_index
-        self._affine = _create_inv_affine_transformation_matrix(
+        self._affine = _create_inv_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
@@ -2072,12 +2212,12 @@ class PixelToPixelTransformer:
                 "in the frame of reference. and therefore pixel-to-pixel "
                 "transformation is not possible."
             )
-        pix_to_ref = _create_affine_transformation_matrix(
+        pix_to_ref = create_affine_matrix_from_attributes(
             image_position=image_position_from,
             image_orientation=image_orientation_from,
             pixel_spacing=pixel_spacing_from,
         )
-        ref_to_pix = _create_inv_affine_transformation_matrix(
+        ref_to_pix = _create_inv_affine_matrix_from_attributes(
             image_position=image_position_to,
             image_orientation=image_orientation_to,
             pixel_spacing=pixel_spacing_to,
@@ -2287,7 +2427,7 @@ class ImageToReferenceTransformer:
             When any of the arguments has an incorrect length.
 
         """
-        affine = _create_affine_transformation_matrix(
+        affine = create_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing
@@ -2495,7 +2635,7 @@ class ReferenceToImageTransformer:
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ])
-        affine = _create_inv_affine_transformation_matrix(
+        affine = _create_inv_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
             pixel_spacing=pixel_spacing,
@@ -2735,12 +2875,12 @@ class ImageToImageTransformer:
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ])
-        ref_to_pix = _create_inv_affine_transformation_matrix(
+        ref_to_pix = _create_inv_affine_matrix_from_attributes(
             image_position=image_position_to,
             image_orientation=image_orientation_to,
             pixel_spacing=pixel_spacing_to,
         )
-        pix_to_ref = _create_affine_transformation_matrix(
+        pix_to_ref = create_affine_matrix_from_attributes(
             image_position=image_position_from,
             image_orientation=image_orientation_from,
             pixel_spacing=pixel_spacing_from,
