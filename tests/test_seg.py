@@ -5388,7 +5388,7 @@ class TestSegmentationParsing:
             seg.TotalPixelMatrixColumns,
             3
         )
-        assert vol.channel_identifiers == (
+        assert vol.channel_descriptors == (
             RGB_COLOR_CHANNEL_DESCRIPTOR,
         )
 

@@ -118,7 +118,7 @@ def test_volume_from_attributes(
     assert volume.shape == (10, 10, 10)
     assert volume.spatial_shape == (10, 10, 10)
     assert volume.channel_shape == ()
-    assert volume.channel_identifiers == ()
+    assert volume.channel_descriptors == ()
 
 
 def test_volume_with_channels():
@@ -135,11 +135,11 @@ def test_volume_with_channels():
     assert volume.shape == (10, 10, 10, 2)
     assert volume.spatial_shape == (10, 10, 10)
     assert volume.channel_shape == (2, )
-    assert isinstance(volume.channel_identifiers, tuple)
-    assert len(volume.channel_identifiers) == 1
-    assert isinstance(volume.channel_identifiers[0], ChannelDescriptor)
+    assert isinstance(volume.channel_descriptors, tuple)
+    assert len(volume.channel_descriptors) == 1
+    assert isinstance(volume.channel_descriptors[0], ChannelDescriptor)
     expected = ChannelDescriptor('OpticalPathIdentifier')
-    assert volume.channel_identifiers[0] == expected
+    assert volume.channel_descriptors[0] == expected
     assert volume.get_channel_values(expected) == ['path1', 'path2']
 
 

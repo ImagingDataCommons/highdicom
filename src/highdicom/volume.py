@@ -1965,23 +1965,24 @@ class VolumeGeometry(_VolumeBase):
         self,
         array: np.ndarray,
         channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
-    ) -> Self:
+    ) -> 'Volume':
         """Create a volume using this geometry and an array.
 
         Parameters
         ----------
         array: numpy.ndarray
-            Array of voxel data. Must be either 3D (three spatial dimensions),
-            or 4D (three spatial dimensions followed by a channel dimension).
-            Any datatype is permitted.
-        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+            Array of voxel data. Must have the same spatial shape as the
+            existing volume (i.e. first three elements of the shape match).
+            Must additionally have the same shape along the channel dimensions,
+            unless the `channels` parameter is provided.
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
             Specification of channels of the array. Channels are additional
             dimensions of the array beyond the three spatial dimensions. For
             each such additional dimension (if any), an item in this dictionary
             is required to specify the meaning. The dictionary key specifies
             the meaning of the dimension, which must be either an instance of
-            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
-            describes the channel, a a DICOM keywork describing a DICOM
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
             attribute, or an integer representing the tag of a DICOM attribute.
             The corresponding item of the dictionary is a sequence giving the
             value of the relevant attribute at each index in the array. The
@@ -2007,22 +2008,22 @@ class VolumeGeometry(_VolumeBase):
 
 class Volume(_VolumeBase):
 
-    """Class representing a 3D array of regularly-spaced frames in 3D space.
+    """Class representing an array of regularly-spaced frames in 3D space.
 
-    This class combines a 3D NumPy array with an affine matrix describing the
+    This class combines a NumPy array with an affine matrix describing the
     location of the voxels in the frame of reference coordinate space. A
     Volume is not a DICOM object itself, but represents a volume that may
     be extracted from DICOM image, and/or encoded within a DICOM object,
     potentially following any number of processing steps.
 
+    All volume arrays have three spatial dimensions. They may optionally have
+    further non-spatial dimensions, known as "channel" dimensions, whose
+    meaning is explicitly specified.
+
     All such volumes have a geometry that exists either within DICOM's patient
     coordinate system or its slide coordinate system, both of which clearly
     define the meaning of the three spatial axes of the frame of reference
     coordinate system.
-
-    Internally this class uses the following conventions to represent the
-    geometry, however this can be constructed from or transformed to other
-    conventions with appropriate optional parameters to its methods:
 
     Note
     ----
@@ -2061,14 +2062,14 @@ class Volume(_VolumeBase):
             is defined).
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
-        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
             Specification of channels of the array. Channels are additional
             dimensions of the array beyond the three spatial dimensions. For
             each such additional dimension (if any), an item in this dictionary
             is required to specify the meaning. The dictionary key specifies
             the meaning of the dimension, which must be either an instance of
-            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
-            describes the channel, a a DICOM keywork describing a DICOM
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
             attribute, or an integer representing the tag of a DICOM attribute.
             The corresponding item of the dictionary is a sequence giving the
             value of the relevant attribute at each index in the array. The
@@ -2187,14 +2188,14 @@ class Volume(_VolumeBase):
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
-        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
             Specification of channels of the array. Channels are additional
             dimensions of the array beyond the three spatial dimensions. For
             each such additional dimension (if any), an item in this dictionary
             is required to specify the meaning. The dictionary key specifies
             the meaning of the dimension, which must be either an instance of
-            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
-            describes the channel, a a DICOM keywork describing a DICOM
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
             attribute, or an integer representing the tag of a DICOM attribute.
             The corresponding item of the dictionary is a sequence giving the
             value of the relevant attribute at each index in the array. The
@@ -2263,14 +2264,14 @@ class Volume(_VolumeBase):
             is defined).
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
-        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
             Specification of channels of the array. Channels are additional
             dimensions of the array beyond the three spatial dimensions. For
             each such additional dimension (if any), an item in this dictionary
             is required to specify the meaning. The dictionary key specifies
             the meaning of the dimension, which must be either an instance of
-            highdicom.ChannelIdentifier, specifying a DICOM tag whose attribute
-            describes the channel, a a DICOM keywork describing a DICOM
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
             attribute, or an integer representing the tag of a DICOM attribute.
             The corresponding item of the dictionary is a sequence giving the
             value of the relevant attribute at each index in the array. The
@@ -2372,9 +2373,9 @@ class Volume(_VolumeBase):
         return tuple(self._array.shape[3:])
 
     @property
-    def channel_identifiers(self) -> tuple[ChannelDescriptor, ...]:
-        """tuple[highdicom.volume.ChannelIdentifier]
-        Identifier of each channel.
+    def channel_descriptors(self) -> tuple[ChannelDescriptor, ...]:
+        """tuple[highdicom.volume.ChannelDescriptor]
+        Descriptor of each channel.
 
         """
         return tuple(self._channels.keys())
@@ -2456,7 +2457,7 @@ class Volume(_VolumeBase):
             New 3D or 4D array of voxel data. The spatial shape must match the
             existing array, but the presence and number of channels and/or the
             voxel datatype may differ.
-        channels: dict[int | str | ChannelIdentifier, Sequence[int | str | float | Enum]] | None, optional
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
             Specification of channels as used by the constructor. If not
             specified, the channels are assumed to match those in the original
             volume and therefore the array must have the same shape as the
@@ -2582,7 +2583,7 @@ class Volume(_VolumeBase):
         new_array = np.transpose(self._array, full_indices)
 
         new_channel_identifiers = [
-            self.channel_identifiers[ind] for ind in indices
+            self.channel_descriptors[ind] for ind in indices
         ]
         new_channels = {
             iden: self._channels[iden] for iden in new_channel_identifiers
@@ -2601,7 +2602,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.volume.ChannelIdentifier]
+        channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.volume.ChannelDescriptor]
             List of channel identifiers matching those in the volume but in an arbitrary order.
 
         Returns
@@ -2614,7 +2615,7 @@ class Volume(_VolumeBase):
             self._get_channel_identifier(iden) for iden in channel_identifiers
         ]
 
-        current_identifiers = self.channel_identifiers
+        current_identifiers = self.channel_descriptors
         if len(set(channel_identifier_objs)) != len(channel_identifier_objs):
             raise ValueError(
                 "Set of channel identifiers must not contain "
@@ -2640,17 +2641,17 @@ class Volume(_VolumeBase):
 
         Given a value used to specify a channel, check that such a channel
         exists in the volume and return a channel identifier as a
-        highdicom.volume.ChannelIdentifier object.
+        highdicom.volume.ChannelDescriptor object.
 
         Parameters
         ----------
-        identifier: highdicom.volume.ChannelIdentifier | int | str
+        identifier: highdicom.volume.ChannelDescriptor | int | str
             Identifier. Strings will be matched against keywords and integers
             will be matched against tags.
 
         Returns
         -------
-        highdicom.volume.ChannelIdentifier:
+        highdicom.volume.ChannelDescriptor:
             Channel identifier in standard form.
 
         """
@@ -2663,7 +2664,7 @@ class Volume(_VolumeBase):
 
             return identifier
         elif isinstance(identifier, str):
-            for c in self.channel_identifiers:
+            for c in self.channel_descriptors:
                 if c.keyword == identifier:
                     return c
             else:
@@ -2673,7 +2674,7 @@ class Volume(_VolumeBase):
                 )
         elif isinstance(identifier, int):
             t = BaseTag(identifier)
-            for c in self.channel_identifiers:
+            for c in self.channel_descriptors:
                 if c.tag is not None and c.tag == t:
                     return c
             else:
@@ -2694,7 +2695,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        identifier: highdicom.volume.ChannelIdentifier | int | str
+        identifier: highdicom.volume.ChannelDescriptor | int | str
             Identifier. Strings will be matched against keywords and integers
             will be matched against tags.
 
@@ -2706,7 +2707,7 @@ class Volume(_VolumeBase):
         """
         identifier_obj = self._get_channel_identifier(identifier)
 
-        index = self.channel_identifiers.index(identifier_obj)
+        index = self.channel_descriptors.index(identifier_obj)
 
         return index
 
@@ -2718,7 +2719,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifier: highdicom.volume.ChannelIdentifier | int | str
+        channel_identifier: highdicom.volume.ChannelDescriptor | int | str
             Identifier of a channel within the image.
 
         Returns
@@ -2757,7 +2758,7 @@ class Volume(_VolumeBase):
             iden = self._get_channel_identifier(kw)
             cind = self._get_channel_index(iden)
 
-            iden = self.channel_identifiers[cind]
+            iden = self.channel_descriptors[cind]
             if iden.is_enumerated:
                 v = iden.value_type(v)
             elif not isinstance(v, iden.value_type):
@@ -2907,7 +2908,7 @@ class Volume(_VolumeBase):
 
     def squeeze_channel(
         self,
-        channel_identifiers: Sequence[
+        channel_descriptors: Sequence[
             int | str | BaseTag | ChannelDescriptor
         ] | None = None,
     ) -> Self:
@@ -2915,7 +2916,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifiers: Sequence[str | int | highdicom.volume.ChannelIdentifier] | None
+        channel_descriptors: Sequence[str | int | highdicom.volume.ChannelDescriptor] | None
             Identifiers of channels to squeeze. If ``None``, squeeze all
             singleton channels. Otherwise squeeze only the specified channels
             and raise an error if any cannot be squeezed.
@@ -2926,15 +2927,15 @@ class Volume(_VolumeBase):
             Volume with channel axis removed.
 
         """
-        if channel_identifiers is None:
-            channel_identifiers = self.channel_identifiers
+        if channel_descriptors is None:
+            channel_descriptors = self.channel_descriptors
             raise_error = False
         else:
             raise_error = True
-            channel_identifiers = [
-                ChannelDescriptor(iden) for iden in channel_identifiers
+            channel_descriptors = [
+                ChannelDescriptor(iden) for iden in channel_descriptors
             ]
-            for iden in channel_identifiers:
+            for iden in channel_descriptors:
                 if iden not in self._channels:
                     raise ValueError(
                         f'No channel with identifier: {iden}'
@@ -2942,8 +2943,8 @@ class Volume(_VolumeBase):
 
         to_squeeze = []
         new_channel_idens = []
-        for iden in channel_identifiers:
-            cind = self.channel_identifiers.index(iden)
+        for iden in channel_descriptors:
+            cind = self.channel_descriptors.index(iden)
             if self.channel_shape[cind] == 1:
                 to_squeeze.append(cind + 3)
             else:
@@ -3204,41 +3205,3 @@ class VolumeToVolumeTransformer:
                 raise ValueError("Bounds check failed.")
 
         return output_indices
-
-
-def volread(
-    fp: Union[str, bytes, PathLike, List[Union[str, PathLike]]],
-    glob: str = '*.dcm',
-) -> Volume:
-    """Read a volume from a file or list of files or file-like objects.
-
-    Parameters
-    ----------
-    fp: Union[str, bytes, os.PathLike]
-        Any file-like object, directory, list of file-like objects representing
-        a DICOM file or set of files.
-    glob: str, optional
-        Glob pattern used to find files within the direcotry in the case that
-        ``fp`` is a string or path that represents a directory. Follows the
-        format of the standard library glob ``module``.
-
-    Returns
-    -------
-    highdicom.volume.Volume
-        Volume formed from the specified image file(s).
-
-    """
-    if isinstance(fp, (str, PathLike)):
-        fp = Path(fp)
-    if isinstance(fp, Path) and fp.is_dir():
-        fp = list(fp.glob(glob))
-
-    if isinstance(fp, Sequence):
-        dcms = [dcmread(f) for f in fp]
-    else:
-        dcms = [dcmread(fp)]
-
-    if len(dcms) == 1 and is_multiframe_image(dcms[0]):
-        return Volume.from_image(dcms[0])
-
-    return Volume.from_image_series(dcms)

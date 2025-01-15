@@ -650,7 +650,7 @@ class Segmentation(_Image):
                     "'pixel_array' is a highdicom.Volume."
                 )
             if pixel_array.number_of_channel_dimensions == 1:
-                if pixel_array.channel_identifiers != (
+                if pixel_array.channel_descriptors != (
                     ChannelDescriptor('SegmentNumber'),
                 ):
                     raise ValueError(
