@@ -1239,7 +1239,7 @@ def test_imread_all_test_files(f):
     frame_lazy = im_lazy.get_frame(1)
     assert np.array_equal(frame, frame_lazy)
 
-    # Check multiple frames, also check the last frame
+    # If multiple frames, also check the last frame
     if im.number_of_frames > 1:
         frame = im.get_frame(im.number_of_frames)
         frame_lazy = im_lazy.get_frame(im.number_of_frames)
@@ -1262,3 +1262,9 @@ def test_imread_all_test_files(f):
 
             assert np.array_equal(vol.array, vol_lazy.array)
 
+    assert isinstance(im.pixel_array, np.ndarray)
+    assert np.array_equal(im.pixel_array, im_lazy.pixel_array)
+    assert im_lazy._pixel_array is not None
+
+    # Perform this check again to check the caching behavior
+    assert np.array_equal(im.pixel_array, im_lazy.pixel_array)

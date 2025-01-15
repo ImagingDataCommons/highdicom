@@ -91,7 +91,6 @@ logger = logging.getLogger(__name__)
 # TODO exports/inits and docs
 # TODO add labelmap to seg documentation
 # TODO quickstart for image/volume
-# TODO pixel_array for lazy retrieval
 # TODO tidy up missing frames parameters
 
 
@@ -1471,6 +1470,45 @@ class _Image(SOPClass):
         )
 
         return frame_transform(frame)
+
+    @property
+    def pixel_array(self):
+        """Get the full pixel array of stored values.
+
+        This method is consistent with the behavior of the pydicom Dataset
+        class, but additionally functions correctly when lazy frame retrieval
+        is used.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Full pixel array of stored values, ordered by frame number. Shape
+            is (frames, rows, columns, samples). The frame dimension is omitted
+            if it is equal to 1. The samples dimension is omitted for grayscale
+            images, and 3 for color images.
+
+        """
+        if self._file_reader is not None:
+            if self._pixel_array is None:
+                # Need to override pydicom's behavior here to perform lazy
+                # reading
+                if self.number_of_frames == 1:
+                    pixel_array = self.get_stored_frame(1)
+                else:
+                    pixel_array = np.stack(
+                        [
+                            self.get_stored_frame(i, as_index=True)
+                            for i in range(self.number_of_frames)
+                        ]
+                    )
+                self._pixel_array = pixel_array
+            else:
+                # pydicom will complain about missing PixelData even if
+                # self._pixel_array is alredy cached
+                return self._pixel_array
+
+        # Defer to pydicom
+        return super().pixel_array
 
     def __getstate__(self) -> Dict[str, Any]:
         """Get the state for pickling.
@@ -4322,7 +4360,6 @@ class Image(_Image):
                 apply_icc_profile=apply_icc_profile,
                 dtype=dtype,
             )
-
 
 def imread(
     fp: Union[str, bytes, PathLike, BinaryIO],
