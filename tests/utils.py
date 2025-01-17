@@ -47,14 +47,25 @@ def find_readable_images() -> list[str]:
 
     # Various files are not expected to work and should be excluded
     exclusions = [
-        "badVR.dcm",  # cannot be read due to bad VFR
-        "MR_truncated.dcm",  # pixel data is truncated
-        "liver_1frame.dcm",  # missing number of frames
-        "JPEG2000-embedded-sequence-delimiter.dcm",  # pydicom cannot decode pixels
-        "image_dfl.dcm",  # deflated transfer syntax cannot be read lazily
-        "JPEG-lossy.dcm",  # pydicom cannot decode pixels
-        "TINY_ALPHA",  # no pixels
-        "SC_rgb_jpeg.dcm",  # messed up transder syntax
+        # cannot be read due to bad VFR
+        "badVR.dcm",
+        # pixel data is truncated
+        "MR_truncated.dcm",
+        # missing number of frames
+        "liver_1frame.dcm",
+        # pydicom cannot decode pixels
+        "JPEG2000-embedded-sequence-delimiter.dcm",
+        # deflated transfer syntax cannot be read lazily
+        "image_dfl.dcm",
+        # pydicom cannot decode pixels
+        "JPEG-lossy.dcm",
+        # no pixels
+        "TINY_ALPHA",
+        # messed up transfer syntax
+        "SC_rgb_jpeg.dcm",
+        # Incorrect source image sequence. This can hopefully be added back
+        # after https://github.com/pydicom/pydicom/pull/2204
+        "SC_rgb_small_odd.dcm",
     ]
 
     files_to_use = []

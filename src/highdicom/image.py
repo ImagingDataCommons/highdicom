@@ -1624,8 +1624,15 @@ class _Image(SOPClass):
         self._is_tiled_full = False
         self._dim_ind_pointers = []
         self._dim_ind_col_names = {}
-        self._single_source_frame_per_frame = True
+        self._single_source_frame_per_frame = False
         self._locations_preserved = None
+        self._missing_reference_instances = []
+        referenced_uids = self._get_ref_instance_uids()
+        all_referenced_sops = {uids[2] for uids in referenced_uids}
+
+        col_defs = []
+        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
+        col_data = [[1]]
 
         if 'SourceImageSequence' in self:
             self._single_source_frame_per_frame = (
@@ -1647,10 +1654,21 @@ class _Image(SOPClass):
                 self._locations_preserved = (
                     SpatialLocationsPreservedValues.NO
                 )
-
-        col_defs = []
-        col_defs.append('FrameNumber INTEGER PRIMARY KEY')
-        col_data = [[1]]
+            if self._single_source_frame_per_frame:
+                ref_frame = self.SourceImageSequence[0].get('ReferencedFrameNumber')
+                ref_uid = self.SourceImageSequence[0].ReferencedSOPInstanceUID
+                if ref_uid not in all_referenced_sops:
+                    self._missing_reference_instances.append(ref_uid)
+                col_defs.append('ReferencedFrameNumber INTEGER')
+                col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
+                col_defs.append(
+                    'FOREIGN KEY(ReferencedSOPInstanceUID) '
+                    'REFERENCES InstanceUIDs(SOPInstanceUID)'
+                )
+                col_data += [
+                    [ref_frame],
+                    [ref_uid],
+                ]
 
         if (
             self._coordinate_system is not None and
@@ -1791,6 +1809,7 @@ class _Image(SOPClass):
                     )
 
         self._single_source_frame_per_frame = True
+        self._missing_reference_instances = []
 
         if self._is_tiled_full:
             # With TILED_FULL, there is no PerFrameFunctionalGroupsSequence,
@@ -1964,13 +1983,8 @@ class _Image(SOPClass):
                 else:
                     ref_instance_uid = frame_source_instances[0]
                     if ref_instance_uid not in all_referenced_sops:
-                        raise AttributeError(
-                            f'SOP instance {ref_instance_uid} referenced in '
-                            'the source image sequence is not included in the '
-                            'Referenced Series Sequence or Studies Containing '
-                            'Other Referenced Instances Sequence. This is an '
-                            'error with the integrity of the '
-                            'object.'
+                        self._missing_reference_instances.append(
+                            ref_instance_uid
                         )
                     referenced_instances.append(ref_instance_uid)
                     referenced_frames.append(frame_source_frames[0])
@@ -2247,28 +2261,41 @@ class _Image(SOPClass):
 
         """
         instance_data = []
-        if hasattr(self, 'ReferencedSeriesSequence'):
-            for ref_series in self.ReferencedSeriesSequence:
-                for ref_ins in ref_series.ReferencedInstanceSequence:
-                    instance_data.append(
-                        (
-                            self.StudyInstanceUID,
-                            ref_series.SeriesInstanceUID,
-                            ref_ins.ReferencedSOPInstanceUID
-                        )
-                    )
-        other_studies_kw = 'StudiesContainingOtherReferencedInstancesSequence'
-        if hasattr(self, other_studies_kw):
-            for ref_study in getattr(self, other_studies_kw):
-                for ref_series in ref_study.ReferencedSeriesSequence:
-                    for ref_ins in ref_series.ReferencedInstanceSequence:
-                        instance_data.append(
-                            (
-                                ref_study.StudyInstanceUID,
-                                ref_series.SeriesInstanceUID,
-                                ref_ins.ReferencedSOPInstanceUID,
+
+        def _include_sequence(seq):
+            for ds in seq:
+                if hasattr(ds, 'ReferencedSeriesSequence'):
+                    for ref_series in ds.ReferencedSeriesSequence:
+
+                        # Two different sequences are used here, depending on
+                        # which particular top sequence level sequence we are
+                        # in
+                        if 'ReferencedSOPSequence' in ref_series:
+                            instance_sequence = (
+                                ref_series.ReferencedSOPSequence
                             )
-                        )
+                        else:
+                            instance_sequence = (
+                                ref_series.ReferencedInstanceSequence
+                            )
+
+                        for ref_ins in instance_sequence:
+                            instance_data.append(
+                                (
+                                    ds.StudyInstanceUID,
+                                    ref_series.SeriesInstanceUID,
+                                    ref_ins.ReferencedSOPInstanceUID
+                                )
+                            )
+
+        # Include the "main" referenced series sequence
+        _include_sequence([self])
+        for kw in [
+            'StudiesContainingOtherReferencedInstancesSequence',
+            'SourceImageEvidenceSequence'
+        ]:
+            if hasattr(self, kw):
+                _include_sequence(getattr(self, kw))
 
         # There shouldn't be duplicates here, but there's no explicit rule
         # preventing it.
@@ -2459,6 +2486,15 @@ class _Image(SOPClass):
             for every image instance referenced in the image.
 
         """
+        for ref_instance_uid in self._missing_reference_instances:
+            logger.warning(
+                f'SOP instances {ref_instance_uid} referenced in the source '
+                'image sequence is not included in the Referenced Series '
+                'Sequence, Source Image Evidence Sequence, or Studies Containing '
+                'Other Referenced Instances Sequence. This is an error with the '
+                'integrity of the object. This instance will be omitted from '
+                'the returned list. '
+            )
         cur = self._db_con.cursor()
         res = cur.execute(
             'SELECT StudyInstanceUID, SeriesInstanceUID, SOPInstanceUID '

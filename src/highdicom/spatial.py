@@ -1193,15 +1193,15 @@ def create_affine_matrix_from_attributes(
         coordinate system.
 
     """  # noqa: E501
-    if not isinstance(image_position, Sequence):
+    if not isinstance(image_position, (Sequence, np.ndarray)):
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
         raise ValueError('Argument "image_position" must have length 3.')
-    if not isinstance(image_orientation, Sequence):
+    if not isinstance(image_orientation, (Sequence, np.ndarray)):
         raise TypeError('Argument "image_orientation" must be a sequence.')
     if len(image_orientation) != 6:
         raise ValueError('Argument "image_orientation" must have length 6.')
-    if not isinstance(pixel_spacing, Sequence):
+    if not isinstance(pixel_spacing, (Sequence, np.ndarray)):
         raise TypeError('Argument "pixel_spacing" must be a sequence.')
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
