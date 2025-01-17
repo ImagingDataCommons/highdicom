@@ -35,10 +35,6 @@ from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
 from pydicom.uid import ParametricMapStorage
 
-from highdicom._value_types import (
-    _DCM_PYTHON_TYPE_MAP,
-    _DCM_SQL_TYPE_MAP,
-)
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
@@ -74,6 +70,7 @@ from highdicom.utils import (
     iter_tiled_full_frame_data,
 )
 from highdicom.volume import (
+    _DCM_PYTHON_TYPE_MAP,
     VolumeGeometry,
     Volume,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
@@ -81,6 +78,29 @@ from highdicom.volume import (
 
 
 logger = logging.getLogger(__name__)
+
+
+# Dictionary mapping DCM VRs to appropriate SQLite types
+_DCM_SQL_TYPE_MAP = {
+    'CS': 'VARCHAR',
+    'DS': 'REAL',
+    'FD': 'REAL',
+    'FL': 'REAL',
+    'IS': 'INTEGER',
+    'LO': 'TEXT',
+    'LT': 'TEXT',
+    'PN': 'TEXT',
+    'SH': 'TEXT',
+    'SL': 'INTEGER',
+    'SS': 'INTEGER',
+    'ST': 'TEXT',
+    'UI': 'TEXT',
+    'UL': 'INTEGER',
+    'UR': 'TEXT',
+    'US or SS': 'INTEGER',
+    'US': 'INTEGER',
+    'UT': 'TEXT',
+}
 
 
 # TODO new type hints
@@ -92,6 +112,7 @@ logger = logging.getLogger(__name__)
 # TODO add labelmap to seg documentation
 # TODO quickstart for image/volume
 # TODO tidy up missing frames parameters
+# TODO check with nifti conversion
 
 
 class _ImageColorType(Enum):

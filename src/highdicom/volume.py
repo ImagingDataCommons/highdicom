@@ -2,17 +2,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from os import PathLike
-from pathlib import Path
 from typing import List, Optional, Sequence, Union, Tuple, cast
 from pydicom.tag import BaseTag
 from typing_extensions import Self
 
 import numpy as np
 
-from highdicom._value_types import (
-    _DCM_PYTHON_TYPE_MAP
-)
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -21,18 +16,17 @@ from highdicom.enum import (
     RGBColorChannels,
 )
 from highdicom.spatial import (
-    create_affine_matrix_from_attributes,
+    PATIENT_ORIENTATION_OPPOSITES,
+    VOLUME_INDEX_CONVENTION,
+    _DEFAULT_EQUALITY_TOLERANCE,
     _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _stack_affine_matrix,
     _transform_affine_matrix,
     _translate_affine_matrix,
-    _DEFAULT_EQUALITY_TOLERANCE,
-    PATIENT_ORIENTATION_OPPOSITES,
-    VOLUME_INDEX_CONVENTION,
+    create_affine_matrix_from_attributes,
     create_affine_matrix_from_components,
     get_closest_patient_orientation,
-    rotation_for_patient_orientation,
 )
 from highdicom.content import (
     PixelMeasuresSequence,
@@ -52,6 +46,28 @@ from pydicom.datadict import (
 # TODO volread and metadata
 # TODO constructors for geometry, do they make sense for volume?
 # TODO tidy up channel/dimension terminology
+
+
+_DCM_PYTHON_TYPE_MAP = {
+    'CS': str,
+    'DS': float,
+    'FD': float,
+    'FL': float,
+    'IS': int,
+    'LO': str,
+    'LT': str,
+    'PN': str,
+    'SH': str,
+    'SL': int,
+    'SS': int,
+    'ST': str,
+    'UI': str,
+    'UL': int,
+    'UR': str,
+    'US or SS': int,
+    'US': int,
+    'UT': str,
+}
 
 
 class ChannelDescriptor:

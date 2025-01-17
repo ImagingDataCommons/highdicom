@@ -1,5 +1,4 @@
 """Functional interface for pixel transformations."""
-from enum import Enum
 from typing import Optional, Union, Tuple
 
 import numpy as np
