@@ -1423,7 +1423,7 @@ def create_affine_matrix_from_components(
         this matrix gives the (x, y, z, 1) position in the frame-of-reference
         coordinate system.
 
-    """
+    """  # noqa: E501
     if (direction is None) == (patient_orientation is None):
         raise TypeError(
             "Exactly one of 'direction' or 'patient_orientation' must be "
@@ -3559,8 +3559,8 @@ def get_volume_positions(
         spacings = np.diff(origin_distances_sorted)
 
         spacing = (
-            (origin_distances_sorted[-1] - origin_distances_sorted[0])
-            / (len(origin_distances_sorted) - 1)
+            (origin_distances_sorted[-1] - origin_distances_sorted[0]) /
+            (len(origin_distances_sorted) - 1)
         )
 
         if spacing_hint is not None:

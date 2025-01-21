@@ -877,7 +877,8 @@ class Segmentation(_Image):
                 lut_end = lut_start + lut_entries
 
                 if (
-                    (lut_start > 0) or lut_end <= described_segment_numbers.max()
+                    (lut_start > 0) or
+                    lut_end <= described_segment_numbers.max()
                 ):
                     raise ValueError(
                         'The labelmap provided does not have entries '
@@ -1258,9 +1259,10 @@ class Segmentation(_Image):
             # receiver more information about how to reconstruct a volume
             # from the frames in the case that slices are omitted
             if 'SpacingBetweenSlices' not in pixel_measures[0]:
+                ori = plane_orientation[0].ImageOrientationPatient
                 slice_spacing, _ = get_volume_positions(
                     image_positions=plane_position_values[:, 0, :],
-                    image_orientation=plane_orientation[0].ImageOrientationPatient,
+                    image_orientation=ori,
                 )
                 if slice_spacing is not None:
                     pixel_measures[0].SpacingBetweenSlices = slice_spacing
@@ -1348,17 +1350,18 @@ class Segmentation(_Image):
             if (
                 len(included_plane_indices) > 1 and
                 (
-                    segmentation_type == SegmentationTypeValues.LABELMAP
-                    or len(described_segment_numbers) == 1
+                    segmentation_type == SegmentationTypeValues.LABELMAP or
+                    len(described_segment_numbers) == 1
                 )
             ):
                 # Calculate the spacing using only the included planes, and
                 # enfore ordering
+                ori = plane_orientation[0].ImageOrientationPatient
                 spacing, _ = get_volume_positions(
                     image_positions=plane_position_values[
                         included_plane_indices, 0, :
                     ],
-                    image_orientation=plane_orientation[0].ImageOrientationPatient,
+                    image_orientation=ori,
                     sort=False,
                 )
                 if spacing is not None and spacing > 0.0:
@@ -1580,8 +1583,8 @@ class Segmentation(_Image):
                                 raise IndexError(
                                     'Could not determine position of plane '
                                     f'#{plane_index} in three dimensional '
-                                    'coordinate system based on dimension index '
-                                    f'values: {error}'
+                                    'coordinate system based on dimension '
+                                    f'index values: {error}'
                                 ) from error
                         else:
                             dimension_index_values = [plane_dim_ind]
@@ -2191,10 +2194,14 @@ class Segmentation(_Image):
                     # and BINARY segmentations). In this case it is sufficient
                     # to check the max pixel value, which is MUCH more
                     # efficient than calculating the set of unique values
-                    has_undescribed_segments = pixel_array.max() > number_of_segments
+                    has_undescribed_segments = (
+                        pixel_array.max() > number_of_segments
+                    )
                 else:
                     # The general case, much slower
-                    numbers_with_bg = np.concatenate([np.array([0]), segment_numbers])
+                    numbers_with_bg = np.concatenate(
+                        [np.array([0]), segment_numbers]
+                    )
                     has_undescribed_segments = len(
                         np.setdiff1d(pixel_array, numbers_with_bg)
                     ) != 0
@@ -3326,8 +3333,8 @@ class Segmentation(_Image):
         if apply_palette_color_lut:
             if not combine_segments or relabel:
                 raise ValueError(
-                    "'apply_palette_color_lut' requires that 'combine_segments' "
-                    "is True and relabel is False."
+                    "'apply_palette_color_lut' requires that "
+                    "'combine_segments' is True and relabel is False."
                 )
         else:
             apply_icc_profile = False
@@ -3469,7 +3476,12 @@ class Segmentation(_Image):
             )
 
             # Loop over the supplied iterable
-            for (frame_index, input_indexer, output_indexer, seg_n) in indices_iterator:
+            for (
+                frame_index,
+                input_indexer,
+                output_indexer,
+                seg_n
+            ) in indices_iterator:
                 pix_value = intermediate_dtype.type(seg_n[0])
 
                 pixel_array = self.get_stored_frame(frame_index + 1)
@@ -3477,7 +3489,8 @@ class Segmentation(_Image):
 
                 if self.segmentation_type == SegmentationTypeValues.FRACTIONAL:
                     # Combining fractional segs is only possible if there are
-                    # two unique values in the array: 0 and MaximumFractionalValue
+                    # two unique values in the array: 0 and
+                    # MaximumFractionalValue
                     is_binary = np.isin(
                         np.unique(pixel_array),
                         np.array([0, self.MaximumFractionalValue]),
@@ -3485,9 +3498,9 @@ class Segmentation(_Image):
                     ).all()
                     if not is_binary:
                         raise ValueError(
-                            'Combining segments of a FRACTIONAL segmentation is '
-                            'only possible if the pixel array contains only 0s '
-                            'and the specified MaximumFractionalValue '
+                            'Combining segments of a FRACTIONAL segmentation '
+                            'is only possible if the pixel array contains only '
+                            'zeros and the specified MaximumFractionalValue '
                             f'({self.MaximumFractionalValue}).'
                         )
                     pixel_array = pixel_array // self.MaximumFractionalValue
@@ -4221,8 +4234,9 @@ class Segmentation(_Image):
 
         Note that this differs from the method of the same name on the
         :class:`highdicom.Image` base class only by a change of default value
-        of the ``allow_missing_positions`` parameter to reflect the fact that
-        empty frames are often omitted from segmentation images.
+        of the ``allow_missing_positions`` parameter to to ``True``. This
+        reflects the fact that empty frames are often omitted from segmentation
+        images.
 
         Parameters
         ----------
@@ -4382,9 +4396,9 @@ class Segmentation(_Image):
             an error is raised.
         rtol: float | None, optional
             Relative tolerance for determining spacing regularity. If slice
-            spacings vary by less that this proportion of the average spacing, they
-            are considered to be regular. If neither ``rtol`` or ``atol`` are
-            provided, a default relative tolerance of 0.01 is used.
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
         atol: float | None, optional
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they

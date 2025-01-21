@@ -358,7 +358,7 @@ def decode_frame(
     bits_stored: int,
     photometric_interpretation: Union[PhotometricInterpretationValues, str],
     pixel_representation: Union[PixelRepresentationValues, int] = 0,
-    planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None,
+    planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
 ) -> np.ndarray:
     """Decode pixel data of an individual frame.
@@ -397,7 +397,6 @@ def decode_frame(
         the byte array. In all other situtations, this parameter is not
         required and will have no effect (since decoding a frame does not
         depend on the index of the frame).
-
 
     Returns
     -------

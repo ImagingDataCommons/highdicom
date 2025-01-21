@@ -396,7 +396,7 @@ class _CombinedPixelTransformation:
             require_palette_color = use_palette_color
 
         if (
-            require_palette_color and self._color_type != 
+            require_palette_color and self._color_type !=
             _ImageColorType.PALETTE_COLOR
         ):
             raise ValueError(
@@ -452,8 +452,8 @@ class _CombinedPixelTransformation:
         # Determine input type and range of values
         input_range = None
         if (
-            image.SOPClassUID == ParametricMapStorage
-            and image.BitsAllocated > 16
+            image.SOPClassUID == ParametricMapStorage and
+            image.BitsAllocated > 16
         ):
             # Parametric Maps are the only SOP Class (currently) that allows
             # floating point pixels
@@ -695,7 +695,7 @@ class _CombinedPixelTransformation:
                                     raise IndexError(
                                         "Requested 'voi_transform_selector' is "
                                         'not present.'
-                                 )
+                                    )
                                 self.applies_to_all_frames = (
                                     self.applies_to_all_frames and is_shared
                                 )
@@ -1279,7 +1279,7 @@ class _Image(SOPClass):
         self,
         frame_number: int,
         as_index: bool = False,
-    )-> np.ndarray:
+    ) -> np.ndarray:
         """Get a single frame of stored values.
 
         Stored values are the pixel values stored within the dataset. They have
@@ -1925,8 +1925,8 @@ class _Image(SOPClass):
                     # Check this wasn't already found in the shared functional
                     # groups
                     if (
-                        len(extra_collection_values[ptr])
-                        == self.number_of_frames
+                        len(extra_collection_values[ptr]) ==
+                        self.number_of_frames
                     ):
                         continue
 
@@ -2841,7 +2841,6 @@ class _Image(SOPClass):
 
         return table_def, geometry
 
-
     def get_volume_geometry(
         self,
         *,
@@ -3489,7 +3488,7 @@ class _Image(SOPClass):
         ):
             channel_table_name = f'TemporaryChannelTable{i}'
             channel_column_defs = (
-                [f'OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
                 [
                     f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
                     for c in channel_indices_dict.keys()
@@ -3599,7 +3598,7 @@ class _Image(SOPClass):
                     int,  # frame index
                     Tuple[slice, slice],  # input indexer
                     Tuple[int, slice, slice],  # output indexer
-                    Tuple[int, ...], # channel indexer
+                    Tuple[int, ...],  # channel indexer
                 ]
             ],
             None,
@@ -4912,6 +4911,7 @@ class Image(_Image):
                 apply_icc_profile=apply_icc_profile,
                 dtype=dtype,
             )
+
 
 def imread(
     fp: Union[str, bytes, PathLike, BinaryIO],

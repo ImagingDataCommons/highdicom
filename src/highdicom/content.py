@@ -3,14 +3,12 @@ from collections import Counter
 import datetime
 from copy import deepcopy
 from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
-from pydicom.multival import MultiValue
 from typing_extensions import Self
 
 import numpy as np
 from PIL import ImageColor
 from pydicom.dataset import Dataset
 from pydicom import DataElement
-from pydicom.multival import MultiValue
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes

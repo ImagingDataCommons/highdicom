@@ -580,7 +580,7 @@ def _select_real_world_value_map(
         Either an item of the input sequence that matches the selector, or
         ``None`` if no such item is found.
 
-    """
+    """  # noqa: E501
     if isinstance(selector, int):
         try:
             item = sequence[selector]
