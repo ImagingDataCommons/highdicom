@@ -1011,6 +1011,14 @@ def test_get_spacing_missing():
     assert np.isclose(spacing, expected_spacing)
     assert volume_positions == position_indices.tolist()
 
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=False
+    )
+    assert spacing is None
+    assert volume_positions is None
+
 
 def test_get_spacing_missing_duplicates():
     # Test ability to determine spacing and volume positions with missing
@@ -1028,6 +1036,14 @@ def test_get_spacing_missing_duplicates():
         positions,
         orientation,
         allow_missing_positions=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicate_positions=True,
     )
     assert spacing is None
     assert volume_positions is None
@@ -1073,6 +1089,30 @@ def test_get_spacing_missing_duplicates_non_consecutive():
     )
     assert np.isclose(spacing, expected_spacing)
     assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_coplanar():
+    # Check that coplanar points are not considered a volume
+    positions = [
+        [0.0, 0.0, 10.0],
+        [1.0, 1.0, 10.0],  # Coplanar position
+        [0.0, 0.0, 11.0],
+        [0.0, 0.0, 12.0],
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Regardless of values of allow_missing_positions and
+    # allow_duplicate_positions, this is not a volume
+    for allow_duplicate_positions in [False, True]:
+        for allow_missing_positions in [False, True]:
+            spacing, volume_positions = get_volume_positions(
+                positions,
+                orientation,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+            )
+            assert spacing is None
+            assert volume_positions is None
 
 
 def test_transform_affine_matrix():

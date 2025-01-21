@@ -3495,18 +3495,17 @@ def get_volume_positions(
         handedness=handedness,
     )
 
-    if allow_duplicate_positions:
-        # Unique index specifies, for each position in the input positions
-        # array, the position in the unique_positions array of the
-        # de-duplicated position
-        unique_positions, unique_index = np.unique(
-            image_positions_arr,
-            axis=0,
-            return_inverse=True,
-        )
-    else:
-        unique_positions = image_positions_arr
-        unique_index = np.arange(image_positions_arr.shape[0])
+    # Unique index specifies, for each position in the input positions
+    # array, the position in the unique_positions array of the
+    # de-duplicated position
+    unique_positions, unique_index = np.unique(
+        image_positions_arr,
+        axis=0,
+        return_inverse=True,
+    )
+    if not allow_duplicate_positions:
+        if unique_positions.shape[0] < image_positions_arr.shape[0]:
+            return None, None
 
     if len(unique_positions) == 1:
         # Special case, we stipulate that this has spacing 1.0
