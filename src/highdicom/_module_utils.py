@@ -317,6 +317,6 @@ def is_multiframe_image(dataset: Dataset):
 
     """
     return is_attribute_in_iod(
-        'PerFrameFunctionalGroupsSequence',
+        'NumberOfFrames',
         dataset.SOPClassUID,
     )

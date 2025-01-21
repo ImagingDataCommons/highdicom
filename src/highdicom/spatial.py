@@ -3191,10 +3191,12 @@ def are_points_coplanar(
 
 def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
-    tol: float = _DEFAULT_SPACING_RELATIVE_TOLERANCE,
+    *,
+    rtol: float | None = None,
+    atol: float | None = None,
     sort: bool = True,
-    allow_missing: bool = False,
-    allow_duplicates: bool = False,
+    allow_missing_positions: bool = False,
+    allow_duplicate_positions: bool = False,
     index_convention: Union[
         str,
         Sequence[Union[PixelIndexDirections, str]]
@@ -3221,25 +3223,30 @@ def get_series_volume_positions(
     ----------
     datasets: Sequence[pydicom.Dataset]
         Set of datasets representing an imaging series.
-    tol: float
+    rtol: float | None, optional
         Relative tolerance for determining spacing regularity. If slice
         spacings vary by less that this proportion of the average spacing, they
-        are considered to be regular.
+        are considered to be regular. If neither ``rtol`` or ``atol`` are
+        provided, a default relative tolerance of 0.01 is used.
+    atol: float | None, optional
+        Absolute tolerance for determining spacing regularity. If slice
+        spacings vary by less that this value (in mm), they
+        are considered to be regular. Incompatible with ``rtol``.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    allow_missing: bool, optional
+    allow_missing_postions: bool, optional
         Allow for slices missing from the volume. If True, the smallest
         distance between two consective slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of
         this value (within tolerance). Alternatively, if a SpacingBetweenSlices
         value is found in the datasets, that value will be used instead of the
         minimum consecutive spacing. If False, any gaps will result in failure.
-    allow_duplicates: bool, optional
-        Allow multiple slices to map to the same position within the volume.
-        If False, duplicated image positions will result in failure.
+    allow_duplicate_positions: bool, optional
+        Allow multiple slices to occupy the same position within the volume. If
+        False, duplicated image positions will result in failure.
     index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
         Convention used to determine how to order frames. Should be a sequence
         of two :class:`highdicom.enum.PixelIndexDirections` or their string
@@ -3307,10 +3314,11 @@ def get_series_volume_positions(
     return get_volume_positions(
         image_positions=positions,
         image_orientation=image_orientation,
-        tol=tol,
+        rtol=rtol,
+        atol=atol,
         sort=sort,
-        allow_duplicates=allow_duplicates,
-        allow_missing=allow_missing,
+        allow_duplicate_positions=allow_duplicate_positions,
+        allow_missing_positions=allow_missing_positions,
         spacing_hint=spacing_hint,
         index_convention=index_convention,
         handedness=handedness,
@@ -3321,10 +3329,12 @@ def get_series_volume_positions(
 def get_volume_positions(
     image_positions: Sequence[Sequence[float]],
     image_orientation: Sequence[float],
-    tol: float = _DEFAULT_SPACING_RELATIVE_TOLERANCE,
+    *,
+    rtol: float | None = None,
+    atol: float | None = None,
     sort: bool = True,
-    allow_missing: bool = False,
-    allow_duplicates: bool = False,
+    allow_missing_positions: bool = False,
+    allow_duplicate_positions: bool = False,
     spacing_hint: Optional[float] = None,
     index_convention: Union[
         str,
@@ -3358,24 +3368,29 @@ def get_volume_positions(
         Image orientation as direction cosine values taken directly from the
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
-    tol: float, optional
+    rtol: float, optional
         Relative tolerance for determining spacing regularity. If slice
         spacings vary by less that this proportion of the average spacing, they
-        are considered to be regular.
+        are considered to be regular. If neither ``rtol`` or ``atol`` are
+        provided, a default relative tolerance of 0.01 is used.
+    atol: float, optional
+        Absolute tolerance for determining spacing regularity. If slice
+        spacings vary by less that this value (in mm), they
+        are considered to be regular. Incompatible with ``rtol``.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    allow_missing: bool, optional
+    allow_missing_positions: bool, optional
         Allow for slices missing from the volume. If True, the smallest
         distance between two consective slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of
         this value (within tolerance). Alternatively, if ``spacing_hint`` is
         used, that value will be used instead of the minimum consecutive
         spacing. If False, any gaps will result in failure.
-    allow_duplicates: bool, optional
-        Allow multiple slices to map to the same position within the volume.
+    allow_duplicate_positions: bool, optional
+        Allow multiple slices to occupy the same position within the volume.
         If False, duplicated image positions will result in failure.
     spacing_hint: Union[float, None], optional
         Expected spacing between slices. If the calculated value is not equal
@@ -3387,7 +3402,7 @@ def get_volume_positions(
     index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
         Convention used to determine how to order frames. Should be a sequence
         of two :class:`highdicom.enum.PixelIndexDirections` or their string
-        representations, giving in order, the indexing conventions used for
+        representations, giving, in order, the indexing conventions used for
         specifying pixel indices. For example ``('R', 'D')`` means that the
         first pixel index indexes the columns from left to right, and the
         second pixel index indexes the rows from top to bottom (this is the
@@ -3403,8 +3418,8 @@ def get_volume_positions(
         the positive direction used to order frames.
     handedness: Union[highdicom.enum.AxisHandedness, str], optional
         Choose the frame order in order such that the frame axis creates a
-        coordinate system with this handedness in the when combined with
-        the within-frame convention given by ``index_convention``.
+        coordinate system with this handedness when combined with the
+        within-frame convention given by ``index_convention``.
     enforce_handedness: bool, optional
         If True and sort is False, require that the images are not only
         regularly spaced but also that they are ordered correctly to give a
@@ -3428,11 +3443,11 @@ def get_volume_positions(
 
     """  # noqa: E501
     if not sort:
-        if allow_duplicates:
+        if allow_duplicate_positions:
             raise ValueError(
                 "Argument 'allow_duplicates' requires 'sort'."
             )
-        if allow_missing:
+        if allow_missing_positions:
             raise ValueError(
                 "Argument 'allow_missing' requires 'sort'."
             )
@@ -3443,6 +3458,19 @@ def get_volume_positions(
             spacing_hint = abs(spacing_hint)
         if spacing_hint == 0.0:
             raise ValueError("Argument 'spacing_hint' cannot be 0.")
+
+    if atol is not None and rtol is not None:
+        raise TypeError(
+            "Arguments 'rtol' and 'atol' may not be provided together."
+        )
+    elif atol is not None:
+        rtol = 0.0
+    elif rtol is not None:
+        atol = 0.0
+    else:
+        # Default situation. Just use rtol
+        rtol = _DEFAULT_SPACING_RELATIVE_TOLERANCE
+        atol = 0.0
 
     image_positions_arr = np.array(image_positions)
 
@@ -3467,7 +3495,7 @@ def get_volume_positions(
         handedness=handedness,
     )
 
-    if allow_duplicates:
+    if allow_duplicate_positions:
         # Unique index specifies, for each position in the input positions
         # array, the position in the unique_positions array of the
         # de-duplicated position
@@ -3501,7 +3529,7 @@ def get_volume_positions(
         origin_distances_sorted = origin_distances
         inverse_sort_index = sort_index
 
-    if allow_missing:
+    if allow_missing_positions:
         if spacing_hint is not None:
             spacing = spacing_hint
         else:
@@ -3521,17 +3549,27 @@ def get_volume_positions(
         is_regular = np.allclose(
             origin_distance_multiples,
             origin_distance_multiples.round(),
-            rtol=tol
+            rtol=rtol,
+            atol=atol,
         )
 
         inverse_sort_index = origin_distance_multiples.round().astype(np.int64)
 
     else:
         spacings = np.diff(origin_distances_sorted)
-        spacing = spacings.mean()
+
+        spacing = (
+            (origin_distances_sorted[-1] - origin_distances_sorted[0])
+            / (len(origin_distances_sorted) - 1)
+        )
 
         if spacing_hint is not None:
-            if not np.isclose(abs(spacing), spacing_hint):
+            if not np.isclose(
+                abs(spacing),
+                spacing_hint,
+                rtol=rtol,
+                atol=atol,
+            ):
                 raise RuntimeError(
                     f"Inferred spacing ({abs(spacing):.3f}) does not match the "
                     f"given 'spacing_hint' ({spacing_hint})."
@@ -3540,7 +3578,8 @@ def get_volume_positions(
         is_regular = np.isclose(
             spacings,
             spacing,
-            rtol=tol
+            rtol=rtol,
+            atol=atol,
         ).all()
 
     if is_regular and enforce_handedness:

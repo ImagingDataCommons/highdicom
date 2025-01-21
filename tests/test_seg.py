@@ -4970,16 +4970,14 @@ class TestSegmentationParsing:
 
         # There are no missing frames when indexing with this limited number of
         # source UIDs
-        pixels = self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+        self._ct_binary_overlap_seg.get_pixels_by_source_instance(
             source_sop_instance_uids=source_sop_uids,
             allow_missing_frames=False,
         )
 
         # There are missing frames when indexing by volume position
         msg = (
-            'The requested set of frames includes frames that '
-            'are missing from the image. You may need to allow '
-            'missing frames or add additional filters.'
+            'Frame positions do not form a regularly-spaced volume.'
         )
         with pytest.raises(RuntimeError, match=msg):
             self._ct_binary_overlap_seg.get_volume(
@@ -4998,7 +4996,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_seg
@@ -5025,7 +5023,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5052,7 +5050,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5082,7 +5080,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5111,7 +5109,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5140,7 +5138,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5169,7 +5167,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5198,7 +5196,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5228,7 +5226,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5297,7 +5295,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.volume_geometry.spacing_between_slices
+            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_seg
@@ -5323,7 +5321,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
+            self._ct_true_fractional_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg
@@ -5350,7 +5348,7 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.volume_geometry.spacing_between_slices
+            self._ct_true_fractional_seg.get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg

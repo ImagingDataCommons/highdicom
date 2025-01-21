@@ -1109,7 +1109,6 @@ class _Image(SOPClass):
     _dim_ind_col_names: Dict[int, Tuple[str, Union[str, Tuple[str, ...], None]]]
     _locations_preserved: Optional[SpatialLocationsPreservedValues]
     _db_con: sqlite3.Connection
-    _volume_geometry: Optional[VolumeGeometry]
     _file_reader: ImageFileReader | None
 
     @classmethod
@@ -1634,6 +1633,27 @@ class _Image(SOPClass):
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
         col_data = [[1]]
 
+        for t in [
+            0x0020_0032,  # ImagePositionPatient
+            0x0020_0037,  # ImageOrientionPatient
+            0x0028_0030,  # PixelSpacing
+            0x0018_0088,  # SpacingBetweenSlices
+        ]:
+            vr, vm_str, _, _, kw = get_entry(t)
+
+            vm = int(vm_str)
+            sql_type = _DCM_SQL_TYPE_MAP[vr]
+
+            if kw in self:
+                v = self.get(kw)
+                if vm > 1:
+                    for i, v in enumerate(v):
+                        col_defs.append(f'{kw}_{i} {sql_type} NOT NULL')
+                        col_data.append([v])
+                else:
+                    col_defs.append(f'{kw} {sql_type} NOT NULL')
+                    col_data.append([v])
+
         if 'SourceImageSequence' in self:
             self._single_source_frame_per_frame = (
                 len(self.SourceImageSequence) == 1
@@ -1669,29 +1689,6 @@ class _Image(SOPClass):
                     [ref_frame],
                     [ref_uid],
                 ]
-
-        if (
-            self._coordinate_system is not None and
-            self._coordinate_system == CoordinateSystemNames.PATIENT and
-            'ImagePositionPatient' in self
-        ):
-            position = self.ImagePositionPatient
-            orientation = self.ImageOrientationPatient
-
-            self._volume_geometry = VolumeGeometry.from_attributes(
-                image_position=position,
-                image_orientation=orientation,
-                rows=self.Rows,
-                columns=self.Columns,
-                pixel_spacing=self.PixelSpacing,
-                number_of_frames=1,
-                spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
-                coordinate_system=self._coordinate_system,
-            )
-            col_defs.append('VolumePosition INTEGER NOT NULL')
-            col_data.append([0])
-        else:
-            self._volume_geometry = None
 
         referenced_uids = self._get_ref_instance_uids()
         self._db_con = sqlite3.connect(":memory:")
@@ -1739,39 +1736,12 @@ class _Image(SOPClass):
                 for i, dim_ind in enumerate(self.DimensionIndexSequence)
             }
 
-        # We may want to gather additional information that is not one of the
-        # indices
-        extra_collection_pointers = []
-        extra_collection_func_pointers = {}
-        slice_spacing_hint = None
-        image_position_tag = tag_for_keyword('ImagePositionPatient')
-        shared_pixel_spacing: Optional[List[float]] = None
-        if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            plane_pos_seq_tag = tag_for_keyword('PlanePositionSequence')
-            # Include the image position if it is not an index
-            if image_position_tag not in self._dim_ind_pointers:
-                extra_collection_pointers.append(image_position_tag)
-                extra_collection_func_pointers[
-                    image_position_tag
-                ] = plane_pos_seq_tag
-
-            if hasattr(self, 'SharedFunctionalGroupsSequence'):
-                sfgs = self.SharedFunctionalGroupsSequence[0]
-                if hasattr(sfgs, 'PixelMeasuresSequence'):
-                    measures = sfgs.PixelMeasuresSequence[0]
-                    slice_spacing_hint = measures.get('SpacingBetweenSlices')
-                    shared_pixel_spacing = measures.get('PixelSpacing')
-            if slice_spacing_hint is None or shared_pixel_spacing is None:
-                # Get the orientation of the first frame, and in the later loop
-                # check whether it is shared.
-                if hasattr(self, 'PerFrameFunctionalGroupsSequence'):
-                    pfg1 = self.PerFrameFunctionalGroupsSequence[0]
-                    if hasattr(pfg1, 'PixelMeasuresSequence'):
-                        measures = pfg1.PixelMeasuresSequence[0]
-                        slice_spacing_hint = measures.get(
-                            'SpacingBetweenSlices'
-                        )
-                        shared_pixel_spacing = measures.get('PixelSpacing')
+        sfgs = None
+        first_pffgs = None
+        if 'SharedFunctionalGroupsSequence' in self:
+            sfgs = self.SharedFunctionalGroupsSequence[0]
+        if 'PerFrameFunctionalGroupsSequence' in self:
+            first_pffgs = self.PerFrameFunctionalGroupsSequence[0]
 
         dim_indices: Dict[int, List[int]] = {
             ptr: [] for ptr in self._dim_ind_pointers
@@ -1780,33 +1750,83 @@ class _Image(SOPClass):
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
-        extra_collection_values: Dict[int, List[Any]] = {
-            ptr: [] for ptr in extra_collection_pointers
-        }
+        # Additional information that is not one of the indices
+        extra_collection_pointers = []
+        extra_collection_func_pointers = {}
+        extra_collection_values: Dict[int, List[Any]] = {}
+
+        for grp_ptr, ptr in [
+            # PlanePositionSequence/ImagePositionPatient
+            (0x0020_9113, 0x0020_0032),
+            # PlaneOrientationSequence/ImageOrientationPatient
+            (0x0020_9116, 0x0020_0037),
+            # PixelMeasuresSequence/PixelSpacing
+            (0x0028_9110, 0x0028_0030),
+            # PixelMeasuresSequence/SpacingBetweenSlices
+            (0x0028_9110, 0x0018_0088),
+            # FrameContentSequence/StackID
+            (0x0020_9111, 0x0020_9056),
+            # FrameContentSequence/InStackPositionNumber
+            (0x0020_9111, 0x0020_9057),
+        ]:
+            if ptr in self._dim_ind_pointers:
+                # Skip if this attribute is already indexed due to being a
+                # dimension index pointer
+                continue
+
+            found = False
+            dim_val = None
+
+            # Check whether the attribute is in the shared functional groups
+            if sfgs is not None and grp_ptr in sfgs:
+                grp_seq = None
+
+                if grp_ptr is not None:
+                    if grp_ptr in sfgs:
+                        grp_seq = sfgs[grp_ptr].value[0]
+                else:
+                    grp_seq = sfgs
+
+                if grp_seq is not None and ptr in grp_seq:
+                    found = True
+
+                    # Get the shared value
+                    dim_val = grp_seq[ptr].value
+
+            # Check whether the attribute is in the first per-frame functional
+            # group. If so, assume that it is there for all per-frame functional
+            # groups
+            if first_pffgs is not None and grp_ptr in first_pffgs:
+                grp_seq = None
+
+                if grp_ptr is not None:
+                    grp_seq = first_pffgs[grp_ptr].value[0]
+                else:
+                    grp_seq = first_pffgs
+
+                if grp_seq is not None and ptr in grp_seq:
+                    found = True
+
+            if found:
+                extra_collection_pointers.append(ptr)
+                extra_collection_func_pointers[ptr] = grp_ptr
+                if dim_val is not None:
+                    # Use the shared value for all frames
+                    extra_collection_values[ptr] = (
+                        [dim_val] * self.number_of_frames
+                    )
+                else:
+                    # Values will be collected later in loop through per-frame
+                    # functional groups
+                    extra_collection_values[ptr] = []
+
+        slice_spacing_hint = None
+        shared_pixel_spacing: Optional[List[float]] = None
 
         # Get the shared orientation
         shared_image_orientation: Optional[List[float]] = None
         if hasattr(self, 'ImageOrientationSlide'):
             shared_image_orientation = self.ImageOrientationSlide
-        if hasattr(self, 'SharedFunctionalGroupsSequence'):
-            sfgs = self.SharedFunctionalGroupsSequence[0]
-            if hasattr(sfgs, 'PlaneOrientationSequence'):
-                pos = sfgs.PlaneOrientationSequence[0]
-                if 'ImageOrientationPatient' in pos:
-                    shared_image_orientation = (
-                        pos.ImageOrientationPatient
-                    )
-        if shared_image_orientation is None:
-            # Get the orientation of the first frame, and in the later loop
-            # check whether it is shared.
-            if hasattr(self, 'PerFrameFunctionalGroupsSequence'):
-                pfg1 = self.PerFrameFunctionalGroupsSequence[0]
-                if hasattr(pfg1, 'PlaneOrientationSequence'):
-                    shared_image_orientation = (
-                        pfg1
-                        .PlaneOrientationSequence[0]
-                        .ImageOrientationPatient
-                    )
 
         self._single_source_frame_per_frame = True
         self._missing_reference_instances = []
@@ -1876,20 +1896,6 @@ class _Image(SOPClass):
                 sfgs = self.SharedFunctionalGroupsSequence[0]
                 for ptr in extra_collection_pointers:
                     grp_ptr = extra_collection_func_pointers[ptr]
-                    dim_val = None
-                    if grp_ptr is not None:
-                        if grp_ptr in sfgs:
-                            grp = sfgs[grp_ptr][0]
-                            if ptr in grp:
-                                dim_val = grp[ptr].value
-                    else:
-                        if ptr in sfgs:
-                            dim_val = sfgs[ptr].value
-
-                    if dim_val is not None:
-                        extra_collection_values[ptr] = (
-                            [dim_val] * self.number_of_frames
-                        )
 
             for frame_item in self.get('PerFrameFunctionalGroupsSequence', []):
                 # Get dimension indices for this frame
@@ -2119,66 +2125,7 @@ class _Image(SOPClass):
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
-                col_data.append(dim_values[t])
-
-        # Volume related information
-        self._volume_geometry = None
-        if (
-            self._coordinate_system == CoordinateSystemNames.PATIENT
-            and shared_image_orientation is not None
-        ):
-            if shared_image_orientation is not None:
-                if image_position_tag in self._dim_ind_pointers:
-                    image_positions = dim_values[image_position_tag]
-                else:
-                    image_positions = extra_collection_values[
-                        image_position_tag
-                    ]
-                volume_spacing, volume_positions = get_volume_positions(
-                    image_positions=image_positions,
-                    image_orientation=shared_image_orientation,
-                    allow_missing=True,
-                    allow_duplicates=True,
-                    spacing_hint=slice_spacing_hint,
-                )
-                if volume_positions is not None:
-                    origin_slice_index = volume_positions.index(0)
-                    number_of_slices = max(volume_positions) + 1
-                    self._volume_geometry = VolumeGeometry.from_attributes(
-                        image_position=image_positions[origin_slice_index],
-                        image_orientation=shared_image_orientation,
-                        rows=self.Rows,
-                        columns=self.Columns,
-                        pixel_spacing=shared_pixel_spacing,
-                        number_of_frames=number_of_slices,
-                        spacing_between_slices=volume_spacing,
-                        coordinate_system=self._coordinate_system,
-                    )
-                    col_defs.append('VolumePosition INTEGER NOT NULL')
-                    col_data.append(volume_positions)
-
-        elif self.is_tiled:
-            if 'SharedFunctionalGroupsSequence' in self:
-                sfgs = self.SharedFunctionalGroupsSequence[0]
-                pixel_measures = sfgs.PixelMeasuresSequence[0]
-                slice_spacing = pixel_measures.get('SpacingBetweenSlices', 1.0)
-                pixel_spacing = pixel_measures.PixelSpacing
-                origin_seq = self.TotalPixelMatrixOriginSequence[0]
-                origin_position = [
-                    origin_seq.XOffsetInSlideCoordinateSystem,
-                    origin_seq.YOffsetInSlideCoordinateSystem,
-                    origin_seq.get('ZOffsetInSlideCoordinateSystem', 0.0),
-                ]
-                self._volume_geometry = VolumeGeometry.from_attributes(
-                    image_position=origin_position,
-                    image_orientation=shared_image_orientation,
-                    rows=self.TotalPixelMatrixRows,
-                    columns=self.TotalPixelMatrixColumns,
-                    pixel_spacing=pixel_spacing,
-                    number_of_frames=1,
-                    spacing_between_slices=slice_spacing,
-                    coordinate_system=self._coordinate_system,
-                )
+                col_data.append(extra_collection_values[t])
 
         # Columns related to source frames, if they are usable for indexing
         if (referenced_frames is None) != (referenced_instances is None):
@@ -2222,6 +2169,72 @@ class _Image(SOPClass):
         if len(result) == 0:
             raise ValueError(f'No such colume found in frame LUT: {column_name}')
         return result[0][0]
+
+    def _get_shared_frame_value(
+        self,
+        kw: str,
+        vm: int = 1,
+        filter: str | None = None,
+        none_if_missing: bool = False
+    ) -> Any:
+        """Find the value of a attribute shared across frames.
+
+        First checks whether the requested attribute is shared across all
+        frames.
+
+        Parameters
+        ----------
+        kw: str
+            Keyword of an attribute indexed in the LUT.
+        vm: int
+            Value multiplicity of the attribute.
+        filter: str | None, optional
+            SQL-syntax string of a filter to apply to frames.
+        none_if_missing: bool
+            Return ``None`` without raising an error if the attribute is not
+            indexed.
+
+        Returns
+        -------
+        Any:
+            Value shared between all filtered frames.
+
+        """
+        if vm == 1:
+            columns = [kw]
+        else:
+            columns = [f'{kw}_{n}' for n in range(vm)]
+
+        for c in columns:
+            # First check whether the column actually exists
+            try:
+                self._get_frame_lut_col_type(c)
+            except:
+                if none_if_missing:
+                    return None
+                raise RuntimeError(
+                    f'Requested attribute is not in the Frame LUT: {c}'
+                )
+
+        if filter is None:
+            filter = ''
+
+        all_columns = ','.join(columns)
+        cur = self._db_con.execute(
+            f'SELECT DISTINCT {all_columns} FROM FrameLUT {filter}'
+        )
+        vals = list(cur)
+        if none_if_missing and len(vals) == 0:
+            return None
+
+        if len(vals) != 1:
+            raise RuntimeError(
+                f'Frames do not have a consistent {kw}.'
+            )
+        if vm == 1:
+            return vals[0][0]
+        else:
+            return vals[0]
 
     def _create_frame_lut(
         self,
@@ -2415,6 +2428,7 @@ class _Image(SOPClass):
     def _do_columns_identify_unique_frames(
         self,
         column_names: Sequence[str],
+        filter: str | None = None,
     ) -> bool:
         """Check if a list of columns uniquely identifies frames.
 
@@ -2426,6 +2440,10 @@ class _Image(SOPClass):
         ----------
         column_names: Sequence[str]
             Column names.
+        filter: str
+            A SQL-syntax filter to apply. If provided, determines whether the
+            given columns are sufficient to identify frames within the filtered
+            subset of frames only.
 
         Returns
         -------
@@ -2436,10 +2454,20 @@ class _Image(SOPClass):
         """
         col_str = ", ".join(column_names)
         cur = self._db_con.cursor()
+
+        if filter is not None and filter != '':
+            total = cur.execute(
+                f"SELECT COUNT(*) FROM FrameLUT {filter}"
+            ).fetchone()[0]
+        else:
+            total = self.number_of_frames
+            filter = ''
+
         n_unique_combos = cur.execute(
-            f"SELECT COUNT(*) FROM (SELECT 1 FROM FrameLUT GROUP BY {col_str})"
+            "SELECT COUNT(*) FROM "
+            f"(SELECT 1 FROM FrameLUT {filter} GROUP BY {col_str})"
         ).fetchone()[0]
-        return n_unique_combos == self.number_of_frames
+        return n_unique_combos == total
 
     def are_dimension_indices_unique(
         self,
@@ -2586,14 +2614,379 @@ class _Image(SOPClass):
             )
         }
 
-    @property
-    def volume_geometry(self) -> Optional[VolumeGeometry]:
-        """Union[highdicom.VolumeGeometry, None]: Geometry of the volume if the
-        image represents a regularly-spaced 3D volume. ``None``
-        otherwise.
+    def _get_stacked_volume_geometry(
+        self,
+        rtol: float | None = None,
+        atol: float | None = None,
+        allow_missing_positions: bool = False,
+        allow_duplicate_positions: bool = True,
+        filter: str | None = None,
+        slice_start: int | None = None,
+        slice_end: int | None = None,
+        as_indices: bool = False,
+    ) -> tuple[VolumeGeometry, list[tuple[int, int]]]:
+        """Get geometry of a volume created by stacking frames.
+
+        Parameters
+        ----------
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        allow_missing_positions: bool, optional
+            Allow volume positions for which no frame exists in the image.
+        allow_duplicate_positions: bool, optional
+            Allow multiple slices to occupy the same position within the
+            volume. If False, duplicated image positions will result in
+            failure.
+        filter: str | None, optional
+            SQL-syntax string of a filter to apply before inferring the
+            geometry.
+        slice_start: int | none, optional
+            zero-based index of the "volume position" of the first slice of the
+            returned volume. the "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. may be
+            negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc).
+        slice_end: union[int, none], optional
+            zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. the "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            may be negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). if
+            none, the last volume position is included as the last output
+            slice.
+        as_indices: bool, optional
+            If true, interpret slice numbering parameters (``slice_start`` and
+            ``slice_end``) as zero-based indices as opposed to the default
+            one-based numbers used within dicom.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry:
+            Resulting volume geometry created by stacking (filtered) frames.
+        list[tuple[int, int]]:
+            List of (1-based) frame numbers and the corresponding zero-based
+            volume positions.
 
         """
-        return self._volume_geometry
+        shared_image_orientation = self._get_shared_frame_value(
+            'ImageOrientationPatient',
+            vm=6,
+            filter=filter,
+        )
+        shared_pixel_spacing = self._get_shared_frame_value(
+            'PixelSpacing',
+            vm=2,
+            filter=filter,
+        )
+        slice_spacing_hint = self._get_shared_frame_value(
+            'SpacingBetweenSlices',
+            none_if_missing=True,
+            filter=filter,
+        )
+
+        if filter is None:
+            filter = ''
+
+        query = f"""
+            SELECT
+                FrameNumber,
+                ImagePositionPatient_0,
+                ImagePositionPatient_1,
+                ImagePositionPatient_2
+            FROM FrameLUT {filter}
+        """
+        results = list(self._db_con.execute(query))
+
+        image_positions = [r[1:] for r in results]
+        frame_numbers = [r[0] for r in results]
+
+        volume_spacing, volume_positions = get_volume_positions(
+            image_positions=image_positions,
+            image_orientation=shared_image_orientation,
+            allow_missing_positions=allow_missing_positions,
+            allow_duplicate_positions=allow_duplicate_positions,
+            spacing_hint=slice_spacing_hint,
+            rtol=rtol,
+            atol=atol,
+        )
+        if volume_positions is None:
+            raise RuntimeError(
+                'Frame positions do not form a regularly-spaced '
+                'volume.'
+            )
+        initial_number_of_slices = max(volume_positions) + 1
+
+        slice_start, slice_end = self._standardize_slice_indices(
+            slice_start=slice_start,
+            slice_end=slice_end,
+            as_indices=as_indices,
+            n_vol_positions=initial_number_of_slices,
+        )
+        origin_slice_index = volume_positions.index(0)
+
+        geometry = VolumeGeometry.from_attributes(
+            image_position=image_positions[origin_slice_index],
+            image_orientation=shared_image_orientation,
+            rows=self.Rows,
+            columns=self.Columns,
+            pixel_spacing=shared_pixel_spacing,
+            number_of_frames=initial_number_of_slices,
+            spacing_between_slices=volume_spacing,
+            coordinate_system=self._coordinate_system,
+        )
+        geometry = geometry[slice_start:slice_end]
+
+        frame_positions = []
+
+        # Filter to give volume positions within the requested range
+        for f, vol_pos in zip(frame_numbers, volume_positions):
+            if vol_pos >= slice_start and vol_pos < slice_end:
+                frame_positions.append(
+                    (
+                        f,
+                        vol_pos - slice_start,
+                    )
+                )
+
+        return geometry, frame_positions
+
+    def _prepare_volume_positions_table(
+        self,
+        rtol: float | None = None,
+        atol: float | None = None,
+        allow_missing_positions: bool = False,
+        filter: str | None = None,
+        slice_start: int | None = None,
+        slice_end: int | None = None,
+        as_indices: bool = False,
+    ) -> tuple[_SQLTableDefinition, VolumeGeometry]:
+        """Get geometry of a volume created by stacking frames.
+
+        Parameters
+        ----------
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        allow_missing_positions: bool, optional
+            Allow volume positions for which no frame exists in the image.
+        filter: str | None, optional
+            SQL-syntax string of a filter to apply before inferring the
+            geometry.
+        slice_start: int | none, optional
+            zero-based index of the "volume position" of the first slice of the
+            returned volume. the "volume position" refers to the position of
+            slices after sorting spatially, and may correspond to any frame in
+            the segmentation file, depending on its construction. may be
+            negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc).
+        slice_end: union[int, none], optional
+            zero-based index of the "volume position" one beyond the last slice
+            of the returned volume. the "volume position" refers to the
+            position of slices after sorting spatially, and may correspond to
+            any frame in the segmentation file, depending on its construction.
+            may be negative, in which case standard python indexing behavior is
+            followed (-1 corresponds to the last volume position, etc). if
+            none, the last volume position is included as the last output
+            slice.
+        as_indices: bool, optional
+            If true, interpret slice numbering parameters (``slice_start`` and
+            ``slice_end``) as zero-based indices as opposed to the default
+            one-based numbers used within dicom.
+
+        Returns
+        -------
+        _SQLTableDefinition:
+            Table definition that may be used to join with the main FrameLUT to
+            provide the OutputFrameIndex corresponding to each FrameNumber such
+            that the frames are stacked by geometry.
+        highdicom.VolumeGeometry:
+            Resulting volume geometry created by stacking (filtered) frames.
+
+        """
+        geometry, frame_positions = self._get_stacked_volume_geometry(
+            rtol=rtol,
+            atol=atol,
+            allow_missing_positions=allow_missing_positions,
+            filter=filter,
+            slice_start=slice_start,
+            slice_end=slice_end,
+            as_indices=as_indices,
+        )
+
+        col_defs = [
+            'FrameNumber INTEGER PRIMARY KEY',
+            'OutputFrameIndex INTEGER NOT NULL',
+        ]
+
+        table_def = _SQLTableDefinition(
+            table_name='TemporaryVolumePositionTable',
+            column_defs=col_defs,
+            column_data=frame_positions,
+        )
+
+        return table_def, geometry
+
+
+    def get_volume_geometry(
+        self,
+        *,
+        rtol: float | None = None,
+        atol: float | None = None,
+        allow_missing_positions: bool = False,
+        allow_duplicate_positions: bool = True,
+    ) -> Optional[VolumeGeometry]:
+        """Get geometry of the image in 3D space.
+
+        Parameters
+        ----------
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        allow_missing_positions: bool, optional
+            Allow volume positions for which no frame exists in the image.
+        allow_duplicate_positions: bool, optional
+            Allow multiple slices to occupy the same position within the
+            volume. If False, duplicated image positions will result in
+            failure.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry | None:
+            Geometry of the volume if the image represents a regularly-spaced
+            3D volume. ``None`` otherwise.
+
+        """
+        try:
+            return self._get_volume_geometry(
+                atol=atol,
+                rtol=rtol,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+            )
+        except RuntimeError:
+            return None
+
+    def _get_volume_geometry(
+        self,
+        *,
+        rtol: float | None = None,
+        atol: float | None = None,
+        allow_missing_positions: bool = False,
+        allow_duplicate_positions: bool = True,
+    ) -> VolumeGeometry:
+        """Get geometry of the image in 3D space.
+
+        Parameters
+        ----------
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        allow_missing_positions: bool, optional
+            Allow volume positions for which no frame exists in the image.
+        allow_duplicate_positions: bool, optional
+            Allow multiple slices to occupy the same position within the
+            volume. If False, duplicated image positions will result in
+            failure.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry:
+            Geometry of the volume.
+
+        """
+        if is_multiframe_image(self):
+            if (
+                self.is_tiled and
+                self._coordinate_system == CoordinateSystemNames.SLIDE
+            ):
+                pixel_spacing = self._get_shared_frame_value('PixelSpacing', vm=2)
+                slice_spacing = self._get_shared_frame_value(
+                    'SpacingBetweenSlices',
+                    none_if_missing=True,
+                )
+                if slice_spacing is None:
+                    slice_spacing = 1.0
+
+                origin_seq = self.TotalPixelMatrixOriginSequence[0]
+
+                origin_position = [
+                    origin_seq.XOffsetInSlideCoordinateSystem,
+                    origin_seq.YOffsetInSlideCoordinateSystem,
+                    origin_seq.get('ZOffsetInSlideCoordinateSystem', 0.0),
+                ]
+                shared_image_orientation = self.ImageOrientationSlide
+
+                return VolumeGeometry.from_attributes(
+                    image_position=origin_position,
+                    image_orientation=shared_image_orientation,
+                    rows=self.TotalPixelMatrixRows,
+                    columns=self.TotalPixelMatrixColumns,
+                    pixel_spacing=pixel_spacing,
+                    number_of_frames=1,
+                    spacing_between_slices=slice_spacing,
+                    coordinate_system=self._coordinate_system,
+                )
+
+            if (self._coordinate_system == CoordinateSystemNames.PATIENT):
+                geometry, _ = self._get_stacked_volume_geometry(
+                    rtol=rtol,
+                    atol=atol,
+                    allow_missing_positions=allow_missing_positions,
+                    allow_duplicate_positions=allow_duplicate_positions,
+                )
+                return geometry
+        else:
+            # Single frame image, only supports patient coordinate system
+            # currently
+            if (
+                self._coordinate_system is not None and
+                self._coordinate_system == CoordinateSystemNames.PATIENT and
+                'ImagePositionPatient' in self
+            ):
+                position = self.ImagePositionPatient
+                orientation = self.ImageOrientationPatient
+
+                return VolumeGeometry.from_attributes(
+                    image_position=position,
+                    image_orientation=orientation,
+                    rows=self.Rows,
+                    columns=self.Columns,
+                    pixel_spacing=self.PixelSpacing,
+                    number_of_frames=1,
+                    spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
+                    coordinate_system=self._coordinate_system,
+                )
+
+        raise RuntimeError(
+            'Image does not represent a regularly-spaced volume.'
+        )
 
     @contextmanager
     def _generate_temp_tables(
@@ -3146,11 +3539,54 @@ class _Image(SOPClass):
 
         return selection_lines, join_lines, table_defs
 
+    def _prepare_filter_string(
+        self,
+        filters: Optional[Dict[Union[int, str], Any]] = None,
+        filters_use_indices: bool = False,
+    ) -> str:
+        """Get a SQL-syntax filter string from filter definitions.
+
+        Parameters
+        ----------
+        filters: Union[Dict[Union[int, str], Any], None], optional
+            Filters to use to limit frames. Keys are the attributes used to
+            define the filters, and values are the values that those attributes
+            must match in order to pass the filter.
+        filters_use_indices: bool, optional
+            Whether the filters used dimension indices instead of the value
+            itself.
+
+        Returns
+        -------
+        str:
+            SQL string implementing the requested filters.
+
+        """
+        if filters is not None:
+            norm_filters = self._normalize_dimension_queries(
+                filters,
+                filters_use_indices,
+                False,
+            )
+
+            filter_comparisons = []
+            for c, v in norm_filters.items():
+                if isinstance(v, str):
+                    v = f"'{v}'"
+                filter_comparisons.append(f'L.{c} = {v}')
+
+            filter_str = 'WHERE ' + ' AND '.join(filter_comparisons)
+
+            return filter_str
+
+        return ''
+
     @contextmanager
     def _iterate_indices_for_stack(
         self,
-        stack_indices: Dict[Union[int, str], Sequence[Any]],
+        stack_indices: Dict[Union[int, str], Sequence[Any]] | None = None,
         stack_dimension_use_indices: bool = False,
+        stack_table_def: _SQLTableDefinition | None = None,
         channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
@@ -3185,11 +3621,19 @@ class _Image(SOPClass):
             sequences of values of corresponding dimension that define each
             slice of the output array. Note that multiple dimensions may be
             used, in which case a frame must match the values of all provided
-            dimensions to be placed in the output array.
+            dimensions to be placed in the output array. Required unless
+            stack_table_def is not None.
         stack_dimension_use_indices: bool, optional
             If True, the values in ``stack_indices`` are integer-valued
             dimension *index* values. If False the dimension values themselves
             are used, whose type depends on the choice of dimension.
+        stack_table_def: _SQLTableDefinition, optional
+            Use this pre-computed table for the definition of the stack axis.
+            Allows incorporation of computed data (such as volume positions)
+            into the definition of the stack axis. Must be a table containing
+            an integer column OutputFrameIndex, and a second integer column
+            FrameNumber, where the latter is used to join to the main LUT.
+            Incompatible with stack_indices.
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
             List of dictionaries defining the channel dimensions. The first
             item in the list corresponds to axis 3 of the output array, if any,
@@ -3228,12 +3672,19 @@ class _Image(SOPClass):
             inserting them into the output array.
 
         """
-        norm_stack_indices = self._normalize_dimension_queries(
-            stack_indices,
-            stack_dimension_use_indices,
-            True,
-        )
-        all_columns = list(norm_stack_indices.keys())
+        all_columns = []
+        if stack_indices is not None:
+            norm_stack_indices = self._normalize_dimension_queries(
+                stack_indices,
+                stack_dimension_use_indices,
+                True,
+            )
+            all_columns.extend(list(norm_stack_indices.keys()))
+        elif stack_table_def is None:
+            raise TypeError(
+                "Either 'stack_indices' or 'stack_table_def' must "
+                "be provided."
+            )
 
         if channel_indices is not None:
             norm_channel_indices_list = [
@@ -3248,16 +3699,6 @@ class _Image(SOPClass):
         else:
             norm_channel_indices_list = []
 
-        if filters is not None:
-            norm_filters = self._normalize_dimension_queries(
-                filters,
-                filters_use_indices,
-                False,
-            )
-            all_columns.extend(list(norm_filters.keys()))
-        else:
-            norm_filters = None
-
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
             for c in all_columns
@@ -3268,48 +3709,48 @@ class _Image(SOPClass):
                 'distinct.'
             )
 
-        # Check for uniqueness
-        if not self._do_columns_identify_unique_frames(all_columns):
-            raise RuntimeError(
-                'The chosen dimensions do not uniquely identify frames of '
-                'the image. You may need to provide further dimensions or '
-                'a filter to disambiguate.'
+        filter_str = self._prepare_filter_string(
+            filters=filters,
+            filters_use_indices=filters_use_indices,
+        )
+
+        if stack_table_def is None:
+            # Check for uniqueness
+            if not self._do_columns_identify_unique_frames(
+                all_columns,
+                filter=filter_str,
+            ):
+                raise RuntimeError(
+                    'The chosen dimensions do not uniquely identify frames of '
+                    'the image. You may need to provide further dimensions or '
+                    'a filter to disambiguate.'
+                )
+
+            # Create temporary table of desired dimension indices
+            stack_table_name = 'TemporaryStackTable'
+
+            stack_column_defs = (
+                ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
+                [
+                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
+                    for c in norm_stack_indices.keys()
+                ]
+            )
+            stack_column_data = list(
+                (i, *row)
+                for i, row in enumerate(zip(*norm_stack_indices.values()))
+            )
+            stack_join_str = ' AND '.join(
+                f'F.{col} = L.{col}' for col in norm_stack_indices.keys()
             )
 
-        # Create temporary table of desired dimension indices
-        stack_table_name = 'TemporaryStackTable'
-
-        stack_column_defs = (
-            ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
-            [
-                f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
-                for c in norm_stack_indices.keys()
-            ]
-        )
-        stack_column_data = list(
-            (i, *row)
-            for i, row in enumerate(zip(*norm_stack_indices.values()))
-        )
-        stack_join_str = ' AND '.join(
-            f'F.{col} = L.{col}' for col in norm_stack_indices.keys()
-        )
-
-        # Filters
-        if norm_filters is not None:
-            filter_comparisons = []
-            for c, v in norm_filters.items():
-                if isinstance(v, str):
-                    v = f"'{v}'"
-                filter_comparisons.append(f'L.{c} = {v}')
-            filter_str = 'WHERE ' + ' AND '.join(filter_comparisons)
+            stack_table_def = _SQLTableDefinition(
+                table_name=stack_table_name,
+                column_defs=stack_column_defs,
+                column_data=stack_column_data,
+            )
         else:
-            filter_str = ''
-
-        stack_table_def = _SQLTableDefinition(
-            table_name=stack_table_name,
-            column_defs=stack_column_defs,
-            column_data=stack_column_data,
-        )
+            stack_join_str = 'F.FrameNumber = L.FrameNumber'
 
         selection_lines = [
             'F.OutputFrameIndex',  # frame index of the output array
@@ -3332,7 +3773,7 @@ class _Image(SOPClass):
         # presumably as it is more cache efficient
         query_template = (
             'SELECT {selection_str} '
-            f'FROM {stack_table_name} F '
+            f'FROM {stack_table_def.table_name} F '
             f'INNER JOIN FrameLUT L ON {stack_join_str} '
             f'{" ".join(channel_join_lines)} '
             f'{filter_str} '
@@ -3378,6 +3819,85 @@ class _Image(SOPClass):
                 )
                 for (fo, fi, *channel) in self._db_con.execute(full_query)
             )
+
+    @staticmethod
+    def _standardize_slice_indices(
+        slice_start: int | None,
+        slice_end: int | None,
+        n_vol_positions: int,
+        as_indices: bool = False,
+    ) -> tuple[int, int]:
+        """Standardize format of slice indices as given by user.
+
+        This includes interpretation of None values, and negatives.
+
+        Parameters
+        ----------
+        slice_start: Optional[int]
+            First slice.
+        slice_end: Optional[int]
+            One beyond last slice.
+        n_vol_positions: int
+            Total number of volume positions in this volume.
+        as_indices: bool
+            Interpret start and end parameters as zero-based indices (if True)
+            or one-based numbers (if False).
+
+        Returns
+        -------
+        slice_start: int
+            First row as non-negative zero-based index.
+        slice_end: int
+            One beyond last slice First as non-negative zero-based index.
+
+        """
+        # Standardize on zero-based slice indices
+        original_slice_end = slice_end
+        if not as_indices:
+            if slice_start is not None:
+                if slice_start == 0:
+                    raise ValueError(
+                        "Value of 'slice_start' cannot be 0. Did you mean to "
+                        "pass 'as_indices=True'?"
+                    )
+                elif slice_start > 0:
+                    slice_start = slice_start - 1
+
+            if slice_end is not None:
+                if slice_start == 0:
+                    raise ValueError()
+                elif slice_end > 0:
+                    slice_end = slice_end - 1
+
+        if slice_start is None:
+            slice_start = 0
+        if slice_start < 0:
+            slice_start = n_vol_positions + slice_start
+
+        if slice_end is None:
+            slice_end = n_vol_positions
+        elif slice_end > n_vol_positions:
+            raise IndexError(
+                f"Value of {original_slice_end} is not valid for image with "
+                f"{n_vol_positions} volume positions."
+            )
+        elif slice_end < 0:
+            if slice_end < (- n_vol_positions):
+                raise IndexError(
+                    f"Value of {original_slice_end} is not valid for image with "
+                    f"{n_vol_positions} volume positions."
+                )
+            slice_end = n_vol_positions + slice_end
+
+        number_of_slices = cast(int, slice_end) - slice_start
+
+        if number_of_slices < 1:
+            raise ValueError(
+                "The combination of 'slice_start' and 'slice_end' gives an "
+                "empty volume."
+            )
+
+        return slice_start, slice_end
 
     @staticmethod
     def _standardize_row_column_indices(
@@ -3642,15 +4162,10 @@ class _Image(SOPClass):
         else:
             norm_channel_indices_list = []
 
-        if filters is not None:
-            norm_filters = self._normalize_dimension_queries(
-                filters,
-                filters_use_indices,
-                False,
-            )
-            all_columns.extend(list(norm_filters.keys()))
-        else:
-            norm_filters = None
+        filter_str = self._prepare_filter_string(
+            filters=filters,
+            filters_use_indices=filters_use_indices,
+        )
 
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
@@ -3663,23 +4178,15 @@ class _Image(SOPClass):
             )
 
         # Check for uniqueness
-        if not self._do_columns_identify_unique_frames(all_columns):
+        if not self._do_columns_identify_unique_frames(
+            all_columns,
+            filter=filter_str
+        ):
             raise RuntimeError(
                 'The chosen dimensions do not uniquely identify frames of'
                 'the image. You may need to provide further dimensions or '
                 'a filter to disambiguate.'
             )
-
-        # Filters
-        if norm_filters is not None:
-            filter_comparisons = []
-            for c, v in norm_filters:
-                if isinstance(v, str):
-                    v = f"'{v}'"
-                filter_comparisons.append(f'L.{c} = {v}')
-            filter_str = ' AND ' + ' AND '.join(filter_comparisons)
-        else:
-            filter_str = ''
 
         (
             row_start, row_end, column_start, column_end,
@@ -3739,7 +4246,7 @@ class _Image(SOPClass):
             '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
             f'        {column_offset_start}'
             f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
-            f'    {filter_str} '
+            f'    {filter_str.replace("WHERE", "AND")} '
             ') '
             '{order_str}'
         )
@@ -3897,6 +4404,8 @@ class Image(_Image):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = False,
+        rtol: float | None = None,
+        atol: float | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the image.
 
@@ -4048,6 +4557,15 @@ class Image(_Image):
             Allow frames in the output array to be blank because these frames
             are omitted from the image. If False and missing frames are found,
             an error is raised.
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
 
         Note
         ----
@@ -4068,59 +4586,6 @@ class Image(_Image):
         that have to be decoded and transformed.
 
         """
-        if self.volume_geometry is None:
-            raise RuntimeError(
-                "This image is not a regularly-spaced 3D volume."
-            )
-        n_vol_positions = self.volume_geometry.spatial_shape[0]
-
-        original_slice_end = slice_end
-
-        # Standardize on zero-based slice indices
-        if not as_indices:
-            if slice_start is not None:
-                if slice_start == 0:
-                    raise ValueError(
-                        "Value of 'slice_start' cannot be 0. Did you mean to "
-                        "pass 'as_indices=True'?"
-                    )
-                elif slice_start > 0:
-                    slice_start = slice_start - 1
-
-            if slice_end is not None:
-                if slice_start == 0:
-                    raise ValueError()
-                elif slice_end > 0:
-                    slice_end = slice_end - 1
-
-        if slice_start is None:
-            slice_start = 0
-        if slice_start < 0:
-            slice_start = n_vol_positions + slice_start
-
-        if slice_end is None:
-            slice_end = n_vol_positions
-        elif slice_end > n_vol_positions:
-            raise IndexError(
-                f"Value of {original_slice_end} is not valid for image with "
-                f"{n_vol_positions} volume positions."
-            )
-        elif slice_end < 0:
-            if slice_end < (- n_vol_positions):
-                raise IndexError(
-                    f"Value of {original_slice_end} is not valid for image with "
-                    f"{n_vol_positions} volume positions."
-                )
-            slice_end = n_vol_positions + slice_end
-
-        number_of_slices = cast(int, slice_end) - slice_start
-
-        if number_of_slices < 1:
-            raise ValueError(
-                "The combination of 'slice_start' and 'slice_end' gives an "
-                "empty volume."
-            )
-
         if self.is_tiled:
             total_rows = self.TotalPixelMatrixRows
             total_columns = self.TotalPixelMatrixColumns
@@ -4154,6 +4619,15 @@ class Image(_Image):
             channel_spec = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
         if self.is_tiled:
+            volume_geometry = self._get_volume_geometry()
+
+            slice_start, slice_end = self._standardize_slice_indices(
+                slice_start=slice_start,
+                slice_end=slice_end,
+                as_indices=as_indices,
+                n_vol_positions=volume_geometry.spatial_shape[0]
+            )
+
             array = self.get_total_pixel_matrix(
                 row_start=row_start,
                 row_end=row_end,
@@ -4173,30 +4647,44 @@ class Image(_Image):
                 dtype=dtype,
             )[None]
 
-            affine = self.volume_geometry[
-                0,
+            affine = volume_geometry[
+                :,
                 row_start:,
                 column_start:,
             ].affine
         else:
             # Check that the combination of frame numbers uniquely identify
             # frames
-            columns = ['VolumePosition']
+            columns = [
+                'ImagePositionPatient_0',
+                'ImagePositionPatient_1',
+                'ImagePositionPatient_2'
+            ]
             if not self._do_columns_identify_unique_frames(columns):
                 raise RuntimeError(
                     'Volume positions and do not '
                     'uniquely identify frames of the image.'
                 )
 
-            volume_positions = range(slice_start, slice_end)
+            (
+                stack_table_def,
+                volume_geometry,
+            ) = self._prepare_volume_positions_table(
+                rtol=rtol,
+                atol=atol,
+                allow_missing_positions=allow_missing_frames,
+                slice_start=slice_start,
+                slice_end=slice_end,
+                as_indices=as_indices,
+            )
 
             with self._iterate_indices_for_stack(
-                stack_indices={'VolumePosition': volume_positions},
+                stack_table_def=stack_table_def,
                 allow_missing_frames=allow_missing_frames,
             ) as indices:
 
                 array = self._get_pixels_by_frame(
-                    spatial_shape=number_of_slices,
+                    spatial_shape=volume_geometry.spatial_shape[0],
                     indices_iterator=indices,
                     apply_real_world_transform=apply_real_world_transform,
                     real_world_value_map_selector=real_world_value_map_selector,
@@ -4211,8 +4699,8 @@ class Image(_Image):
                 )
 
             array = array[:, row_start:row_end, column_start:column_end]
-            affine = self.volume_geometry[
-                slice_start:,
+            affine = volume_geometry[
+                :,
                 row_start:row_end,
                 column_start:column_end,
             ].affine
@@ -4468,6 +4956,8 @@ def volume_from_image_series(
     apply_presentation_lut: bool = True,
     apply_palette_color_lut: bool | None = None,
     apply_icc_profile: bool | None = None,
+    atol: float | None = None,
+    rtol: float | None = None,
 ) -> Volume:
     """Create volume from a series of single frame images.
 
@@ -4568,6 +5058,15 @@ def volume_from_image_series(
         be applied, regardless of whether it is present. If ``None``, the
         transform will be applied if it is present, but no error will be
         raised if it is not present.
+    rtol: float | None, optional
+        Relative tolerance for determining spacing regularity. If slice
+        spacings vary by less that this proportion of the average spacing, they
+        are considered to be regular. If neither ``rtol`` or ``atol`` are
+        provided, a default relative tolerance of 0.01 is used.
+    atol: float | None, optional
+        Absolute tolerance for determining spacing regularity. If slice
+        spacings vary by less that this value (in mm), they
+        are considered to be regular. Incompatible with ``rtol``.
 
     Returns
     -------
@@ -4606,7 +5105,11 @@ def volume_from_image_series(
     if len(series_datasets) == 1:
         slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
     else:
-        slice_spacing, _ = get_series_volume_positions(series_datasets)
+        slice_spacing, _ = get_series_volume_positions(
+            series_datasets,
+            atol=atol,
+            rtol=rtol,
+        )
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
 

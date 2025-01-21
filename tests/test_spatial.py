@@ -976,7 +976,7 @@ def test_get_spacing_duplicates():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_duplicates=False,
+        allow_duplicate_positions=False,
     )
     assert spacing is None
     assert volume_positions is None
@@ -984,7 +984,7 @@ def test_get_spacing_duplicates():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_duplicates=True,
+        allow_duplicate_positions=True,
     )
     assert np.isclose(spacing, expected_spacing)
     assert volume_positions == position_indices.tolist()
@@ -1005,7 +1005,7 @@ def test_get_spacing_missing():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_missing=True
+        allow_missing_positions=True
     )
 
     assert np.isclose(spacing, expected_spacing)
@@ -1027,7 +1027,7 @@ def test_get_spacing_missing_duplicates():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_missing=True,
+        allow_missing_positions=True,
     )
     assert spacing is None
     assert volume_positions is None
@@ -1035,8 +1035,8 @@ def test_get_spacing_missing_duplicates():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_missing=True,
-        allow_duplicates=True,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
     )
     assert np.isclose(spacing, expected_spacing)
     assert volume_positions == position_indices.tolist()
@@ -1057,8 +1057,8 @@ def test_get_spacing_missing_duplicates_non_consecutive():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_missing=True,
-        allow_duplicates=True,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
     )
     assert spacing is None
     assert volume_positions is None
@@ -1067,8 +1067,8 @@ def test_get_spacing_missing_duplicates_non_consecutive():
     spacing, volume_positions = get_volume_positions(
         positions,
         orientation,
-        allow_missing=True,
-        allow_duplicates=True,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
         spacing_hint=expected_spacing,
     )
     assert np.isclose(spacing, expected_spacing)

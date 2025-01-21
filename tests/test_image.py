@@ -48,9 +48,10 @@ def test_slice_spacing():
             [0.0, 0.0, 0.0, 1.0],
         ]
     )
-    assert image.volume_geometry is not None
-    assert image.volume_geometry.spatial_shape[0] == 2
-    assert np.array_equal(image.volume_geometry.affine, expected_affine)
+    volume_geometry = image.get_volume_geometry()
+    assert volume_geometry is not None
+    assert volume_geometry.spatial_shape[0] == 2
+    assert np.array_equal(volume_geometry.affine, expected_affine)
 
 
 def test_slice_spacing_irregular():
@@ -64,7 +65,7 @@ def test_slice_spacing_irregular():
 
     image = Image.from_dataset(ct_multiframe)
 
-    assert image.volume_geometry is None
+    assert image.get_volume_geometry() is None
 
 
 def test_pickle():
@@ -1251,16 +1252,17 @@ def test_imread_all_test_files(f):
 
     # If a volume can be formed into a volume, test this also matches
     # between the lazy and normal
-    if im.volume_geometry is not None and not is_segmentation:
+    if (
+        im.get_volume_geometry(allow_duplicate_positions=False) is not None and
+        not is_segmentation
+    ):
         # Only test images that be "simply" indexed as a volume, i.e.
         # without having to filter on any other dimension
-        if im.is_tiled or im._do_columns_identify_unique_frames(['VolumePosition']):
+        # Check that we can retrieve volumes
+        vol = im.get_volume()
+        vol_lazy = im_lazy.get_volume()
 
-            # Check that we can retrieve volumes
-            vol = im.get_volume()
-            vol_lazy = im_lazy.get_volume()
-
-            assert np.array_equal(vol.array, vol_lazy.array)
+        assert np.array_equal(vol.array, vol_lazy.array)
 
     assert isinstance(im.pixel_array, np.ndarray)
     assert np.array_equal(im.pixel_array, im_lazy.pixel_array)

@@ -39,7 +39,6 @@ from pydicom.uid import (
 from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
-from pydicom.filereader import dcmread
 
 from highdicom._module_utils import (
     ModuleUsageValues,
@@ -96,6 +95,7 @@ from highdicom.valuerep import (
 from highdicom.volume import (
     ChannelDescriptor,
     Volume,
+    VolumeGeometry,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
     VOLUME_INDEX_CONVENTION,
 )
@@ -4209,6 +4209,53 @@ class Segmentation(_Image):
                 apply_icc_profile=apply_icc_profile,
             )
 
+    def get_volume_geometry(
+        self,
+        *,
+        rtol: float | None = None,
+        atol: float | None = None,
+        allow_missing_positions: bool = True,
+        allow_duplicate_positions: bool = True,
+    ) -> Optional[VolumeGeometry]:
+        """Get geometry of the image in 3D space.
+
+        Note that this differs from the method of the same name on the
+        :class:`highdicom.Image` base class only by a change of default value
+        of the ``allow_missing_positions`` parameter to reflect the fact that
+        empty frames are often omitted from segmentation images.
+
+        Parameters
+        ----------
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        allow_missing_positions: bool, optional
+            Allow volume positions for which no frame exists in the image.
+        allow_duplicate_positions: bool, optional
+            Allow multiple slices to occupy the same position within the
+            volume. If False, duplicated image positions will result in
+            failure.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry | None:
+            Geometry of the volume if the image represents a regularly-spaced
+            3D volume. ``None`` otherwise.
+
+        """
+        return super().get_volume_geometry(
+            rtol=rtol,
+            atol=atol,
+            allow_missing_positions=allow_missing_positions,
+            allow_duplicate_positions=allow_duplicate_positions,
+        )
+
     def get_volume(
         self,
         *,
@@ -4228,6 +4275,8 @@ class Segmentation(_Image):
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
         allow_missing_frames: bool = True,
+        rtol: float | None = None,
+        atol: float | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the segmentation.
 
@@ -4331,6 +4380,15 @@ class Segmentation(_Image):
             Allow frames in the output array to be blank because these frames
             are omitted from the image. If False and missing frames are found,
             an error is raised.
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing, they
+            are considered to be regular. If neither ``rtol`` or ``atol`` are
+            provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they
+            are considered to be regular. Incompatible with ``rtol``.
 
         """
         # Checks on validity of the inputs
@@ -4339,59 +4397,6 @@ class Segmentation(_Image):
         if len(segment_numbers) == 0:
             raise ValueError(
                 'Segment numbers may not be empty.'
-            )
-
-        if self.volume_geometry is None:
-            raise RuntimeError(
-                "This segmentation is not a regularly-spaced 3D volume."
-            )
-        n_vol_positions = self.volume_geometry.spatial_shape[0]
-
-        original_slice_end = slice_end
-
-        # Standardize on zero-based slice indices
-        if not as_indices:
-            if slice_start is not None:
-                if slice_start == 0:
-                    raise ValueError(
-                        "Value of 'slice_start' cannot be 0. Did you mean to "
-                        "pass 'as_indices=True'?"
-                    )
-                elif slice_start > 0:
-                    slice_start = slice_start - 1
-
-            if slice_end is not None:
-                if slice_start == 0:
-                    raise ValueError()
-                elif slice_end > 0:
-                    slice_end = slice_end - 1
-
-        if slice_start is None:
-            slice_start = 0
-        if slice_start < 0:
-            slice_start = n_vol_positions + slice_start
-
-        if slice_end is None:
-            slice_end = n_vol_positions
-        elif slice_end > n_vol_positions:
-            raise IndexError(
-                f"Value of {original_slice_end} is not valid for image with "
-                f"{n_vol_positions} volume positions."
-            )
-        elif slice_end < 0:
-            if slice_end < (- n_vol_positions):
-                raise IndexError(
-                    f"Value of {original_slice_end} is not valid for image with "
-                    f"{n_vol_positions} volume positions."
-                )
-            slice_end = n_vol_positions + slice_end
-
-        number_of_slices = cast(int, slice_end) - slice_start
-
-        if number_of_slices < 1:
-            raise ValueError(
-                "The combination of 'slice_start' and 'slice_end' gives an "
-                "empty volume."
             )
 
         if self.is_tiled:
@@ -4420,7 +4425,11 @@ class Segmentation(_Image):
             relabel=relabel
         )
 
-        columns = ['VolumePosition']
+        columns = [
+            'ImagePositionPatient_0',
+            'ImagePositionPatient_1',
+            'ImagePositionPatient_2'
+        ]
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
@@ -4434,6 +4443,15 @@ class Segmentation(_Image):
             channel_spec = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
         if self.is_tiled:
+            volume_geometry = self._get_volume_geometry()
+
+            slice_start, slice_end = self._standardize_slice_indices(
+                slice_start=slice_start,
+                slice_end=slice_end,
+                as_indices=as_indices,
+                n_vol_positions=volume_geometry.spatial_shape[0]
+            )
+
             array = self.get_total_pixel_matrix(
                 row_start=row_start,
                 row_end=row_end,
@@ -4451,8 +4469,8 @@ class Segmentation(_Image):
                 dtype=dtype,
             )[None]
 
-            affine = self.volume_geometry[
-                0,
+            affine = volume_geometry[
+                :,
                 row_start - 1:,
                 column_start - 1:,
             ].affine
@@ -4465,17 +4483,27 @@ class Segmentation(_Image):
                     'uniquely identify frames of the segmentation image.'
                 )
 
-            volume_positions = range(slice_start, slice_end)
+            (
+                stack_table_def,
+                volume_geometry,
+            ) = self._prepare_volume_positions_table(
+                rtol=rtol,
+                atol=atol,
+                allow_missing_positions=allow_missing_frames,
+                slice_start=slice_start,
+                slice_end=slice_end,
+                as_indices=as_indices,
+            )
 
             with self._iterate_indices_for_stack(
-                stack_indices={'VolumePosition': volume_positions},
+                stack_table_def=stack_table_def,
                 channel_indices=channel_indices,
                 remap_channel_indices=[remap_channel_indices],
                 allow_missing_frames=allow_missing_frames,
             ) as indices:
 
                 array = self._get_pixels_by_seg_frame(
-                    spatial_shape=number_of_slices,
+                    spatial_shape=volume_geometry.spatial_shape[0],
                     indices_iterator=indices,
                     segment_numbers=np.array(segment_numbers),
                     combine_segments=combine_segments,
@@ -4488,8 +4516,8 @@ class Segmentation(_Image):
                 )
 
             array = array[:, row_start:row_end, column_start:column_end]
-            affine = self.volume_geometry[
-                slice_start:,
+            affine = volume_geometry[
+                :,
                 row_start:row_end,
                 column_start:column_end,
             ].affine
