@@ -2420,7 +2420,7 @@ class VOILUTTransformation(Dataset):
         voi_transform_selector: int | str, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
-            interpretted as a (zero-based) index of the list of VOI transforms
+            interpreted as a (zero-based) index of the list of VOI transforms
             to apply. A negative integer may be used to index from the end of
             the list following standard Python indexing convention. If a str,
             the string that will be used to match the Window Center Width
@@ -2930,7 +2930,7 @@ class PaletteColorLUT(Dataset):
         """Construct from an existing dataset.
 
         Note that unlike many other ``from_dataset()`` methods, this method
-        extracts only the atrributes it needs from the original dataset, and
+        extracts only the attributes it needs from the original dataset, and
         always returns a new object.
 
         Parameters
@@ -3170,7 +3170,7 @@ class SegmentedPaletteColorLUT(Dataset):
         """Construct from an existing dataset.
 
         Note that unlike many other ``from_dataset()`` methods, this method
-        extracts only the atrributes it needs from the original dataset, and
+        extracts only the attributes it needs from the original dataset, and
         always returns a new object.
 
         Parameters
@@ -3575,7 +3575,7 @@ class PaletteColorLUTTransformation(Dataset):
         """Construct from an existing dataset.
 
         Note that unlike many other ``from_dataset()`` methods, this method
-        extracts only the atrributes it needs from the original dataset, and
+        extracts only the attributes it needs from the original dataset, and
         always returns a new object.
 
         Parameters

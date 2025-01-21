@@ -138,8 +138,8 @@ class ChannelDescriptor:
 
             if value_type is Enum:
                 raise ValueError(
-                    "When using Enums, argument 'value_type' must be a specific "
-                    "subclass of Enum "
+                    "When using Enums, argument 'value_type' must be a "
+                    "specific subclass of Enum."
                 )
 
             self._value_type = value_type
@@ -171,8 +171,8 @@ class ChannelDescriptor:
 
             if value_type is not None:
                 raise TypeError(
-                    "Argument 'value_type' should only be specified when defining "
-                    "a custom channel identifier."
+                    "Argument 'value_type' should only be specified when "
+                    "defining a custom channel identifier."
                 )
 
             vr, _, _, _, _ = get_entry(self._tag)
@@ -180,7 +180,10 @@ class ChannelDescriptor:
 
     @property
     def value_type(self) -> type:
-        """type: The Python type of the quantity that varies along the dimension."""
+        """type: Python type of the quantity that varies along the
+        dimension.
+
+        """
         return self._value_type
 
     @property
@@ -190,7 +193,11 @@ class ChannelDescriptor:
 
     @property
     def tag(self) -> BaseTag | None:
-        """str: The DICOM tag for the attribute. ``None`` for custom descriptors."""
+        """str: The DICOM tag for the attribute.
+
+        ``None`` for custom descriptors.
+
+        """
         return self._tag
 
     @property
@@ -1891,7 +1898,8 @@ class VolumeGeometry(_VolumeBase):
             Patient orientation used to define an axis-aligned direction
             matrix, as either a sequence of three
             highdicom.PatientOrientationValuesBiped values, or a string such as
-            ``"FPL"`` using the same characters. Incompatible with ``direction``.
+            ``"FPL"`` using the same characters. Incompatible with
+            ``direction``.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
         channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
@@ -1915,11 +1923,11 @@ class VolumeGeometry(_VolumeBase):
         highdicom.volume.VolumeGeometry:
             Volume constructed from the provided components.
 
-        """
+        """  # noqa: E501
         if patient_orientation is not None:
             if (
-                CoordinateSystemNames(coordinate_system)
-                != CoordinateSystemNames.PATIENT
+                CoordinateSystemNames(coordinate_system) !=
+                CoordinateSystemNames.PATIENT
             ):
                 raise ValueError(
                     "Argument 'patient_orientation' should be provided only "
@@ -2093,7 +2101,10 @@ class VolumeGeometry(_VolumeBase):
     def with_array(
         self,
         array: np.ndarray,
-        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
     ) -> 'Volume':
         """Create a volume using this geometry and an array.
 
@@ -2125,7 +2136,7 @@ class VolumeGeometry(_VolumeBase):
         highdicom.volume.Volume:
             Volume objects using this geometry and the given array.
 
-        """
+        """  # noqa: E501
         return Volume(
             array=array,
             affine=self.affine,
@@ -2169,7 +2180,10 @@ class Volume(_VolumeBase):
         affine: np.ndarray,
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
     ):
         """
 
@@ -2207,7 +2221,7 @@ class Volume(_VolumeBase):
             item in the dictionary corresponds to axis 3 of the array and so
             on).
 
-        """
+        """  # noqa: E501
         super().__init__(
             affine=affine,
             coordinate_system=coordinate_system,
@@ -2223,9 +2237,9 @@ class Volume(_VolumeBase):
 
         if len(channels) != array.ndim - 3:
             raise ValueError(
-                f"Number of items in the 'channels' parameter ({len(channels)}) "
-                'does not match the number of channels dimensions in the array '
-                f'({array.ndim - 3}).'
+                "Number of items in the 'channels' parameter "
+                f'({len(channels)}) does not match the number of channel '
+                f'dimensions in the array ({array.ndim - 3}).'
             )
 
         self._channels: dict[
@@ -2249,8 +2263,9 @@ class Volume(_VolumeBase):
             if len(values) != expected_length:
                 raise ValueError(
                     f'Number of values for channel number {channel_number} '
-                    f'({len(values)}) does not match the size of the corresponding '
-                    f'dimension of the array ({expected_length}).'
+                    f'({len(values)}) does not match the size of the '
+                    'corresponding dimension of the array '
+                    f'({expected_length}).'
                 )
 
             if not all(isinstance(v, iden_obj.value_type) for v in values):
@@ -2278,7 +2293,10 @@ class Volume(_VolumeBase):
         spacing_between_slices: float,
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
     ) -> Self:
         """Create a volume from DICOM attributes.
 
@@ -2338,7 +2356,7 @@ class Volume(_VolumeBase):
         highdicom.volume.Volume:
             New Volume using the given array and DICOM attributes.
 
-        """
+        """  # noqa: E501
         affine = create_affine_matrix_from_attributes(
             image_position=image_position,
             image_orientation=image_orientation,
@@ -2371,7 +2389,10 @@ class Volume(_VolumeBase):
             None,
         ] = None,
         frame_of_reference_uid: Optional[str] = None,
-        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
     ) -> Self:
         """Construct a Volume from components of the affine matrix.
 
@@ -2432,11 +2453,11 @@ class Volume(_VolumeBase):
         highdicom.volume.Volume:
             Volume constructed from the provided components.
 
-        """
+        """  # noqa: E501
         if patient_orientation is not None:
             if (
-                CoordinateSystemNames(coordinate_system)
-                != CoordinateSystemNames.PATIENT
+                CoordinateSystemNames(coordinate_system) !=
+                CoordinateSystemNames.PATIENT
             ):
                 raise ValueError(
                     "Argument 'patient_orientation' should be provided only "
@@ -2580,7 +2601,10 @@ class Volume(_VolumeBase):
     def with_array(
         self,
         array: np.ndarray,
-        channels: dict[BaseTag | int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
     ) -> Self:
         """Get a new volume using a different array.
 
@@ -2608,7 +2632,7 @@ class Volume(_VolumeBase):
         highdicom.volume.Volume:
             New volume using the given array and the metadata of this volume.
 
-        """
+        """  # noqa: E501
         if array.shape[:3] != self.spatial_shape:
             raise ValueError(
                 "Array must match the spatial shape of the existing array."
@@ -2743,14 +2767,15 @@ class Volume(_VolumeBase):
         Parameters
         ----------
         channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.volume.ChannelDescriptor]
-            List of channel identifiers matching those in the volume but in an arbitrary order.
+            List of channel identifiers matching those in the volume but in an
+            arbitrary order.
 
         Returns
         -------
         highdicom.volume.Volume:
             New volume with channel axes permuted in the provided order.
 
-        """
+        """  # noqa: E501
         channel_identifier_objs = [
             self._get_channel_identifier(iden) for iden in channel_identifiers
         ]
@@ -3066,7 +3091,7 @@ class Volume(_VolumeBase):
         highdicom.volume.Volume:
             Volume with channel axis removed.
 
-        """
+        """  # noqa: E501
         if channel_descriptors is None:
             channel_descriptors = self.channel_descriptors
             raise_error = False
@@ -3090,13 +3115,15 @@ class Volume(_VolumeBase):
             else:
                 if raise_error:
                     raise RuntimeError(
-                        f'Volume has channels along the dimension {iden} and cannot '
-                        'be squeezed.'
+                        f'Volume has channels along the dimension {iden} and '
+                        'cannot be squeezed.'
                     )
                 new_channel_idens.append(iden)
 
         array = self.array.squeeze(tuple(to_squeeze))
-        new_channels = {iden: self._channels[iden] for iden in new_channel_idens}
+        new_channels = {
+            iden: self._channels[iden] for iden in new_channel_idens
+        }
 
         return self.with_array(array, channels=new_channels)
 
@@ -3213,9 +3240,14 @@ class Volume(_VolumeBase):
             ]
             # preallocate output array
             new_array = np.zeros([*out_spatial_shape, *self.channel_shape])
-            for cind in itertools.product(*[range(n) for n in self.channel_shape]):
+            for cind in itertools.product(
+                *[range(n) for n in self.channel_shape]
+            ):
                 indexer = (slice(None), slice(None), slice(None), *cind)
-                new_array[indexer] = pad_array(self.array[indexer], constant_value)
+                new_array[indexer] = pad_array(
+                    self.array[indexer],
+                    constant_value
+                )
         else:
             new_array = pad_array(self.array, constant_value)
 

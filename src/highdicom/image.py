@@ -153,7 +153,7 @@ class _CombinedPixelTransformation:
     """Class representing a combined pixel transformation.
 
     DICOM images contain multi-stage transformations to apply to the raw stored
-    pixel values. This class is intended to provdie a single class that
+    pixel values. This class is intended to provide a single class that
     configurably and efficiently applies the net effect of the selected
     transforms to stored pixel data.
 
@@ -552,39 +552,44 @@ class _CombinedPixelTransformation:
                     rwvm_seq = ds.get('RealWorldValueMappingSequence')
                     if rwvm_seq is not None:
 
-                        rwvm_item = _select_real_world_value_map(
+                        rwvm = _select_real_world_value_map(
                             rwvm_seq,
                             real_world_value_map_selector,
                         )
 
-                        if rwvm_item is None:
+                        if rwvm is None:
                             raise IndexError(
                                 "Requested 'real_world_value_map_selector' is "
                                 "not present."
                             )
 
-                        if 'RealWorldValueLUTData' in rwvm_item:
+                        if 'RealWorldValueLUTData' in rwvm:
                             self._effective_lut_data = np.array(
-                                rwvm_item.RealWorldValueLUTData
+                                rwvm.RealWorldValueLUTData
                             )
                             self._effective_lut_first_mapped_value = int(
-                                rwvm_item.RealWorldValueFirstValueMapped
+                                rwvm.RealWorldValueFirstValueMapped
                             )
                             self._clip = False
                         else:
                             self._effective_slope_intercept = (
-                                rwvm_item.RealWorldValueSlope,
-                                rwvm_item.RealWorldValueIntercept,
+                                rwvm.RealWorldValueSlope,
+                                rwvm.RealWorldValueIntercept,
                             )
-                            if 'DoubleFloatRealWorldValueFirstValueMapped' in rwvm_item:
+                            if (
+                                'DoubleFloatRealWorldValueFirstValueMapped'
+                                in rwvm
+                            ):
                                 self._input_range_check = (
-                                    rwvm_item.DoubleFloatRealWorldValueFirstValueMapped,
-                                    rwvm_item.DoubleFloatRealWorldValueLastValueMapped
+                                    rwvm.
+                                    DoubleFloatRealWorldValueFirstValueMapped,
+                                    rwvm.
+                                    DoubleFloatRealWorldValueLastValueMapped
                                 )
                             else:
                                 self._input_range_check = (
-                                    rwvm_item.RealWorldValueFirstValueMapped,
-                                    rwvm_item.RealWorldValueLastValueMapped
+                                    rwvm.RealWorldValueFirstValueMapped,
+                                    rwvm.RealWorldValueLastValueMapped
                                 )
                         self.applies_to_all_frames = (
                             self.applies_to_all_frames and is_shared
@@ -663,7 +668,10 @@ class _CombinedPixelTransformation:
                     # Need to find existing VOI LUT information
                     if 'VOILUTSequence' in image:
 
-                        voi_lut_ds = _select_voi_lut(image, voi_transform_selector)
+                        voi_lut_ds = _select_voi_lut(
+                            image,
+                            voi_transform_selector
+                        )
 
                         if voi_lut_ds is None:
                             raise IndexError(
@@ -687,9 +695,11 @@ class _CombinedPixelTransformation:
                                     sub_ds.get('VOILUTFunction', 'LINEAR')
                                 )
 
-                                voi_center_width = _select_voi_window_center_width(
-                                    sub_ds,
-                                    voi_transform_selector,
+                                voi_center_width = (
+                                    _select_voi_window_center_width(
+                                        sub_ds,
+                                        voi_transform_selector,
+                                    )
                                 )
                                 if voi_center_width is None:
                                     raise IndexError(
@@ -855,7 +865,9 @@ class _CombinedPixelTransformation:
                             )
 
                     if 'PerFrameFunctionalGroupsSequence' in image:
-                        pffg = image.PerFrameFunctionalGroupsSequence[frame_index]
+                        pffg = image.PerFrameFunctionalGroupsSequence[
+                            frame_index
+                        ]
                         if 'OpticalPathIdentificationSequence' in pffg:
                             identifier = (
                                 pffg
@@ -865,13 +877,20 @@ class _CombinedPixelTransformation:
                             self.applies_to_all_frames = False
 
                     if identifier is None:
-                        raise ValueError('Could not determine optical path identifier.')
+                        raise ValueError(
+                            'Could not determine optical path identifier.'
+                        )
 
                     for optical_path_item in image.OpticalPathSequence:
-                        if optical_path_item.OpticalPathIdentifier == identifier:
+                        if (
+                            optical_path_item.OpticalPathIdentifier ==
+                            identifier
+                        ):
                             break
                     else:
-                        raise ValueError('No information on optical path found.')
+                        raise ValueError(
+                            'No information on optical path found.'
+                        )
 
                 if 'ICCProfile' in optical_path_item:
                     self._color_manager = ColorManager(
@@ -1380,7 +1399,7 @@ class _Image(SOPClass):
             (as is more common in Python), use the `as_index` parameter.
         as_index: bool
             Interpret the input `frame_number` as a 0-based index, instead of
-            the default behavior of interpretting it as a 1-based frame number.
+            the default behavior of interpreting it as a 1-based frame number.
         dtype: Union[type, str, numpy.dtype],
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
@@ -1476,7 +1495,7 @@ class _Image(SOPClass):
             data type will depend on how the pixels are stored in the file, and
             may be signed or unsighed integers or float.
 
-        """
+        """  # noqa; E501
         frame_index = self._standardize_frame_index(frame_number, as_index)
 
         frame = self.get_stored_frame(frame_number, as_index=as_index)
@@ -1531,7 +1550,7 @@ class _Image(SOPClass):
                 self._pixel_array = pixel_array
             else:
                 # pydicom will complain about missing PixelData even if
-                # self._pixel_array is alredy cached
+                # self._pixel_array is already cached
                 return self._pixel_array
 
         # Defer to pydicom
@@ -1675,7 +1694,9 @@ class _Image(SOPClass):
                     SpatialLocationsPreservedValues.NO
                 )
             if self._single_source_frame_per_frame:
-                ref_frame = self.SourceImageSequence[0].get('ReferencedFrameNumber')
+                ref_frame = self.SourceImageSequence[0].get(
+                    'ReferencedFrameNumber'
+                )
                 ref_uid = self.SourceImageSequence[0].ReferencedSOPInstanceUID
                 if ref_uid not in all_referenced_sops:
                     self._missing_reference_instances.append(ref_uid)
@@ -2099,7 +2120,10 @@ class _Image(SOPClass):
                     col_data.append(data)
                     val_col_names.append(col_name)
 
-                self._dim_ind_col_names[t] = (ind_col_name, tuple(val_col_names))
+                self._dim_ind_col_names[t] = (
+                    ind_col_name,
+                    tuple(val_col_names)
+                )
             else:
                 # Single column
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
@@ -2167,7 +2191,9 @@ class _Image(SOPClass):
         )
         result = list(self._db_con.execute(query))
         if len(result) == 0:
-            raise ValueError(f'No such colume found in frame LUT: {column_name}')
+            raise ValueError(
+                f'No such colume found in frame LUT: {column_name}'
+            )
         return result[0][0]
 
     def _get_shared_frame_value(
@@ -2209,7 +2235,7 @@ class _Image(SOPClass):
             # First check whether the column actually exists
             try:
                 self._get_frame_lut_col_type(c)
-            except:
+            except ValueError:
                 if none_if_missing:
                     return None
                 raise RuntimeError(
@@ -2518,10 +2544,10 @@ class _Image(SOPClass):
             logger.warning(
                 f'SOP instances {ref_instance_uid} referenced in the source '
                 'image sequence is not included in the Referenced Series '
-                'Sequence, Source Image Evidence Sequence, or Studies Containing '
-                'Other Referenced Instances Sequence. This is an error with the '
-                'integrity of the object. This instance will be omitted from '
-                'the returned list. '
+                'Sequence, Source Image Evidence Sequence, or Studies '
+                'Containing Other Referenced Instances Sequence. This is an '
+                'error with the integrity of the object. This instance will '
+                'be omitted from the returned list. '
             )
         cur = self._db_con.cursor()
         res = cur.execute(
@@ -2925,7 +2951,10 @@ class _Image(SOPClass):
                 self.is_tiled and
                 self._coordinate_system == CoordinateSystemNames.SLIDE
             ):
-                pixel_spacing = self._get_shared_frame_value('PixelSpacing', vm=2)
+                pixel_spacing = self._get_shared_frame_value(
+                    'PixelSpacing',
+                    vm=2
+                )
                 slice_spacing = self._get_shared_frame_value(
                     'SpacingBetweenSlices',
                     none_if_missing=True,
@@ -2979,7 +3008,10 @@ class _Image(SOPClass):
                     columns=self.Columns,
                     pixel_spacing=self.PixelSpacing,
                     number_of_frames=1,
-                    spacing_between_slices=self.get('SpacingBetweenSlices', 1.0),
+                    spacing_between_slices=self.get(
+                        'SpacingBetweenSlices',
+                        1.0
+                    ),
                     coordinate_system=self._coordinate_system,
                 )
 
@@ -3271,7 +3303,7 @@ class _Image(SOPClass):
                         self,
                         frame_index=frame_index,
                         apply_real_world_transform=apply_real_world_transform,
-                        real_world_value_map_selector=real_world_value_map_selector,
+                        real_world_value_map_selector=real_world_value_map_selector,  # noqa: E501
                         apply_modality_transform=apply_modality_transform,
                         apply_voi_transform=apply_voi_transform,
                         voi_transform_selector=voi_transform_selector,
@@ -3420,8 +3452,8 @@ class _Image(SOPClass):
                         v = v.item()
                     if not isinstance(v, python_type):
                         raise TypeError(
-                            f'For dimension {p}, expected all values to be of type '
-                            f'{python_type}.'
+                            f'For dimension {p}, expected all values to be of '
+                            f'type {python_type}.'
                         )
             else:
                 if isinstance(value, np.generic):
@@ -3586,7 +3618,7 @@ class _Image(SOPClass):
         stack_indices: Dict[Union[int, str], Sequence[Any]] | None = None,
         stack_dimension_use_indices: bool = False,
         stack_table_def: _SQLTableDefinition | None = None,
-        channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
+        channel_indices: list[dict[int | str, Sequence[Any]]] | None = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
@@ -3670,7 +3702,7 @@ class _Image(SOPClass):
             requested output array by copying frames from the image dataset and
             inserting them into the output array.
 
-        """
+        """  # noqa: E501
         all_columns = []
         if stack_indices is not None:
             norm_stack_indices = self._normalize_dimension_queries(
@@ -3883,8 +3915,8 @@ class _Image(SOPClass):
         elif slice_end < 0:
             if slice_end < (- n_vol_positions):
                 raise IndexError(
-                    f"Value of {original_slice_end} is not valid for image with "
-                    f"{n_vol_positions} volume positions."
+                    f"Value of {original_slice_end} is not valid for image "
+                    f"with {n_vol_positions} volume positions."
                 )
             slice_end = n_vol_positions + slice_end
 
@@ -4030,7 +4062,7 @@ class _Image(SOPClass):
         column_start: Optional[int] = None,
         column_end: Optional[int] = None,
         as_indices: bool = False,
-        channel_indices: Optional[List[Dict[Union[int, str], Sequence[Any]]]] = None,
+        channel_indices: list[dict[int | str, Sequence[Any]]] | None = None,
         channel_dimension_use_indices: bool = False,
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
@@ -4337,8 +4369,8 @@ class _Image(SOPClass):
         lazy_frame_retrieval: bool
             If True, the returned image will retrieve frames from the file as
             requested, rather than loading in the entire object to memory
-            initially. This may be a good idea if file reading is slow and you are
-            likely to need only a subset of the frames in the image.
+            initially. This may be a good idea if file reading is slow and you
+            are likely to need only a subset of the frames in the image.
 
         Returns
         -------
@@ -4584,7 +4616,7 @@ class Image(_Image):
         it will behave as expected, but will not reduce the number of frames
         that have to be decoded and transformed.
 
-        """
+        """  # noqa: E501
         if self.is_tiled:
             total_rows = self.TotalPixelMatrixRows
             total_columns = self.TotalPixelMatrixColumns
@@ -4878,7 +4910,7 @@ class Image(_Image):
         equivalent with the final row/column having index -1. To switch to
         standard Python behavior, specify ``as_indices=True``.
 
-        """
+        """  # noqa: E501
         # Check whether this segmentation is appropriate for tile-based indexing
         if not self.is_tiled:
             raise RuntimeError("Image is not a tiled image.")
@@ -4938,7 +4970,7 @@ def imread(
     """
     # This is essentially a convenience alias for the classmethod (which is
     # used so that it is inherited correctly by subclasses). It is used
-    # becuse it follows the format of other similar functions around the
+    # because it follows the format of other similar functions around the
     # library
     return Image.from_file(fp, lazy_frame_retrieval=lazy_frame_retrieval)
 
@@ -5073,7 +5105,7 @@ def volume_from_image_series(
     highdicom.Volume:
         Volume created from the series.
 
-    """
+    """  # noqa: E501
     coordinate_system = get_image_coordinate_system(series_datasets[0])
     if (
         coordinate_system is None or

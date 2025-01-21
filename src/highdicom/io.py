@@ -162,7 +162,7 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
 
     # We will keep two lists, one of all fragment boundaries (regardless of
     # whether or not they are frame boundaries) and the other of just those
-    # frament boundaries that are known to be frame boundaries (as identified
+    # fragment boundaries that are known to be frame boundaries (as identified
     # by JPEG start markers).
     frame_offset_values = []
     fragment_offset_values = []

@@ -1355,7 +1355,7 @@ class Segmentation(_Image):
                 )
             ):
                 # Calculate the spacing using only the included planes, and
-                # enfore ordering
+                # enforce ordering
                 ori = plane_orientation[0].ImageOrientationPatient
                 spacing, _ = get_volume_positions(
                     image_positions=plane_position_values[
@@ -1804,7 +1804,7 @@ class Segmentation(_Image):
         is_multiframe: bool
             Whether the source image is multiframe.
         coordinate_system: highdicom.CoordinateSystemNames | None
-            The coordinate system of the soure image.
+            The coordinate system of the source image.
 
         Returns
         -------
@@ -5092,7 +5092,7 @@ def segread(
     """
     # This is essentially a convenience alias for the classmethod (which is
     # used so that it is inherited correctly by subclasses). It is used
-    # becuse it follows the format of other similar functions around the
+    # because it follows the format of other similar functions around the
     # library
     return Segmentation.from_file(
         fp,

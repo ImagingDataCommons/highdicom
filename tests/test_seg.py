@@ -7,7 +7,6 @@ from pathlib import Path
 import pkgutil
 import warnings
 
-from _pytest._code import source
 import numpy as np
 from pydicom.multival import MultiValue
 import pytest
@@ -968,7 +967,10 @@ class TestSegmentation:
             ):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
-                    dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+                    dim_ind_vals = (
+                        f.FrameContentSequence[0]
+                        .DimensionIndexValues
+                    )
 
                     if isinstance(dim_ind_vals, MultiValue):
                         posn_index = dim_ind_vals[dim_ind]
@@ -2224,7 +2226,6 @@ class TestSegmentation:
             )
         self.check_dimension_index_vals(instance)
 
-
     def test_construction_3d_multiframe(self):
         # The CT multiframe image is already a volume, but the frames are
         # ordered the wrong way
@@ -2325,8 +2326,8 @@ class TestSegmentation:
                 self._software_versions,
                 self._device_serial_number,
             )
-            # This is a "volume" image, so the output instance should have
-            # the DimensionOrganizationType set correctly and should have deduced
+            # This is a "volume" image, so the output instance should have the
+            # DimensionOrganizationType set correctly and should have deduced
             # the spacing between slices
             spacing = (
                 instance
@@ -4178,7 +4179,11 @@ class TestSegmentationParsing:
         out_of_order = deepcopy(self._sm_control_seg)
         out_of_order.SegmentSequence = [
             out_of_order.SegmentSequence[i]
-            for i in range(out_of_order.number_of_segments -1, -1, -1)
+            for i in range(
+                out_of_order.number_of_segments - 1,
+                -1,
+                -1
+            )
         ]
         desc1 = out_of_order.get_segment_description(1)
         desc20 = out_of_order.get_segment_description(20)
@@ -4996,7 +5001,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_seg
@@ -5023,7 +5030,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5050,7 +5059,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5080,7 +5091,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5109,7 +5122,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5138,7 +5153,8 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry().spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5167,7 +5183,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5196,7 +5214,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_binary_overlap_seg.get_volume_geometry().spacing_between_slices
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_binary_overlap_seg
@@ -5321,7 +5341,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.get_volume_geometry().spacing_between_slices
+            self._ct_true_fractional_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg
@@ -5348,7 +5370,9 @@ class TestSegmentationParsing:
             .PixelSpacing
         )
         assert vol.spacing_between_slices == (
-            self._ct_true_fractional_seg.get_volume_geometry().spacing_between_slices
+            self._ct_true_fractional_seg
+            .get_volume_geometry()
+            .spacing_between_slices
         )
         assert vol.direction_cosines == tuple(
             self._ct_true_fractional_seg
@@ -5412,8 +5436,8 @@ class TestSegmentationParsing:
 
         monochrome_seg = self._sm_control_labelmap_seg
         msg = (
-            'Palette color transform is required but the image is not a palette '
-            'color image.'
+            'Palette color transform is required but the image is not a '
+            'palette color image.'
         )
         with pytest.raises(ValueError, match=msg):
             # Requires combine_segments
@@ -5437,10 +5461,11 @@ class TestSegmentationParsing:
         )
         array[20:30, 20:30] = seg_num
         array[70:80, 70:80] = other_seg_num
+        abnormal_structure = codes.SCT.MorphologicallyAbnormalStructure
         desc = SegmentDescription(
             segment_number=seg_num,
             segment_label=f'Segment #{seg_num}',
-            segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+            segmented_property_category=abnormal_structure,
             segmented_property_type=codes.SCT.Neoplasm,
             algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
             algorithm_identification=AlgorithmIdentificationSequence(
@@ -5452,7 +5477,7 @@ class TestSegmentationParsing:
         other_desc = SegmentDescription(
             segment_number=other_seg_num,
             segment_label=f'Segment #{other_seg_num}',
-            segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+            segmented_property_category=abnormal_structure,
             segmented_property_type=codes.SCT.Neoplasm,
             algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
             algorithm_identification=AlgorithmIdentificationSequence(
@@ -5485,8 +5510,12 @@ class TestSegmentationParsing:
             seg.get_segment_description(1)
 
         assert seg.get_segment_numbers() == [seg_num, other_seg_num]
-        assert seg.get_segment_numbers(segment_label=f'Segment #{seg_num}') == [seg_num]
-        assert seg.get_segment_numbers(segment_label='not existing') == []
+        assert seg.get_segment_numbers(
+            segment_label=f'Segment #{seg_num}'
+        ) == [seg_num]
+        assert seg.get_segment_numbers(
+            segment_label='not existing'
+        ) == []
 
         out = seg.get_pixels_by_source_instance(
             source_sop_instance_uids=[ct_image.SOPInstanceUID],
@@ -5542,6 +5571,7 @@ class TestSegmentationParsing:
                 source_sop_instance_uids=[ct_image.SOPInstanceUID],
                 segment_numbers=[5]  # not found
             )
+
 
 class TestSegUtilities(unittest.TestCase):
 

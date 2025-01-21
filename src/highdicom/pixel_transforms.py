@@ -263,7 +263,7 @@ def _select_voi_window_center_width(
         information at the top level of the dataset is searched.
     selector: int | str
         Specification of the window to select. May either be an int or a str.
-        If an int, it is interpretted as a (zero-based) index of the list of
+        If an int, it is interpreted as a (zero-based) index of the list of
         windows to apply. A negative integer may be used to index from the end
         of the list following standard Python indexing convention. If a str,
         the string that will be used to match the Window Center Width
@@ -330,7 +330,7 @@ def _select_voi_lut(
         information at the top level of the dataset is searched.
     selector: int | str
         Specification of the LUT to select. May either be an int or a str. If
-        an int, it is interpretted as a (zero-based) index of the sequence of
+        an int, it is interpreted as a (zero-based) index of the sequence of
         LUTs to apply. A negative integer may be used to index from the end of
         the list following standard Python indexing convention. If a str, the
         string that will be used to match the LUT Explanation to choose from

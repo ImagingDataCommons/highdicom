@@ -75,7 +75,7 @@ def find_readable_images() -> list[str]:
             # Skip image files that can't even be opened (the test files
             # include some deliberately corrupted files)
             dcm = dcmread(f)
-        except:
+        except Exception:
             continue
 
         excluded = False

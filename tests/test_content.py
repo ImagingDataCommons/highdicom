@@ -1423,11 +1423,17 @@ class TestVOILUTTransformation(TestCase):
         assert np.allclose(expected, out)
         assert out.dtype == np.float64
 
-        out = lut.apply(array=input_array_soft_tissue, voi_transform_selector=1)
+        out = lut.apply(
+            array=input_array_soft_tissue,
+            voi_transform_selector=1
+        )
         assert np.array_equal(expected, out)
         assert out.dtype == np.float64
 
-        out = lut.apply(array=input_array_soft_tissue, voi_transform_selector=-1)
+        out = lut.apply(
+            array=input_array_soft_tissue,
+            voi_transform_selector=-1
+        )
         assert np.array_equal(expected, out)
         assert out.dtype == np.float64
 
@@ -2087,6 +2093,7 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert np.array_equal(lut.red_lut.lut_data, r_lut_data)
         assert np.array_equal(lut.blue_lut.lut_data, b_lut_data)
         assert np.array_equal(lut.green_lut.lut_data, g_lut_data)
+
 
 class TestSpecimenDescription(TestCase):
     def test_construction(self):

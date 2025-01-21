@@ -394,7 +394,7 @@ def decode_frame(
         syntax is not encapsulated (i.e. is native) and the number of pixels
         per frame is not a multiple of 8. In this case, the index is required
         to know how many bits need to be stripped from the start and/or end of
-        the byte array. In all other situtations, this parameter is not
+        the byte array. In all other situations, this parameter is not
         required and will have no effect (since decoding a frame does not
         depend on the index of the frame).
 

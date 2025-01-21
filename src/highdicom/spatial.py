@@ -929,7 +929,7 @@ def get_normal_vector(
         order (for the sake of handedness, it does not matter whether the axis
         defined by the normal vector is placed before or after the column and
         row vectors because the two possibilities are cyclic permutations of
-        each other). If used to define a coordinte system with the row cosines
+        each other). If used to define a coordinate system with the row cosines
         followed by the column cosines, the handedness of the resulting
         coordinate system will be inverted.
 
@@ -1047,7 +1047,7 @@ def create_rotation_matrix(
 
     if spacing_between_rows <= 0.0 or spacing_between_columns <= 0.0:
         raise ValueError(
-            "All values in 'pixel_spacing' must be postive."
+            "All values in 'pixel_spacing' must be positive."
         )
 
     rotation_columns = []
@@ -1158,7 +1158,7 @@ def create_affine_matrix_from_attributes(
         bottom, increasing row index) and the rows direction (second value:
         spacing between columns: horizontal, left to right, increasing
         column index). This matches the format of the DICOM "PixelSpacing"
-        attribute. Alternatiely, a single value that is used along both
+        attribute. Alternatively, a single value that is used along both
         directions.
     spacing_between_slices: float
         Spacing between consecutive slices in the frame of reference coordinate
@@ -3239,7 +3239,7 @@ def get_series_volume_positions(
         which they are passed.
     allow_missing_postions: bool, optional
         Allow for slices missing from the volume. If True, the smallest
-        distance between two consective slices is found and returned as the
+        distance between two consecutive slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of
         this value (within tolerance). Alternatively, if a SpacingBetweenSlices
         value is found in the datasets, that value will be used instead of the
@@ -3384,7 +3384,7 @@ def get_volume_positions(
         which they are passed.
     allow_missing_positions: bool, optional
         Allow for slices missing from the volume. If True, the smallest
-        distance between two consective slices is found and returned as the
+        distance between two consecutive slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of
         this value (within tolerance). Alternatively, if ``spacing_hint`` is
         used, that value will be used instead of the minimum consecutive

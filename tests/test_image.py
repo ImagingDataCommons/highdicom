@@ -179,8 +179,8 @@ def test_combined_transform_ect_rwvm():
         )
 
     msg = (
-        f'Datatype int16 does not have capacity for values '
-        f'with slope 1.00 and intercept -1024.0.'
+        'Datatype int16 does not have capacity for values '
+        'with slope 1.00 and intercept -1024.0.'
     )
     with pytest.raises(ValueError, match=msg):
         _CombinedPixelTransformation(
@@ -296,8 +296,8 @@ def test_combined_transform_ect_modality():
         )
 
     msg = (
-        f'Datatype int16 does not have capacity for values '
-        f'with slope 1.00 and intercept -1024.0.'
+        'Datatype int16 does not have capacity for values '
+        'with slope 1.00 and intercept -1024.0.'
     )
     with pytest.raises(ValueError, match=msg):
         _CombinedPixelTransformation(
@@ -582,6 +582,7 @@ def test_combined_transform_multiple_vois():
             apply_voi_transform=None,
             voi_transform_selector=invalid_external_voi,
         )
+
 
 def test_combined_transform_voi_lut():
     # A test file that has a voi LUT
@@ -919,14 +920,14 @@ def test_combined_transform_sm_image():
 
 
 def test_combined_transform_all_test_files():
-    # A simple test that the trasnform at least does something for the default
+    # A simple test that the transform at least does something for the default
     # parameters for all images in the pydicom test suite
     all_files = get_testdata_files()
 
     for f in all_files:
         try:
             dcm = pydicom.dcmread(f)
-        except:
+        except Exception:
             continue
 
         if 'SOPClassUID' not in dcm:
@@ -936,7 +937,7 @@ def test_combined_transform_all_test_files():
 
         try:
             pix = dcm.pixel_array
-        except:
+        except Exception:
             continue
 
         tf = _CombinedPixelTransformation(dcm)
@@ -1197,8 +1198,14 @@ def test_get_volume_multiframe_ct_subvolumes():
 
     assert sub_volume.spatial_shape == (1, 246, 39)
     assert sub_volume.channel_shape == ()
-    assert np.array_equal(sub_volume.array, full_volume[1, 256:-10, -48:503].array)
-    assert np.array_equal(sub_volume.affine, full_volume[1, 256:-10, -48:503].affine)
+    assert np.array_equal(
+        sub_volume.array,
+        full_volume[1, 256:-10, -48:503].array
+    )
+    assert np.array_equal(
+        sub_volume.affine,
+        full_volume[1, 256:-10, -48:503].affine
+    )
 
     sub_volume = im.get_volume(
         slice_start=-1,
@@ -1211,8 +1218,14 @@ def test_get_volume_multiframe_ct_subvolumes():
 
     assert sub_volume.spatial_shape == (1, 246, 39)
     assert sub_volume.channel_shape == ()
-    assert np.array_equal(sub_volume.array, full_volume[1, 256:-10, -48:503].array)
-    assert np.array_equal(sub_volume.affine, full_volume[1, 256:-10, -48:503].affine)
+    assert np.array_equal(
+        sub_volume.array,
+        full_volume[1, 256:-10, -48:503].array
+    )
+    assert np.array_equal(
+        sub_volume.affine,
+        full_volume[1, 256:-10, -48:503].affine
+    )
 
 
 def test_instantiation():
