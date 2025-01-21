@@ -1147,6 +1147,11 @@ class _Image(SOPClass):
             original dataset remains intact. If False, this operation will
             alter the original dataset in place.
 
+        Returns
+        -------
+        highdicom._Image:
+            Image object from the input dataset.
+
         """
         if not isinstance(dataset, Dataset):
             raise TypeError(
@@ -1310,7 +1315,7 @@ class _Image(SOPClass):
         applied.
 
         To get frames with pixel transformations applied (as is appropriate for
-        most applications), use :func:`highdicom.image.Image.get_frame`
+        most applications), use :func:`highdicom.Image.get_frame`
         instead.
 
         Parameters
@@ -1384,10 +1389,6 @@ class _Image(SOPClass):
         frame. However, no further pixel transformation, such as the modality
         transform, VOI transforms, palette color LUTs, or ICC profile, had been
         applied.
-
-        To get frames with pixel transformations applied (as is appropriate for
-        most applications), use :func:`highdicom.image.Image.get_frame`
-        instead.
 
         Parameters
         ----------
@@ -4597,6 +4598,11 @@ class Image(_Image):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume formed from frames of the image.
 
         Note
         ----

@@ -9,14 +9,17 @@ import pydicom
 import pytest
 import re
 
+from highdicom import (
+    Image,
+    Volume,
+    imread,
+)
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
 )
 from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransformation,
-    Image,
-    imread,
 )
 from highdicom.pixel_transforms import (
     apply_voi_window,
@@ -30,7 +33,6 @@ from highdicom.pm import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
-from highdicom.volume import Volume
 from tests.utils import find_readable_images
 
 

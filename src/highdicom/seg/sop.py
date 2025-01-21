@@ -308,7 +308,7 @@ class Segmentation(_Image):
             (if `fractional_type` is ``"OCCUPANCY"``).
 
             Alternatively, ``pixel_array`` may be an instance of a
-            :class:`highdicom.volume.Volume`. In this case, behavior is the
+            :class:`highdicom.Volume`. In this case, behavior is the
             same as if the underlying numpy array is passed, and additionally,
             the ``pixel_measures``, ``plane_positions`` and
             ``plane_orientation`` will be computed from the volume, and
@@ -363,7 +363,7 @@ class Segmentation(_Image):
             Physical spacing of image pixels in `pixel_array`. If ``None``, it
             will be assumed that the segmentation image has the same pixel
             measures as the source image(s). If ``pixel_array`` is an instance
-            of :class:`highdicom.volume.Volume`, the pixel measures will be
+            of :class:`highdicom.Volume`, the pixel measures will be
             computed from it and therefore this parameter should be left an
             ``None``.
         plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
@@ -371,7 +371,7 @@ class Segmentation(_Image):
             three-dimensional patient or slide coordinate space. If ``None``,
             it will be assumed that the segmentation image as the same plane
             orientation as the source image(s). If ``pixel_array`` is an
-            instance of :class:`highdicom.volume.Volume`, the plane orientation
+            instance of :class:`highdicom.Volume`, the plane orientation
             will be computed from it and therefore this parameter should be
             left an ``None``.
         plane_positions: Union[Sequence[highdicom.PlanePositionSequence], None], optional
@@ -383,7 +383,7 @@ class Segmentation(_Image):
             `source_images` (in case of multi-frame source images) or the
             number of `source_images` (in case of single-frame source images).
             If ``pixel_array`` is an instance of
-            :class:`highdicom.volume.Volume`, the plane positions will be
+            :class:`highdicom.Volume`, the plane positions will be
             computed from it and therefore this parameter should be left an
             ``None``.
         omit_empty_frames: bool, optional

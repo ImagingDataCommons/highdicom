@@ -75,10 +75,10 @@ highdicom.utils module
    :undoc-members:
    :show-inheritance:
 
-highdicom.volume module
-+++++++++++++++++++++++
+highdicom.pixel_transforms module
++++++++++++++++++++++++++++++++++
 
-.. automodule:: highdicom.volume
+.. automodule:: highdicom.pixel_transforms
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
    :special-members: __call__

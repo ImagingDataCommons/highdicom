@@ -43,41 +43,54 @@ from highdicom.enum import (
     PadModes,
     PatientSexValues,
     PhotometricInterpretationValues,
+    PixelIndexDirections,
     PixelRepresentationValues,
     PlanarConfigurationValues,
     PatientOrientationValuesBiped,
     PatientOrientationValuesQuadruped,
     PresentationLUTShapeValues,
     RescaleTypeValues,
+    RGBColorChannels,
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
 )
 from highdicom import frame
-from highdicom.image import Image
+from highdicom.image import (
+    Image,
+    imread,
+    volume_from_image_series,
+)
 from highdicom import io
+from highdicom import pixel_transforms
 from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
 from highdicom.version import __version__
-from highdicom import volume
+from highdicom.volume import (
+    RGB_COLOR_CHANNEL_DESCRIPTOR,
+    ChannelDescriptor,
+    Volume,
+    VolumeGeometry,
+    VolumeToVolumeTransformer,
+)
 
 
 __all__ = [
-    'LUT',
-    'UID',
-    'VOILUT',
+    'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
     'AxisHandedness',
+    'ChannelDescriptor',
     'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
     'CoordinateSystemNames',
     'DimensionOrganizationTypeValues',
+    'Image',
     'IssuerOfIdentifier',
+    'LUT',
     'LateralityValues',
     'ModalityLUT',
     'ModalityLUTTransformation',
-    'Image',
     'PadModes',
     'PaletteColorLUT',
     'PaletteColorLUTTransformation',
@@ -86,6 +99,7 @@ __all__ = [
     'PatientSexValues',
     'PhotometricInterpretationValues',
     'PixelMeasuresSequence',
+    'PixelIndexDirections',
     'PixelRepresentationValues',
     'PlanarConfigurationValues',
     'PlaneOrientationSequence',
@@ -95,6 +109,7 @@ __all__ = [
     'PresentationLUTTransformation',
     'ReferencedImageSequence',
     'RescaleTypeValues',
+    'RGBColorChannels',
     'SOPClass',
     'SegmentedPaletteColorLUT',
     'SpecimenCollection',
@@ -103,16 +118,23 @@ __all__ = [
     'SpecimenProcessing',
     'SpecimenSampling',
     'SpecimenStaining',
+    'UID',
     'UniversalEntityIDTypeValues',
+    'VOILUT',
     'VOILUTFunctionValues',
     'VOILUTTransformation',
+    'Volume',
+    'VolumeGeometry',
+    'VolumeToVolumeTransformer',
     '__version__',
     'ann',
     'color',
     'frame',
+    'imread',
     'io',
     'ko',
     'legacy',
+    'pixel_transforms',
     'pm',
     'pr',
     'sc',
@@ -120,5 +142,5 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
-    'volume',
+    'volume_from_image_series',
 ]

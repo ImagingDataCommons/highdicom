@@ -1087,7 +1087,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with the requested patient orientation.
 
         """  # noqa: E501
@@ -1131,7 +1131,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with spatial axes swapped as requested.
 
         """
@@ -1166,7 +1166,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with spatial axes flipped as requested.
 
         """
@@ -1204,7 +1204,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with selected spatial axes randomly flipped.
 
         """
@@ -1339,7 +1339,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with padding applied.
 
         """
@@ -1379,7 +1379,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with padding applied.
 
         """
@@ -1448,7 +1448,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with padding and/or cropping applied.
 
         """
@@ -1499,7 +1499,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume formed by cropping the volumes.
 
         """
@@ -1525,7 +1525,7 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        other: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+        other: Union[highdicom.Volume, highdicom.VolumeGeometry]
             Volume or volume geometry to which this volume should be compared.
         tol: Union[float, None], optional
             Absolute Tolerance used to determine equality of affine matrices.
@@ -1579,7 +1579,7 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        other: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+        other: Union[highdicom.Volume, highdicom.VolumeGeometry]
             Volume or volume geometry to which this volume should be matched.
 
         Returns
@@ -1726,7 +1726,7 @@ class VolumeGeometry(_VolumeBase):
 
     """Class encapsulating the geometry of a volume.
 
-    Unlike the similar :class:`highdicom.volume.Volume`, items of this class do
+    Unlike the similar :class:`highdicom.Volume`, items of this class do
     not contain voxel data for the underlying volume, just a description of the
     geometry.
 
@@ -1825,7 +1825,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New Volume using the given array and DICOM attributes.
 
         """
@@ -1920,7 +1920,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.VolumeGeometry:
+        highdicom.VolumeGeometry:
             Volume constructed from the provided components.
 
         """  # noqa: E501
@@ -1954,7 +1954,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.VolumeGeometry:
+        highdicom.VolumeGeometry:
             Copy of the original geometry.
 
         """
@@ -1978,7 +1978,7 @@ class VolumeGeometry(_VolumeBase):
     def shape(self) -> Tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
-        For objects of type :class:`highdicom.volume.VolumeGeometry`, this is
+        For objects of type :class:`highdicom.VolumeGeometry`, this is
         equivalent to `.shape`.
 
         """
@@ -1999,7 +1999,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.VolumeGeometry:
+        highdicom.VolumeGeometry:
             New volume representing a sub-volume of the original volume.
 
         """
@@ -2046,15 +2046,15 @@ class VolumeGeometry(_VolumeBase):
 
             In all cases, all integer values must be non-negative.
         mode: Union[highdicom.PadModes, str], optional
-            Ignored for :class:`highdicom.volume.VolumeGeometry`.
+            Ignored for :class:`highdicom.VolumeGeometry`.
         constant_value: Union[float, Sequence[float]], optional
-            Ignored for :class:`highdicom.volume.VolumeGeometry`.
+            Ignored for :class:`highdicom.VolumeGeometry`.
         per_channel: bool, optional
-            Ignored for :class:`highdicom.volume.VolumeGeometry`.
+            Ignored for :class:`highdicom.VolumeGeometry`.
 
         Returns
         -------
-        highdicom.volume.VolumeGeometry:
+        highdicom.VolumeGeometry:
             Volume with padding applied.
 
         """
@@ -2083,7 +2083,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.VolumeGeometry:
+        highdicom.VolumeGeometry:
             New geometry with spatial axes permuted in the provided order.
 
         """
@@ -2133,7 +2133,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume objects using this geometry and the given array.
 
         """  # noqa: E501
@@ -2353,7 +2353,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New Volume using the given array and DICOM attributes.
 
         """  # noqa: E501
@@ -2450,7 +2450,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume constructed from the provided components.
 
         """  # noqa: E501
@@ -2573,7 +2573,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with given datatype, and metadata copied from this
             volume.
 
@@ -2587,7 +2587,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Copy of the original volume.
 
         """
@@ -2629,7 +2629,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume using the given array and the metadata of this volume.
 
         """  # noqa: E501
@@ -2667,7 +2667,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume representing a sub-volume of the original volume.
 
         """
@@ -2695,7 +2695,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with spatial axes permuted in the provided order.
 
         """
@@ -2727,7 +2727,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with channel axes permuted in the provided order.
 
         """
@@ -2772,7 +2772,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             New volume with channel axes permuted in the provided order.
 
         """  # noqa: E501
@@ -2910,7 +2910,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume representing a single channel of the original volume.
 
         """
@@ -2978,7 +2978,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with normalized intensities. Note that the dtype will
             be promoted to floating point.
 
@@ -3021,7 +3021,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with normalized intensities. Note that the dtype will
             be promoted to floating point.
 
@@ -3063,7 +3063,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with clipped intensities.
 
         """
@@ -3088,7 +3088,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with channel axis removed.
 
         """  # noqa: E501
@@ -3177,7 +3177,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        highdicom.volume.Volume:
+        highdicom.Volume:
             Volume with padding applied.
 
         """
@@ -3282,9 +3282,9 @@ class VolumeToVolumeTransformer:
 
         Parameters
         ----------
-        volume_from: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+        volume_from: Union[highdicom.Volume, highdicom.VolumeGeometry]
             Volume to which input volume indices refer.
-        volume_to: Union[highdicom.volume.Volume, highdicom.volume.VolumeGeometry]
+        volume_to: Union[highdicom.Volume, highdicom.VolumeGeometry]
             Volume to which output volume indices refer.
         round_output: bool, optional
             Whether to round the output to the nearest integer (if ``True``) or

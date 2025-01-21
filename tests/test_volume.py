@@ -3,20 +3,18 @@ import pydicom
 from pydicom.data import get_testdata_file
 import pytest
 
-from highdicom.enum import PatientOrientationValuesBiped
-from highdicom.spatial import (
-    _normalize_patient_orientation,
-    _translate_affine_matrix,
-)
-from highdicom.image import (
-    imread,
-    volume_from_image_series,
-)
-from highdicom.volume import (
+from highdicom import (
     ChannelDescriptor,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
+    imread,
+    volume_from_image_series,
+)
+from highdicom.enum import PatientOrientationValuesBiped
+from highdicom.spatial import (
+    _normalize_patient_orientation,
+    _translate_affine_matrix,
 )
 
 
