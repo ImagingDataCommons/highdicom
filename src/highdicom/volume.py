@@ -24,6 +24,7 @@ from highdicom.spatial import (
     _stack_affine_matrix,
     _transform_affine_matrix,
     _translate_affine_matrix,
+    _transform_affine_to_convention,
     create_affine_matrix_from_attributes,
     create_affine_matrix_from_components,
     get_closest_patient_orientation,
@@ -587,6 +588,65 @@ class _VolumeBase(ABC):
 
         """
         return self._affine.copy()
+
+    def get_affine(
+        self,
+        output_convention: Union[
+            str,
+            Sequence[Union[str, PatientOrientationValuesBiped]],
+            None,
+        ],
+    ) -> np.ndarray:
+        """Get affine matrix in a particular convention.
+
+        Note that DICOM uses the left-posterior-superior ("LPS") convention
+        relative to the patient, in which the increasing direction of the first
+        moves from the patient's right to left, the increasing direction of the
+        second axis moves from the patient's anterior to posterior, and the
+        increasing direction of the third axis moves from the patient's
+        inferior (foot) to superior (head). In highdicom, this is represented
+        by the string ``"LPH"`` (left-posterior-head). Since highdicom volumes
+        follow this convention, the affine matrix is stored internally as a
+        matrix that maps array indices into coordinates along these three
+        axes.
+
+        This method allows you to get the affine matrix that maps the same
+        array indices into coordinates in a frame-of-reference that uses a
+        different convention. Another convention in widespread use is the
+        ``"RAH"`` (aka "RAS") convention used by the Nifti file format and many
+        neuro-image analysis tools.
+
+        Parameters
+        ----------
+        output_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None
+            Description of a convention for defining patient-relative
+            frame-of-reference consisting of three directions, either L or R,
+            either A or P, and either F or H, in any order. May be passed
+            either as a tuple of
+            :class:``highdicom.PatientOrientationValuesBiped`` values or the
+            single-letter codes representing them, or the same characters as a
+            single three-character string, such as ``"RAH"``.
+
+        Returns
+        -------
+        numpy.ndarray:
+            4x4 affine transformation matrix mapping augmented voxel indices to
+            frame-of-reference coordinates defined by the chosen convention.
+
+        """
+        affine = self.affine
+        if output_convention is not None:
+            affine = _transform_affine_to_convention(
+                affine,
+                self.spatial_shape,
+                from_reference_convention=(
+                    PatientOrientationValuesBiped.L,
+                    PatientOrientationValuesBiped.P,
+                    PatientOrientationValuesBiped.H,
+                ),
+                to_reference_convention=output_convention,
+            )
+        return affine
 
     @property
     def inverse_affine(self) -> np.ndarray:
