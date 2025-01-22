@@ -209,7 +209,7 @@ class _CombinedPixelTransformation:
         output_dtype: Union[type, str, numpy.dtype], optional
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
-            Whether to apply to apply the real-world value map to the frame.
+            Whether to apply a real-world value map to the frame.
             The real world value map converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
@@ -236,8 +236,8 @@ class _CombinedPixelTransformation:
             the units (contained in the ``"MeasurementUnitsCodeSequence"``
             attribute).
         apply_modality_transform: bool | None, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -250,7 +250,7 @@ class _CombinedPixelTransformation:
         apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
             dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
+            range of interest using either a windowing operation or a LUT.
 
             If True, the transform is applied if present, and if not
             present an error will be raised. If False, the transform will not
@@ -280,7 +280,7 @@ class _CombinedPixelTransformation:
             to a 3 sample-per-pixel color image.
         apply_presentation_lut: bool, optional
             Apply the presentation LUT transform to invert the pixel values. If
-            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
             or the PresentationLUTShape is not present but the Photometric
             Interpretation is MONOCHROME1, convert the range of the output
             pixels corresponds to MONOCHROME2 (in which high values are
@@ -1307,9 +1307,9 @@ class _Image(SOPClass):
         been decompressed from the raw bytes, interpreted as the correct pixel
         datatype (according to the pixel representation and planar
         configuration) and reshaped into a 2D (grayscale image) or 3D (color)
-        frame. However, no further pixel transformation, such as the modality
-        transform, VOI transforms, palette color LUTs, or ICC profile, had been
-        applied.
+        NumPy array. However, no further pixel transformation, such as the
+        modality transform, VOI transforms, palette color LUTs, or ICC profile,
+        has been applied.
 
         To get frames with pixel transformations applied (as is appropriate for
         most applications), use :func:`highdicom.Image.get_frame`
@@ -1401,7 +1401,7 @@ class _Image(SOPClass):
         dtype: Union[type, str, numpy.dtype],
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
-            Whether to apply to apply the real-world value map to the frame.
+            Whether to apply a real-world value map to the frame.
             The real world value map converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
@@ -1428,8 +1428,8 @@ class _Image(SOPClass):
             the units (contained in the ``"MeasurementUnitsCodeSequence"``
             attribute).
         apply_modality_transform: bool | None, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -1441,7 +1441,7 @@ class _Image(SOPClass):
             present.
         apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
-            dataset), which limits the range of pixel values to a particular
+            dataset) which limits the range of pixel values to a particular
             range of interest, using either a windowing operation or a LUT.
 
             If True, the transform is applied if present, and if not
@@ -1472,7 +1472,7 @@ class _Image(SOPClass):
             to a 3 sample-per-pixel color image.
         apply_presentation_lut: bool, optional
             Apply the presentation LUT transform to invert the pixel values. If
-            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
             or the PresentationLUTShape is not present but the Photometric
             Interpretation is MONOCHROME1, convert the range of the output
             pixels corresponds to MONOCHROME2 (in which high values are
@@ -3144,7 +3144,7 @@ class _Image(SOPClass):
         dtype: Union[type, str, numpy.dtype], optional
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
-            Whether to apply to apply the real-world value map to the frame.
+            Whether to apply a real-world value map to the frame.
             The real world value map converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
@@ -3171,8 +3171,8 @@ class _Image(SOPClass):
             the units (contained in the ``"MeasurementUnitsCodeSequence"``
             attribute).
         apply_modality_transform: bool | None, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -3185,7 +3185,7 @@ class _Image(SOPClass):
         apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
             dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
+            range of interest using either a windowing operation or a LUT.
 
             If True, the transform is applied if present, and if not
             present an error will be raised. If False, the transform will not
@@ -3215,7 +3215,7 @@ class _Image(SOPClass):
             to a 3 sample-per-pixel color image.
         apply_presentation_lut: bool, optional
             Apply the presentation LUT transform to invert the pixel values. If
-            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
             or the PresentationLUTShape is not present but the Photometric
             Interpretation is MONOCHROME1, convert the range of the output
             pixels corresponds to MONOCHROME2 (in which high values are
@@ -4500,7 +4500,7 @@ class Image(_Image):
         dtype: Union[type, str, numpy.dtype], optional
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
-            Whether to apply to apply the real-world value map to the frame.
+            Whether to apply a real-world value map to the frame.
             The real world value map converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
@@ -4527,8 +4527,8 @@ class Image(_Image):
             the units (contained in the ``"MeasurementUnitsCodeSequence"``
             attribute).
         apply_modality_transform: bool | None, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -4541,7 +4541,7 @@ class Image(_Image):
         apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
             dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
+            range of interest using either a windowing operation or a LUT.
 
             If True, the transform is applied if present, and if not
             present an error will be raised. If False, the transform will not
@@ -4571,7 +4571,7 @@ class Image(_Image):
             to a 3 sample-per-pixel color image.
         apply_presentation_lut: bool, optional
             Apply the presentation LUT transform to invert the pixel values. If
-            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
             or the PresentationLUTShape is not present but the Photometric
             Interpretation is MONOCHROME1, convert the range of the output
             pixels corresponds to MONOCHROME2 (in which high values are
@@ -4811,7 +4811,7 @@ class Image(_Image):
         dtype: Union[type, str, numpy.dtype], optional
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
-            Whether to apply to apply the real-world value map to the frame.
+            Whether to apply a real-world value map to the frame.
             The real world value map converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
@@ -4838,8 +4838,8 @@ class Image(_Image):
             the units (contained in the ``"MeasurementUnitsCodeSequence"``
             attribute).
         apply_modality_transform: bool | None, optional
-            Whether to apply to the modality transform (if present in the
-            dataset) the frame. The modality transformation maps stored pixel
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transformation maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -4852,7 +4852,7 @@ class Image(_Image):
         apply_voi_transform: bool | None, optional
             Apply the value-of-interest (VOI) transformation (if present in the
             dataset), which limits the range of pixel values to a particular
-            range of interest, using either a windowing operation or a LUT.
+            range of interest using either a windowing operation or a LUT.
 
             If True, the transform is applied if present, and if not
             present an error will be raised. If False, the transform will not
@@ -4882,7 +4882,7 @@ class Image(_Image):
             to a 3 sample-per-pixel color image.
         apply_presentation_lut: bool, optional
             Apply the presentation LUT transform to invert the pixel values. If
-            the PresentationLUTShape is present with the value ``'INVERSE''``,
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
             or the PresentationLUTShape is not present but the Photometric
             Interpretation is MONOCHROME1, convert the range of the output
             pixels corresponds to MONOCHROME2 (in which high values are
@@ -5016,7 +5016,7 @@ def get_volume_from_series(
     dtype: Union[type, str, numpy.dtype], optional
         Data type of the returned array.
     apply_real_world_transform: bool | None, optional
-        Whether to apply to apply the real-world value map to the frame.
+        Whether to apply a real-world value map to the frame.
         The real world value map converts stored pixel values to output
         values with a real-world meaning, either using a LUT or a linear
         slope and intercept.
@@ -5043,10 +5043,9 @@ def get_volume_from_series(
         the units (contained in the ``"MeasurementUnitsCodeSequence"``
         attribute).
     apply_modality_transform: bool | None, optional
-        Whether to apply to the modality transform (if present in the
-        dataset) the frame. The modality transformation maps stored pixel
-        values to output values, either using a LUT or rescale slope and
-        intercept.
+        Whether to apply the modality transform (if present in the dataset) to
+        the frame. The modality transformation maps stored pixel values to
+        output values, either using a LUT or rescale slope and intercept.
 
         If True, the transform is applied if present, and if not
         present an error will be raised. If False, the transform will not
@@ -5057,7 +5056,7 @@ def get_volume_from_series(
     apply_voi_transform: bool | None, optional
         Apply the value-of-interest (VOI) transformation (if present in the
         dataset), which limits the range of pixel values to a particular
-        range of interest, using either a windowing operation or a LUT.
+        range of interest using either a windowing operation or a LUT.
 
         If True, the transform is applied if present, and if not
         present an error will be raised. If False, the transform will not
@@ -5087,7 +5086,7 @@ def get_volume_from_series(
         to a 3 sample-per-pixel color image.
     apply_presentation_lut: bool, optional
         Apply the presentation LUT transform to invert the pixel values. If
-        the PresentationLUTShape is present with the value ``'INVERSE''``,
+        the PresentationLUTShape is present with the value ``'INVERSE'``,
         or the PresentationLUTShape is not present but the Photometric
         Interpretation is MONOCHROME1, convert the range of the output
         pixels corresponds to MONOCHROME2 (in which high values are
