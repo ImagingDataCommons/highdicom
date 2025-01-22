@@ -1278,6 +1278,13 @@ def test_imread_all_test_files(f):
         vol_lazy = im_lazy.get_volume()
 
         assert np.array_equal(vol.array, vol_lazy.array)
+    elif im.coordinate_system is None:
+        msg = (
+            'Image does not exist within a frame-of-reference coordinate '
+            'system.'
+        )
+        with pytest.raises(RuntimeError, match=msg):
+            im.get_volume()
 
     assert isinstance(im.pixel_array, np.ndarray)
     assert np.array_equal(im.pixel_array, im_lazy.pixel_array)

@@ -105,9 +105,6 @@ _DCM_SQL_TYPE_MAP = {
 
 # TODO new type hints
 # TODO rebase parametric map
-# TODO behavior of simple frame images
-# TODO referenced images for non-seg images
-# TODO allow tolerance parameter to be passed for volumes
 # TODO exports/inits and docs
 # TODO add labelmap to seg documentation
 # TODO quickstart for image/volume
@@ -1653,26 +1650,27 @@ class _Image(SOPClass):
         col_defs.append('FrameNumber INTEGER PRIMARY KEY')
         col_data = [[1]]
 
-        for t in [
-            0x0020_0032,  # ImagePositionPatient
-            0x0020_0037,  # ImageOrientionPatient
-            0x0028_0030,  # PixelSpacing
-            0x0018_0088,  # SpacingBetweenSlices
-        ]:
-            vr, vm_str, _, _, kw = get_entry(t)
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            for t in [
+                0x0020_0032,  # ImagePositionPatient
+                0x0020_0037,  # ImageOrientionPatient
+                0x0028_0030,  # PixelSpacing
+                0x0018_0088,  # SpacingBetweenSlices
+            ]:
+                vr, vm_str, _, _, kw = get_entry(t)
 
-            vm = int(vm_str)
-            sql_type = _DCM_SQL_TYPE_MAP[vr]
+                vm = int(vm_str)
+                sql_type = _DCM_SQL_TYPE_MAP[vr]
 
-            if kw in self:
-                v = self.get(kw)
-                if vm > 1:
-                    for i, v in enumerate(v):
-                        col_defs.append(f'{kw}_{i} {sql_type} NOT NULL')
+                if kw in self:
+                    v = self.get(kw)
+                    if vm > 1:
+                        for i, v in enumerate(v):
+                            col_defs.append(f'{kw}_{i} {sql_type} NOT NULL')
+                            col_data.append([v])
+                    else:
+                        col_defs.append(f'{kw} {sql_type} NOT NULL')
                         col_data.append([v])
-                else:
-                    col_defs.append(f'{kw} {sql_type} NOT NULL')
-                    col_data.append([v])
 
         if 'SourceImageSequence' in self:
             self._single_source_frame_per_frame = (
@@ -2947,6 +2945,12 @@ class _Image(SOPClass):
             Geometry of the volume.
 
         """
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                "Image does not exist within a frame-of-reference "
+                "coordinate system."
+            )
+
         if is_multiframe_image(self):
             if (
                 self.is_tiled and
@@ -4623,6 +4627,11 @@ class Image(_Image):
         that have to be decoded and transformed.
 
         """  # noqa: E501
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                "Image does not exist within a frame-of-reference "
+                "coordinate system."
+            )
         if self.is_tiled:
             total_rows = self.TotalPixelMatrixRows
             total_columns = self.TotalPixelMatrixColumns

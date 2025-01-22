@@ -46,9 +46,9 @@ def _assert_value_type(
 
     Parameters
     ----------
-    dataset: pydicom.dataset.Dataset
+    dataset: pydicom.Dataset
         Dataset representing an SR Content Item
-    value_type: highdicom.sr.enum.ValueTypeValues
+    value_type: highdicom.sr.ValueTypeValues
         Expected value of Value Type attribute
 
     Raises
