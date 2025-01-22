@@ -77,7 +77,7 @@ class ChannelDescriptor:
 
     A channel dimension may be described either using a standard DICOM
     attribute (preferable where possible) or a custom descriptor that defines
-    the quantity or characeristic that varies along that dimension.
+    the quantity or characteristic that varies along the dimension.
 
     """
 
@@ -623,7 +623,7 @@ class _VolumeBase(ABC):
             frame-of-reference consisting of three directions, either L or R,
             either A or P, and either F or H, in any order. May be passed
             either as a tuple of
-            :class:``highdicom.PatientOrientationValuesBiped`` values or the
+            :class:`highdicom.PatientOrientationValuesBiped` values or the
             single-letter codes representing them, or the same characters as a
             single three-character string, such as ``"RAH"``.
 
@@ -728,8 +728,11 @@ class _VolumeBase(ABC):
         return tuple(self._affine[:3, 3].tolist())
 
     @property
-    def physical_extent(self) -> Tuple[float, float, float]:
-        """List[float]: Side lengths of the volume in millimeters."""
+    def physical_extent(self) -> tuple[float, float, float]:
+        """tuple[float, float, float]: Side lengths of the volume
+        in millimeters.
+
+        """
         return tuple(
             [n * d for n, d in zip(self.spatial_shape, self.spacing)]
         )

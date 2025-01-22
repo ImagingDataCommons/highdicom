@@ -266,8 +266,18 @@ class ImageFileReader:
 
     """Reader for DICOM datasets representing Image Information Entities.
 
-    It provides efficient access to individual Frame items contained in the
-    Pixel Data element without loading the entire element into memory.
+    It provides efficient, "lazy", access to individual frame items contained
+    in the Pixel Data element without loading the entire element into memory.
+
+    Note
+    ----
+    As of highdicom 0.24.0, users should prefer the :class:`highdicom.Image`
+    class with lazy frame retrieval (e.g. as output by the
+    :func:`highdicom.imread` function when `lazy_frame_retrieval=True`) to this
+    class in most situations. The :class:`highdicom.Image` class offers the
+    same lazy frame-level access, but additionally has several higher-level
+    features, including apply pixel transformations to loaded frames,
+    constructing total pixel matrices, and constructing volumes.
 
     Examples
     --------

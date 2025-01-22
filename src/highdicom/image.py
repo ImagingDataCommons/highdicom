@@ -4979,7 +4979,7 @@ def imread(
 
     Returns
     -------
-    highdicom.Image
+    highdicom.Image:
         Image read from the file.
 
     """
