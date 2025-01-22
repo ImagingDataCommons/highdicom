@@ -4990,7 +4990,7 @@ def imread(
     return Image.from_file(fp, lazy_frame_retrieval=lazy_frame_retrieval)
 
 
-def volume_from_image_series(
+def get_volume_from_series(
     series_datasets: Sequence[Dataset],
     *,
     dtype: Union[type, str, np.dtype] = np.float64,

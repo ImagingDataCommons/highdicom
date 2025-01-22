@@ -58,7 +58,7 @@ from highdicom import frame
 from highdicom.image import (
     Image,
     imread,
-    volume_from_image_series,
+    get_volume_from_series,
 )
 from highdicom import io
 from highdicom import pixels
@@ -142,5 +142,5 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
-    'volume_from_image_series',
+    'get_volume_from_series',
 ]

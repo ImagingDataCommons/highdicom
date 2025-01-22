@@ -9,7 +9,7 @@ from highdicom import (
     VolumeGeometry,
     VolumeToVolumeTransformer,
     imread,
-    volume_from_image_series,
+    get_volume_from_series,
 )
 from highdicom.enum import PatientOrientationValuesBiped
 from highdicom.spatial import (
@@ -30,7 +30,7 @@ def read_ct_series_volume():
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    return volume_from_image_series(ct_series), ct_series
+    return get_volume_from_series(ct_series), ct_series
 
 
 def test_transforms():
