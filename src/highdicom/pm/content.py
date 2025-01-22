@@ -9,7 +9,7 @@ from highdicom._module_utils import is_multiframe_image
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
-from highdicom.pixel_transforms import apply_lut
+from highdicom.pixels import apply_lut
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import CodeContentItem
 from highdicom.uid import UID

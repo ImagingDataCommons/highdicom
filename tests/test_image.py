@@ -21,7 +21,7 @@ from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransformation,
 )
-from highdicom.pixel_transforms import (
+from highdicom.pixels import (
     apply_voi_window,
 )
 from highdicom.pr.content import (

@@ -22,7 +22,7 @@ from highdicom.enum import (
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
 )
-from highdicom.pixel_transforms import (
+from highdicom.pixels import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
     _parse_palette_color_lut_attributes,

@@ -47,7 +47,7 @@ from highdicom.enum import (
 )
 from highdicom.frame import decode_frame
 from highdicom.io import ImageFileReader
-from highdicom.pixel_transforms import (
+from highdicom.pixels import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
     _select_real_world_value_map,

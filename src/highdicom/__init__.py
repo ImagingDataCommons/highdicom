@@ -61,7 +61,7 @@ from highdicom.image import (
     volume_from_image_series,
 )
 from highdicom import io
-from highdicom import pixel_transforms
+from highdicom import pixels
 from highdicom import spatial
 from highdicom.uid import UID
 from highdicom import utils
@@ -134,7 +134,7 @@ __all__ = [
     'io',
     'ko',
     'legacy',
-    'pixel_transforms',
+    'pixels',
     'pm',
     'pr',
     'sc',
