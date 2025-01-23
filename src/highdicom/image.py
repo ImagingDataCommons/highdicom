@@ -5130,6 +5130,9 @@ def get_volume_from_series(
             "coordinate_system."
         )
 
+    image_orientation = series_datasets[0].ImageOrientationPatient
+    pixel_spacing = series_datasets[0].PixelSpacing
+
     frame_of_reference_uid = series_datasets[0].FrameOfReferenceUID
     series_instance_uid = series_datasets[0].SeriesInstanceUID
     if not all(
@@ -5143,6 +5146,18 @@ def get_volume_from_series(
         for ds in series_datasets
     ):
         raise ValueError('Images do not share a frame of reference.')
+
+    if not all(
+        ds.ImageOrientationPatient == image_orientation
+        for ds in series_datasets
+    ):
+        raise ValueError('Images do not have the same orientation.')
+
+    if not all(
+        ds.PixelSpacing == pixel_spacing
+        for ds in series_datasets
+    ):
+        raise ValueError('Images do not have the same spacing.')
 
     if len(series_datasets) == 1:
         slice_spacing = series_datasets[0].get('SpacingBetweenSlices', 1.0)
@@ -5195,8 +5210,8 @@ def get_volume_from_series(
         array=array,
         frame_of_reference_uid=frame_of_reference_uid,
         image_position=first_ds.ImagePositionPatient,
-        image_orientation=first_ds.ImageOrientationPatient,
-        pixel_spacing=first_ds.PixelSpacing,
+        image_orientation=image_orientation,
+        pixel_spacing=pixel_spacing,
         spacing_between_slices=slice_spacing,
         channels=channels,
         coordinate_system=coordinate_system,
