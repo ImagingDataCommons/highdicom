@@ -253,7 +253,7 @@ def test_volume_single_frame():
     assert direction[:, 0] @ direction[:, 2] == 0.0
     assert (direction[:, 0] ** 2).sum() == 1.0
 
-    assert volume.position == tuple(ct_series[0].ImagePositionPatient)
+    assert volume.position == tuple(ct_series[1].ImagePositionPatient)
 
     assert volume.pixel_spacing == tuple(ct_series[0].PixelSpacing)
     slice_spacing = 1.25
